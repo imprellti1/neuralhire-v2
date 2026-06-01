@@ -1,0 +1,11 @@
+[
+  {
+    "method": "PATCH",
+    "path": "/v1/pedidos/1/status",
+    "query": {},
+    "headers": {},
+    "body": {
+      "status": "aprovado"
+    }
+  }
+]

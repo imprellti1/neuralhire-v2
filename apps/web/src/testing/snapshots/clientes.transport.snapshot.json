@@ -1,0 +1,116 @@
+[
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/clientes",
+    "query": {
+      "limit": "10",
+      "page": "1"
+    }
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/clientes",
+    "query": {
+      "limit": "200",
+      "page": "1"
+    }
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/pedidos",
+    "query": {
+      "limit": "500",
+      "page": "1"
+    }
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/clientes",
+    "query": {
+      "limit": "200",
+      "page": "1"
+    }
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/pedidos",
+    "query": {
+      "limit": "500",
+      "page": "1"
+    }
+  },
+  {
+    "body": {
+      "empresa": "Acme",
+      "nome": "Acme",
+      "nome_contato": "Cliente X",
+      "status": "ativo"
+    },
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "POST",
+    "path": "/clientes",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/clientes",
+    "query": {
+      "limit": "200",
+      "page": "1"
+    }
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/pedidos",
+    "query": {
+      "limit": "500",
+      "page": "1"
+    }
+  }
+]

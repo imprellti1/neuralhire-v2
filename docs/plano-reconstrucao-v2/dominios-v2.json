@@ -1,0 +1,3272 @@
+{
+  "generatedAt": "2026-05-28T20:29:31.932Z",
+  "totalArquivos": 187,
+  "arquivosMapeados": 187,
+  "arquivosSemDominio": 0,
+  "coberturaPercentual": 100,
+  "dominios": {
+    "core-platform": {
+      "totalArquivos": 32,
+      "riscoMedio": 25.1,
+      "reaproveitamentoMedio": 83,
+      "recommendationPredominante": "copiar_para_novo_modulo",
+      "arquivos": [
+        {
+          "path": "admin-app/public/js/core/api.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/public/js/core/events.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/public/js/core/router.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 8,
+            "riscoOperacional": 0,
+            "reaproveitamento": 97
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/public/utils.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 14,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 95
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/scripts/dev-server.ps1",
+          "extension": ".ps1",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/scripts/stop-dev-server.ps1",
+          "extension": ".ps1",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/server.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 100,
+            "acoplamento": 50,
+            "riscoOperacional": 62,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "alto",
+          "reasons": [],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/enriquecimento/coleta-textos-publicos-cliente.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 19,
+            "acoplamento": 0,
+            "riscoOperacional": 42,
+            "reaproveitamento": 54
+          },
+          "recommendation": "reaproveitar_com_revisao",
+          "riskLevel": "baixo",
+          "reasons": [],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/whatsapp/identificacao-cliente-whatsapp.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 9,
+            "acoplamento": 1,
+            "riscoOperacional": 52,
+            "reaproveitamento": 76
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260513_create_fabricante_regras.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260514_add_codigo_cliente_fabricante_clientes.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260515_add_logo_url_fabricantes.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260515_create_client_cnpj_job_logs.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 90
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260518_agente_followup_fase1.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 84
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260520_add_bloqueio_followup_manual_clientes.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 84
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260520_create_cliente_dossies_ia.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 90
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260520_create_cliente_memoria_comercial.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 90
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260521_resumo_comercial_oficial.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 2,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 99
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260526_add_ai_pipeline_fields_to_clientes.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 84
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260527_add_whatsapp_contact_fields_clientes.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 84
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260527_upgrade_sinais_comerciais_pendentes_operacional.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 2,
+            "acoplamento": 0,
+            "riscoOperacional": 20,
+            "reaproveitamento": 93
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260528_add_cliente_cadastro_enriquecido_fields.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 20,
+            "reaproveitamento": 94
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260528_cliente_descoberta_digital_unique_account_cliente.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 20,
+            "reaproveitamento": 94
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260528_refactor_clientes_enriquecimento.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 3,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 89
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/supabase/migrations/create-sinais-comerciais-pendentes.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 90
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/supabase/sql/clientes_resumo_comercial_view.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 2,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 99
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/supabase/sql/ia_comercial_snapshots.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 90
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/supabase/sql/sinais_comerciais.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 90
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/supabase/sql/sinais_comerciais_regex.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/app/server.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 100,
+            "acoplamento": 36,
+            "riscoOperacional": 62,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "alto",
+          "reasons": [],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/server.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 100,
+            "acoplamento": 36,
+            "riscoOperacional": 62,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "alto",
+          "reasons": [],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "Representantes - Fluxo Consolidado V7.4 (Restaura Apos Supabase) (1).json",
+          "extension": ".json",
+          "scores": {
+            "complexidade": 2,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 90
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        }
+      ]
+    },
+    "autenticacao-contas": {
+      "totalArquivos": 1,
+      "riscoMedio": 20,
+      "reaproveitamentoMedio": 88,
+      "recommendationPredominante": "copiar_para_novo_modulo",
+      "arquivos": [
+        {
+          "path": "admin-app/public/js/modules/login.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 9,
+            "acoplamento": 8,
+            "riscoOperacional": 20,
+            "reaproveitamento": 88
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        }
+      ]
+    },
+    "usuarios-permissoes": {
+      "totalArquivos": 24,
+      "riscoMedio": 21.3,
+      "reaproveitamentoMedio": 76.2,
+      "recommendationPredominante": "copiar_para_novo_modulo",
+      "arquivos": [
+        {
+          "path": "admin-app/atualiza.bat",
+          "extension": ".bat",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/package.json",
+          "extension": ".json",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/public/admin.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 13,
+            "acoplamento": 8,
+            "riscoOperacional": 32,
+            "reaproveitamento": 83
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/public/app.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 100,
+            "acoplamento": 24,
+            "riscoOperacional": 42,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "medio",
+          "reasons": [],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/public/index.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 3,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 89
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/public/js/components/language-switcher.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 13,
+            "riscoOperacional": 0,
+            "reaproveitamento": 95
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/public/js/i18n/index.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 3,
+            "acoplamento": 1,
+            "riscoOperacional": 0,
+            "reaproveitamento": 98
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/public/js/i18n/pt-BR.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 2,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 90
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/public/js/modules/mapa.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 17,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 84
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/public/js/modules/sinais-comerciais.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 34,
+            "acoplamento": 5,
+            "riscoOperacional": 32,
+            "reaproveitamento": 74
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/public/styles.css",
+          "extension": ".css",
+          "scores": {
+            "complexidade": 54,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 51
+          },
+          "recommendation": "reaproveitar_com_revisao",
+          "riskLevel": "baixo",
+          "reasons": [],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260512_add_created_by_user_id_condicoes_pagamento.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260520_add_vendedor_id_app_users.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/app/package.json",
+          "extension": ".json",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/app/public/admin.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 12,
+            "acoplamento": 8,
+            "riscoOperacional": 32,
+            "reaproveitamento": 83
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/app/public/app.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 100,
+            "acoplamento": 13,
+            "riscoOperacional": 42,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "medio",
+          "reasons": [],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/app/public/index.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 3,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 89
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/app/public/styles.css",
+          "extension": ".css",
+          "scores": {
+            "complexidade": 31,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 60
+          },
+          "recommendation": "reaproveitar_com_revisao",
+          "riskLevel": "baixo",
+          "reasons": [],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/atualiza.bat",
+          "extension": ".bat",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/package.json",
+          "extension": ".json",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/public/admin.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 12,
+            "acoplamento": 8,
+            "riscoOperacional": 32,
+            "reaproveitamento": 83
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/public/app.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 100,
+            "acoplamento": 13,
+            "riscoOperacional": 42,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "medio",
+          "reasons": [],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/public/index.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 3,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 89
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/public/styles.css",
+          "extension": ".css",
+          "scores": {
+            "complexidade": 31,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 60
+          },
+          "recommendation": "reaproveitar_com_revisao",
+          "riskLevel": "baixo",
+          "reasons": [],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        }
+      ]
+    },
+    "clientes-crm": {
+      "totalArquivos": 16,
+      "riscoMedio": 8.5,
+      "reaproveitamentoMedio": 97.8,
+      "recommendationPredominante": "copiar_para_novo_modulo",
+      "arquivos": [
+        {
+          "path": "admin-app/public/js/modules/clientes.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 11,
+            "acoplamento": 1,
+            "riscoOperacional": 0,
+            "reaproveitamento": 96
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/scripts/saneia-receita-clientes.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 10,
+            "acoplamento": 4,
+            "riscoOperacional": 20,
+            "reaproveitamento": 89
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/clientes/enriquecimento/enriquecimento-cadastro-completo.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 11,
+            "acoplamento": 2,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/clientes/enriquecimento/enriquecimento-cnpj.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 10,
+            "acoplamento": 1,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/clientes/enriquecimento/enriquecimento-fachada.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/clientes/enriquecimento/index.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 3,
+            "acoplamento": 2,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/clientes/enriquecimento/normalizadores.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/clientes/enriquecimento/schema-clientes.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/clientes/enriquecimento-cnpj-cliente.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 10,
+            "acoplamento": 1,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/clientes/repositorios/cliente-enriquecimento-cnpj-repository.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 1,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/clientes/repositorios/cliente-metricas-comerciais-repository.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 1,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/clientes/repositorios/cliente-pipeline-ia-repository.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 1,
+            "riscoOperacional": 52,
+            "reaproveitamento": 99
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "site-institucional/follow-up-automatico-clientes.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "site-institucional/gestao-de-carteira-de-clientes.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 3
+        },
+        {
+          "path": "site-institucional/landing_leads.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 90
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "supabase/seeds/sinais-comerciais-crm-ia.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 2,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 90
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        }
+      ]
+    },
+    "pedidos-comercial": {
+      "totalArquivos": 3,
+      "riscoMedio": 14,
+      "reaproveitamentoMedio": 44,
+      "recommendationPredominante": "apenas_consultar",
+      "arquivos": [
+        {
+          "path": "admin-app/public/app.js.bak_before_pedidos_fix",
+          "extension": ".bak_before_pedidos_fix",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/public/js/modules/pedidos.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 73,
+            "acoplamento": 9,
+            "riscoOperacional": 42,
+            "reaproveitamento": 32
+          },
+          "recommendation": "reaproveitar_com_revisao",
+          "riskLevel": "medio",
+          "reasons": [],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 2
+        },
+        {
+          "path": "site-institucional/gestao-de-pedidos-representante.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 2
+        }
+      ]
+    },
+    "produtos-catalogo": {
+      "totalArquivos": 4,
+      "riscoMedio": 10,
+      "reaproveitamentoMedio": 94,
+      "recommendationPredominante": "copiar_para_novo_modulo",
+      "arquivos": [
+        {
+          "path": "admin-app/public/js/modules/produtos.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 26,
+            "acoplamento": 8,
+            "riscoOperacional": 0,
+            "reaproveitamento": 88
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/followup/produtos-comercial-dictionary.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 40,
+            "reaproveitamento": 88
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260513_add_multiplo_venda_produtos.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260518_add_foto_url_produtos.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        }
+      ]
+    },
+    "whatsapp-ia": {
+      "totalArquivos": 10,
+      "riscoMedio": 54,
+      "reaproveitamentoMedio": 72.7,
+      "recommendationPredominante": "copiar_para_novo_modulo",
+      "arquivos": [
+        {
+          "path": "admin-app/public/js/modules/agente-whatsapp-ia.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 37,
+            "acoplamento": 13,
+            "riscoOperacional": 62,
+            "reaproveitamento": 37
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "medio",
+          "reasons": [],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/public/js/modules/whatsapp-evolution.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 10,
+            "acoplamento": 6,
+            "riscoOperacional": 52,
+            "reaproveitamento": 79
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/followup/prompts/prompt-resposta-whatsapp.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 84
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/followup/prompts/prompt-whatsapp-comercial.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 84
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/followup/whatsapp-message-queue.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 45,
+            "acoplamento": 0,
+            "riscoOperacional": 62,
+            "reaproveitamento": 41
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "medio",
+          "reasons": [],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/src/whatsapp/whatsapp-identificacao.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 26,
+            "acoplamento": 2,
+            "riscoOperacional": 52,
+            "reaproveitamento": 72
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/whatsapp/whatsapp-instancias.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 9,
+            "acoplamento": 1,
+            "riscoOperacional": 52,
+            "reaproveitamento": 78
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/whatsapp/whatsapp-modos.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 84
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260526_create_cliente_whatsapp_message_queue.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 84
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/supabase/migrations/20260527_whatsapp_queue_metrics_and_runtime_fields.sql",
+          "extension": ".sql",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 84
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 2
+        }
+      ]
+    },
+    "followup-ia": {
+      "totalArquivos": 23,
+      "riscoMedio": 49.8,
+      "reaproveitamentoMedio": 76.3,
+      "recommendationPredominante": "copiar_para_novo_modulo",
+      "arquivos": [
+        {
+          "path": "admin-app/public/js/modules/followup-agent.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 100,
+            "acoplamento": 17,
+            "riscoOperacional": 62,
+            "reaproveitamento": 2
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "medio",
+          "reasons": [],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/public/js/modules/followup-aprovacao.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 9,
+            "acoplamento": 1,
+            "riscoOperacional": 52,
+            "reaproveitamento": 81
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/public/js/modules/followup-cockpit.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 10,
+            "acoplamento": 1,
+            "riscoOperacional": 52,
+            "reaproveitamento": 81
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/public/js/modules/followup-dossie-helpers.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 11,
+            "acoplamento": 1,
+            "riscoOperacional": 52,
+            "reaproveitamento": 80
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/public/js/modules/followup-memoria-comercial.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 9,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 81
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/public/js/modules/followup-timeline.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 10,
+            "acoplamento": 1,
+            "riscoOperacional": 52,
+            "reaproveitamento": 81
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/public/js/modules/followup-visao-executiva.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 9,
+            "acoplamento": 1,
+            "riscoOperacional": 52,
+            "reaproveitamento": 81
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/scripts/test-followup-ia-comercial.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 19,
+            "acoplamento": 1,
+            "riscoOperacional": 52,
+            "reaproveitamento": 77
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/followup/consolidacao-tags-comerciais.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 9,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 81
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/followup/crm-pipeline-sync.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 10,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 79
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/followup/datas-comerciais.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 9,
+            "acoplamento": 0,
+            "riscoOperacional": 40,
+            "reaproveitamento": 84
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/followup/estado-estrategico.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 32,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 67
+          },
+          "recommendation": "reaproveitar_com_revisao",
+          "riskLevel": "baixo",
+          "reasons": [],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/followup/estado-executivo-comercial.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 18,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 78
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/followup/ia-comercial.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 22,
+            "acoplamento": 3,
+            "riscoOperacional": 52,
+            "reaproveitamento": 73
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/followup/ia-externa/analisador-concorrentes-multicanal.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 9,
+            "acoplamento": 1,
+            "riscoOperacional": 52,
+            "reaproveitamento": 79
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/followup/ia-externa/classificador-perfil-loja.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 9,
+            "acoplamento": 0,
+            "riscoOperacional": 40,
+            "reaproveitamento": 85
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/followup/ia-externa/detector-segmentos.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 18,
+            "acoplamento": 0,
+            "riscoOperacional": 40,
+            "reaproveitamento": 80
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/followup/ia-snapshots.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 9,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 80
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/followup/resposta-comercial-ia.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 9,
+            "acoplamento": 1,
+            "riscoOperacional": 52,
+            "reaproveitamento": 80
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/followup/sinais-comerciais-db.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 18,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 77
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/followup/sinais-comerciais-engine.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 10,
+            "acoplamento": 1,
+            "riscoOperacional": 40,
+            "reaproveitamento": 83
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/followup/sinais-nao-classificados.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 9,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 80
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/followup/validacao-coerencia-comercial.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 9,
+            "acoplamento": 1,
+            "riscoOperacional": 40,
+            "reaproveitamento": 84
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        }
+      ]
+    },
+    "pipeline-comercial": {
+      "totalArquivos": 1,
+      "riscoMedio": 62,
+      "reaproveitamentoMedio": 37,
+      "recommendationPredominante": "apenas_consultar",
+      "arquivos": [
+        {
+          "path": "admin-app/public/js/modules/pipeline.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 46,
+            "acoplamento": 1,
+            "riscoOperacional": 62,
+            "reaproveitamento": 37
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "medio",
+          "reasons": [],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 1
+        }
+      ]
+    },
+    "inteligencia-externa": {
+      "totalArquivos": 48,
+      "riscoMedio": 16.3,
+      "reaproveitamentoMedio": 68.9,
+      "recommendationPredominante": "copiar_para_novo_modulo",
+      "arquivos": [
+        {
+          "path": "admin-app/public/js/modules/followup-inteligencia-ia.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 10,
+            "acoplamento": 1,
+            "riscoOperacional": 52,
+            "reaproveitamento": 81
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/public/site.css",
+          "extension": ".css",
+          "scores": {
+            "complexidade": 5,
+            "acoplamento": 0,
+            "riscoOperacional": 20,
+            "reaproveitamento": 92
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/clientes/enriquecimento/enriquecimento-google-maps.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 10,
+            "acoplamento": 1,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/src/clientes/enriquecimento-maps-cliente.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 10,
+            "acoplamento": 1,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/clientes/repositorios/cliente-enriquecimento-maps-repository.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 1,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/enriquecimento/analise-concorrencia.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 27,
+            "acoplamento": 1,
+            "riscoOperacional": 0,
+            "reaproveitamento": 89
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/src/enriquecimento/descoberta-digital-cliente.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 87,
+            "acoplamento": 6,
+            "riscoOperacional": 32,
+            "reaproveitamento": 44
+          },
+          "recommendation": "reaproveitar_com_revisao",
+          "riskLevel": "medio",
+          "reasons": [],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/src/enriquecimento/enriquecimento-externo-cliente.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 22,
+            "acoplamento": 3,
+            "riscoOperacional": 32,
+            "reaproveitamento": 78
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/followup/ia-externa/detector-presenca-digital.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 9,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 81
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/followup/ia-externa/higienizador-resultados-externos.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 11,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 80
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/followup/ia-externa/higienizador-semantico-externo.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 19,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 72
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/src/followup/ia-externa/motor-inteligencia-estrategica.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 9,
+            "acoplamento": 0,
+            "riscoOperacional": 52,
+            "reaproveitamento": 80
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/app/public/site.css",
+          "extension": ".css",
+          "scores": {
+            "complexidade": 5,
+            "acoplamento": 0,
+            "riscoOperacional": 20,
+            "reaproveitamento": 92
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/public/site.css",
+          "extension": ".css",
+          "scores": {
+            "complexidade": 5,
+            "acoplamento": 0,
+            "riscoOperacional": 20,
+            "reaproveitamento": 92
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/50x.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/atendimento-comercial-representantes.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/atualiza.bat",
+          "extension": ".bat",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/automacao-comercial-representantes.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 90
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/crm-para-representante-comercial.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/Dockerfile",
+          "extension": "(sem_ext)",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/favicon-animated.svg",
+          "extension": ".svg",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/favicon.ico",
+          "extension": ".ico",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/favicon.svg",
+          "extension": ".svg",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/funcionalidades.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 90
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/html/50x.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/html/Dockerfile",
+          "extension": "(sem_ext)",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/html/favicon-animated.svg",
+          "extension": ".svg",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/html/favicon.ico",
+          "extension": ".ico",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/html/index.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 22,
+            "acoplamento": 8,
+            "riscoOperacional": 42,
+            "reaproveitamento": 52
+          },
+          "recommendation": "reaproveitar_com_revisao",
+          "riskLevel": "baixo",
+          "reasons": [],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/html/institucional.css",
+          "extension": ".css",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/html/logo-neuralhire-animated.svg",
+          "extension": ".svg",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/html/package.json",
+          "extension": ".json",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/html/server.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 11,
+            "acoplamento": 5,
+            "riscoOperacional": 52,
+            "reaproveitamento": 54
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/html/site.css",
+          "extension": ".css",
+          "scores": {
+            "complexidade": 5,
+            "acoplamento": 0,
+            "riscoOperacional": 20,
+            "reaproveitamento": 92
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/html/trial-signup.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 8,
+            "riscoOperacional": 20,
+            "reaproveitamento": 91
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/index.backup.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 3,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 89
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/index.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 18,
+            "acoplamento": 8,
+            "riscoOperacional": 42,
+            "reaproveitamento": 53
+          },
+          "recommendation": "reaproveitar_com_revisao",
+          "riskLevel": "baixo",
+          "reasons": [],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/institucional.css",
+          "extension": ".css",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/institucional.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 90
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/logo-neuralhire-animated.svg",
+          "extension": ".svg",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/og-image.jpg",
+          "extension": ".jpg",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/package.json",
+          "extension": ".json",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/plans.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 1,
+            "riscoOperacional": 0,
+            "reaproveitamento": 99
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/server.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 39,
+            "acoplamento": 7,
+            "riscoOperacional": 52,
+            "reaproveitamento": 42
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/sistema-b2b-para-representantes.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/sistema-para-representante-comercial.html",
+          "extension": ".html",
+          "scores": {
+            "complexidade": 1,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/site.css",
+          "extension": ".css",
+          "scores": {
+            "complexidade": 5,
+            "acoplamento": 0,
+            "riscoOperacional": 20,
+            "reaproveitamento": 92
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        },
+        {
+          "path": "site-institucional/trial-signup.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 8,
+            "riscoOperacional": 20,
+            "reaproveitamento": 91
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "reaproveitar_com_revisao",
+          "domainScore": 1
+        }
+      ]
+    },
+    "importacoes": {
+      "totalArquivos": 17,
+      "riscoMedio": 1.2,
+      "reaproveitamentoMedio": 26.8,
+      "recommendationPredominante": "apenas_consultar",
+      "arquivos": [
+        {
+          "path": "admin-app/.dockerignore",
+          "extension": "(sem_ext)",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/.gitignore",
+          "extension": "(sem_ext)",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/Dockerfile",
+          "extension": "(sem_ext)",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/public/favicon-animated.svg",
+          "extension": ".svg",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/public/js/modules/importacoes-clientes.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 100
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/public/js/modules/importacoes-estoque.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 10,
+            "acoplamento": 1,
+            "riscoOperacional": 0,
+            "reaproveitamento": 96
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/public/js/modules/importacoes-itens.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 27,
+            "acoplamento": 1,
+            "riscoOperacional": 0,
+            "reaproveitamento": 90
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/public/js/modules/importacoes-pedidos.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 44,
+            "acoplamento": 14,
+            "riscoOperacional": 20,
+            "reaproveitamento": 73
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/public/js/modules/importacoes-produtos.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 10,
+            "acoplamento": 1,
+            "riscoOperacional": 0,
+            "reaproveitamento": 96
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 3
+        },
+        {
+          "path": "admin-app/public/logo-neuralhire-animated.svg",
+          "extension": ".svg",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/app/public/favicon-animated.svg",
+          "extension": ".svg",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/app/public/logo-neuralhire-animated.svg",
+          "extension": ".svg",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/Dockerfile",
+          "extension": "(sem_ext)",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/public/favicon-animated.svg",
+          "extension": ".svg",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/_archive_cleanup/app-duplicado/public/logo-neuralhire-animated.svg",
+          "extension": ".svg",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app (2).zip",
+          "extension": ".zip",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app.zip",
+          "extension": ".zip",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 1
+        }
+      ]
+    },
+    "dashboard-bi": {
+      "totalArquivos": 3,
+      "riscoMedio": 10.7,
+      "reaproveitamentoMedio": 90.3,
+      "recommendationPredominante": "copiar_para_novo_modulo",
+      "arquivos": [
+        {
+          "path": "admin-app/public/js/modules/dashboard-ai.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 9,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 97
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "admin-app/public/js/modules/dashboard-cards.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 10,
+            "acoplamento": 1,
+            "riscoOperacional": 32,
+            "reaproveitamento": 87
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/public/js/modules/dashboard-executive.js",
+          "extension": ".js",
+          "scores": {
+            "complexidade": 32,
+            "acoplamento": 6,
+            "riscoOperacional": 0,
+            "reaproveitamento": 87
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        }
+      ]
+    },
+    "billing-assinaturas": {
+      "totalArquivos": 2,
+      "riscoMedio": 32,
+      "reaproveitamentoMedio": 89,
+      "recommendationPredominante": "copiar_para_novo_modulo",
+      "arquivos": [
+        {
+          "path": "asaas.json",
+          "extension": ".json",
+          "scores": {
+            "complexidade": 4,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 89
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        },
+        {
+          "path": "asaas.txt",
+          "extension": ".txt",
+          "scores": {
+            "complexidade": 3,
+            "acoplamento": 0,
+            "riscoOperacional": 32,
+            "reaproveitamento": 89
+          },
+          "recommendation": "copiar_para_novo_modulo",
+          "riskLevel": "baixo",
+          "reasons": [
+            "bom_candidato_reaproveitamento"
+          ],
+          "decisaoSugerida": "copiar_para_novo_modulo",
+          "domainScore": 1
+        }
+      ]
+    },
+    "configuracoes": {
+      "totalArquivos": 0,
+      "riscoMedio": 0,
+      "reaproveitamentoMedio": 0,
+      "recommendationPredominante": "apenas_consultar",
+      "arquivos": []
+    },
+    "integracoes": {
+      "totalArquivos": 0,
+      "riscoMedio": 0,
+      "reaproveitamentoMedio": 0,
+      "recommendationPredominante": "apenas_consultar",
+      "arquivos": []
+    },
+    "auditoria-logs": {
+      "totalArquivos": 3,
+      "riscoMedio": 0,
+      "reaproveitamentoMedio": 0,
+      "recommendationPredominante": "apenas_consultar",
+      "arquivos": [
+        {
+          "path": "admin-app/logs/server.err.log",
+          "extension": ".log",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/logs/server.out.log",
+          "extension": ".log",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 2
+        },
+        {
+          "path": "admin-app/logs/server.pid",
+          "extension": ".pid",
+          "scores": {
+            "complexidade": 0,
+            "acoplamento": 0,
+            "riscoOperacional": 0,
+            "reaproveitamento": 0
+          },
+          "recommendation": "apenas_consultar",
+          "riskLevel": "baixo",
+          "reasons": [
+            "arquivo_binario_ignorado_analise_textual"
+          ],
+          "decisaoSugerida": "apenas_consultar",
+          "domainScore": 2
+        }
+      ]
+    }
+  }
+}

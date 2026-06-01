@@ -1,0 +1,12 @@
+[
+  {
+    "body": {
+      "nome": "A",
+      "preco": 10
+    },
+    "headers": {},
+    "method": "POST",
+    "path": "/v1/produtos",
+    "query": {}
+  }
+]

@@ -1,0 +1,54 @@
+# ranking-reaproveitamento
+
+| Posicao | Arquivo | Score Reaproveitamento | Risco | Recomendacao |
+|---|---|---|---|---|
+| 1 | admin-app/atualiza.bat | 100 | baixo | copiar_para_novo_modulo |
+| 2 | admin-app/package.json | 100 | baixo | copiar_para_novo_modulo |
+| 3 | admin-app/public/js/core/api.js | 100 | baixo | copiar_para_novo_modulo |
+| 4 | admin-app/public/js/core/events.js | 100 | baixo | copiar_para_novo_modulo |
+| 5 | admin-app/public/js/modules/importacoes-clientes.js | 100 | baixo | copiar_para_novo_modulo |
+| 6 | admin-app/scripts/dev-server.ps1 | 100 | baixo | copiar_para_novo_modulo |
+| 7 | admin-app/scripts/stop-dev-server.ps1 | 100 | baixo | copiar_para_novo_modulo |
+| 8 | admin-app/src/clientes/enriquecimento/enriquecimento-cadastro-completo.js | 100 | baixo | copiar_para_novo_modulo |
+| 9 | admin-app/src/clientes/enriquecimento/enriquecimento-cnpj.js | 100 | baixo | copiar_para_novo_modulo |
+| 10 | admin-app/src/clientes/enriquecimento/enriquecimento-fachada.js | 100 | baixo | copiar_para_novo_modulo |
+| 11 | admin-app/src/clientes/enriquecimento/enriquecimento-google-maps.js | 100 | baixo | copiar_para_novo_modulo |
+| 12 | admin-app/src/clientes/enriquecimento/index.js | 100 | baixo | copiar_para_novo_modulo |
+| 13 | admin-app/src/clientes/enriquecimento/normalizadores.js | 100 | baixo | copiar_para_novo_modulo |
+| 14 | admin-app/src/clientes/enriquecimento/schema-clientes.js | 100 | baixo | copiar_para_novo_modulo |
+| 15 | admin-app/src/clientes/enriquecimento-cnpj-cliente.js | 100 | baixo | copiar_para_novo_modulo |
+| 16 | admin-app/src/clientes/enriquecimento-maps-cliente.js | 100 | baixo | copiar_para_novo_modulo |
+| 17 | admin-app/src/clientes/repositorios/cliente-enriquecimento-cnpj-repository.js | 100 | baixo | copiar_para_novo_modulo |
+| 18 | admin-app/src/clientes/repositorios/cliente-enriquecimento-maps-repository.js | 100 | baixo | copiar_para_novo_modulo |
+| 19 | admin-app/src/clientes/repositorios/cliente-metricas-comerciais-repository.js | 100 | baixo | copiar_para_novo_modulo |
+| 20 | admin-app/supabase/migrations/20260512_add_created_by_user_id_condicoes_pagamento.sql | 100 | baixo | copiar_para_novo_modulo |
+| 21 | admin-app/supabase/migrations/20260513_add_multiplo_venda_produtos.sql | 100 | baixo | copiar_para_novo_modulo |
+| 22 | admin-app/supabase/migrations/20260513_create_fabricante_regras.sql | 100 | baixo | copiar_para_novo_modulo |
+| 23 | admin-app/supabase/migrations/20260514_add_codigo_cliente_fabricante_clientes.sql | 100 | baixo | copiar_para_novo_modulo |
+| 24 | admin-app/supabase/migrations/20260515_add_logo_url_fabricantes.sql | 100 | baixo | copiar_para_novo_modulo |
+| 25 | admin-app/supabase/migrations/20260518_add_foto_url_produtos.sql | 100 | baixo | copiar_para_novo_modulo |
+| 26 | admin-app/supabase/migrations/20260520_add_vendedor_id_app_users.sql | 100 | baixo | copiar_para_novo_modulo |
+| 27 | admin-app/supabase/sql/sinais_comerciais_regex.sql | 100 | baixo | copiar_para_novo_modulo |
+| 28 | admin-app/_archive_cleanup/app-duplicado/app/package.json | 100 | baixo | copiar_para_novo_modulo |
+| 29 | admin-app/_archive_cleanup/app-duplicado/atualiza.bat | 100 | baixo | copiar_para_novo_modulo |
+| 30 | admin-app/_archive_cleanup/app-duplicado/package.json | 100 | baixo | copiar_para_novo_modulo |
+| 31 | site-institucional/50x.html | 100 | baixo | copiar_para_novo_modulo |
+| 32 | site-institucional/atendimento-comercial-representantes.html | 100 | baixo | copiar_para_novo_modulo |
+| 33 | site-institucional/atualiza.bat | 100 | baixo | copiar_para_novo_modulo |
+| 34 | site-institucional/crm-para-representante-comercial.html | 100 | baixo | copiar_para_novo_modulo |
+| 35 | site-institucional/follow-up-automatico-clientes.html | 100 | baixo | copiar_para_novo_modulo |
+| 36 | site-institucional/gestao-de-carteira-de-clientes.html | 100 | baixo | copiar_para_novo_modulo |
+| 37 | site-institucional/gestao-de-pedidos-representante.html | 100 | baixo | copiar_para_novo_modulo |
+| 38 | site-institucional/html/50x.html | 100 | baixo | copiar_para_novo_modulo |
+| 39 | site-institucional/html/institucional.css | 100 | baixo | copiar_para_novo_modulo |
+| 40 | site-institucional/html/package.json | 100 | baixo | copiar_para_novo_modulo |
+| 41 | site-institucional/institucional.css | 100 | baixo | copiar_para_novo_modulo |
+| 42 | site-institucional/package.json | 100 | baixo | copiar_para_novo_modulo |
+| 43 | site-institucional/sistema-b2b-para-representantes.html | 100 | baixo | copiar_para_novo_modulo |
+| 44 | site-institucional/sistema-para-representante-comercial.html | 100 | baixo | copiar_para_novo_modulo |
+| 45 | admin-app/src/clientes/repositorios/cliente-pipeline-ia-repository.js | 99 | baixo | copiar_para_novo_modulo |
+| 46 | admin-app/supabase/migrations/20260521_resumo_comercial_oficial.sql | 99 | baixo | copiar_para_novo_modulo |
+| 47 | admin-app/supabase/sql/clientes_resumo_comercial_view.sql | 99 | baixo | copiar_para_novo_modulo |
+| 48 | site-institucional/plans.js | 99 | baixo | copiar_para_novo_modulo |
+| 49 | admin-app/public/js/i18n/index.js | 98 | baixo | copiar_para_novo_modulo |
+| 50 | admin-app/public/js/core/router.js | 97 | baixo | copiar_para_novo_modulo |

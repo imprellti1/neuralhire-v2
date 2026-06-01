@@ -1,0 +1,19 @@
+{
+  "name": "@neuralhire/web",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "node src/dev-server.js",
+    "check": "node --check src/main.js && node --check src/app.js && node --check src/dev-server.js",
+    "test:mapper": "node src/modules/produtos-catalogo/produto-details.mapper.test.js",
+    "test:dom": "node src/modules/produtos-catalogo/produto-details.page.contract.test.js",
+    "test:integration": "node --test src/modules/produtos-catalogo/produto-details.page.dom.test.js src/modules/produtos-catalogo/produtos.routes.smoke.test.js src/modules/clientes-crm/clientes.routes.smoke.test.js src/modules/pedidos-comercial/pedidos.routes.smoke.test.js",
+    "test:security": "node --test src/testing/frontend-security.test.js",
+    "test:web": "npm run test:mapper && npm run test:dom && npm run test:integration && npm run test:security && node --test src/testing/infrastructure-helpers.unit.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  }
+}
+

@@ -1,0 +1,103 @@
+[
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/produtos",
+    "query": {
+      "limit": "10",
+      "page": "1"
+    }
+  },
+  {
+    "body": {
+      "ativo": true,
+      "nome": "Produto X",
+      "preco": 20,
+      "preco_unitario": 20,
+      "status": "ativo"
+    },
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "POST",
+    "path": "/produtos",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/produtos/p1",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/pedidos",
+    "query": {
+      "limit": "200",
+      "page": "1"
+    }
+  },
+  {
+    "body": {
+      "ativo": true,
+      "categoria": "Cat",
+      "descricao": "Produto de teste",
+      "nome": "Produto Editado",
+      "preco": 30,
+      "preco_unitario": 30,
+      "sku": "S1",
+      "status": "ativo"
+    },
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "PATCH",
+    "path": "/produtos/p1",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/produtos/p1",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/pedidos",
+    "query": {
+      "limit": "200",
+      "page": "1"
+    }
+  }
+]

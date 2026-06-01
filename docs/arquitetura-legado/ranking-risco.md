@@ -1,0 +1,54 @@
+# ranking-risco
+
+| Posicao | Arquivo | Risco | Score Operacional | Score Complexidade | Recomendacao |
+|---|---|---|---|---|---|
+| 1 | admin-app/public/js/modules/followup-agent.js | medio | 62 | 100 | apenas_consultar |
+| 2 | admin-app/server.js | alto | 62 | 100 | apenas_consultar |
+| 3 | admin-app/_archive_cleanup/app-duplicado/app/server.js | alto | 62 | 100 | apenas_consultar |
+| 4 | admin-app/_archive_cleanup/app-duplicado/server.js | alto | 62 | 100 | apenas_consultar |
+| 5 | admin-app/public/app.js | medio | 42 | 100 | apenas_consultar |
+| 6 | admin-app/_archive_cleanup/app-duplicado/app/public/app.js | medio | 42 | 100 | apenas_consultar |
+| 7 | admin-app/_archive_cleanup/app-duplicado/public/app.js | medio | 42 | 100 | apenas_consultar |
+| 8 | admin-app/src/enriquecimento/descoberta-digital-cliente.js | medio | 32 | 87 | reaproveitar_com_revisao |
+| 9 | admin-app/public/js/modules/pedidos.js | medio | 42 | 73 | reaproveitar_com_revisao |
+| 10 | admin-app/public/js/modules/pipeline.js | medio | 62 | 46 | apenas_consultar |
+| 11 | admin-app/src/followup/whatsapp-message-queue.js | medio | 62 | 45 | apenas_consultar |
+| 12 | admin-app/public/js/modules/agente-whatsapp-ia.js | medio | 62 | 37 | apenas_consultar |
+| 13 | site-institucional/server.js | baixo | 52 | 39 | apenas_consultar |
+| 14 | admin-app/public/styles.css | baixo | 32 | 54 | reaproveitar_com_revisao |
+| 15 | admin-app/src/followup/estado-estrategico.js | baixo | 52 | 32 | reaproveitar_com_revisao |
+| 16 | admin-app/src/whatsapp/whatsapp-identificacao.js | baixo | 52 | 26 | copiar_para_novo_modulo |
+| 17 | admin-app/src/followup/ia-comercial.js | baixo | 52 | 22 | copiar_para_novo_modulo |
+| 18 | admin-app/scripts/test-followup-ia-comercial.js | baixo | 52 | 19 | copiar_para_novo_modulo |
+| 19 | admin-app/src/followup/ia-externa/higienizador-semantico-externo.js | baixo | 52 | 19 | copiar_para_novo_modulo |
+| 20 | admin-app/src/followup/estado-executivo-comercial.js | baixo | 52 | 18 | copiar_para_novo_modulo |
+| 21 | admin-app/src/followup/sinais-comerciais-db.js | baixo | 52 | 18 | copiar_para_novo_modulo |
+| 22 | admin-app/public/js/modules/sinais-comerciais.js | baixo | 32 | 34 | copiar_para_novo_modulo |
+| 23 | admin-app/public/js/modules/importacoes-pedidos.js | baixo | 20 | 44 | copiar_para_novo_modulo |
+| 24 | site-institucional/html/index.html | baixo | 42 | 22 | reaproveitar_com_revisao |
+| 25 | admin-app/public/js/modules/followup-dossie-helpers.js | baixo | 52 | 11 | copiar_para_novo_modulo |
+| 26 | admin-app/src/followup/ia-externa/higienizador-resultados-externos.js | baixo | 52 | 11 | copiar_para_novo_modulo |
+| 27 | admin-app/_archive_cleanup/app-duplicado/app/public/styles.css | baixo | 32 | 31 | reaproveitar_com_revisao |
+| 28 | admin-app/_archive_cleanup/app-duplicado/public/styles.css | baixo | 32 | 31 | reaproveitar_com_revisao |
+| 29 | site-institucional/html/server.js | baixo | 52 | 11 | apenas_consultar |
+| 30 | admin-app/public/js/modules/followup-cockpit.js | baixo | 52 | 10 | copiar_para_novo_modulo |
+| 31 | admin-app/public/js/modules/followup-inteligencia-ia.js | baixo | 52 | 10 | copiar_para_novo_modulo |
+| 32 | admin-app/public/js/modules/followup-timeline.js | baixo | 52 | 10 | copiar_para_novo_modulo |
+| 33 | admin-app/public/js/modules/whatsapp-evolution.js | baixo | 52 | 10 | copiar_para_novo_modulo |
+| 34 | admin-app/src/followup/crm-pipeline-sync.js | baixo | 52 | 10 | copiar_para_novo_modulo |
+| 35 | admin-app/public/js/modules/followup-aprovacao.js | baixo | 52 | 9 | copiar_para_novo_modulo |
+| 36 | admin-app/public/js/modules/followup-memoria-comercial.js | baixo | 52 | 9 | copiar_para_novo_modulo |
+| 37 | admin-app/public/js/modules/followup-visao-executiva.js | baixo | 52 | 9 | copiar_para_novo_modulo |
+| 38 | admin-app/src/enriquecimento/coleta-textos-publicos-cliente.js | baixo | 42 | 19 | reaproveitar_com_revisao |
+| 39 | admin-app/src/followup/consolidacao-tags-comerciais.js | baixo | 52 | 9 | copiar_para_novo_modulo |
+| 40 | admin-app/src/followup/ia-externa/analisador-concorrentes-multicanal.js | baixo | 52 | 9 | copiar_para_novo_modulo |
+| 41 | admin-app/src/followup/ia-externa/detector-presenca-digital.js | baixo | 52 | 9 | copiar_para_novo_modulo |
+| 42 | admin-app/src/followup/ia-externa/motor-inteligencia-estrategica.js | baixo | 52 | 9 | copiar_para_novo_modulo |
+| 43 | admin-app/src/followup/ia-snapshots.js | baixo | 52 | 9 | copiar_para_novo_modulo |
+| 44 | admin-app/src/followup/resposta-comercial-ia.js | baixo | 52 | 9 | copiar_para_novo_modulo |
+| 45 | admin-app/src/followup/sinais-nao-classificados.js | baixo | 52 | 9 | copiar_para_novo_modulo |
+| 46 | admin-app/src/whatsapp/identificacao-cliente-whatsapp.js | baixo | 52 | 9 | copiar_para_novo_modulo |
+| 47 | admin-app/src/whatsapp/whatsapp-instancias.js | baixo | 52 | 9 | copiar_para_novo_modulo |
+| 48 | site-institucional/index.html | baixo | 42 | 18 | reaproveitar_com_revisao |
+| 49 | admin-app/src/followup/ia-externa/detector-segmentos.js | baixo | 40 | 18 | copiar_para_novo_modulo |
+| 50 | admin-app/src/enriquecimento/enriquecimento-externo-cliente.js | baixo | 32 | 22 | copiar_para_novo_modulo |

@@ -1,0 +1,10 @@
+﻿{
+  "name": "@neuralhire/workers",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "node src/main.js",
+    "check": "node --check src/main.js"
+  }
+}

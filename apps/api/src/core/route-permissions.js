@@ -1,0 +1,35 @@
+export const ROUTE_PERMISSIONS = {
+  'GET /health': { public: true },
+  'GET /system/info': { public: true },
+  'GET /system/auth-context': { public: true },
+  'POST /system/echo': { authenticated: false },
+  'GET /system/protected': { authenticated: true },
+  'GET /system/admin-only': { authenticated: true, role: 'admin' },
+  'GET /clientes': { authenticated: true, permission: 'clientes:read', tenantRequired: true, domain: 'clientes-crm' },
+  'GET /clientes/:id': { authenticated: true, permission: 'clientes:read', tenantRequired: true, domain: 'clientes-crm' },
+  'POST /clientes': { authenticated: true, permission: 'clientes:write', tenantRequired: true, domain: 'clientes-crm' },
+  'GET /produtos': { authenticated: true, permission: 'produtos:read', tenantRequired: true, domain: 'produtos-catalogo' },
+  'GET /produtos/search': { authenticated: true, permission: 'produtos:read', tenantRequired: true, domain: 'produtos-catalogo' },
+  'GET /produtos/:id': { authenticated: true, permission: 'produtos:read', tenantRequired: true, domain: 'produtos-catalogo' },
+  'PATCH /produtos/:id': { authenticated: true, permission: 'produtos:write', tenantRequired: true, domain: 'produtos-catalogo' },
+  'POST /produtos': { authenticated: true, permission: 'produtos:write', tenantRequired: true, domain: 'produtos-catalogo' },
+  'GET /pedidos': { authenticated: true, permission: 'pedidos:read', tenantRequired: true, domain: 'pedidos-comercial' },
+  'GET /pedidos/:id': { authenticated: true, permission: 'pedidos:read', tenantRequired: true, domain: 'pedidos-comercial' },
+  'POST /pedidos': { authenticated: true, permission: 'pedidos:write', tenantRequired: true, domain: 'pedidos-comercial' },
+  'PATCH /pedidos/:id': { authenticated: true, permission: 'pedidos:write', tenantRequired: true, domain: 'pedidos-comercial' },
+  'PATCH /pedidos/:id/itens': { authenticated: true, permission: 'pedidos:write', tenantRequired: true, domain: 'pedidos-comercial' },
+  'PATCH /pedidos/:id/status': { authenticated: true, permission: 'pedidos:status:update', tenantRequired: true, domain: 'pedidos-comercial' },
+  'GET /analytics/summary': { authenticated: true, permission: 'analytics:read', tenantRequired: true, domain: 'analytics-comercial' },
+  'GET /analytics/products': { authenticated: true, permission: 'analytics:read', tenantRequired: true, domain: 'analytics-comercial' },
+  'GET /analytics/customers': { authenticated: true, permission: 'analytics:read', tenantRequired: true, domain: 'analytics-comercial' },
+  'GET /analytics/timeline': { authenticated: true, permission: 'analytics:read', tenantRequired: true, domain: 'analytics-comercial' }
+};
+
+export function getRoutePermissionKey(method, path) {
+  return `${String(method || 'GET').toUpperCase()} ${path}`;
+}
+
+export function getRoutePermission(method, path) {
+  const key = getRoutePermissionKey(method, path);
+  return ROUTE_PERMISSIONS[key] || null;
+}

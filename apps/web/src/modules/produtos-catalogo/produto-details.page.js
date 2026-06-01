@@ -1,0 +1,249 @@
+import { createProdutoDetailsState } from './produto-details.state.js';
+import { applyProdutoUsageDrillDown, applyProdutoUsageFilters, createProdutoEditForm, mapProdutoUsageCsvContent, mapProdutoUsageCsvFilename, mapProdutoUsageCsvRows, validateProdutoEditForm } from './produto-details.mapper.js';
+import { fetchProdutoDetailsData, fetchProdutoUsageData, updateProduto } from './produto-details.service.js';
+
+function statusClass(status) {
+  if (status === 'ativo') return 'is-ok';
+  if (status === 'inativo') return 'is-off';
+  return 'is-unk';
+}
+function brl(value) { return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+const USAGE_STEP = 5;
+
+export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
+  const state = createProdutoDetailsState();
+
+  function injectStyles() {
+    if (document.getElementById('nh-produto-details-style')) return;
+    const style = document.createElement('style');
+    style.id = 'nh-produto-details-style';
+    style.textContent = `
+    .nhpd-wrap{max-width:1280px;width:100%;margin:0 auto}.nhpd-panel{background:#fff;border:1px solid #dbe4f2;border-radius:16px;padding:20px;box-shadow:0 8px 24px rgba(16,34,68,.06)}
+    .nhpd-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:14px}.nhpd-title{font-size:30px;font-weight:700;letter-spacing:-.02em}.nhpd-sub{color:#61708f;font-size:14px;margin-top:6px}
+    .nhpd-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:14px}.nhpd-card{border:1px solid #e5ecf8;border-radius:14px;padding:16px;background:#fff}
+    .nhpd-dl{display:grid;grid-template-columns:160px 1fr;gap:10px 12px;margin:0}.nhpd-dt{color:#5e6f93;font-weight:600}.nhpd-dd{margin:0}
+    .nhpd-badge{display:inline-block;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:700}.nhpd-badge.is-ok{background:#ecfdf3;color:#047857}.nhpd-badge.is-off{background:#fff7ed;color:#b45309}.nhpd-badge.is-unk{background:#eef2ff;color:#3730a3}
+    .nhpd-btn{height:38px;border:1px solid #d4deee;border-radius:10px;padding:0 12px;background:#fff;cursor:pointer}.nhpd-btn.primary{background:#1f56dc;color:#fff;border-color:#1f56dc}.nhpd-btn[disabled]{opacity:.6;cursor:not-allowed}
+    .nhpd-state{padding:24px;text-align:center;color:#607091}.nhpd-field{display:grid;gap:6px;margin-bottom:10px}.nhpd-field input,.nhpd-field select,.nhpd-field textarea{height:38px;border:1px solid #d4deee;border-radius:10px;padding:0 10px}.nhpd-field textarea{height:90px;padding:10px;resize:vertical}
+    .nhpd-usage-head{display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:10px}.nhpd-filter{height:32px;border:1px solid #d4deee;border-radius:8px;padding:0 8px;background:#fff}
+    .nhpd-kpi{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:10px}.nhpd-kpi div{border:1px solid #e5ecf8;border-radius:10px;padding:8px;font-size:12px;color:#61708f}.nhpd-kpi strong{display:block;font-size:16px;color:#0f172a}
+    .nhpd-kpi small{display:block;margin-top:4px;font-size:11px}.nhpd-kpi small.positive{color:#047857}.nhpd-kpi small.negative{color:#b42318}.nhpd-kpi small.neutral,.nhpd-kpi small.new{color:#61708f}
+    .nhpd-kpi-legend{display:flex;gap:8px;flex-wrap:wrap;margin:-2px 0 10px}.nhpd-kpi-legend span{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#61708f;border:1px solid #e5ecf8;border-radius:999px;padding:3px 8px;background:#f8fbff}
+    .nhpd-kpi-dot{width:8px;height:8px;border-radius:999px;display:inline-block}.nhpd-kpi-dot.positive{background:#16a34a}.nhpd-kpi-dot.negative{background:#dc2626}.nhpd-kpi-dot.neutral{background:#64748b}.nhpd-kpi-dot.new{background:#2563eb}
+    .nhpd-usage-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+    .nhpd-drill-message{font-size:12px;color:#1f56dc;margin-bottom:8px}
+    .nhpd-chart-hit{cursor:pointer}.nhpd-chart-hit.active{fill:#1f56dc;opacity:.18}.nhpd-chart-hit{fill:transparent}
+    .nhpd-chart-tip{font-size:12px;color:#334155;margin:-2px 0 8px}
+    .nhpd-ferr{font-size:12px;color:#b42318}.nhpd-msg{padding:10px;border-radius:10px;font-size:13px;margin-bottom:10px;background:#ecfdf3;color:#047857}
+    @media (max-width:1024px){.nhpd-grid{grid-template-columns:1fr}.nhpd-title{font-size:24px}.nhpd-dl{grid-template-columns:1fr}.nhpd-kpi{grid-template-columns:1fr 1fr}}
+    `;
+    document.head.appendChild(style);
+  }
+
+  function renderEditForm() {
+    return `<article class="nhpd-card"><h3>Resumo do Produto (Edição)</h3>
+      ${state.feedbackMessage ? `<div class="nhpd-msg" role="status" aria-live="polite">${state.feedbackMessage}</div>` : ''}
+      <label class="nhpd-field">Nome<input id="nhpd-nome" value="${state.form.nome || ''}" ${state.saving ? 'disabled' : ''}/>${state.fieldErrors.nome ? `<span class="nhpd-ferr">${state.fieldErrors.nome}</span>` : ''}</label>
+      <label class="nhpd-field">SKU<input id="nhpd-sku" value="${state.form.sku || ''}" ${state.saving ? 'disabled' : ''}/></label>
+      <label class="nhpd-field">Categoria<input id="nhpd-categoria" value="${state.form.categoria || ''}" ${state.saving ? 'disabled' : ''}/></label>
+      <label class="nhpd-field">Preço<input id="nhpd-preco" value="${state.form.preco || ''}" ${state.saving ? 'disabled' : ''}/>${state.fieldErrors.preco ? `<span class="nhpd-ferr">${state.fieldErrors.preco}</span>` : ''}</label>
+      <label class="nhpd-field">Status<select id="nhpd-status" ${state.saving ? 'disabled' : ''}><option value="ativo" ${state.form.status === 'ativo' ? 'selected' : ''}>ativo</option><option value="inativo" ${state.form.status === 'inativo' ? 'selected' : ''}>inativo</option></select>${state.fieldErrors.status ? `<span class="nhpd-ferr">${state.fieldErrors.status}</span>` : ''}</label>
+      <label class="nhpd-field">Descrição<textarea id="nhpd-descricao" ${state.saving ? 'disabled' : ''}>${state.form.descricao || ''}</textarea></label>
+      <div style="display:flex;gap:8px;justify-content:flex-end"><button id="nhpd-cancel-edit" class="nhpd-btn" aria-label="Cancelar edição do produto" ${state.saving ? 'disabled' : ''}>Cancelar</button><button id="nhpd-save-edit" class="nhpd-btn primary" aria-label="Salvar alterações do produto" ${state.saving ? 'disabled' : ''}>${state.saving ? 'Salvando...' : 'Salvar alterações'}</button></div>
+    </article>`;
+  }
+
+  function renderContent() {
+    if (state.loading) return '<section class="nhpd-panel nhp-loading"><div class="s"></div><div class="s"></div><div class="s"></div><div class="s"></div></section>';
+    if (state.error) return '<section class="nhpd-panel nhpd-state" role="alert" aria-live="assertive">Não foi possível carregar o produto.<br/><br/><button id="nhpd-retry" class="nhpd-btn" aria-label="Tentar carregar o produto novamente">Tentar novamente</button></section>';
+    if (state.notFound || !state.data?.id) return '<section class="nhpd-panel nhpd-state">Produto não encontrado.</section>';
+    const d = state.data;
+    return `<section class="nhpd-panel">
+      <div class="nhpd-head">
+        <div><div class="nhpd-title">${d.nomeExibicao}</div><div class="nhpd-sub">${d.sku !== '-' ? `SKU ${d.sku}` : `ID ${d.idTecnicoAbreviado}`} • ${d.categoria}</div><div style="margin-top:10px"><span class="nhpd-badge ${statusClass(d.status)}">${d.status}</span></div></div>
+        <div style="display:flex;gap:8px"><button id="nhpd-back" class="nhpd-btn" aria-label="Voltar para lista de produtos">Voltar</button><button id="nhpd-edit" class="nhpd-btn primary" aria-label="Editar Produto" ${state.saving ? 'disabled' : ''}>Editar Produto</button></div>
+      </div>
+      <div class="nhpd-grid">
+        ${state.editing ? renderEditForm() : `<article class="nhpd-card"><h3>Resumo do Produto</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Nome</dt><dd class="nhpd-dd">${d.nomeExibicao}</dd><dt class="nhpd-dt">SKU</dt><dd class="nhpd-dd">${d.sku}</dd><dt class="nhpd-dt">Categoria</dt><dd class="nhpd-dd">${d.categoria}</dd><dt class="nhpd-dt">Status</dt><dd class="nhpd-dd">${d.status}</dd><dt class="nhpd-dt">Descrição</dt><dd class="nhpd-dd">${d.descricao}</dd></dl></article>`}
+        <article class="nhpd-card"><h3>Preço e Comercial</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Preço atual</dt><dd class="nhpd-dd">${d.precoFormatado}</dd><dt class="nhpd-dt">Status comercial</dt><dd class="nhpd-dd">${d.status}</dd><dt class="nhpd-dt">Ativo/Inativo</dt><dd class="nhpd-dd">${d.ativo ? 'Ativo' : 'Inativo'}</dd></dl></article>
+        <article class="nhpd-card"><h3>Auditoria</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Criado em</dt><dd class="nhpd-dd">${d.criadoEmFormatado}</dd><dt class="nhpd-dt">Atualizado em</dt><dd class="nhpd-dd">${d.atualizadoEmFormatado}</dd><dt class="nhpd-dt">ID técnico</dt><dd class="nhpd-dd">${d.idTecnicoAbreviado}</dd></dl></article>
+        <article class="nhpd-card"><h3>Uso em Pedidos / Histórico comercial</h3>${renderUsageBlock()}</article>
+      </div>
+    </section>`;
+  }
+
+  function renderUsageBlock() {
+    if (state.usageLoading) return '<div class="nhp-loading"><div class="s"></div><div class="s"></div><div class="s"></div></div>';
+    if (state.usageError) return '<div class="nhpd-state" role="alert" aria-live="assertive">Não foi possível carregar o uso comercial do produto.<br/><br/><button id="nhpd-usage-retry" class="nhpd-btn" aria-label="Tentar carregar o uso comercial novamente">Tentar novamente</button></div>';
+    if (!state.usage || !Array.isArray(state.usage.allPedidos) || !state.usage.allPedidos.length) return '<p class="nhpd-state">Este produto ainda não aparece em pedidos.</p>';
+    const u = applyProdutoUsageFilters(state.usage, state.usageFilters);
+    const drilledRows = applyProdutoUsageDrillDown(u.pedidosRecentes || [], state.usageDrillDown, u.agrupamentoTemporal);
+    const visibleRows = drilledRows.slice(0, state.usageVisibleCount);
+    const rows = visibleRows.map((p) => `<tr><td><a href="#/pedidos/${p.id}">${p.numero}</a></td><td>${p.clienteNome}</td><td>${p.status}</td><td>${p.quantidade}</td><td>${brl(p.totalItem)}</td><td>${p.criadoEmFormatado}</td></tr>`).join('');
+    const maxFat = Math.max(...(u.serieTemporal || []).map((i) => Number(i.faturamento || 0)), 0);
+    const points = (u.serieTemporal || []).map((item, idx, arr) => {
+      const x = arr.length <= 1 ? 8 : 8 + ((idx * 184) / (arr.length - 1));
+      const y = 48 - ((Number(item.faturamento || 0) / (maxFat || 1)) * 40);
+      return `${x},${y}`;
+    }).join(' ');
+    const chartWidth = 184;
+    const chartHits = (u.serieTemporal || []).map((item, idx, arr) => {
+      const x = arr.length <= 1 ? 8 : 8 + ((idx * chartWidth) / (arr.length - 1));
+      const isActive = state.usageDrillDown?.key && state.usageDrillDown.key === item.key;
+      const pedidos = applyProdutoUsageDrillDown(u.pedidosRecentes || [], { key: item.key }, u.agrupamentoTemporal).length;
+      return `<rect class="nhpd-chart-hit ${isActive ? 'active' : ''}" tabindex="0" role="button" aria-label="Drill-down de ${item.label}" data-chart-key="${item.key}" data-chart-label="${item.label}" data-chart-quantidade="${item.quantidade}" data-chart-faturamento="${item.faturamento}" data-chart-pedidos="${pedidos}" x="${Math.max(0, x - 6)}" y="2" width="12" height="52" rx="4"></rect>`;
+    }).join('');
+    const labels = (u.serieTemporal || []).slice(-4).map((item) => `<span>${item.label}</span>`).join('');
+    const hasFilteredRows = drilledRows.length > 0;
+    const comp = u.comparison || {};
+    const compText = (metric) => comp.enabled ? `<small class="${metric?.kind || 'neutral'}">${metric?.text || 'Sem variação'}</small>` : `<small class="neutral">${comp.message || ''}</small>`;
+    return `<div class="nhpd-usage-head"><strong>Visão Comercial</strong><div style="display:flex;gap:6px;flex-wrap:wrap"><button id="nhpd-usage-export-lista" class="nhpd-btn" aria-label="Exportar CSV da lista atual">Exportar CSV da lista atual</button><button id="nhpd-usage-export-periodo" class="nhpd-btn" aria-label="Exportar CSV do período filtrado">Exportar CSV do período filtrado</button><select id="nhpd-usage-period" class="nhpd-filter"><option value="7d" ${state.usageFilters.period === '7d' ? 'selected' : ''}>últimos 7 dias</option><option value="30d" ${state.usageFilters.period === '30d' ? 'selected' : ''}>últimos 30 dias</option><option value="90d" ${state.usageFilters.period === '90d' ? 'selected' : ''}>últimos 90 dias</option><option value="todos" ${state.usageFilters.period === 'todos' ? 'selected' : ''}>todos</option></select><select id="nhpd-usage-status" class="nhpd-filter"><option value="todos" ${state.usageFilters.status === 'todos' ? 'selected' : ''}>todos</option><option value="rascunho" ${state.usageFilters.status === 'rascunho' ? 'selected' : ''}>rascunho</option><option value="aprovado" ${state.usageFilters.status === 'aprovado' ? 'selected' : ''}>aprovado</option><option value="confirmado" ${state.usageFilters.status === 'confirmado' ? 'selected' : ''}>confirmado</option><option value="faturado" ${state.usageFilters.status === 'faturado' ? 'selected' : ''}>faturado</option><option value="cancelado" ${state.usageFilters.status === 'cancelado' ? 'selected' : ''}>cancelado</option></select></div></div>
+    <div class="nhpd-kpi"><div><strong>${u.totalPedidos}</strong>Pedidos com produto${compText(comp.totalPedidos)}</div><div><strong>${u.quantidadeVendida}</strong>Quantidade vendida${compText(comp.quantidadeVendida)}</div><div><strong>${brl(u.faturamentoTotal)}</strong>Faturamento${compText(comp.faturamento)}</div><div><strong>${brl(u.ticketMedioProduto)}</strong>Ticket médio${compText(comp.ticketMedioProduto)}</div><div><strong>${u.ultimaVendaFormatada}</strong>Última venda</div></div>
+    <div class="nhpd-kpi-legend" aria-label="Legenda de tendência dos indicadores">
+      <span><i class="nhpd-kpi-dot positive"></i>alta</span>
+      <span><i class="nhpd-kpi-dot negative"></i>queda</span>
+      <span><i class="nhpd-kpi-dot neutral"></i>estável</span>
+      <span><i class="nhpd-kpi-dot new"></i>novo movimento</span>
+    </div>
+    ${u.serieTemporal?.length ? `<div style="border:1px solid #e5ecf8;border-radius:10px;padding:8px;margin-bottom:10px"><svg width="100%" viewBox="0 0 200 56" preserveAspectRatio="none">${chartHits}<polyline fill="none" stroke="#1f56dc" stroke-width="2" points="${points}"/></svg><div style="display:flex;justify-content:space-between;font-size:11px;color:#61708f">${labels}</div></div>` : ''}
+    <div id="nhpd-chart-tooltip" class="nhpd-chart-tip" aria-live="polite"></div>
+    ${state.usageDrillDown ? `<div class="nhpd-drill-message">Exibindo pedidos de ${state.usageDrillDown.label}. <button id="nhpd-drill-clear" class="nhpd-btn" aria-label="Limpar seleção do drill-down" style="height:28px">Limpar seleção do drill-down</button></div>` : ''}
+    ${hasFilteredRows ? `<div style="overflow:auto"><table class="nhp-table"><tr><th>Pedido</th><th>Cliente</th><th>Status</th><th>Quantidade</th><th>Valor do item</th><th>Data</th></tr>${rows}</table></div><div class="nhpd-usage-actions">${drilledRows.length > state.usageVisibleCount ? '<button id="nhpd-usage-more" class="nhpd-btn">Ver mais</button>' : ''}${state.usageVisibleCount > USAGE_STEP ? '<button id="nhpd-usage-less" class="nhpd-btn">Ver menos</button>' : ''}</div>` : '<p class="nhpd-state">Nenhum pedido encontrado para o período selecionado no gráfico.</p>'}`;
+  }
+
+  function bindEditHandlers() {
+    const fields = ['nome', 'sku', 'categoria', 'preco', 'descricao'];
+    fields.forEach((field) => {
+      const el = root.querySelector(`#nhpd-${field}`);
+      if (el) el.oninput = (e) => { state.form[field] = e.target.value || ''; };
+    });
+    const status = root.querySelector('#nhpd-status');
+    if (status) status.onchange = (e) => { state.form.status = e.target.value || 'ativo'; };
+
+    const cancel = root.querySelector('#nhpd-cancel-edit');
+    if (cancel) cancel.onclick = () => { state.editing = false; state.form = createProdutoEditForm(state.data); state.fieldErrors = {}; state.feedbackMessage = ''; render(); };
+
+    const save = root.querySelector('#nhpd-save-edit');
+    if (save) save.onclick = async () => {
+      if (state.saving) return;
+      state.fieldErrors = validateProdutoEditForm(state.form);
+      if (Object.keys(state.fieldErrors).length) { render(); return; }
+      state.saving = true; render();
+      try {
+        await updateProduto(apiClient, produtoId, state.form);
+        await load({ preserveMessages: true, feedbackMessage: 'Produto atualizado com sucesso.' });
+        state.editing = false;
+      } catch (error) {
+        state.error = error?.body?.error?.message || error?.message || 'Não foi possível atualizar o produto.';
+      } finally {
+        state.saving = false;
+        render();
+      }
+    };
+  }
+
+  function render() {
+    injectStyles();
+    root.innerHTML = `<div class="nhpd-wrap">${renderContent()}</div>`;
+    const retry = root.querySelector('#nhpd-retry');
+    if (retry) retry.onclick = () => load();
+    const back = root.querySelector('#nhpd-back');
+    if (back) back.onclick = () => { window.location.hash = '#/produtos'; };
+    const edit = root.querySelector('#nhpd-edit');
+    if (edit) edit.onclick = () => { state.editing = true; state.fieldErrors = {}; state.feedbackMessage = ''; state.form = createProdutoEditForm(state.data); render(); };
+    const usageRetry = root.querySelector('#nhpd-usage-retry');
+    if (usageRetry) usageRetry.onclick = () => loadUsage();
+    const usagePeriod = root.querySelector('#nhpd-usage-period');
+    if (usagePeriod) usagePeriod.onchange = (e) => { state.usageFilters.period = e.target.value || 'todos'; state.usageVisibleCount = USAGE_STEP; render(); };
+    const usageStatus = root.querySelector('#nhpd-usage-status');
+    if (usageStatus) usageStatus.onchange = (e) => { state.usageFilters.status = e.target.value || 'todos'; state.usageVisibleCount = USAGE_STEP; state.usageDrillDown = null; render(); };
+    const usageMore = root.querySelector('#nhpd-usage-more');
+    if (usageMore) usageMore.onclick = () => { state.usageVisibleCount += USAGE_STEP; render(); };
+    const usageLess = root.querySelector('#nhpd-usage-less');
+    if (usageLess) usageLess.onclick = () => { state.usageVisibleCount = USAGE_STEP; render(); };
+    function exportUsageCsv(mode) {
+      const u = applyProdutoUsageFilters(state.usage, state.usageFilters);
+      const baseRows = applyProdutoUsageDrillDown(u.pedidosRecentes || [], state.usageDrillDown, u.agrupamentoTemporal);
+      const rows = mode === 'periodo' ? baseRows : baseRows.slice(0, state.usageVisibleCount);
+      const csv = mapProdutoUsageCsvContent(mapProdutoUsageCsvRows(rows));
+      const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = mapProdutoUsageCsvFilename(state.data, mode);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+    const usageExportLista = root.querySelector('#nhpd-usage-export-lista');
+    if (usageExportLista) usageExportLista.onclick = () => exportUsageCsv('lista');
+    const usageExportPeriodo = root.querySelector('#nhpd-usage-export-periodo');
+    if (usageExportPeriodo) usageExportPeriodo.onclick = () => exportUsageCsv('periodo');
+    const drillClear = root.querySelector('#nhpd-drill-clear');
+    if (drillClear) drillClear.onclick = () => { state.usageDrillDown = null; state.usageVisibleCount = USAGE_STEP; render(); };
+    const chartHits = root.querySelectorAll('.nhpd-chart-hit');
+    const chartTooltip = root.querySelector('#nhpd-chart-tooltip');
+    function showTooltip(hit) {
+      if (!chartTooltip || !hit) return;
+      const label = hit.getAttribute('data-chart-label') || '-';
+      const quantidade = Number(hit.getAttribute('data-chart-quantidade') || 0);
+      const faturamento = Number(hit.getAttribute('data-chart-faturamento') || 0);
+      const pedidos = Number(hit.getAttribute('data-chart-pedidos') || 0);
+      chartTooltip.textContent = `${label} • Qtd: ${quantidade} • Faturamento: ${brl(faturamento)} • Pedidos: ${pedidos}`;
+    }
+    function clearTooltip() {
+      if (chartTooltip) chartTooltip.textContent = '';
+    }
+    chartHits.forEach((hit) => {
+      hit.addEventListener('mouseenter', () => showTooltip(hit));
+      hit.addEventListener('focus', () => showTooltip(hit));
+      hit.addEventListener('mouseleave', clearTooltip);
+      hit.addEventListener('blur', clearTooltip);
+      hit.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          hit.dispatchEvent(new Event('click', { bubbles: true }));
+        }
+      });
+      hit.addEventListener('click', () => {
+        const key = hit.getAttribute('data-chart-key');
+        const label = hit.getAttribute('data-chart-label');
+        if (!key || !label) return;
+        state.usageDrillDown = (state.usageDrillDown?.key === key) ? null : { key, label };
+        state.usageVisibleCount = USAGE_STEP;
+        render();
+      });
+    });
+    if (state.editing) bindEditHandlers();
+  }
+
+  async function load(options = {}) {
+    state.loading = true; state.error = false; state.notFound = false;
+    if (!options.preserveMessages) state.feedbackMessage = '';
+    render();
+    try {
+      state.data = await fetchProdutoDetailsData(apiClient, produtoId);
+      state.form = createProdutoEditForm(state.data);
+      if (!state?.data?.id) state.notFound = true;
+      if (options.feedbackMessage) state.feedbackMessage = options.feedbackMessage;
+      loadUsage();
+    } catch (error) {
+      if (error?.status === 404) state.notFound = true;
+      else state.error = true;
+    } finally {
+      state.loading = false;
+      render();
+    }
+  }
+
+  async function loadUsage() {
+    state.usageLoading = true; state.usageError = false; render();
+    try { state.usage = await fetchProdutoUsageData(apiClient, produtoId); state.usageDrillDown = null; }
+    catch { state.usageError = true; }
+    finally { state.usageLoading = false; render(); }
+  }
+
+  render();
+  load();
+}

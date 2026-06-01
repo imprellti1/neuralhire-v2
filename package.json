@@ -1,0 +1,24 @@
+{
+    "name":  "neuralhire-v2",
+    "version":  "0.1.0",
+    "private":  true,
+    "type":  "module",
+    "workspaces":  [
+                       "apps/*",
+                       "packages/*"
+                   ],
+    "scripts":  {
+                    "dev:api":  "npm --workspace apps/api run dev",
+                    "dev:web":  "npm --workspace apps/web run dev",
+                    "dev:workers":  "npm --workspace apps/workers run dev",
+                    "seed:demo":  "npm --workspace apps/api run seed:demo",
+                    "check":  "npm run check --workspaces --if-present",
+                    "test:web":  "npm --workspace apps/web run test:web",
+                    "test:all":  "npm run test:api && npm run test:web",
+                    "quality":  "npm run check && npm run test:web && npm run test:api && npm run test:all",
+                    "docs:scan":  "node tools/scan-admin-architecture.js",
+                    "docs:plan":  "node tools/generate-rebuild-plan.js",
+                    "test:api":  "npm --workspace apps/api run test:api"
+                }
+}
+

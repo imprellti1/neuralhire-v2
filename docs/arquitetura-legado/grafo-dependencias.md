@@ -1,0 +1,191 @@
+# grafo-dependencias
+
+Formato: Arquivo -> dependencias relativas diretas
+
+- Representantes - Fluxo Consolidado V7.4 (Restaura Apos Supabase) (1).json -> (sem dependencias relativas detectadas)
+- admin-app (2).zip -> (sem dependencias relativas detectadas)
+- admin-app.zip -> (sem dependencias relativas detectadas)
+- admin-app/.dockerignore -> (sem dependencias relativas detectadas)
+- admin-app/.gitignore -> (sem dependencias relativas detectadas)
+- admin-app/Dockerfile -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/Dockerfile -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/app/package.json -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/app/public/admin.html -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/app/public/app.js -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/app/public/favicon-animated.svg -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/app/public/index.html -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/app/public/logo-neuralhire-animated.svg -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/app/public/site.css -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/app/public/styles.css -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/app/server.js -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/atualiza.bat -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/package.json -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/public/admin.html -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/public/app.js -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/public/favicon-animated.svg -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/public/index.html -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/public/logo-neuralhire-animated.svg -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/public/site.css -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/public/styles.css -> (sem dependencias relativas detectadas)
+- admin-app/_archive_cleanup/app-duplicado/server.js -> (sem dependencias relativas detectadas)
+- admin-app/atualiza.bat -> (sem dependencias relativas detectadas)
+- admin-app/logs/server.err.log -> (sem dependencias relativas detectadas)
+- admin-app/logs/server.out.log -> (sem dependencias relativas detectadas)
+- admin-app/logs/server.pid -> (sem dependencias relativas detectadas)
+- admin-app/package.json -> (sem dependencias relativas detectadas)
+- admin-app/public/admin.html -> (sem dependencias relativas detectadas)
+- admin-app/public/app.js -> admin-app/public/utils.js, admin-app/public/js/modules/followup-agent.js, admin-app/public/js/modules/login.js, admin-app/public/js/modules/clientes.js, admin-app/public/js/modules/pedidos.js, admin-app/public/js/modules/produtos.js, admin-app/public/js/modules/importacoes-clientes.js, admin-app/public/js/modules/importacoes-pedidos.js, admin-app/public/js/modules/importacoes-itens.js, admin-app/public/js/modules/importacoes-produtos.js, admin-app/public/js/modules/importacoes-estoque.js, admin-app/public/js/modules/dashboard-ai.js, admin-app/public/js/modules/dashboard-cards.js, admin-app/public/js/modules/dashboard-executive.js, admin-app/public/js/modules/mapa.js, admin-app/public/js/modules/pipeline.js, admin-app/public/js/modules/whatsapp-evolution.js, admin-app/public/js/modules/sinais-comerciais.js, admin-app/public/js/modules/agente-whatsapp-ia.js, admin-app/public/js/i18n/index.js
+- admin-app/public/app.js.bak_before_pedidos_fix -> (sem dependencias relativas detectadas)
+- admin-app/public/favicon-animated.svg -> (sem dependencias relativas detectadas)
+- admin-app/public/index.html -> (sem dependencias relativas detectadas)
+- admin-app/public/js/components/language-switcher.js -> (sem dependencias relativas detectadas)
+- admin-app/public/js/core/api.js -> (sem dependencias relativas detectadas)
+- admin-app/public/js/core/events.js -> (sem dependencias relativas detectadas)
+- admin-app/public/js/core/router.js -> (sem dependencias relativas detectadas)
+- admin-app/public/js/i18n/index.js -> admin-app/public/js/i18n/pt-BR.js
+- admin-app/public/js/i18n/pt-BR.js -> (sem dependencias relativas detectadas)
+- admin-app/public/js/modules/agente-whatsapp-ia.js -> (sem dependencias relativas detectadas)
+- admin-app/public/js/modules/clientes.js -> admin-app/public/utils.js, admin-app/public/js/i18n/index.js
+- admin-app/public/js/modules/dashboard-ai.js -> (sem dependencias relativas detectadas)
+- admin-app/public/js/modules/dashboard-cards.js -> admin-app/public/js/i18n/index.js
+- admin-app/public/js/modules/dashboard-executive.js -> admin-app/public/js/i18n/index.js
+- admin-app/public/js/modules/followup-agent.js -> admin-app/public/js/modules/followup-cockpit.js, admin-app/public/js/modules/followup-timeline.js, admin-app/public/js/modules/followup-aprovacao.js, admin-app/public/js/modules/followup-inteligencia-ia.js, admin-app/public/js/modules/followup-memoria-comercial.js, admin-app/public/js/modules/followup-visao-executiva.js, admin-app/public/js/i18n/index.js
+- admin-app/public/js/modules/followup-aprovacao.js -> admin-app/public/js/i18n/index.js
+- admin-app/public/js/modules/followup-cockpit.js -> admin-app/public/js/modules/followup-dossie-helpers.js, admin-app/public/js/i18n/index.js
+- admin-app/public/js/modules/followup-dossie-helpers.js -> admin-app/public/js/i18n/index.js
+- admin-app/public/js/modules/followup-inteligencia-ia.js -> admin-app/public/js/modules/followup-dossie-helpers.js, admin-app/public/js/i18n/index.js
+- admin-app/public/js/modules/followup-memoria-comercial.js -> (sem dependencias relativas detectadas)
+- admin-app/public/js/modules/followup-timeline.js -> admin-app/public/js/i18n/index.js
+- admin-app/public/js/modules/followup-visao-executiva.js -> admin-app/public/js/i18n/index.js
+- admin-app/public/js/modules/importacoes-clientes.js -> (sem dependencias relativas detectadas)
+- admin-app/public/js/modules/importacoes-estoque.js -> admin-app/public/js/i18n/index.js
+- admin-app/public/js/modules/importacoes-itens.js -> admin-app/public/js/i18n/index.js
+- admin-app/public/js/modules/importacoes-pedidos.js -> admin-app/public/js/i18n/index.js
+- admin-app/public/js/modules/importacoes-produtos.js -> admin-app/public/js/i18n/index.js
+- admin-app/public/js/modules/login.js -> (sem dependencias relativas detectadas)
+- admin-app/public/js/modules/mapa.js -> (sem dependencias relativas detectadas)
+- admin-app/public/js/modules/pedidos.js -> admin-app/public/js/i18n/index.js
+- admin-app/public/js/modules/pipeline.js -> admin-app/public/js/i18n/index.js
+- admin-app/public/js/modules/produtos.js -> (sem dependencias relativas detectadas)
+- admin-app/public/js/modules/sinais-comerciais.js -> (sem dependencias relativas detectadas)
+- admin-app/public/js/modules/whatsapp-evolution.js -> admin-app/public/js/i18n/index.js
+- admin-app/public/logo-neuralhire-animated.svg -> (sem dependencias relativas detectadas)
+- admin-app/public/site.css -> (sem dependencias relativas detectadas)
+- admin-app/public/styles.css -> (sem dependencias relativas detectadas)
+- admin-app/public/utils.js -> (sem dependencias relativas detectadas)
+- admin-app/scripts/dev-server.ps1 -> (sem dependencias relativas detectadas)
+- admin-app/scripts/saneia-receita-clientes.js -> (sem dependencias relativas detectadas)
+- admin-app/scripts/stop-dev-server.ps1 -> (sem dependencias relativas detectadas)
+- admin-app/scripts/test-followup-ia-comercial.js -> admin-app/src/followup/estado-estrategico.js, admin-app/src/followup/validacao-coerencia-comercial.js
+- admin-app/server.js -> admin-app/src/followup/estado-estrategico.js, admin-app/src/followup/ia-comercial.js, admin-app/src/followup/resposta-comercial-ia.js, admin-app/src/followup/validacao-coerencia-comercial.js, admin-app/src/followup/whatsapp-message-queue.js, admin-app/src/followup/crm-pipeline-sync.js, admin-app/src/followup/sinais-comerciais-db.js, admin-app/src/followup/consolidacao-tags-comerciais.js, admin-app/src/followup/sinais-nao-classificados.js, admin-app/src/whatsapp/whatsapp-instancias.js, admin-app/src/whatsapp/identificacao-cliente-whatsapp.js, admin-app/src/enriquecimento/enriquecimento-externo-cliente.js, admin-app/src/clientes/enriquecimento/index.js, admin-app/src/followup/ia-externa/classificador-perfil-loja.js, admin-app/src/followup/ia-externa/motor-inteligencia-estrategica.js, admin-app/src/whatsapp/whatsapp-modos.js
+- admin-app/src/clientes/enriquecimento-cnpj-cliente.js -> admin-app/src/clientes/repositorios/cliente-enriquecimento-cnpj-repository.js
+- admin-app/src/clientes/enriquecimento-maps-cliente.js -> admin-app/src/clientes/repositorios/cliente-enriquecimento-maps-repository.js
+- admin-app/src/clientes/enriquecimento/enriquecimento-cadastro-completo.js -> admin-app/src/clientes/enriquecimento/enriquecimento-cnpj.js, admin-app/src/clientes/enriquecimento/enriquecimento-google-maps.js, admin-app/src/clientes/enriquecimento/enriquecimento-fachada.js, admin-app/src/clientes/enriquecimento/schema-clientes.js
+- admin-app/src/clientes/enriquecimento/enriquecimento-cnpj.js -> admin-app/src/clientes/enriquecimento/normalizadores.js
+- admin-app/src/clientes/enriquecimento/enriquecimento-fachada.js -> (sem dependencias relativas detectadas)
+- admin-app/src/clientes/enriquecimento/enriquecimento-google-maps.js -> admin-app/src/clientes/enriquecimento/normalizadores.js
+- admin-app/src/clientes/enriquecimento/index.js -> admin-app/src/clientes/enriquecimento/enriquecimento-cnpj.js, admin-app/src/clientes/enriquecimento/enriquecimento-google-maps.js, admin-app/src/clientes/enriquecimento/enriquecimento-fachada.js, admin-app/src/clientes/enriquecimento/enriquecimento-cadastro-completo.js
+- admin-app/src/clientes/enriquecimento/normalizadores.js -> (sem dependencias relativas detectadas)
+- admin-app/src/clientes/enriquecimento/schema-clientes.js -> (sem dependencias relativas detectadas)
+- admin-app/src/clientes/repositorios/cliente-enriquecimento-cnpj-repository.js -> (sem dependencias relativas detectadas)
+- admin-app/src/clientes/repositorios/cliente-enriquecimento-maps-repository.js -> (sem dependencias relativas detectadas)
+- admin-app/src/clientes/repositorios/cliente-metricas-comerciais-repository.js -> (sem dependencias relativas detectadas)
+- admin-app/src/clientes/repositorios/cliente-pipeline-ia-repository.js -> (sem dependencias relativas detectadas)
+- admin-app/src/enriquecimento/analise-concorrencia.js -> (sem dependencias relativas detectadas)
+- admin-app/src/enriquecimento/coleta-textos-publicos-cliente.js -> (sem dependencias relativas detectadas)
+- admin-app/src/enriquecimento/descoberta-digital-cliente.js -> admin-app/src/followup/ia-externa/classificador-perfil-loja.js, admin-app/src/followup/ia-externa/detector-segmentos.js, admin-app/src/followup/ia-externa/detector-presenca-digital.js, admin-app/src/followup/ia-externa/higienizador-resultados-externos.js, admin-app/src/followup/ia-externa/higienizador-semantico-externo.js
+- admin-app/src/enriquecimento/enriquecimento-externo-cliente.js -> admin-app/src/enriquecimento/descoberta-digital-cliente.js, admin-app/src/enriquecimento/coleta-textos-publicos-cliente.js, admin-app/src/enriquecimento/analise-concorrencia.js, admin-app/src/followup/ia-externa/analisador-concorrentes-multicanal.js
+- admin-app/src/followup/consolidacao-tags-comerciais.js -> (sem dependencias relativas detectadas)
+- admin-app/src/followup/crm-pipeline-sync.js -> (sem dependencias relativas detectadas)
+- admin-app/src/followup/datas-comerciais.js -> (sem dependencias relativas detectadas)
+- admin-app/src/followup/estado-estrategico.js -> (sem dependencias relativas detectadas)
+- admin-app/src/followup/estado-executivo-comercial.js -> (sem dependencias relativas detectadas)
+- admin-app/src/followup/ia-comercial.js -> admin-app/src/followup/prompts/prompt-whatsapp-comercial.js, admin-app/src/followup/ia-snapshots.js, admin-app/src/followup/sinais-comerciais-engine.js, admin-app/src/followup/datas-comerciais.js, admin-app/src/followup/produtos-comercial-dictionary.js
+- admin-app/src/followup/ia-externa/analisador-concorrentes-multicanal.js -> (sem dependencias relativas detectadas)
+- admin-app/src/followup/ia-externa/classificador-perfil-loja.js -> (sem dependencias relativas detectadas)
+- admin-app/src/followup/ia-externa/detector-presenca-digital.js -> (sem dependencias relativas detectadas)
+- admin-app/src/followup/ia-externa/detector-segmentos.js -> (sem dependencias relativas detectadas)
+- admin-app/src/followup/ia-externa/higienizador-resultados-externos.js -> (sem dependencias relativas detectadas)
+- admin-app/src/followup/ia-externa/higienizador-semantico-externo.js -> (sem dependencias relativas detectadas)
+- admin-app/src/followup/ia-externa/motor-inteligencia-estrategica.js -> (sem dependencias relativas detectadas)
+- admin-app/src/followup/ia-snapshots.js -> (sem dependencias relativas detectadas)
+- admin-app/src/followup/produtos-comercial-dictionary.js -> (sem dependencias relativas detectadas)
+- admin-app/src/followup/prompts/prompt-resposta-whatsapp.js -> (sem dependencias relativas detectadas)
+- admin-app/src/followup/prompts/prompt-whatsapp-comercial.js -> (sem dependencias relativas detectadas)
+- admin-app/src/followup/resposta-comercial-ia.js -> admin-app/src/followup/prompts/prompt-resposta-whatsapp.js
+- admin-app/src/followup/sinais-comerciais-db.js -> (sem dependencias relativas detectadas)
+- admin-app/src/followup/sinais-comerciais-engine.js -> admin-app/src/followup/datas-comerciais.js
+- admin-app/src/followup/sinais-nao-classificados.js -> (sem dependencias relativas detectadas)
+- admin-app/src/followup/validacao-coerencia-comercial.js -> admin-app/src/followup/ia-comercial.js
+- admin-app/src/followup/whatsapp-message-queue.js -> (sem dependencias relativas detectadas)
+- admin-app/src/whatsapp/identificacao-cliente-whatsapp.js -> (sem dependencias relativas detectadas)
+- admin-app/src/whatsapp/whatsapp-identificacao.js -> admin-app/src/whatsapp/whatsapp-modos.js
+- admin-app/src/whatsapp/whatsapp-instancias.js -> (sem dependencias relativas detectadas)
+- admin-app/src/whatsapp/whatsapp-modos.js -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260512_add_created_by_user_id_condicoes_pagamento.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260513_add_multiplo_venda_produtos.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260513_create_fabricante_regras.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260514_add_codigo_cliente_fabricante_clientes.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260515_add_logo_url_fabricantes.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260515_create_client_cnpj_job_logs.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260518_add_foto_url_produtos.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260518_agente_followup_fase1.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260520_add_bloqueio_followup_manual_clientes.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260520_add_vendedor_id_app_users.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260520_create_cliente_dossies_ia.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260520_create_cliente_memoria_comercial.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260521_resumo_comercial_oficial.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260526_add_ai_pipeline_fields_to_clientes.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260526_create_cliente_whatsapp_message_queue.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260527_add_whatsapp_contact_fields_clientes.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260527_upgrade_sinais_comerciais_pendentes_operacional.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260527_whatsapp_queue_metrics_and_runtime_fields.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260528_add_cliente_cadastro_enriquecido_fields.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260528_cliente_descoberta_digital_unique_account_cliente.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/20260528_refactor_clientes_enriquecimento.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/migrations/create-sinais-comerciais-pendentes.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/sql/clientes_resumo_comercial_view.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/sql/ia_comercial_snapshots.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/sql/sinais_comerciais.sql -> (sem dependencias relativas detectadas)
+- admin-app/supabase/sql/sinais_comerciais_regex.sql -> (sem dependencias relativas detectadas)
+- asaas.json -> (sem dependencias relativas detectadas)
+- asaas.txt -> (sem dependencias relativas detectadas)
+- site-institucional/50x.html -> (sem dependencias relativas detectadas)
+- site-institucional/Dockerfile -> (sem dependencias relativas detectadas)
+- site-institucional/atendimento-comercial-representantes.html -> (sem dependencias relativas detectadas)
+- site-institucional/atualiza.bat -> (sem dependencias relativas detectadas)
+- site-institucional/automacao-comercial-representantes.html -> (sem dependencias relativas detectadas)
+- site-institucional/crm-para-representante-comercial.html -> (sem dependencias relativas detectadas)
+- site-institucional/favicon-animated.svg -> (sem dependencias relativas detectadas)
+- site-institucional/favicon.ico -> (sem dependencias relativas detectadas)
+- site-institucional/favicon.svg -> (sem dependencias relativas detectadas)
+- site-institucional/follow-up-automatico-clientes.html -> (sem dependencias relativas detectadas)
+- site-institucional/funcionalidades.html -> (sem dependencias relativas detectadas)
+- site-institucional/gestao-de-carteira-de-clientes.html -> (sem dependencias relativas detectadas)
+- site-institucional/gestao-de-pedidos-representante.html -> (sem dependencias relativas detectadas)
+- site-institucional/html/50x.html -> (sem dependencias relativas detectadas)
+- site-institucional/html/Dockerfile -> (sem dependencias relativas detectadas)
+- site-institucional/html/favicon-animated.svg -> (sem dependencias relativas detectadas)
+- site-institucional/html/favicon.ico -> (sem dependencias relativas detectadas)
+- site-institucional/html/index.html -> (sem dependencias relativas detectadas)
+- site-institucional/html/institucional.css -> (sem dependencias relativas detectadas)
+- site-institucional/html/logo-neuralhire-animated.svg -> (sem dependencias relativas detectadas)
+- site-institucional/html/package.json -> (sem dependencias relativas detectadas)
+- site-institucional/html/server.js -> (sem dependencias relativas detectadas)
+- site-institucional/html/site.css -> (sem dependencias relativas detectadas)
+- site-institucional/html/trial-signup.js -> (sem dependencias relativas detectadas)
+- site-institucional/index.backup.html -> (sem dependencias relativas detectadas)
+- site-institucional/index.html -> (sem dependencias relativas detectadas)
+- site-institucional/institucional.css -> (sem dependencias relativas detectadas)
+- site-institucional/institucional.html -> (sem dependencias relativas detectadas)
+- site-institucional/landing_leads.sql -> (sem dependencias relativas detectadas)
+- site-institucional/logo-neuralhire-animated.svg -> (sem dependencias relativas detectadas)
+- site-institucional/og-image.jpg -> (sem dependencias relativas detectadas)
+- site-institucional/package.json -> (sem dependencias relativas detectadas)
+- site-institucional/plans.js -> (sem dependencias relativas detectadas)
+- site-institucional/server.js -> (sem dependencias relativas detectadas)
+- site-institucional/sistema-b2b-para-representantes.html -> (sem dependencias relativas detectadas)
+- site-institucional/sistema-para-representante-comercial.html -> (sem dependencias relativas detectadas)
+- site-institucional/site.css -> (sem dependencias relativas detectadas)
+- site-institucional/trial-signup.js -> (sem dependencias relativas detectadas)
+- supabase/seeds/sinais-comerciais-crm-ia.sql -> (sem dependencias relativas detectadas)

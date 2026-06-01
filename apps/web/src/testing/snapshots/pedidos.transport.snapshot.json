@@ -1,0 +1,60 @@
+[
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/pedidos",
+    "query": {
+      "limit": "10",
+      "page": "1"
+    }
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/pedidos/p1",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/pedidos/p1/history",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/pedidos/p1",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/pedidos/p1/history",
+    "query": {}
+  }
+]

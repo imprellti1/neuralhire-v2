@@ -1,0 +1,11 @@
+[
+  {
+    "method": "GET",
+    "path": "/x",
+    "query": {},
+    "headers": {
+      "Authorization": "Bearer abc"
+    },
+    "body": null
+  }
+]
