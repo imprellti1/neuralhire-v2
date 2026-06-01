@@ -1,0 +1,9 @@
+﻿{
+  "name": "@neuralhire/database",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "migrations:list": "node -e \"console.log('Supabase migrations directory: packages/database/supabase/migrations')\""
+  }
+}

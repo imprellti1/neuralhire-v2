@@ -1,0 +1,11 @@
+﻿{
+  "name": "@neuralhire/shared",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    "./constants/domains": "./src/constants/domains.js",
+    "./utils/date": "./src/utils/date.js",
+    "./utils/text": "./src/utils/text.js"
+  }
+}

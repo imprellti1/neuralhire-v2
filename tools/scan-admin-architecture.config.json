@@ -1,0 +1,39 @@
+﻿{
+  "weights": {
+    "lines": 10,
+    "imports": 8,
+    "exports": 3,
+    "routes": 12,
+    "consoleLogs": 5,
+    "intervals": 10,
+    "cron": 12,
+    "windowGlobals": 8,
+    "documentQueries": 5,
+    "envVars": 4,
+    "supabaseTables": 8,
+    "jobsWorkers": 12,
+    "fileCriticality": 20
+  },
+  "thresholds": {
+    "largeFileLines": 1000,
+    "hugeFileLines": 3000,
+    "tooManyConsoleLogs": 20,
+    "tooManyRoutes": 20,
+    "tooManyImports": 15
+  },
+  "criticalPatterns": [
+    "server.js",
+    "followup",
+    "whatsapp",
+    "pipeline",
+    "worker",
+    "job",
+    "scheduler",
+    "webhook"
+  ],
+  "preservePatterns": [
+    "src/clientes/enriquecimento",
+    "src/clientes/repositorios",
+    "tools/scan-admin-architecture.js"
+  ]
+}
