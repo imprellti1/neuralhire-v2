@@ -10,6 +10,7 @@ import { renderPedidoCreatePage } from './modules/pedidos-comercial/pedido-creat
 import { renderProdutosPage } from './modules/produtos-catalogo/produtos.page.js';
 import { renderProdutoCreatePage } from './modules/produtos-catalogo/produto-create.page.js';
 import { renderProdutoDetailsPage } from './modules/produtos-catalogo/produto-details.page.js';
+import { renderPublicLandingPage } from './modules/public-site/landing.page.js';
 
 function injectAppStyles() {
   if (document.getElementById('nh-app-style')) return;
@@ -66,62 +67,38 @@ export function bootstrapWebApp() {
   if (typeof document === 'undefined') return;
   injectAppStyles();
   const api = createApiClient();
-  const layout = createLayout();
-  document.body.innerHTML = '';
-  document.body.appendChild(layout);
-  const content = document.getElementById('app-content');
 
   const renderRoute = () => {
-    const route = window.location.hash || '#/dashboard-comercial';
+    const route = window.location.hash || '#/';
+
+    if (route === '#/' || route === '#') {
+      document.body.innerHTML = '';
+      renderPublicLandingPage(document.body);
+      return;
+    }
+
+    let layout = document.querySelector('.nh-shell');
+    if (!layout) {
+      layout = createLayout();
+      document.body.innerHTML = '';
+      document.body.appendChild(layout);
+    }
+
+    const content = document.getElementById('app-content');
     setActiveMenu(route.startsWith('#/pedidos/') ? '#/pedidos' : (route.startsWith('#/clientes/') ? '#/clientes' : route));
-    if (route === '#/clientes') {
-      renderClientesPage(content, { apiClient: api });
-      return;
-    }
-    if (route === '#/clientes/novo') {
-      renderClienteCreatePage(content, { apiClient: api });
-      return;
-    }
-    if (route.startsWith('#/clientes/')) {
-      const clienteId = route.slice('#/clientes/'.length).split('?')[0];
-      renderClienteDetailsPage(content, { apiClient: api, clienteId });
-      return;
-    }
-    if (route === '#/produtos') {
-      renderProdutosPage(content, { apiClient: api });
-      return;
-    }
-    if (route === '#/produtos/novo') {
-      renderProdutoCreatePage(content, { apiClient: api });
-      return;
-    }
-    if (route.startsWith('#/produtos/')) {
-      const produtoId = route.slice('#/produtos/'.length).split('?')[0];
-      renderProdutoDetailsPage(content, { apiClient: api, produtoId });
-      return;
-    }
-    if (route === '#/pedidos') {
-      renderPedidosPage(content, { apiClient: api });
-      return;
-    }
-    if (route === '#/pedidos/novo') {
-      renderPedidoCreatePage(content, { apiClient: api });
-      return;
-    }
-    if (route.startsWith('#/pedidos/')) {
-      const pedidoId = route.slice('#/pedidos/'.length).split('?')[0];
-      renderPedidoDetailsPage(content, { apiClient: api, pedidoId });
-      return;
-    }
-    if (route === '#/dashboard-operacional') {
-      renderOperationalDashboardPage(content, { apiClient: api });
-      return;
-    }
-    renderAnalyticsDashboardPage(content, { apiClient: api });
+    if (route === '#/clientes') return renderClientesPage(content, { apiClient: api });
+    if (route === '#/clientes/novo') return renderClienteCreatePage(content, { apiClient: api });
+    if (route.startsWith('#/clientes/')) return renderClienteDetailsPage(content, { apiClient: api, clienteId: route.slice('#/clientes/'.length).split('?')[0] });
+    if (route === '#/produtos') return renderProdutosPage(content, { apiClient: api });
+    if (route === '#/produtos/novo') return renderProdutoCreatePage(content, { apiClient: api });
+    if (route.startsWith('#/produtos/')) return renderProdutoDetailsPage(content, { apiClient: api, produtoId: route.slice('#/produtos/'.length).split('?')[0] });
+    if (route === '#/pedidos') return renderPedidosPage(content, { apiClient: api });
+    if (route === '#/pedidos/novo') return renderPedidoCreatePage(content, { apiClient: api });
+    if (route.startsWith('#/pedidos/')) return renderPedidoDetailsPage(content, { apiClient: api, pedidoId: route.slice('#/pedidos/'.length).split('?')[0] });
+    if (route === '#/dashboard-operacional') return renderOperationalDashboardPage(content, { apiClient: api });
+    return renderAnalyticsDashboardPage(content, { apiClient: api });
   };
 
   window.addEventListener('hashchange', renderRoute);
   renderRoute();
 }
-
-
