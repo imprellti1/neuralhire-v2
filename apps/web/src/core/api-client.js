@@ -22,21 +22,34 @@ function resolveRuntimeConfig() {
 }
 
 export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
-  const runtimeConfig = resolveRuntimeConfig();
+  const runtimeConfig = typeof window !== 'undefined' ? window.__NEURALHIRE_CONFIG__ || {} : {};
+  const envConfig = typeof import.meta !== 'undefined' ? import.meta.env || {} : {};
+  const appEnv = runtimeConfig.VITE_APP_ENV || envConfig.VITE_APP_ENV;
+  const demoAccountId = runtimeConfig.VITE_DEMO_ACCOUNT_ID || envConfig.VITE_DEMO_ACCOUNT_ID;
+  const demoRole = runtimeConfig.VITE_DEMO_ROLE || envConfig.VITE_DEMO_ROLE;
+  const demoUserId = runtimeConfig.VITE_DEMO_USER_ID || envConfig.VITE_DEMO_USER_ID;
 
-  function isHomologationDemoEnabled() {
-    return String(runtimeConfig.VITE_APP_ENV || '').toLowerCase() === 'homologation' && Boolean(runtimeConfig.VITE_DEMO_ACCOUNT_ID);
-  }
+  function buildHeaders(headers = {}) {
+    const mergedHeaders = {
+      'content-type': 'application/json',
+      ...(headers || {})
+    };
 
-  function withDemoTenantHeaders(headers = {}) {
-    const merged = { ...headers };
-    const hasAuthorization = Boolean(merged.Authorization || merged.authorization);
-    if (isHomologationDemoEnabled() && !hasAuthorization) {
-      merged['x-test-account-id'] = merged['x-test-account-id'] || runtimeConfig.VITE_DEMO_ACCOUNT_ID;
-      if (runtimeConfig.VITE_DEMO_ROLE) merged['x-test-role'] = merged['x-test-role'] || runtimeConfig.VITE_DEMO_ROLE;
-      if (runtimeConfig.VITE_DEMO_USER_ID) merged['x-test-user-id'] = merged['x-test-user-id'] || runtimeConfig.VITE_DEMO_USER_ID;
+    const hasAuthorization = Boolean(mergedHeaders.Authorization || mergedHeaders.authorization);
+
+    if (!hasAuthorization && String(appEnv || '').toLowerCase() === 'homologation' && demoAccountId) {
+      mergedHeaders['x-test-account-id'] = demoAccountId;
+
+      if (demoRole) {
+        mergedHeaders['x-test-role'] = demoRole;
+      }
+
+      if (demoUserId) {
+        mergedHeaders['x-test-user-id'] = demoUserId;
+      }
     }
-    return merged;
+
+    return mergedHeaders;
   }
 
   async function get(path, query = {}, headers = {}) {
@@ -46,10 +59,7 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
     });
     const res = await fetch(url.toString(), {
       method: 'GET',
-      headers: {
-        'content-type': 'application/json',
-        ...withDemoTenantHeaders(headers)
-      }
+      headers: buildHeaders(headers)
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -65,10 +75,7 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
     const url = new URL(path, baseUrl);
     const res = await fetch(url.toString(), {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        ...withDemoTenantHeaders(headers)
-      },
+      headers: buildHeaders(headers),
       body: JSON.stringify(body || {})
     });
     const out = await res.json().catch(() => ({}));
@@ -85,10 +92,7 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
     const url = new URL(path, baseUrl);
     const res = await fetch(url.toString(), {
       method: 'PATCH',
-      headers: {
-        'content-type': 'application/json',
-        ...withDemoTenantHeaders(headers)
-      },
+      headers: buildHeaders(headers),
       body: JSON.stringify(body || {})
     });
     const out = await res.json().catch(() => ({}));
