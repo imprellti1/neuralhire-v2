@@ -41,7 +41,10 @@ test('api client only sends demo tenant headers with explicit homologation confi
 test('api client does not send demo tenant headers without explicit demo config', async () => {
   setRuntimeConfig({
     VITE_API_URL: 'https://api.test',
-    VITE_APP_ENV: 'production'
+    VITE_APP_ENV: 'production',
+    VITE_DEMO_ACCOUNT_ID: 'acc-analytics-001',
+    VITE_DEMO_ROLE: 'manager',
+    VITE_DEMO_USER_ID: 'user-demo-manager'
   });
   installFetchMock({
     'GET /demo': () => ({ ok: true })
@@ -54,6 +57,31 @@ test('api client does not send demo tenant headers without explicit demo config'
   assert.equal(call.headers['x-test-account-id'], undefined);
   assert.equal(call.headers['x-test-role'], undefined);
   assert.equal(call.headers['x-test-user-id'], undefined);
+  assertNoSensitiveTransportFields(getCapturedFetchCalls());
+
+  clearRuntimeConfig();
+  resetFetchCalls();
+});
+
+test('api client forwards all homologation test headers on product editor fetches', async () => {
+  setRuntimeConfig({
+    VITE_API_URL: 'https://api.test',
+    VITE_APP_ENV: 'homologation',
+    VITE_DEMO_ACCOUNT_ID: 'acc-analytics-001',
+    VITE_DEMO_ROLE: 'manager',
+    VITE_DEMO_USER_ID: 'user-demo-manager'
+  });
+  installFetchMock({
+    'GET /product-editor/products': () => ({ items: [], total: 0 })
+  });
+
+  const api = createApiClient();
+  await api.get('/product-editor/products');
+
+  const call = getCapturedFetchCalls()[0];
+  assert.equal(call.headers['x-test-account-id'], 'acc-analytics-001');
+  assert.equal(call.headers['x-test-role'], 'manager');
+  assert.equal(call.headers['x-test-user-id'], 'user-demo-manager');
   assertNoSensitiveTransportFields(getCapturedFetchCalls());
 
   clearRuntimeConfig();

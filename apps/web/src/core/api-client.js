@@ -52,15 +52,33 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
     return mergedHeaders;
   }
 
-  async function get(path, query = {}, headers = {}) {
+  async function request(method, path, options = {}) {
+    const { query = {}, body, headers = {} } = options;
     const url = new URL(path, baseUrl);
     Object.entries(query).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v));
     });
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      headers: buildHeaders(headers)
+
+    const finalHeaders = buildHeaders(headers);
+
+    console.info('[NeuralHire API Client]', {
+      appEnv,
+      demoAccountId,
+      demoRole,
+      headers: finalHeaders
     });
+
+    const res = await fetch(url.toString(), {
+      method,
+      headers: finalHeaders,
+      ...(body !== undefined ? { body: JSON.stringify(body || {}) } : {})
+    });
+
+    return { res };
+  }
+
+  async function get(path, query = {}, headers = {}) {
+    const { res } = await request('GET', path, { query, headers });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
       const err = new Error(body?.error?.message || 'Request failed');
@@ -72,12 +90,7 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
   }
 
   async function post(path, body = {}, headers = {}) {
-    const url = new URL(path, baseUrl);
-    const res = await fetch(url.toString(), {
-      method: 'POST',
-      headers: buildHeaders(headers),
-      body: JSON.stringify(body || {})
-    });
+    const { res } = await request('POST', path, { body, headers });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) {
       const err = new Error(out?.error?.message || 'Request failed');
@@ -89,12 +102,7 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
   }
 
   async function patch(path, body = {}, headers = {}) {
-    const url = new URL(path, baseUrl);
-    const res = await fetch(url.toString(), {
-      method: 'PATCH',
-      headers: buildHeaders(headers),
-      body: JSON.stringify(body || {})
-    });
+    const { res } = await request('PATCH', path, { body, headers });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) {
       const err = new Error(out?.error?.message || 'Request failed');
