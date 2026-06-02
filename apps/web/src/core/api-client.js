@@ -1,3 +1,5 @@
+console.error('[API CLIENT M1.11 ACTIVE]');
+
 function resolveDefaultApiUrl() {
   if (typeof window !== 'undefined' && window.__NEURALHIRE_CONFIG__?.VITE_API_URL) {
     return window.__NEURALHIRE_CONFIG__.VITE_API_URL;
@@ -7,7 +9,11 @@ function resolveDefaultApiUrl() {
     return import.meta.env.VITE_API_URL;
   }
 
-  return 'http://localhost:3000';
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+
+  return '';
 }
 
 function resolveRuntimeConfig() {
