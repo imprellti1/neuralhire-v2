@@ -8,6 +8,11 @@ export function setupFrontendDom(hash = '#/') {
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: `http://localhost/${hash}` });
   global.window = dom.window;
   global.document = dom.window.document;
+  Object.defineProperty(global, 'navigator', {
+    value: dom.window.navigator,
+    configurable: true,
+    writable: true
+  });
   global.Blob = dom.window.Blob;
   global.URL = dom.window.URL;
   global.Event = dom.window.Event;
@@ -19,6 +24,7 @@ export function teardownFrontendDom(dom) {
   dom.window.close();
   delete global.window;
   delete global.document;
+  delete global.navigator;
   delete global.Blob;
   delete global.URL;
   delete global.Event;
