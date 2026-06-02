@@ -68,6 +68,8 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
       headers: finalHeaders
     });
 
+    console.error('[API CLIENT 44a6108 EXECUTING]');
+    console.error('[HEADERS]', finalHeaders);
     const res = await fetch(url.toString(), {
       method,
       headers: finalHeaders,
