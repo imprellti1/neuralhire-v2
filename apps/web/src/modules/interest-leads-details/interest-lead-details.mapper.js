@@ -1,0 +1,1 @@
+export const mapInterestLeadDetails=(i={})=>({id:i.id,nome:i.nome||'-',empresa:i.empresa||'-',cidadeUf:`${i.cidade||'-'}/${i.estado||'-'}`,whatsapp:i.whatsapp||'-',email:i.email||'-',status:i.status||'novo',responsavel:i.responsavel||'',ultimoContato:i.ultimo_contato_em||'-',origem:i.origem||'-',segmento:i.segmento||'-',obs:i.observacoes||''});

@@ -1,0 +1,1 @@
+export function mapInterestLead(item = {}) { return { id: item.id, nome: item.nome || '-', empresa: item.empresa || '-', status: item.status || 'novo', contato: item.whatsapp || item.email || '-', cidade: item.cidade || '-', segmento: item.segmento || '-', createdAt: item.created_at || '' }; }

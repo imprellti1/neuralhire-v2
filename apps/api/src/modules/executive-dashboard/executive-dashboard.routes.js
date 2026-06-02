@@ -1,0 +1,2 @@
+import { asyncHandler } from '../../core/async-handler.js'; import { sendSuccess } from '../../core/response.js'; import { getExecutiveDashboardHandler } from './executive-dashboard.controller.js';
+export function registerExecutiveDashboardRoutes(router){router.registerRoute({method:'GET',path:'/accounts/:accountId/executive-dashboard',domain:'customer-success',handler:asyncHandler(async(req,res,ctx)=>sendSuccess(res,await getExecutiveDashboardHandler(ctx)))});}

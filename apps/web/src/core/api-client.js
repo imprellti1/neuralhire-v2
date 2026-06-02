@@ -1,4 +1,16 @@
-export function createApiClient(baseUrl = 'http://localhost:3000') {
+function resolveDefaultApiUrl() {
+  if (typeof window !== 'undefined' && window.__NEURALHIRE_CONFIG__?.VITE_API_URL) {
+    return window.__NEURALHIRE_CONFIG__.VITE_API_URL;
+  }
+
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+
+  return 'http://localhost:3000';
+}
+
+export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
   function isLocalDev() {
     if (typeof window === 'undefined') return false;
     const host = window.location.hostname;

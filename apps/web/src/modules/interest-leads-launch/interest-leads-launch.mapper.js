@@ -1,0 +1,1 @@
+export const mapLaunchLead=(x={})=>({id:x.id,nome:x.nome||'-',empresa:x.empresa||'-',cidade:x.cidade||'-',uf:x.estado||x.uf||'-',statusComercial:x.status||'novo',statusConvite:x.invite_status||'nao_convidado',lote:x.launch_batch||'-',cadastro:x.created_at||''});

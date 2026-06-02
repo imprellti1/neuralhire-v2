@@ -22,7 +22,21 @@ export const ROUTE_PERMISSIONS = {
   'GET /analytics/summary': { authenticated: true, permission: 'analytics:read', tenantRequired: true, domain: 'analytics-comercial' },
   'GET /analytics/products': { authenticated: true, permission: 'analytics:read', tenantRequired: true, domain: 'analytics-comercial' },
   'GET /analytics/customers': { authenticated: true, permission: 'analytics:read', tenantRequired: true, domain: 'analytics-comercial' },
-  'GET /analytics/timeline': { authenticated: true, permission: 'analytics:read', tenantRequired: true, domain: 'analytics-comercial' }
+  'GET /analytics/timeline': { authenticated: true, permission: 'analytics:read', tenantRequired: true, domain: 'analytics-comercial' },
+  'GET /legacy-import/status': { authenticated: true, role: 'manager', tenantRequired: true, domain: 'legacy-import' },
+  'POST /legacy-import/preview': { authenticated: true, role: 'manager', tenantRequired: true, domain: 'legacy-import' },
+  'POST /legacy-import/validate': { authenticated: true, role: 'manager', tenantRequired: true, domain: 'legacy-import' },
+  'POST /legacy-import/execute': { authenticated: true, role: 'manager', tenantRequired: true, domain: 'legacy-import' },
+  'GET /message-approvals/pending': { authenticated: true, permission: 'followup:read', tenantRequired: true, domain: 'message-approvals' },
+  'GET /message-approvals': { authenticated: true, permission: 'followup:read', tenantRequired: true, domain: 'message-approvals' },
+  'GET /message-approvals/:approvalId': { authenticated: true, permission: 'followup:read', tenantRequired: true, domain: 'message-approvals' },
+  'GET /message-approvals/draft/:draftId': { authenticated: true, permission: 'followup:read', tenantRequired: true, domain: 'message-approvals' },
+  'POST /message-approvals/:draftId/approve': { authenticated: true, role: 'manager', tenantRequired: true, domain: 'message-approvals' },
+  'POST /message-approvals/:draftId/reject': { authenticated: true, role: 'manager', tenantRequired: true, domain: 'message-approvals' }
+  ,
+  'GET /whatsapp/conversations/:conversationId/draft-state': { authenticated: true, permission: 'followup:read', tenantRequired: true, domain: 'whatsapp' },
+  'POST /commercial-agent/analyze': { authenticated: true, permission: 'followup:read', tenantRequired: true, domain: 'commercial-agent' },
+  'GET /commercial-agent/conversation/:conversationId': { authenticated: true, permission: 'followup:read', tenantRequired: true, domain: 'commercial-agent' }
 };
 
 export function getRoutePermissionKey(method, path) {

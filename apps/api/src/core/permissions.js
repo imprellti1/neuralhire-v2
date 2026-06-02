@@ -27,6 +27,8 @@ export const PERMISSIONS = {
   ANALYTICS_READ: 'analytics:read',
   FOLLOWUP_READ: 'followup:read',
   FOLLOWUP_WRITE: 'followup:write',
+  MESSAGE_APPROVALS_READ: 'followup:read',
+  MESSAGE_APPROVALS_WRITE: 'followup:write',
   SYSTEM_ADMIN: 'system:admin'
 };
 

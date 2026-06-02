@@ -1,0 +1,2 @@
+import { asyncHandler } from '../../core/async-handler.js'; import { sendSuccess } from '../../core/response.js'; import { getRevenueIntelligenceHandler } from './revenue-intelligence.controller.js';
+export function registerRevenueIntelligenceRoutes(router){ router.registerRoute({method:'GET',path:'/accounts/:accountId/revenue-intelligence',domain:'customer-success',handler:asyncHandler(async(req,res,ctx)=>sendSuccess(res,await getRevenueIntelligenceHandler(ctx)))}); }

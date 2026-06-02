@@ -1,0 +1,1 @@
+export function createWhatsappConversationsState() { return { loading: false, saving: false, error: null, items: [], selected: null, context: null, messages: [], events: [], draft: null, draftLoading: false, draftError: null }; }

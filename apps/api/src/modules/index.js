@@ -9,38 +9,81 @@ import { registerPedidosRoutes } from './pedidos/pedidos.routes.js';
 import { pedidosModule } from './pedidos/pedidos.module.js';
 import { registerAnalyticsRoutes } from './analytics/analytics.routes.js';
 import { analyticsModule } from './analytics/analytics.module.js';
+import { registerInterestLeadsRoutes } from './interest-leads/interest-leads.routes.js';
+import { interestLeadsModule } from './interest-leads/interest-leads.module.js';
+import { registerBillingRoutes } from './billing/billing.routes.js';
+import { billingModule } from './billing/billing.module.js';
+import { registerOnboardingRoutes } from './onboarding/onboarding.routes.js';
+import { onboardingModule } from './onboarding/onboarding.module.js';
+import { registerAccountActivationRoutes } from './account-activation/account-activation.routes.js';
+import { accountActivationModule } from './account-activation/account-activation.module.js';
+import { registerImplementationTrackerRoutes } from './implementation-tracker/implementation-tracker.routes.js';
+import { implementationTrackerModule } from './implementation-tracker/implementation-tracker.module.js';
+import { registerCustomerSuccessRoutes } from './customer-success/customer-success.routes.js';
+import { customerSuccessModule } from './customer-success/customer-success.module.js';
+import { registerCustomerSuccessAutomationRoutes } from './customer-success-automation/customer-success-automation.routes.js';
+import { customerSuccessAutomationModule } from './customer-success-automation/customer-success-automation.module.js';
+import { registerCustomerSuccessTimelineRoutes } from './customer-success-timeline/customer-success-timeline.routes.js';
+import { customerSuccessTimelineModule } from './customer-success-timeline/customer-success-timeline.module.js';
+import { registerCustomerRetentionRoutes } from './customer-retention/customer-retention.routes.js';
+import { customerRetentionModule } from './customer-retention/customer-retention.module.js';
+import { registerCustomerMemoryRoutes } from './customer-memory/customer-memory.routes.js';
+import { customerMemoryModule } from './customer-memory/customer-memory.module.js';
+import { registerExecutiveDashboardRoutes } from './executive-dashboard/executive-dashboard.routes.js';
+import { executiveDashboardModule } from './executive-dashboard/executive-dashboard.module.js';
+import { registerExecutivePortfolioAnalyticsRoutes } from './executive-portfolio-analytics/executive-portfolio-analytics.routes.js';
+import { executivePortfolioAnalyticsModule } from './executive-portfolio-analytics/executive-portfolio-analytics.module.js';
+import { registerRevenueIntelligenceRoutes } from './revenue-intelligence/revenue-intelligence.routes.js';
+import { revenueIntelligenceModule } from './revenue-intelligence/revenue-intelligence.module.js';
+import { registerPortfolioDashboardRoutes } from './portfolio-dashboard/portfolio-dashboard.routes.js';
+import { portfolioDashboardModule } from './portfolio-dashboard/portfolio-dashboard.module.js';
+import { registerLegacyImportRoutes } from './legacy-import/legacy-import.routes.js';
+import { legacyImportModule } from './legacy-import/legacy-import.module.js';
+import { registerWhatsappConversationsRoutes } from './whatsapp-conversations/whatsapp-conversations.routes.js';
+import { whatsappConversationsModule } from './whatsapp-conversations/whatsapp-conversations.module.js';
+import { registerMessageDraftRoutes } from './message-drafts/message-drafts.routes.js';
+import { messageDraftsModule } from './message-drafts/message-drafts.module.js';
+import { registerMessageApprovalsRoutes } from './message-approvals/message-approvals.routes.js';
+import { messageApprovalsModule } from './message-approvals/message-approvals.module.js';
+import { registerApprovalIntelligenceRoutes } from './approval-intelligence/approval-intelligence.routes.js';
+import { approvalIntelligenceModule } from './approval-intelligence/approval-intelligence.module.js';
+import { registerWhatsappDeliveryRoutes } from './whatsapp-delivery/whatsapp-delivery.routes.js';
+import { whatsappDeliveryModule } from './whatsapp-delivery/whatsapp-delivery.module.js';
+import { registerCommercialAgentRoutes } from './commercial-agent/commercial-agent.routes.js';
+import { commercialAgentModule } from './commercial-agent/commercial-agent.module.js';
+import { registerFabricantesRoutes } from './fabricantes/fabricantes.routes.js';
+import { fabricantesModule } from './fabricantes/fabricantes.module.js';
+import { registerProductAuditRoutes } from './product-audit/product-audit.routes.js';
+import { productAuditModule } from './product-audit/product-audit.module.js';
+import { registerProductEditorRoutes } from './product-editor/product-editor.routes.js';
+import { productEditorModule } from './product-editor/product-editor.module.js';
 
 export const registeredModules = [
-  defineModule({
-    name: 'health',
-    domain: 'core-platform',
-    routes: ['GET /health']
-  }),
-  defineModule({
-    name: 'system',
-    domain: 'core-platform',
-    routes: [
-      'GET /system/info',
-      'GET /system/auth-context',
-      'GET /system/protected',
-      'GET /system/admin-only',
-      'POST /system/echo'
-    ]
-  }),
-  clientesModule,
-  produtosModule,
-  pedidosModule,
-  analyticsModule
+  defineModule({ name: 'health', domain: 'core-platform', routes: ['GET /health'] }),
+  defineModule({ name: 'system', domain: 'core-platform', routes: ['GET /system/info', 'GET /system/auth-context', 'GET /system/protected', 'GET /system/admin-only', 'POST /system/echo'] }),
+  clientesModule, produtosModule, pedidosModule, analyticsModule, interestLeadsModule, billingModule, onboardingModule,
+  accountActivationModule, implementationTrackerModule, customerSuccessModule, customerSuccessAutomationModule,
+  customerSuccessTimelineModule, customerRetentionModule, executiveDashboardModule, executivePortfolioAnalyticsModule,
+  revenueIntelligenceModule, portfolioDashboardModule, legacyImportModule, customerMemoryModule,
+  whatsappConversationsModule, messageDraftsModule, messageApprovalsModule, approvalIntelligenceModule, whatsappDeliveryModule, commercialAgentModule, fabricantesModule
+  ,productAuditModule, productEditorModule
 ];
 
 export function registerModules(router, options = {}) {
-  registerHealthRoutes(router);
-  registerSystemRoutes(router, {
-    registeredModules,
-    globalMiddlewares: options.globalMiddlewares || []
-  });
-  registerClientesRoutes(router);
-  registerProdutosRoutes(router);
-  registerPedidosRoutes(router);
-  registerAnalyticsRoutes(router);
+  registerHealthRoutes(router); registerSystemRoutes(router, { registeredModules, globalMiddlewares: options.globalMiddlewares || [] });
+  registerClientesRoutes(router); registerProdutosRoutes(router); registerPedidosRoutes(router); registerAnalyticsRoutes(router);
+  registerInterestLeadsRoutes(router); registerBillingRoutes(router); registerOnboardingRoutes(router); registerAccountActivationRoutes(router);
+  registerImplementationTrackerRoutes(router); registerCustomerSuccessRoutes(router); registerCustomerSuccessAutomationRoutes(router);
+  registerCustomerSuccessTimelineRoutes(router); registerCustomerRetentionRoutes(router); registerCustomerMemoryRoutes(router); registerExecutiveDashboardRoutes(router);
+  registerExecutivePortfolioAnalyticsRoutes(router); registerRevenueIntelligenceRoutes(router); registerPortfolioDashboardRoutes(router); registerLegacyImportRoutes(router);
+  registerWhatsappConversationsRoutes(router); registerMessageDraftRoutes(router);
+  registerMessageApprovalsRoutes(router);
+  registerApprovalIntelligenceRoutes(router);
+  registerWhatsappDeliveryRoutes(router);
+  registerCommercialAgentRoutes(router);
+  registerFabricantesRoutes(router);
+  registerProductAuditRoutes(router);
+  registerProductEditorRoutes(router);
 }
+
+

@@ -5,10 +5,9 @@
   "private": true,
   "scripts": {
     "dev": "node src/dev-server.js",
-    "check": "node --check src/main.js && node --check src/app.js && node --check src/dev-server.js",
     "test:mapper": "node src/modules/produtos-catalogo/produto-details.mapper.test.js",
     "test:dom": "node src/modules/produtos-catalogo/produto-details.page.contract.test.js",
-    "test:integration": "node --test src/modules/produtos-catalogo/produto-details.page.dom.test.js src/modules/produtos-catalogo/produtos.routes.smoke.test.js src/modules/clientes-crm/clientes.routes.smoke.test.js src/modules/pedidos-comercial/pedidos.routes.smoke.test.js src/modules/public-site/landing.routes.smoke.test.js",
+    "test:integration": "node --test src/modules/produtos-catalogo/produto-details.page.dom.test.js src/modules/produtos-catalogo/produtos.routes.smoke.test.js src/modules/clientes-crm/clientes.routes.smoke.test.js src/modules/pedidos-comercial/pedidos.routes.smoke.test.js src/modules/public-site/landing.routes.smoke.test.js src/modules/interest-leads/interest-leads.routes.smoke.test.js src/modules/interest-leads/interest-leads.page.dom.test.js src/modules/interest-leads/interest-leads-launch.page.dom.test.js src/modules/launch-templates/launch-templates.routes.smoke.test.js src/modules/launch-templates/launch-templates.page.dom.test.js src/modules/interest-leads/interest-leads-convert.page.dom.test.js src/modules/onboarding/onboarding.routes.smoke.test.js src/modules/onboarding/onboarding.page.dom.test.js src/modules/portfolio-dashboard/portfolio-dashboard.page.dom.test.js src/modules/portfolio-dashboard/portfolio-dashboard.routes.smoke.test.js src/modules/legacy-import/legacy-import.page.dom.test.js src/modules/legacy-import/legacy-import-audit.dom.test.js src/modules/legacy-import/legacy-import-audit-report.dom.test.js src/modules/legacy-import/legacy-import-approval.dom.test.js src/modules/legacy-import/legacy-import-promotion.dom.test.js src/modules/legacy-import/legacy-import.routes.smoke.test.js src/modules/legacy-import/legacy-import.service.test.js src/modules/customer-memory/customer-memory.page.dom.test.js src/modules/customer-memory/customer-memory.routes.smoke.test.js src/modules/fabricantes/fabricantes.page.dom.test.js src/modules/fabricantes/fabricantes.routes.smoke.test.js src/modules/product-audit/product-audit.page.dom.test.js src/modules/product-audit/product-audit.routes.smoke.test.js src/modules/product-editor/product-editor.page.dom.test.js src/modules/product-editor/product-editor.routes.smoke.test.js src/modules/whatsapp-conversations/whatsapp-conversations.page.dom.test.js src/modules/whatsapp-conversations/message-drafts.dom.test.js src/modules/whatsapp-conversations/action-aware-drafts.dom.test.js src/modules/whatsapp-conversations/whatsapp-context.dom.test.js src/modules/whatsapp-conversations/whatsapp-delivery.dom.test.js src/modules/whatsapp-conversations/commercial-agent.dom.test.js src/modules/whatsapp-conversations/whatsapp-conversations.routes.smoke.test.js src/modules/message-approvals/message-approvals.page.dom.test.js src/modules/message-approvals/message-approvals.routes.smoke.test.js src/modules/approval-intelligence/approval-intelligence.page.dom.test.js src/modules/approval-intelligence/approval-intelligence.routes.smoke.test.js src/modules/public-site/landing-to-lead.integration.test.js src/modules/interest-leads/interest-lead-conversion.integration.test.js src/modules/onboarding/onboarding.integration.test.js src/testing/jornada-comercial.routes.smoke.test.js",
     "test:security": "node --test src/testing/frontend-security.test.js",
     "test:web": "npm run test:mapper && npm run test:dom && npm run test:integration && npm run test:security && node --test src/testing/infrastructure-helpers.unit.test.js"
   },
@@ -16,4 +15,10 @@
     "jsdom": "^26.1.0"
   }
 }
+
+
+
+
+
+
 

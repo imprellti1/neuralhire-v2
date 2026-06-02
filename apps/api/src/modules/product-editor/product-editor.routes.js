@@ -1,0 +1,14 @@
+import { asyncHandler } from '../../core/async-handler.js';
+import { sendSuccess } from '../../core/response.js';
+import { createProductEditorVariationHandler, getProductEditorProductHandler, getProductEditorProducts, getProductEditorVariationsHandler, patchProductEditorImagesHandler, patchProductEditorProductHandler, patchProductEditorVariationHandler, patchProductEditorVariationImageHandler } from './product-editor.controller.js';
+
+export function registerProductEditorRoutes(router) {
+  router.registerRoute({ method: 'GET', path: '/product-editor/products', domain: 'produtos-catalogo', handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await getProductEditorProducts(context))) });
+  router.registerRoute({ method: 'GET', path: '/product-editor/products/:productId', domain: 'produtos-catalogo', handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await getProductEditorProductHandler(context))) });
+  router.registerRoute({ method: 'PATCH', path: '/product-editor/products/:productId', domain: 'produtos-catalogo', handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await patchProductEditorProductHandler(context))) });
+  router.registerRoute({ method: 'PATCH', path: '/product-editor/products/:productId/images', domain: 'produtos-catalogo', handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await patchProductEditorImagesHandler(context))) });
+  router.registerRoute({ method: 'GET', path: '/product-editor/products/:productId/variations', domain: 'produtos-catalogo', handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await getProductEditorVariationsHandler(context))) });
+  router.registerRoute({ method: 'POST', path: '/product-editor/products/:productId/variations', domain: 'produtos-catalogo', handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await createProductEditorVariationHandler(context))) });
+  router.registerRoute({ method: 'PATCH', path: '/product-editor/products/:productId/variations/:variationId', domain: 'produtos-catalogo', handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await patchProductEditorVariationHandler(context))) });
+  router.registerRoute({ method: 'PATCH', path: '/product-editor/products/:productId/variations/:variationId/image', domain: 'produtos-catalogo', handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await patchProductEditorVariationImageHandler(context))) });
+}

@@ -1,0 +1,7 @@
+import { createApiApp } from '../../app.js';
+import { createTestRequest } from '../create-test-request.js';
+import { createTestResponse } from '../create-test-response.js';
+import { assertEqual } from '../assert.js';
+import { __resetMemoryInterestLeadsForTests } from '../../modules/interest-leads/interest-leads.repository.js';
+
+export function getLaunchQueueTests(){return[{name:'POST /launch/queue fila mock e agenda lead',run:async()=>{__resetMemoryInterestLeadsForTests();const app=createApiApp();let req=createTestRequest({method:'POST',url:'/interest-leads',headers:{'content-type':'application/json'},body:JSON.stringify({nome:'Ana',empresa:'Acme',email:'ana@acme.com'})});let res=createTestResponse();await app(req,res);const leadId=JSON.parse(res.body).item.id;req=createTestRequest({method:'POST',url:'/launch/templates',headers:{'content-type':'application/json'},body:JSON.stringify({channel:'whatsapp',name:'T',body:'Oi {{nome}}',status:'active'})});res=createTestResponse();await app(req,res);const templateId=JSON.parse(res.body).item.id;req=createTestRequest({method:'POST',url:'/launch/queue',headers:{'content-type':'application/json'},body:JSON.stringify({leadIds:[leadId],templateId})});res=createTestResponse();await app(req,res);assertEqual(res.statusCode,200);req=createTestRequest({method:'GET',url:`/interest-leads/${leadId}`});res=createTestResponse();await app(req,res);assertEqual(JSON.parse(res.body).item.invite_status,'agendado');}}];}

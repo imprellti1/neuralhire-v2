@@ -1,0 +1,1 @@
+export const mapInterestLeadsDashboard=(d={})=>({total:d.totalLeads||0,novosHoje:d.novosHoje||0,d7:d.crescimento7Dias||0,d30:d.crescimento30Dias||0,porStatus:d.porStatus||{},porEstado:d.porEstado||{},ultimos:d.ultimosCadastros||[]});

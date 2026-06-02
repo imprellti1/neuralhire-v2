@@ -1,0 +1,4 @@
+import test from 'node:test'; import assert from 'node:assert/strict';
+import { setupFrontendDom, teardownFrontendDom, flush } from '../../testing/frontend-test-utils.js';
+import { renderActivationPage } from './activation.page.js';
+test('activation page dom loading error retry and complete', async()=>{ const dom=setupFrontendDom('#/activation'); let calls=0; const apiClient={ get:async()=>{ calls+=1; if(calls===1) throw new Error('fail'); return {item:{empresaConfigurada:true,vendedoresCadastrados:true,clientesImportados:true,produtosImportados:true,pedidosImportados:true,dashboardDisponivel:true,percentual:100}}; } }; await renderActivationPage(document.body,{apiClient}); await flush(); assert.match(document.body.textContent,/Erro/i); document.querySelector('#act-retry').click(); await flush(); await flush(); assert.match(document.body.textContent,/100%/i); assert.match(document.body.textContent,/Concluido/i); teardownFrontendDom(dom);});

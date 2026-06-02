@@ -1,0 +1,7 @@
+import { createApiApp } from '../../app.js';
+import { createTestRequest } from '../create-test-request.js';
+import { createTestResponse } from '../create-test-response.js';
+import { assertEqual } from '../assert.js';
+import { __resetMemoryInterestLeadsForTests } from '../../modules/interest-leads/interest-leads.repository.js';
+
+export function getLaunchTemplatesTests(){return[{name:'CRUD basico de templates',run:async()=>{__resetMemoryInterestLeadsForTests();const app=createApiApp();const createReq=createTestRequest({method:'POST',url:'/launch/templates',headers:{'content-type':'application/json'},body:JSON.stringify({channel:'whatsapp',name:'T1',subject:'Oi',body:'Olá {{nome}}',status:'draft'})});const createRes=createTestResponse();await app(createReq,createRes);assertEqual(createRes.statusCode,200);const id=JSON.parse(createRes.body).item.id;const listReq=createTestRequest({method:'GET',url:'/launch/templates'});const listRes=createTestResponse();await app(listReq,listRes);assertEqual(listRes.statusCode,200);const patchReq=createTestRequest({method:'PATCH',url:`/launch/templates/${id}`,headers:{'content-type':'application/json'},body:JSON.stringify({status:'active'})});const patchRes=createTestResponse();await app(patchReq,patchRes);assertEqual(JSON.parse(patchRes.body).item.status,'active');const delReq=createTestRequest({method:'DELETE',url:`/launch/templates/${id}`});const delRes=createTestResponse();await app(delReq,delRes);assertEqual(JSON.parse(delRes.body).item.status,'archived');}}];}

@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { assertEqual } from '../assert.js';
 import { getSupabaseAuthContext } from '../../database/supabase.client.js';
 import {
@@ -54,7 +54,7 @@ export function getClientesRlsContractTests() {
     {
       name: 'migration documenta current_account_id e policies RLS',
       run: async () => {
-        const filePath = join(process.cwd(), '..', '..', 'packages', 'database', 'supabase', 'migrations', '20260528_harden_clientes_rls.sql');
+        const filePath = fileURLToPath(new URL('../../../../../packages/database/supabase/migrations/20260528_harden_clientes_rls.sql', import.meta.url));
         const sql = readFileSync(filePath, 'utf8');
         assertEqual(sql.includes('current_account_id'), true, 'deve ter helper current_account_id');
         assertEqual(sql.includes('ENABLE ROW LEVEL SECURITY') || sql.includes('enable row level security'), true, 'deve habilitar RLS');

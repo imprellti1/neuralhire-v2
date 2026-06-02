@@ -169,6 +169,8 @@ export async function createProduto(data, options = {}) {
     descricao: data.descricao || null,
     categoria: data.categoria || null,
     marca: data.marca || null,
+    fabricanteId: data.fabricanteId || data.fabricante_id || null,
+    imagemUrl: data.imagemUrl || data.imagem_url || null,
     ean: data.ean || null,
     ncm: data.ncm || null,
     preco: Number.isFinite(data.preco) ? data.preco : 0,
@@ -219,6 +221,8 @@ export async function updateProduto(id, data = {}, options = {}) {
     ...(data.descricao !== undefined ? { descricao: data.descricao || null } : {}),
     ...(data.sku !== undefined ? { sku: data.sku || null } : {}),
     ...(data.categoria !== undefined ? { categoria: data.categoria || null } : {}),
+    ...(data.fabricanteId !== undefined ? { fabricanteId: data.fabricanteId || null } : {}),
+    ...(data.imagemUrl !== undefined ? { imagemUrl: data.imagemUrl || null } : {}),
     ...(precoRaw !== undefined ? { preco: Number(precoRaw) } : {}),
     ...(statusRaw ? { status: statusRaw } : {}),
     ...(nextAtivo !== undefined ? { ativo: nextAtivo } : {})

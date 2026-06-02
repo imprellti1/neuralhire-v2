@@ -1,0 +1,3 @@
+import { listPlans } from './billing.service.js';
+import { mapPlansResponse } from './billing.mapper.js';
+export async function renderBillingPage(container,{apiClient}){ container.innerHTML='<section><h1>Billing</h1><p id="billing-loading">Carregando...</p></section>'; const res=await listPlans(apiClient); const plans=mapPlansResponse(res); container.innerHTML=`<section><h1>Billing</h1><button id="prepare-sub">Preparar assinatura</button><button id="activate-sub">Ativar em sandbox/mock</button><button id="cancel-sub">Cancelar assinatura</button><div id="plans">${plans.map((p)=>`<article>${p.name||p.code}</article>`).join('')}</div><p>Sem campos de cartao nesta etapa.</p></section>`; }
