@@ -22,11 +22,14 @@ function resolveRuntimeConfig() {
   return {
     VITE_APP_ENV: runtimeConfig.VITE_APP_ENV || envConfig.VITE_APP_ENV,
     VITE_SUPABASE_URL: runtimeConfig.VITE_SUPABASE_URL || envConfig.VITE_SUPABASE_URL,
-    VITE_SUPABASE_ANON_KEY: runtimeConfig.VITE_SUPABASE_ANON_KEY || envConfig.VITE_SUPABASE_ANON_KEY,
-    VITE_DEMO_ACCOUNT_ID: runtimeConfig.VITE_DEMO_ACCOUNT_ID || envConfig.VITE_DEMO_ACCOUNT_ID,
-    VITE_DEMO_ROLE: runtimeConfig.VITE_DEMO_ROLE || envConfig.VITE_DEMO_ROLE,
-    VITE_DEMO_USER_ID: runtimeConfig.VITE_DEMO_USER_ID || envConfig.VITE_DEMO_USER_ID
+    VITE_SUPABASE_ANON_KEY: runtimeConfig.VITE_SUPABASE_ANON_KEY || envConfig.VITE_SUPABASE_ANON_KEY
   };
+}
+
+function allowTestHeaders() {
+  const runtimeConfig = typeof window !== 'undefined' ? window.__NEURALHIRE_CONFIG__ || {} : {};
+  const envConfig = typeof import.meta !== 'undefined' ? import.meta.env || {} : {};
+  return Boolean(runtimeConfig.ALLOW_TEST_HEADERS || envConfig.ALLOW_TEST_HEADERS);
 }
 
 function getStoredSession() {
@@ -40,13 +43,6 @@ function getStoredSession() {
 }
 
 export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
-  const runtimeConfig = typeof window !== 'undefined' ? window.__NEURALHIRE_CONFIG__ || {} : {};
-  const envConfig = typeof import.meta !== 'undefined' ? import.meta.env || {} : {};
-  const appEnv = runtimeConfig.VITE_APP_ENV || envConfig.VITE_APP_ENV;
-  const demoAccountId = runtimeConfig.VITE_DEMO_ACCOUNT_ID || envConfig.VITE_DEMO_ACCOUNT_ID;
-  const demoRole = runtimeConfig.VITE_DEMO_ROLE || envConfig.VITE_DEMO_ROLE;
-  const demoUserId = runtimeConfig.VITE_DEMO_USER_ID || envConfig.VITE_DEMO_USER_ID;
-
   function buildHeaders(headers = {}) {
     const mergedHeaders = {
       'content-type': 'application/json',
@@ -58,10 +54,17 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
       const accessToken = getStoredSession()?.access_token || (typeof window !== 'undefined' ? window.localStorage.getItem('neuralhire.supabase.access_token') : null);
       if (accessToken) {
         mergedHeaders.Authorization = `Bearer ${accessToken}`;
-      } else if (String(appEnv || '').toLowerCase() === 'homologation' && demoAccountId) {
-        mergedHeaders['x-test-account-id'] = demoAccountId;
-        if (demoRole) mergedHeaders['x-test-role'] = demoRole;
-        if (demoUserId) mergedHeaders['x-test-user-id'] = demoUserId;
+      } else if (allowTestHeaders()) {
+        const runtimeConfig = typeof window !== 'undefined' ? window.__NEURALHIRE_CONFIG__ || {} : {};
+        const envConfig = typeof import.meta !== 'undefined' ? import.meta.env || {} : {};
+        const demoAccountId = runtimeConfig.VITE_DEMO_ACCOUNT_ID || envConfig.VITE_DEMO_ACCOUNT_ID;
+        const demoRole = runtimeConfig.VITE_DEMO_ROLE || envConfig.VITE_DEMO_ROLE;
+        const demoUserId = runtimeConfig.VITE_DEMO_USER_ID || envConfig.VITE_DEMO_USER_ID;
+        if (demoAccountId) {
+          mergedHeaders['x-test-account-id'] = demoAccountId;
+          if (demoRole) mergedHeaders['x-test-role'] = demoRole;
+          if (demoUserId) mergedHeaders['x-test-user-id'] = demoUserId;
+        }
       }
     }
 

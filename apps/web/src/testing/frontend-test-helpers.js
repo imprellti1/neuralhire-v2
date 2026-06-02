@@ -11,7 +11,8 @@ export function setupFrontendDom(hash = '#/') {
   window.__NEURALHIRE_CONFIG__ = {
     VITE_APP_ENV: 'homologation',
     VITE_DEMO_ACCOUNT_ID: 'acc-analytics-001',
-    VITE_DEMO_ROLE: 'manager'
+    VITE_DEMO_ROLE: 'manager',
+    ALLOW_TEST_HEADERS: true
   };
   Object.defineProperty(global, 'navigator', {
     value: dom.window.navigator,
