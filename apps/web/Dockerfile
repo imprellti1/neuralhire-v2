@@ -5,8 +5,8 @@ WORKDIR /app
 ARG VITE_API_URL=https://api-v2.neuralhire.com.br
 ENV VITE_API_URL=$VITE_API_URL
 
-COPY public ./public
-COPY src ./src
+COPY apps/web/public ./public
+COPY apps/web/src ./src
 
 RUN mkdir -p dist \
   && cp -R public/. dist/ \
@@ -16,7 +16,7 @@ RUN mkdir -p dist \
 FROM nginx:1.27-alpine
 
 COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 
