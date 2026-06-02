@@ -10,19 +10,31 @@ function resolveDefaultApiUrl() {
   return 'http://localhost:3000';
 }
 
+function resolveRuntimeConfig() {
+  const runtimeConfig = typeof window !== 'undefined' ? window.__NEURALHIRE_CONFIG__ || {} : {};
+  const envConfig = typeof import.meta !== 'undefined' ? (import.meta.env || {}) : {};
+  return {
+    VITE_APP_ENV: runtimeConfig.VITE_APP_ENV || envConfig.VITE_APP_ENV,
+    VITE_DEMO_ACCOUNT_ID: runtimeConfig.VITE_DEMO_ACCOUNT_ID || envConfig.VITE_DEMO_ACCOUNT_ID,
+    VITE_DEMO_ROLE: runtimeConfig.VITE_DEMO_ROLE || envConfig.VITE_DEMO_ROLE,
+    VITE_DEMO_USER_ID: runtimeConfig.VITE_DEMO_USER_ID || envConfig.VITE_DEMO_USER_ID
+  };
+}
+
 export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
-  function isLocalDev() {
-    if (typeof window === 'undefined') return false;
-    const host = window.location.hostname;
-    return host === 'localhost' || host === '127.0.0.1';
+  const runtimeConfig = resolveRuntimeConfig();
+
+  function isHomologationDemoEnabled() {
+    return String(runtimeConfig.VITE_APP_ENV || '').toLowerCase() === 'homologation' && Boolean(runtimeConfig.VITE_DEMO_ACCOUNT_ID);
   }
 
-  function withDevAuthHeaders(headers = {}) {
+  function withDemoTenantHeaders(headers = {}) {
     const merged = { ...headers };
     const hasAuthorization = Boolean(merged.Authorization || merged.authorization);
-    if (isLocalDev() && !hasAuthorization) {
-      merged['x-test-role'] = merged['x-test-role'] || 'manager';
-      merged['x-test-account-id'] = merged['x-test-account-id'] || 'acc-analytics-001';
+    if (isHomologationDemoEnabled() && !hasAuthorization) {
+      merged['x-test-account-id'] = merged['x-test-account-id'] || runtimeConfig.VITE_DEMO_ACCOUNT_ID;
+      if (runtimeConfig.VITE_DEMO_ROLE) merged['x-test-role'] = merged['x-test-role'] || runtimeConfig.VITE_DEMO_ROLE;
+      if (runtimeConfig.VITE_DEMO_USER_ID) merged['x-test-user-id'] = merged['x-test-user-id'] || runtimeConfig.VITE_DEMO_USER_ID;
     }
     return merged;
   }
@@ -36,7 +48,7 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
       method: 'GET',
       headers: {
         'content-type': 'application/json',
-        ...withDevAuthHeaders(headers)
+        ...withDemoTenantHeaders(headers)
       }
     });
     const body = await res.json().catch(() => ({}));
@@ -55,7 +67,7 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        ...withDevAuthHeaders(headers)
+        ...withDemoTenantHeaders(headers)
       },
       body: JSON.stringify(body || {})
     });
@@ -75,7 +87,7 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
       method: 'PATCH',
       headers: {
         'content-type': 'application/json',
-        ...withDevAuthHeaders(headers)
+        ...withDemoTenantHeaders(headers)
       },
       body: JSON.stringify(body || {})
     });

@@ -36,6 +36,10 @@
 ### WEB
 
 - `VITE_API_URL=https://api-v2.neuralhire.com.br`
+- `VITE_APP_ENV=homologation`
+- `VITE_DEMO_ACCOUNT_ID=acc-analytics-001`
+- `VITE_DEMO_ROLE=manager`
+- `VITE_DEMO_USER_ID=user-demo-manager`
 
 ## Checklist pos-deploy
 
