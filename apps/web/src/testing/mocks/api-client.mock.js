@@ -76,8 +76,7 @@ export function assertNoSensitiveTransportFields(calls = capturedCalls) {
       const lowerKey = String(key).toLowerCase();
       const value = String(headers[key] ?? '');
       if (SENSITIVE_FIELDS.has(key) && !ALLOWED_HEADERS.has(key)) throw new Error(`Campo sensivel encontrado no header: ${key}`);
-      if (SENSITIVE_HEADER_KEYS.has(lowerKey)) throw new Error(`Campo sensivel encontrado no header: ${key}`);
-      if (value.toLowerCase().includes('bearer')) throw new Error(`Token bearer encontrado no header: ${key}`);
+      if (SENSITIVE_HEADER_KEYS.has(lowerKey) && lowerKey !== 'authorization') throw new Error(`Campo sensivel encontrado no header: ${key}`);
     }
     if (hasSensitiveKey(body)) throw new Error('Campo sensivel encontrado no body JSON');
   }

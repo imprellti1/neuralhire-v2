@@ -1,4 +1,4 @@
-import { getSupabaseClient, getSupabaseStatus } from '../database/supabase.client.js';
+import { getSupabaseClient, getSupabaseStatus, resolveAccountMembership } from '../database/supabase.client.js';
 import { env } from '../config/env.js';
 
 function parseBearerToken(headerValue) {
@@ -23,11 +23,16 @@ function buildJwtClaims({ role = null, accountId = null, rawAvailable = false } 
   };
 }
 
+function allowTestTransport() {
+  const appEnv = String(env.APP_ENV || '').toLowerCase();
+  return appEnv === 'development' || appEnv === 'test' || env.NODE_ENV === 'test';
+}
+
 export function authContextMiddleware() {
   return async (req, res, context) => {
     const authHeader = req.headers?.authorization || req.headers?.Authorization;
     const token = parseBearerToken(authHeader);
-    const allowTestHeaders = env.NODE_ENV !== 'production';
+    const allowTestHeaders = allowTestTransport();
     const testRole = allowTestHeaders ? (req.headers?.['x-test-role'] || req.headers?.['X-Test-Role']) : null;
     const testAccountId = allowTestHeaders ? (req.headers?.['x-test-account-id'] || req.headers?.['X-Test-Account-Id']) : null;
     const testUserId = allowTestHeaders ? (req.headers?.['x-test-user-id'] || req.headers?.['X-Test-User-Id']) : null;
@@ -86,8 +91,9 @@ export function authContextMiddleware() {
     }
 
     const user = data.user;
-    const role = user.app_metadata?.role || user.user_metadata?.role || 'user';
-    const accountId = getAccountIdFromUser(user);
+    const membership = await resolveAccountMembership(supabase, user.id);
+    const role = membership?.role || user.app_metadata?.role || user.user_metadata?.role || 'user';
+    const accountId = membership?.account_id || getAccountIdFromUser(user);
 
     context.auth = {
       authenticated: true,
@@ -96,6 +102,7 @@ export function authContextMiddleware() {
       email: user.email || null,
       role,
       accountId,
+      token,
       source: 'supabase',
       authError: null,
       jwtClaims: buildJwtClaims({ role, accountId, rawAvailable: true })

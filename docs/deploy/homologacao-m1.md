@@ -1,55 +1,48 @@
-# Homologacao M1 - NeuralHire v2
+# Homologação M1.13
 
-## Servicos
+## Objetivo
+Usar autenticação real do Supabase em homologação, com `Authorization: Bearer <token>` no WEB e validação JWT real na API.
 
-- API: `neuralhire-v2-api`
-- WEB: `neuralhire-v2-web`
-
-## Build Paths no EasyPanel
-
-- API build path: `apps/api`
-- WEB build path: `apps/web`
-
-## Dominios
-
-- API: `api-v2.neuralhire.com.br`
-- WEB: `v2.neuralhire.com.br`
-
-## Portas
-
-- Porta interna da API: `3000`
-- Porta interna da WEB: `80`
-
-## Variaveis de ambiente
-
-### API
-
-- `NODE_ENV=production`
-- `API_PORT=3000`
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `SUPABASE_ANON_KEY`
-- `ASAAS_ENV`
-- `ASAAS_API_KEY`
-- `ASAAS_ALLOW_PRODUCTION`
+## Variáveis de ambiente
 
 ### WEB
-
-- `VITE_API_URL=https://api-v2.neuralhire.com.br`
 - `VITE_APP_ENV=homologation`
-- `VITE_DEMO_ACCOUNT_ID=acc-analytics-001`
-- `VITE_DEMO_ROLE=manager`
-- `VITE_DEMO_USER_ID=user-demo-manager`
+- `VITE_API_URL=https://api-v2.neuralhire.com.br`
+- `VITE_SUPABASE_URL=<supabase_url>`
+- `VITE_SUPABASE_ANON_KEY=<supabase_anon_key>`
 
-Observacao:
+### API
+- `APP_ENV=homologation`
+- `AUTH_MODE=supabase`
+- `SUPABASE_URL=<supabase_url>`
+- `SUPABASE_ANON_KEY=<supabase_anon_key>`
+- `SUPABASE_SERVICE_ROLE_KEY=<service_role_key>`
 
-- Essas variaveis precisam estar disponiveis no runtime do container WEB, porque `runtime-config.js` agora e gerado no startup do nginx.
+## Conta de homologação
+- Nome da conta: `NeuralHire Homologação`
+- Usuário: um gestor/owner real do Supabase Auth
+- Associação: o usuário deve existir em `account_users` ou tabela equivalente com `account_id`, `user_id` e `role`
+- Role sugerida: `owner` ou `manager`
 
-## Checklist pos-deploy
+## Seed mínimo seguro
+Criar dados fictícios e não sensíveis:
+- produtos
+- fábricas
+- clientes fictícios
+- pedidos fictícios
+- configurações comerciais
 
-- Confirmar que a API sobe em `3000` e responde no dominio `api-v2.neuralhire.com.br`.
-- Confirmar que a web abre em `v2.neuralhire.com.br` e chama a API de homologacao.
-- Verificar que nenhum segredo local foi copiado para a imagem.
-- Validar que o app atual de producao em `neuralhire.com.br` nao foi alterado.
-- Testar rotas internas da web depois do deploy.
-- Conferir logs iniciais da API para validar `NODE_ENV=production`.
+## Checklist de teste
+- login real no Supabase funciona
+- `#/product-editor` abre após login
+- `Authorization: Bearer <token>` aparece nas chamadas
+- `GET /product-editor/products` resolve `accountId` a partir do JWT/membership
+- outro usuário de outra conta não acessa dados alheios
+- `x-test-*` não é necessário em homologação
+
+## Como desligar o modo demo
+- Não publicar `VITE_DEMO_ACCOUNT_ID`
+- Não publicar `VITE_DEMO_ROLE`
+- Não publicar `VITE_DEMO_USER_ID`
+- Manter `AUTH_MODE=supabase` em homologação
+- Restringir `x-test-*` apenas a testes locais/automatizados

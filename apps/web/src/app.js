@@ -36,6 +36,8 @@ import { renderApprovalIntelligencePage } from './modules/approval-intelligence/
 import { renderFabricantesPage } from './modules/fabricantes/fabricantes.page.js';
 import { renderProductAuditPage } from './modules/product-audit/product-audit.page.js';
 import { renderProductEditorPage } from './modules/product-editor/product-editor.page.js';
+import { renderLoginPage } from './modules/auth/login.page.js';
+import { hasAuthSession, clearAuthSession } from './core/auth-session.js';
 
 function injectAppStyles() {
   if (document.getElementById('nh-app-style')) return;
@@ -48,7 +50,7 @@ function injectAppStyles() {
 function createLayout() {
   const root = document.createElement('div');
   root.className = 'nh-shell';
-  root.innerHTML = `<aside class="nh-sidebar"><div class="nh-brand">NeuralHire v2<small>Cockpit Executivo</small></div><nav class="nh-nav"><div style="font-size:11px;color:#71809b;text-transform:uppercase;letter-spacing:.06em;padding:6px 10px 2px">Comercial</div><a class="nh-menu-item" data-route="#/dashboard-comercial" href="#/dashboard-comercial">Dashboard Comercial</a><a class="nh-menu-item" data-route="#/clientes" href="#/clientes">Clientes CRM</a><a class="nh-menu-item" data-route="#/fabricantes" href="#/fabricantes">Fábricas</a><a class="nh-menu-item" data-route="#/product-audit" href="#/product-audit">Auditoria de Produtos</a><a class="nh-menu-item" data-route="#/produtos" href="#/produtos">Produtos</a><a class="nh-menu-item" data-route="#/product-editor" href="#/product-editor">Editor de Produtos</a><a class="nh-menu-item" data-route="#/pedidos" href="#/pedidos">Pedidos</a><a class="nh-menu-item" data-route="#/interest-leads" href="#/interest-leads">Lista de Interesse</a><a class="nh-menu-item" data-route="#/launch/templates" href="#/launch/templates">Templates Lancamento</a><a class="nh-menu-item" data-route="#/onboarding" href="#/onboarding">Onboarding</a><a class="nh-menu-item" data-route="#/activation" href="#/activation">Ativacao Inicial</a><a class="nh-menu-item" data-route="#/implementation" href="#/implementation">Acompanhamento</a><a class="nh-menu-item" data-route="#/customer-success" href="#/customer-success">Customer Success</a><a class="nh-menu-item" data-route="#/customer-success-automation" href="#/customer-success-automation">Automações CS</a><a class="nh-menu-item" data-route="#/customer-success-timeline" href="#/customer-success-timeline">Timeline CS</a><a class="nh-menu-item" data-route="#/customer-retention" href="#/customer-retention">Renovacoes & Expansao</a><a class="nh-menu-item" data-route="#/customer-memory/cliente-demo" href="#/customer-memory/cliente-demo">Customer Memory</a><a class="nh-menu-item" data-route="#/whatsapp-conversations" href="#/whatsapp-conversations">WhatsApp</a><a class="nh-menu-item" data-route="#/message-approvals" href="#/message-approvals">Aprovação Humana</a><a class="nh-menu-item" data-route="#/approval-intelligence" href="#/approval-intelligence">Inteligência Comercial</a><div style="font-size:11px;color:#71809b;text-transform:uppercase;letter-spacing:.06em;padding:10px 10px 2px">Operação</div><a class="nh-menu-item" data-route="#/dashboard-operacional" href="#/dashboard-operacional">Dashboard Operacional</a><a class="nh-menu-item" data-route="#/executive-dashboard" href="#/executive-dashboard">Executive Dashboard</a><a class="nh-menu-item" data-route="#/executive-portfolio-analytics" href="#/executive-portfolio-analytics">Executive Analytics</a><a class="nh-menu-item" data-route="#/revenue-intelligence" href="#/revenue-intelligence">Revenue Intelligence</a><a class="nh-menu-item" data-route="#/portfolio-dashboard" href="#/portfolio-dashboard">Portfolio Dashboard</a><a class="nh-menu-item" data-route="#/legacy-import" href="#/legacy-import">Importacao Legado</a></nav></aside><main class="nh-main"><section class="nh-content" id="app-content"></section></main>`;
+  root.innerHTML = `<aside class="nh-sidebar"><div class="nh-brand">NeuralHire v2<small>Cockpit Executivo</small></div><nav class="nh-nav"><div style="font-size:11px;color:#71809b;text-transform:uppercase;letter-spacing:.06em;padding:6px 10px 2px">Comercial</div><a class="nh-menu-item" data-route="#/dashboard-comercial" href="#/dashboard-comercial">Dashboard Comercial</a><a class="nh-menu-item" data-route="#/clientes" href="#/clientes">Clientes CRM</a><a class="nh-menu-item" data-route="#/fabricantes" href="#/fabricantes">Fábricas</a><a class="nh-menu-item" data-route="#/product-audit" href="#/product-audit">Auditoria de Produtos</a><a class="nh-menu-item" data-route="#/produtos" href="#/produtos">Produtos</a><a class="nh-menu-item" data-route="#/product-editor" href="#/product-editor">Editor de Produtos</a><a class="nh-menu-item" data-route="#/pedidos" href="#/pedidos">Pedidos</a><a class="nh-menu-item" data-route="#/interest-leads" href="#/interest-leads">Lista de Interesse</a><a class="nh-menu-item" data-route="#/launch/templates" href="#/launch/templates">Templates Lancamento</a><a class="nh-menu-item" data-route="#/onboarding" href="#/onboarding">Onboarding</a><a class="nh-menu-item" data-route="#/activation" href="#/activation">Ativacao Inicial</a><a class="nh-menu-item" data-route="#/implementation" href="#/implementation">Acompanhamento</a><a class="nh-menu-item" data-route="#/customer-success" href="#/customer-success">Customer Success</a><a class="nh-menu-item" data-route="#/customer-success-automation" href="#/customer-success-automation">Automações CS</a><a class="nh-menu-item" data-route="#/customer-success-timeline" href="#/customer-success-timeline">Timeline CS</a><a class="nh-menu-item" data-route="#/customer-retention" href="#/customer-retention">Renovacoes & Expansao</a><a class="nh-menu-item" data-route="#/customer-memory/cliente-demo" href="#/customer-memory/cliente-demo">Customer Memory</a><a class="nh-menu-item" data-route="#/whatsapp-conversations" href="#/whatsapp-conversations">WhatsApp</a><a class="nh-menu-item" data-route="#/message-approvals" href="#/message-approvals">Aprovação Humana</a><a class="nh-menu-item" data-route="#/approval-intelligence" href="#/approval-intelligence">Inteligência Comercial</a><div style="font-size:11px;color:#71809b;text-transform:uppercase;letter-spacing:.06em;padding:10px 10px 2px">Operação</div><a class="nh-menu-item" data-route="#/dashboard-operacional" href="#/dashboard-operacional">Dashboard Operacional</a><a class="nh-menu-item" data-route="#/executive-dashboard" href="#/executive-dashboard">Executive Dashboard</a><a class="nh-menu-item" data-route="#/executive-portfolio-analytics" href="#/executive-portfolio-analytics">Executive Analytics</a><a class="nh-menu-item" data-route="#/revenue-intelligence" href="#/revenue-intelligence">Revenue Intelligence</a><a class="nh-menu-item" data-route="#/portfolio-dashboard" href="#/portfolio-dashboard">Portfolio Dashboard</a><a class="nh-menu-item" data-route="#/legacy-import" href="#/legacy-import">Importacao Legado</a><a class="nh-menu-item" data-route="#/login" href="#/login">Login Supabase</a><a class="nh-menu-item" data-route="#/logout" href="#/logout">Logout</a></nav></aside><main class="nh-main"><section class="nh-content" id="app-content"></section></main>`;
   return root;
 }
 
@@ -62,8 +64,16 @@ export function bootstrapWebApp() {
   if (typeof document === 'undefined') return;
   injectAppStyles();
   const api = createApiClient();
+  const appEnv = String(window.__NEURALHIRE_CONFIG__?.VITE_APP_ENV || import.meta.env?.VITE_APP_ENV || '').toLowerCase();
+  const hasDemoConfig = Boolean(window.__NEURALHIRE_CONFIG__?.VITE_DEMO_ACCOUNT_ID);
+  const requiresLogin = (appEnv === 'homologation' || appEnv === 'production') && !hasDemoConfig;
   const renderRoute = () => {
     const route = window.location.hash || '#/';
+    if (route === '#/logout') {
+      clearAuthSession();
+      window.location.hash = '#/login';
+      return;
+    }
     if (route === '#/' || route === '#') {
       document.body.innerHTML = '';
       renderPublicLandingPage(document.body, { apiClient: api });
@@ -87,6 +97,11 @@ export function bootstrapWebApp() {
       : route;
     setActiveMenu(activeRoute);
 
+    if (route === '#/login') return renderLoginPage(content);
+    if (requiresLogin && !hasAuthSession() && route !== '#/login') {
+      window.location.hash = '#/login';
+      return;
+    }
     if (route === '#/clientes') return renderClientesPage(content, { apiClient: api });
     if (route === '#/clientes/novo') return renderClienteCreatePage(content, { apiClient: api });
     if (route.startsWith('#/clientes/')) return renderClienteDetailsPage(content, { apiClient: api, clienteId: route.slice('#/clientes/'.length).split('?')[0] });

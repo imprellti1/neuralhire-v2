@@ -21,10 +21,22 @@ function resolveRuntimeConfig() {
   const envConfig = typeof import.meta !== 'undefined' ? (import.meta.env || {}) : {};
   return {
     VITE_APP_ENV: runtimeConfig.VITE_APP_ENV || envConfig.VITE_APP_ENV,
+    VITE_SUPABASE_URL: runtimeConfig.VITE_SUPABASE_URL || envConfig.VITE_SUPABASE_URL,
+    VITE_SUPABASE_ANON_KEY: runtimeConfig.VITE_SUPABASE_ANON_KEY || envConfig.VITE_SUPABASE_ANON_KEY,
     VITE_DEMO_ACCOUNT_ID: runtimeConfig.VITE_DEMO_ACCOUNT_ID || envConfig.VITE_DEMO_ACCOUNT_ID,
     VITE_DEMO_ROLE: runtimeConfig.VITE_DEMO_ROLE || envConfig.VITE_DEMO_ROLE,
     VITE_DEMO_USER_ID: runtimeConfig.VITE_DEMO_USER_ID || envConfig.VITE_DEMO_USER_ID
   };
+}
+
+function getStoredSession() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem('neuralhire.supabase.session');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
@@ -42,16 +54,14 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
     };
 
     const hasAuthorization = Boolean(mergedHeaders.Authorization || mergedHeaders.authorization);
-
-    if (!hasAuthorization && String(appEnv || '').toLowerCase() === 'homologation' && demoAccountId) {
-      mergedHeaders['x-test-account-id'] = demoAccountId;
-
-      if (demoRole) {
-        mergedHeaders['x-test-role'] = demoRole;
-      }
-
-      if (demoUserId) {
-        mergedHeaders['x-test-user-id'] = demoUserId;
+    if (!hasAuthorization) {
+      const accessToken = getStoredSession()?.access_token || (typeof window !== 'undefined' ? window.localStorage.getItem('neuralhire.supabase.access_token') : null);
+      if (accessToken) {
+        mergedHeaders.Authorization = `Bearer ${accessToken}`;
+      } else if (String(appEnv || '').toLowerCase() === 'homologation' && demoAccountId) {
+        mergedHeaders['x-test-account-id'] = demoAccountId;
+        if (demoRole) mergedHeaders['x-test-role'] = demoRole;
+        if (demoUserId) mergedHeaders['x-test-user-id'] = demoUserId;
       }
     }
 
@@ -67,15 +77,6 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
 
     const finalHeaders = buildHeaders(headers);
 
-    console.info('[NeuralHire API Client]', {
-      appEnv,
-      demoAccountId,
-      demoRole,
-      headers: finalHeaders
-    });
-
-    console.error('[API CLIENT 44a6108 EXECUTING]');
-    console.error('[HEADERS]', finalHeaders);
     const res = await fetch(url.toString(), {
       method,
       headers: finalHeaders,

@@ -21,7 +21,8 @@ export function getSupabaseAuthContext(context = {}) {
   return {
     accountId: context?.auth?.accountId || null,
     role: context?.auth?.role || null,
-    userId: context?.auth?.userId || null
+    userId: context?.auth?.userId || null,
+    token: context?.auth?.token || null
   };
 }
 
@@ -45,6 +46,16 @@ export function createSupabaseClient() {
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false }
   });
+}
+
+export async function resolveAccountMembership(supabase, userId) {
+  if (!supabase || !userId) return null;
+  const tables = ['account_users', 'accounts_users', 'user_accounts'];
+  for (const table of tables) {
+    const { data, error } = await supabase.from(table).select('account_id, role, user_id').eq('user_id', userId).limit(1).maybeSingle();
+    if (!error && data?.account_id) return data;
+  }
+  return null;
 }
 
 export function getSupabaseClient() {

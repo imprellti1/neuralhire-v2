@@ -44,7 +44,9 @@ export const env = validateEnv();
 export function getEnvSummary() {
   return {
     nodeEnv: env.NODE_ENV,
+    appEnv: env.APP_ENV,
     apiPort: env.API_PORT,
+    authMode: env.AUTH_MODE,
     supabaseConfigured: Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY),
     hasServiceRoleKey: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
     hasAnonKey: Boolean(env.SUPABASE_ANON_KEY)

@@ -6,19 +6,24 @@ import { installFetchMock, getCapturedFetchCalls, assertNoSensitiveTransportFiel
 function setRuntimeConfig(config) {
   global.window = global.window || {};
   window.__NEURALHIRE_CONFIG__ = config;
+  window.localStorage = window.localStorage || new Map();
+  window.localStorage.getItem = window.localStorage.getItem || ((key) => window.localStorage.map?.get(key) || null);
+  window.localStorage.setItem = window.localStorage.setItem || ((key, value) => {
+    window.localStorage.map = window.localStorage.map || new Map();
+    window.localStorage.map.set(key, String(value));
+  });
+  window.localStorage.removeItem = window.localStorage.removeItem || ((key) => window.localStorage.map?.delete(key));
+  window.localStorage.setItem('neuralhire.supabase.session', JSON.stringify({ access_token: 'token-abc' }));
 }
 
 function clearRuntimeConfig() {
   if (typeof window !== 'undefined') delete window.__NEURALHIRE_CONFIG__;
 }
 
-test('api client only sends demo tenant headers with explicit homologation config', async () => {
+test('api client sends Authorization when Supabase session exists', async () => {
   setRuntimeConfig({
     VITE_API_URL: 'https://api.test',
-    VITE_APP_ENV: 'homologation',
-    VITE_DEMO_ACCOUNT_ID: 'acc-analytics-001',
-    VITE_DEMO_ROLE: 'manager',
-    VITE_DEMO_USER_ID: 'user-demo-manager'
+    VITE_APP_ENV: 'homologation'
   });
   installFetchMock({
     'POST /demo': () => ({ ok: true })
@@ -28,9 +33,8 @@ test('api client only sends demo tenant headers with explicit homologation confi
   await api.post('/demo', { name: 'x', metadata: { source: 'demo' } });
 
   const call = getCapturedFetchCalls()[0];
-  assert.equal(call.headers['x-test-account-id'], 'acc-analytics-001');
-  assert.equal(call.headers['x-test-role'], 'manager');
-  assert.equal(call.headers['x-test-user-id'], 'user-demo-manager');
+  assert.equal(call.headers.Authorization, 'Bearer token-abc');
+  assert.equal(call.headers['x-test-account-id'], undefined);
   assertNoSensitiveTransportFields(getCapturedFetchCalls());
   assert.deepEqual(call.body, { name: 'x', metadata: { source: 'demo' } });
 
@@ -38,13 +42,10 @@ test('api client only sends demo tenant headers with explicit homologation confi
   resetFetchCalls();
 });
 
-test('api client does not send demo tenant headers without explicit demo config', async () => {
+test('api client does not inject demo headers in homologation', async () => {
   setRuntimeConfig({
     VITE_API_URL: 'https://api.test',
-    VITE_APP_ENV: 'production',
-    VITE_DEMO_ACCOUNT_ID: 'acc-analytics-001',
-    VITE_DEMO_ROLE: 'manager',
-    VITE_DEMO_USER_ID: 'user-demo-manager'
+    VITE_APP_ENV: 'homologation'
   });
   installFetchMock({
     'GET /demo': () => ({ ok: true })
@@ -63,25 +64,21 @@ test('api client does not send demo tenant headers without explicit demo config'
   resetFetchCalls();
 });
 
-test('api client forwards all homologation test headers on product editor fetches', async () => {
+test('api client preserves explicit Authorization header', async () => {
   setRuntimeConfig({
     VITE_API_URL: 'https://api.test',
-    VITE_APP_ENV: 'homologation',
-    VITE_DEMO_ACCOUNT_ID: 'acc-analytics-001',
-    VITE_DEMO_ROLE: 'manager',
-    VITE_DEMO_USER_ID: 'user-demo-manager'
+    VITE_APP_ENV: 'production'
   });
   installFetchMock({
     'GET /product-editor/products': () => ({ items: [], total: 0 })
   });
 
   const api = createApiClient();
-  await api.get('/product-editor/products');
+  await api.get('/product-editor/products', {}, { Authorization: 'Bearer jwt-real' });
 
   const call = getCapturedFetchCalls()[0];
-  assert.equal(call.headers['x-test-account-id'], 'acc-analytics-001');
-  assert.equal(call.headers['x-test-role'], 'manager');
-  assert.equal(call.headers['x-test-user-id'], 'user-demo-manager');
+  assert.equal(call.headers.Authorization, 'Bearer jwt-real');
+  assert.equal(call.headers['x-test-account-id'], undefined);
   assertNoSensitiveTransportFields(getCapturedFetchCalls());
 
   clearRuntimeConfig();
