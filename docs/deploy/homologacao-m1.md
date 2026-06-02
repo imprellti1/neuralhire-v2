@@ -41,6 +41,10 @@
 - `VITE_DEMO_ROLE=manager`
 - `VITE_DEMO_USER_ID=user-demo-manager`
 
+Observacao:
+
+- Essas variaveis precisam estar disponiveis no runtime do container WEB, porque `runtime-config.js` agora e gerado no startup do nginx.
+
 ## Checklist pos-deploy
 
 - Confirmar que a API sobe em `3000` e responde no dominio `api-v2.neuralhire.com.br`.

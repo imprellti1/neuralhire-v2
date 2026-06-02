@@ -18,14 +18,17 @@ COPY apps/web/src ./src
 
 RUN mkdir -p dist \
   && cp -R public/. dist/ \
-  && cp -R src dist/src \
-  && printf 'window.__NEURALHIRE_CONFIG__ = { VITE_API_URL: "%s", VITE_DEMO_ACCOUNT_ID: "%s", VITE_DEMO_ROLE: "%s", VITE_DEMO_USER_ID: "%s", VITE_APP_ENV: "%s" };\n' "$VITE_API_URL" "$VITE_DEMO_ACCOUNT_ID" "$VITE_DEMO_ROLE" "$VITE_DEMO_USER_ID" "$VITE_APP_ENV" > dist/runtime-config.js
+  && cp -R src dist/src
 
 FROM nginx:1.27-alpine
 
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+COPY apps/web/docker-entrypoint.sh /docker-entrypoint.sh
+
+RUN chmod +x /docker-entrypoint.sh
 
 EXPOSE 80
 
+ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["nginx", "-g", "daemon off;"]
