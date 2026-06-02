@@ -35,13 +35,53 @@ O seed:
 - cria 3 pedidos fictícios
 - cria itens de pedido vinculados
 
+## Execução do seed
+
+### SQL Editor do Supabase
+1. Criar o usuário em Authentication > Users.
+2. Copiar o `auth.users.id` do usuário.
+3. Substituir o valor de `homologacao_auth_user_id` no seed ou executar este bloco antes do restante do script:
+
+```sql
+select set_config(
+  'neuralhire.homologacao_auth_user_id',
+  '<auth.users.id>',
+  false
+);
+```
+
+4. Executar o arquivo completo no SQL Editor.
+
+### psql
+```bash
+psql "$DATABASE_URL" -f packages/database/supabase/seeds/20260602_seed_homologacao_neuralhire.sql
+```
+
+Se preferir usar sessão explícita:
+
+```sql
+select set_config(
+  'neuralhire.homologacao_auth_user_id',
+  '<auth.users.id>',
+  false
+);
+```
+
+### Supabase CLI
+```bash
+supabase db reset
+supabase db seed
+```
+
+Ou, para executar apenas este arquivo em ambiente controlado, usar o fluxo de seed definido pelo projeto apontando para `packages/database/supabase/seeds/20260602_seed_homologacao_neuralhire.sql`.
+
 ## Como vincular o usuário real
 O SQL não deve criar `auth.users` diretamente.
 
 Passo a passo recomendado:
 1. Criar o usuário no painel do Supabase Auth.
 2. Copiar o `auth.users.id` do usuário de homologação.
-3. Executar o seed na mesma sessão SQL definindo o GUC abaixo:
+3. Executar o seed na mesma sessão SQL definindo o GUC abaixo ou substituindo a variável local no script:
 
 ```sql
 select set_config(

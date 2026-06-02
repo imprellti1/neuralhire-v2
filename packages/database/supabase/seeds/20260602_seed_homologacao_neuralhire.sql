@@ -1,5 +1,8 @@
 -- NeuralHire v2
 -- Seed seguro para homologacao com Supabase real.
+-- Execucao via SQL Editor:
+-- Substitua homologacao_auth_user_id abaixo pelo UUID real
+-- encontrado em Authentication > Users.
 -- Requisitos:
 -- - criar/confirmar o usuario no Supabase Auth pelo painel
 -- - definir o GUC neuralhire.homologacao_auth_user_id na mesma sessao antes de executar este script
@@ -9,10 +12,15 @@
 do $$
 declare
   v_account_id uuid := '7b8d9d4f-7c67-4a3f-8c85-5f6d5df1a114';
-  v_auth_user_id uuid := nullif(current_setting('neuralhire.homologacao_auth_user_id', true), '')::uuid;
+  homologacao_auth_user_id uuid := null;
 begin
-  if v_auth_user_id is null then
-    raise exception 'Defina neuralhire.homologacao_auth_user_id com o auth.users.id real antes de executar o seed';
+  homologacao_auth_user_id := coalesce(
+    nullif(current_setting('neuralhire.homologacao_auth_user_id', true), '')::uuid,
+    homologacao_auth_user_id
+  );
+
+  if homologacao_auth_user_id is null then
+    raise exception 'Informe um auth.users.id valido antes de executar o seed. Use select set_config(''neuralhire.homologacao_auth_user_id'', ''<UUID>'', false) ou substitua homologacao_auth_user_id no script.';
   end if;
 
   insert into public.accounts (id, name, slug, status, created_at, updated_at)
@@ -35,18 +43,18 @@ begin
          role = 'owner',
          updated_at = now()
    where account_id = v_account_id
-     and user_id = v_auth_user_id;
+     and user_id = homologacao_auth_user_id;
 
   if not exists (
     select 1
-      from public.account_users
+     from public.account_users
      where account_id = v_account_id
-       and user_id = v_auth_user_id
+       and user_id = homologacao_auth_user_id
   ) then
     insert into public.account_users (account_id, user_id, email, nome, role, created_at, updated_at)
     values (
       v_account_id,
-      v_auth_user_id,
+      homologacao_auth_user_id,
       'homologacao@neuralhire.local',
       'NeuralHire Homologação',
       'owner',
