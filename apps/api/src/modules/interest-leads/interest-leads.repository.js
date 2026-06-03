@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { ConflictError, DatabaseError, NotFoundError } from '../../core/errors.js';
 import { logger } from '../../core/logger.js';
+import { assertTenantContext, getAccountIdFromContext } from '../../core/tenant-context.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 
 const memory = [];
@@ -63,6 +64,11 @@ function toDbLead(payload = {}) {
   };
 }
 
+function resolveAccountId(options = {}) {
+  const accountId = options.accountId || getAccountIdFromContext(options.context);
+  return accountId || null;
+}
+
 async function addEvent(lead, tipo, descricao = '') {
   if (getInterestLeadsRepositoryMode().mode === 'supabase') {
     const supabase = resolveSupabaseClient();
@@ -79,11 +85,13 @@ async function addEvent(lead, tipo, descricao = '') {
   memoryEvents.push({ id: randomUUID(), lead_id: lead.id, tipo, descricao: String(descricao || ''), created_at: new Date().toISOString() });
 }
 
-export async function createInterestLead(payload) {
+export async function createInterestLead(payload, options = {}) {
   if (getInterestLeadsRepositoryMode().mode === 'supabase') {
     const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const dbPayload = { ...toDbLead(payload), account_id: 'pre-lancamento' };
+    const accountId = resolveAccountId(options);
+    assertTenantContext({ auth: { accountId } }, { domain: 'pre-lancamento-interest-leads' });
+    const dbPayload = { ...toDbLead(payload), account_id: accountId };
     const { data, error } = await supabase.from('interest_leads').insert(dbPayload).select('*').single();
     if (error) {
       logger.error('[interest-leads:supabase-insert] failed', {
@@ -99,17 +107,20 @@ export async function createInterestLead(payload) {
     return item;
   }
   const now = new Date().toISOString();
-  const item = { id: randomUUID(), ...payload, created_at: now, updated_at: now, account_id: 'pre-lancamento' };
+  const accountId = resolveAccountId(options) || 'pre-lancamento';
+  const item = { id: randomUUID(), ...payload, created_at: now, updated_at: now, account_id: accountId };
   memory.push(item);
   await addEvent(item, 'lead_criado', 'Lead criado');
   return item;
 }
 
-export async function listInterestLeads(filters) {
+export async function listInterestLeads(filters, options = {}) {
   if (getInterestLeadsRepositoryMode().mode === 'supabase') {
     const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    let query = supabase.from('interest_leads').select('*', { count: 'exact' }).eq('account_id', 'pre-lancamento').order('created_at', { ascending: false });
+    const accountId = resolveAccountId(options);
+    assertTenantContext({ auth: { accountId } }, { domain: 'pre-lancamento-interest-leads' });
+    let query = supabase.from('interest_leads').select('*', { count: 'exact' }).eq('account_id', accountId).order('created_at', { ascending: false });
     if (filters.search) query = query.or(`nome.ilike.%${filters.search}%,empresa.ilike.%${filters.search}%,whatsapp.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
     if (filters.status) query = query.eq('status', filters.status);
     if (filters.cidade) query = query.ilike('cidade', `%${filters.cidade}%`);
@@ -124,11 +135,13 @@ export async function listInterestLeads(filters) {
   return { items: filtered.slice(from, from + filters.limit), total: filtered.length };
 }
 
-export async function getInterestLeadById(id) {
+export async function getInterestLeadById(id, options = {}) {
   if (getInterestLeadsRepositoryMode().mode === 'supabase') {
     const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data, error } = await supabase.from('interest_leads').select('*').eq('account_id', 'pre-lancamento').eq('id', id).maybeSingle();
+    const accountId = resolveAccountId(options);
+    assertTenantContext({ auth: { accountId } }, { domain: 'pre-lancamento-interest-leads' });
+    const { data, error } = await supabase.from('interest_leads').select('*').eq('account_id', accountId).eq('id', id).maybeSingle();
     if (error) throw new DatabaseError('Falha ao obter lead', { details: error });
     if (!data) throw new NotFoundError('Interest lead nao encontrado');
     return mapDbLead(data);
@@ -138,8 +151,8 @@ export async function getInterestLeadById(id) {
   return item;
 }
 
-export async function patchInterestLead(id, patch) {
-  const current = await getInterestLeadById(id);
+export async function patchInterestLead(id, patch, options = {}) {
+  const current = await getInterestLeadById(id, options);
   if (getInterestLeadsRepositoryMode().mode === 'supabase') {
     const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
@@ -148,7 +161,9 @@ export async function patchInterestLead(id, patch) {
     if (patch.responsavel !== undefined) dbPatch.responsavel = patch.responsavel;
     if (patch.observacoes !== undefined) dbPatch.observacoes = patch.observacoes;
     if (patch.ultimo_contato_em !== undefined) dbPatch.ultimo_contato_em = patch.ultimo_contato_em; if (patch.invite_status !== undefined) dbPatch.invite_status = patch.invite_status; if (patch.launch_batch !== undefined) dbPatch.launch_batch = patch.launch_batch; if (patch.invite_sent_at !== undefined) dbPatch.invite_sent_at = patch.invite_sent_at; if (patch.invite_opened_at !== undefined) dbPatch.invite_opened_at = patch.invite_opened_at; if (patch.invite_response_at !== undefined) dbPatch.invite_response_at = patch.invite_response_at; if (patch.converted_account_id !== undefined) dbPatch.converted_account_id = patch.converted_account_id; if (patch.converted_at !== undefined) dbPatch.converted_at = patch.converted_at;
-    const { data, error } = await supabase.from('interest_leads').update(dbPatch).eq('account_id', 'pre-lancamento').eq('id', id).select('*').maybeSingle();
+    const accountId = resolveAccountId(options);
+    assertTenantContext({ auth: { accountId } }, { domain: 'pre-lancamento-interest-leads' });
+    const { data, error } = await supabase.from('interest_leads').update(dbPatch).eq('account_id', accountId).eq('id', id).select('*').maybeSingle();
     if (error) throw new DatabaseError('Falha ao atualizar lead', { details: error });
     if (!data) throw new NotFoundError('Interest lead nao encontrado');
     const item = mapDbLead(data);
@@ -163,28 +178,30 @@ export async function patchInterestLead(id, patch) {
   return memory[i];
 }
 
-export async function updateInterestLeadStatus(id, status) { return patchInterestLead(id, { status }); }
+export async function updateInterestLeadStatus(id, status, options = {}) { return patchInterestLead(id, { status }, options); }
 
 export async function listInterestLeadsForExport(filters) {
   const list = await listInterestLeads({ ...filters, page: 1, limit: 10000 });
   return list.items;
 }
 
-export async function getInterestLeadEvents(id) {
+export async function getInterestLeadEvents(id, options = {}) {
   if (getInterestLeadsRepositoryMode().mode === 'supabase') {
     const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data, error } = await supabase.from('interest_lead_events').select('*').eq('account_id', 'pre-lancamento').eq('lead_id', id).order('created_at', { ascending: false });
+    const accountId = resolveAccountId(options);
+    assertTenantContext({ auth: { accountId } }, { domain: 'pre-lancamento-interest-leads' });
+    const { data, error } = await supabase.from('interest_lead_events').select('*').eq('account_id', accountId).eq('lead_id', id).order('created_at', { ascending: false });
     if (error) throw new DatabaseError('Falha ao listar eventos', { details: error });
     return data || [];
   }
   return memoryEvents.filter((x) => x.lead_id === id).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
 }
 
-export async function createInterestLeadEvent(id, payload) {
-  const lead = await getInterestLeadById(id);
+export async function createInterestLeadEvent(id, payload, options = {}) {
+  const lead = await getInterestLeadById(id, options);
   await addEvent(lead, payload.tipo, payload.descricao || '');
-  const events = await getInterestLeadEvents(id);
+  const events = await getInterestLeadEvents(id, options);
   return events[0];
 }
 
@@ -221,15 +238,15 @@ export function __resetMemoryInterestLeadsForTests() {
   supabaseConfiguredOverride = null;
 }
 
-export async function patchInterestLeadInvite(id, payload) {
+export async function patchInterestLeadInvite(id, payload, options = {}) {
   const patch = {};
   if (payload.inviteStatus !== undefined) patch.invite_status = payload.inviteStatus;
   if (payload.launchBatch !== undefined) patch.launch_batch = payload.launchBatch;
   if (payload.inviteStatus === 'enviado') patch.invite_sent_at = new Date().toISOString();
   if (payload.inviteStatus === 'aberto') patch.invite_opened_at = new Date().toISOString();
   if (payload.inviteStatus === 'respondeu') patch.invite_response_at = new Date().toISOString();
-  const current = await getInterestLeadById(id);
-  const updated = await patchInterestLead(id, patch);
+  const current = await getInterestLeadById(id, options);
+  const updated = await patchInterestLead(id, patch, options);
   if (payload.inviteStatus !== undefined && payload.inviteStatus !== current.invite_status) {
     await addEvent(updated, 'invite_status_alterado', `Invite: ${current.invite_status || '-'} -> ${payload.inviteStatus || '-'}`);
   }
@@ -254,14 +271,14 @@ function renderTemplate(raw, lead) {
 }
 
 export async function listLaunchTemplates() { return [...memoryTemplates].sort((a,b)=>String(b.updated_at).localeCompare(String(a.updated_at))); }
-export async function createLaunchTemplate(payload) { const now = new Date().toISOString(); const item = { id: randomUUID(), account_id:'pre-lancamento', ...payload, created_at: now, updated_at: now }; memoryTemplates.push(item); return item; }
+export async function createLaunchTemplate(payload, options = {}) { const now = new Date().toISOString(); const accountId = resolveAccountId(options) || 'pre-lancamento'; const item = { id: randomUUID(), account_id: accountId, ...payload, created_at: now, updated_at: now }; memoryTemplates.push(item); return item; }
 export async function patchLaunchTemplate(id, patch) { const i=memoryTemplates.findIndex((x)=>x.id===id); if(i<0) throw new NotFoundError('Template nao encontrado'); memoryTemplates[i] = { ...memoryTemplates[i], ...patch, updated_at: new Date().toISOString() }; return memoryTemplates[i]; }
 export async function deleteLaunchTemplate(id) { return patchLaunchTemplate(id, { status: 'archived' }); }
-export async function launchPreview({ leadId, templateId }) { const lead = await getInterestLeadById(leadId); const tpl = memoryTemplates.find((x)=>x.id===templateId); if(!tpl) throw new NotFoundError('Template nao encontrado'); const preview = { channel: tpl.channel, subject: renderTemplate(tpl.subject || '', lead), body: renderTemplate(tpl.body || '', lead) }; memoryLogs.push({ id: randomUUID(), account_id:'pre-lancamento', lead_id: leadId, template_id: templateId, channel: tpl.channel, status: 'previewed', payload_preview: JSON.stringify(preview), created_at: new Date().toISOString() }); await addEvent(lead, 'launch_preview_gerado', `Preview: ${tpl.name}`); return preview; }
-export async function queueLaunch({ leadIds, templateId }) { const tpl = memoryTemplates.find((x)=>x.id===templateId); if(!tpl) throw new NotFoundError('Template nao encontrado'); const items=[]; for (const leadId of leadIds){ const lead=await getInterestLeadById(leadId); const preview={ channel:tpl.channel, subject: renderTemplate(tpl.subject || '', lead), body: renderTemplate(tpl.body || '', lead)}; memoryLogs.push({ id: randomUUID(), account_id:'pre-lancamento', lead_id: leadId, template_id: templateId, channel: tpl.channel, status: 'queued', payload_preview: JSON.stringify(preview), created_at: new Date().toISOString() }); const updated = await patchInterestLeadInvite(leadId, { inviteStatus: 'agendado' }); await addEvent(updated, 'launch_message_queued', `Template: ${tpl.name}`); items.push({ leadId, status:'queued' }); } return { items }; }
+export async function launchPreview({ leadId, templateId }, options = {}) { const lead = await getInterestLeadById(leadId, options); const tpl = memoryTemplates.find((x)=>x.id===templateId); if(!tpl) throw new NotFoundError('Template nao encontrado'); const preview = { channel: tpl.channel, subject: renderTemplate(tpl.subject || '', lead), body: renderTemplate(tpl.body || '', lead) }; memoryLogs.push({ id: randomUUID(), account_id: resolveAccountId(options) || 'pre-lancamento', lead_id: leadId, template_id: templateId, channel: tpl.channel, status: 'previewed', payload_preview: JSON.stringify(preview), created_at: new Date().toISOString() }); await addEvent(lead, 'launch_preview_gerado', `Preview: ${tpl.name}`); return preview; }
+export async function queueLaunch({ leadIds, templateId }, options = {}) { const tpl = memoryTemplates.find((x)=>x.id===templateId); if(!tpl) throw new NotFoundError('Template nao encontrado'); const items=[]; for (const leadId of leadIds){ const lead=await getInterestLeadById(leadId, options); const preview={ channel:tpl.channel, subject: renderTemplate(tpl.subject || '', lead), body: renderTemplate(tpl.body || '', lead)}; memoryLogs.push({ id: randomUUID(), account_id: resolveAccountId(options) || 'pre-lancamento', lead_id: leadId, template_id: templateId, channel: tpl.channel, status: 'queued', payload_preview: JSON.stringify(preview), created_at: new Date().toISOString() }); const updated = await patchInterestLeadInvite(leadId, { inviteStatus: 'agendado' }, options); await addEvent(updated, 'launch_message_queued', `Template: ${tpl.name}`); items.push({ leadId, status:'queued' }); } return { items }; }
 
-export async function convertLeadToSubscriber(id) {
-  const lead = await getInterestLeadById(id);
+export async function convertLeadToSubscriber(id, options = {}) {
+  const lead = await getInterestLeadById(id, options);
   if (lead.converted_account_id || lead.converted_at) {
     throw new ConflictError('Lead já convertido.', { code: 'LEAD_ALREADY_CONVERTED', domain: 'pre-lancamento-interest-leads' });
   }
@@ -272,7 +289,7 @@ export async function convertLeadToSubscriber(id) {
   memoryAccounts.push({ id: accountId, name: lead.empresa || lead.nome, slug, status: 'trial', trial_start_at: now.toISOString(), trial_end_at: trialEndsAt, created_at: now.toISOString(), updated_at: now.toISOString() });
   memoryAccountUsers.push({ id: randomUUID(), account_id: accountId, email: lead.email || `lead-${lead.id}@neuralhire.local`, nome: lead.nome || 'Administrador', role: 'admin', created_at: now.toISOString(), updated_at: now.toISOString() });
   memoryAccountTrials.push({ id: randomUUID(), account_id: accountId, lead_id: lead.id, started_at: now.toISOString(), expires_at: trialEndsAt, status: 'active', created_at: now.toISOString() });
-  const updated = await patchInterestLead(lead.id, { status: 'convertido', invite_status: 'convertido', converted_account_id: accountId, converted_at: now.toISOString() });
+  const updated = await patchInterestLead(lead.id, { status: 'convertido', invite_status: 'convertido', converted_account_id: accountId, converted_at: now.toISOString() }, options);
   await addEvent(updated, 'account_criada', `Account: ${accountId}`);
   await addEvent(updated, 'trial_criado', `Trial ate: ${trialEndsAt}`);
   await addEvent(updated, 'lead_convertido', 'Lead convertido para assinante trial');
