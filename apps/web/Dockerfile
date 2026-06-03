@@ -2,7 +2,7 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
-ARG VITE_API_URL=https://api-v2.neuralhire.com.br
+ARG VITE_API_URL=https://api.neuralhire.com.br
 ARG VITE_DEMO_ACCOUNT_ID=
 ARG VITE_DEMO_ROLE=
 ARG VITE_DEMO_USER_ID=
