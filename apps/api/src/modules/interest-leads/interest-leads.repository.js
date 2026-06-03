@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ConflictError, DatabaseError, NotFoundError } from '../../core/errors.js';
+import { logger } from '../../core/logger.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 
 const memory = [];
@@ -84,7 +85,15 @@ export async function createInterestLead(payload) {
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const dbPayload = { ...toDbLead(payload), account_id: 'pre-lancamento' };
     const { data, error } = await supabase.from('interest_leads').insert(dbPayload).select('*').single();
-    if (error) throw new DatabaseError('Falha ao criar interest lead', { details: error });
+    if (error) {
+      logger.error('[interest-leads:supabase-insert] failed', {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint
+      });
+      throw new DatabaseError('Falha ao criar interest lead', { details: error });
+    }
     const item = mapDbLead(data);
     await addEvent(item, 'lead_criado', 'Lead criado');
     return item;
