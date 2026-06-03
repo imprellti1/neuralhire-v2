@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import ws from 'ws';
 import { env } from '../config/env.js';
 import { logger } from '../core/logger.js';
 
@@ -44,17 +45,51 @@ export function createSupabaseClient() {
   }
 
   return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { persistSession: false }
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false
+    },
+    realtime: {
+      transport: ws
+    }
   });
 }
 
-export async function resolveAccountMembership(supabase, userId) {
+export async function resolveAccountMembership(supabase, userId, email = null) {
   if (!supabase || !userId) return null;
+
   const tables = ['account_users', 'accounts_users', 'user_accounts'];
-  for (const table of tables) {
-    const { data, error } = await supabase.from(table).select('account_id, role, user_id').eq('user_id', userId).limit(1).maybeSingle();
-    if (!error && data?.account_id) return data;
+  const selectColumns = 'account_id, role, email, auth_user_id';
+
+  const queryMembership = async (column, value) => {
+    for (const table of tables) {
+      const { data, error } = await supabase
+        .from(table)
+        .select(selectColumns)
+        .eq(column, value)
+        .limit(1)
+        .maybeSingle();
+
+      if (!error && data?.account_id) {
+        return {
+          account_id: data.account_id,
+          role: data.role || null,
+          email: data.email || null,
+          auth_user_id: data.auth_user_id || null
+        };
+      }
+    }
+    return null;
+  };
+
+  const byAuthUserId = await queryMembership('auth_user_id', userId);
+  if (byAuthUserId) return byAuthUserId;
+
+  if (email) {
+    const byEmail = await queryMembership('email', email);
+    if (byEmail) return byEmail;
   }
+
   return null;
 }
 
