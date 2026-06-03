@@ -7,11 +7,12 @@ const styles = `
   .nh-wrap{max-width:1280px;margin:0 auto;padding:0 32px}
   .nh-topbar{position:sticky;top:0;z-index:20;backdrop-filter:blur(18px);background:linear-gradient(180deg,rgba(7,17,31,.94),rgba(7,17,31,.74));border:1px solid rgba(148,163,184,.18);border-radius:28px;height:84px;padding:0 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;box-shadow:0 18px 60px rgba(2,8,23,.34);width:100%;margin-top:24px}
   .nh-brand{display:flex;align-items:center;gap:12px;color:#fff;text-decoration:none;font-weight:800;letter-spacing:-.03em;background:none;box-shadow:none}
-  .nh-brand-mark{display:block;height:42px;width:auto;filter:drop-shadow(0 10px 20px rgba(37,99,235,.18))}
+  .nh-brand-mark{display:block;height:42px;width:auto;filter:none}
   .nh-brand-wordmark{display:flex;flex-direction:column;line-height:1}
   .nh-brand-name{display:flex;align-items:baseline;gap:0;font-size:22px;font-weight:900;letter-spacing:-.05em}
-  .nh-brand-name .neural{color:#fff}
-  .nh-brand-name .hire{background:linear-gradient(135deg,#8b5cf6,#22c3ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .nh-brand-inline .nh-brand-name{white-space:nowrap}
+  .nh-brand-inline .nh-brand-name .neural{color:#ffffff}
+  .nh-brand-inline .nh-brand-name .hire{background:linear-gradient(135deg,#8b5cf6,#22c3ff);-webkit-background-clip:text;background-clip:text;color:transparent}
   .nh-brand-tagline{font-size:11px;color:#97a8c5;margin-top:4px;letter-spacing:.12em;text-transform:uppercase}
   .nh-brand-compact .nh-brand-mark{height:40px}
   .nh-brand-compact .nh-brand-name{font-size:18px}
@@ -21,43 +22,50 @@ const styles = `
   .nh-btns{display:flex;flex-wrap:wrap;gap:12px}
   .nh-btn-secondary{background:rgba(255,255,255,.08);border:1px solid rgba(191,219,254,.24);box-shadow:none}
   .nh-hero{min-height:calc(100vh - 120px);padding:44px 0 56px;display:block}
-  .nh-hero-grid{display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr);gap:56px;align-items:center}
+  .nh-hero-grid{display:grid;grid-template-columns:minmax(0,.44fr) minmax(0,.56fr);gap:32px;align-items:center}
   .nh-kicker{margin:0 0 14px;text-transform:uppercase;letter-spacing:.18em;font-size:12px;color:#8ab4ff;font-weight:800}
-  .nh-title{margin:0;font-size:clamp(48px,5vw,76px);line-height:.94;letter-spacing:-.055em;color:#fff;max-width:11ch}
+  .nh-title{margin:0;font-size:clamp(42px,4.45vw,68px);line-height:.98;letter-spacing:-.055em;color:#fff;max-width:12ch}
   .nh-title strong{color:transparent;background:linear-gradient(135deg,#b69cff,#61b3ff);-webkit-background-clip:text;background-clip:text}
-  .nh-sub{margin:20px 0 24px;color:#bdd0f2;font-size:18px;line-height:1.7;max-width:560px}
+  .nh-sub{margin:20px 0 24px;color:#bdd0f2;font-size:18px;line-height:1.7;max-width:500px}
+  .nh-hero-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:18px 0 8px}
+  .nh-hero-card{padding:16px 18px;border-radius:18px;background:linear-gradient(180deg,rgba(12,20,38,.84),rgba(15,23,42,.72));border:1px solid rgba(148,163,184,.16);color:#edf4ff;font-size:14px;font-weight:700;box-shadow:0 14px 34px rgba(2,8,23,.18)}
   .nh-badges,.nh-metrics{display:flex;flex-wrap:wrap;gap:10px}
   .nh-pill,.nh-metric{background:rgba(9,19,37,.72);border:1px solid rgba(148,163,184,.18);border-radius:999px;color:#e8f0ff;padding:10px 14px;font-size:13px;box-shadow:0 10px 30px rgba(2,8,23,.14)}
   .nh-metric{border-radius:18px;background:#fff;color:#183153}
   .nh-metric strong{display:block;font-size:18px;margin-bottom:4px;color:#0f172a}
-  .nh-panel{background:linear-gradient(180deg,rgba(15,23,42,.92),rgba(17,24,39,.82));border:1px solid rgba(148,163,184,.2);border-radius:32px;padding:16px;box-shadow:0 24px 80px rgba(2,8,23,.48),0 0 0 1px rgba(255,255,255,.04) inset;align-self:center;overflow:hidden}
-  .nh-dashboard{display:grid;grid-template-columns:176px minmax(0,1fr);width:100%;max-width:660px;height:520px;background:linear-gradient(180deg,#0b1220,#0d1628 55%,#0b1322);border-radius:32px;overflow:hidden;border:1px solid rgba(148,163,184,.14)}
-  .nh-sidebar{background:linear-gradient(180deg,#0b1220,#101a2f);padding:18px 14px;border-right:1px solid rgba(148,163,184,.12)}
-  .nh-sidebar h3{margin:4px 0 14px;font-size:13px;color:#9fb4dc;text-transform:uppercase;letter-spacing:.12em}
-  .nh-side-item{padding:10px 12px;border-radius:12px;color:#dce7fa;font-size:13px;margin-bottom:8px;background:rgba(255,255,255,.03)}
-  .nh-main{padding:16px;background:
-    radial-gradient(circle at 20% 0,rgba(34,195,255,.12),transparent 28%),
-    radial-gradient(circle at 100% 20%,rgba(139,92,246,.18),transparent 28%),
-    linear-gradient(180deg,#101d35,#0d172a)}
-  .nh-main-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
-  .nh-main-head h3{margin:0;color:#fff;font-size:19px}
+  .nh-panel{position:relative;background:linear-gradient(180deg,rgba(8,14,27,.94),rgba(12,20,37,.88));border:1px solid rgba(148,163,184,.18);border-radius:34px;padding:18px;box-shadow:0 30px 90px rgba(2,8,23,.5),0 0 0 1px rgba(255,255,255,.03) inset;align-self:center;overflow:hidden}
+  .nh-panel::before{content:'';position:absolute;inset:auto -18% -26% auto;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(34,195,255,.22),rgba(34,195,255,0) 68%);pointer-events:none;filter:blur(4px)}
+  .nh-panel::after{content:'';position:absolute;inset:-1px;background:linear-gradient(135deg,rgba(139,92,246,.10),rgba(34,195,255,.04),rgba(37,211,102,.05));pointer-events:none;mask:linear-gradient(#000,transparent 88%)}
+  .nh-dashboard{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,.72fr);gap:14px;width:100%;max-width:860px;align-items:stretch}
+  .nh-flow-stage{background:linear-gradient(180deg,rgba(13,20,37,.96),rgba(10,16,30,.9));border:1px solid rgba(148,163,184,.14);border-radius:28px;padding:20px;box-shadow:0 18px 44px rgba(2,8,23,.18)}
+  .nh-main-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px}
+  .nh-main-head h3{margin:0;color:#fff;font-size:20px;letter-spacing:-.03em}
   .nh-main-head span{color:#8fb0e6;font-size:12px}
-  .nh-kpi-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px}
-  .nh-kpi{position:relative;overflow:hidden;min-width:0;background:linear-gradient(180deg,rgba(18,28,48,.98),rgba(16,24,40,.9));border:1px solid rgba(148,163,184,.16);border-radius:18px;padding:12px;box-shadow:0 10px 24px rgba(2,8,23,.18)}
-  .nh-kpi::after{content:'';position:absolute;inset:-1px;background:linear-gradient(135deg,rgba(139,92,246,.12),rgba(34,195,255,.04));pointer-events:none}
-  .nh-kpi .label{position:relative;font-size:11px;color:#8ba4cf;margin-bottom:6px}
-  .nh-kpi .value{position:relative;font-size:clamp(18px,2.1vw,24px);line-height:1;color:#fff;font-weight:800;letter-spacing:-.04em;white-space:nowrap}
-  .nh-kpi .delta{position:relative;margin-top:5px;font-size:11px;color:#7dd3fc}
-  .nh-funnel-wrap{display:grid;grid-template-columns:minmax(0,1fr) 242px;gap:12px;align-items:start}
-  .nh-card{background:linear-gradient(180deg,rgba(18,28,48,.98),rgba(15,23,42,.8));border:1px solid rgba(148,163,184,.16);border-radius:20px;padding:14px;box-shadow:0 14px 40px rgba(2,8,23,.2);min-width:0;overflow:hidden}
-  .nh-card h4{margin:0 0 10px;color:#fff;font-size:14px}
-  .nh-funnel{width:100%;height:214px;display:block}
+  .nh-flow-list{display:grid;gap:12px}
+  .nh-flow-bubble{position:relative;padding:16px 18px;border-radius:22px;border:1px solid rgba(148,163,184,.14);background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.04));box-shadow:0 16px 32px rgba(2,8,23,.18),0 0 0 1px rgba(255,255,255,.03) inset}
+  .nh-flow-bubble.client{border-top-left-radius:10px;background:linear-gradient(180deg,rgba(16,24,40,.98),rgba(20,29,47,.92))}
+  .nh-flow-bubble.ai{border-top-right-radius:10px;background:linear-gradient(180deg,rgba(12,35,45,.94),rgba(10,28,35,.9))}
+  .nh-flow-bubble.approval{border-top-left-radius:10px;background:linear-gradient(180deg,rgba(20,27,48,.98),rgba(15,23,42,.93))}
+  .nh-flow-bubble.sent{border-top-right-radius:10px;background:linear-gradient(180deg,rgba(12,36,24,.95),rgba(10,28,20,.9))}
+  .nh-flow-label{display:flex;align-items:center;gap:10px;margin-bottom:8px;color:#d8e5fb;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+  .nh-flow-label .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,#8b5cf6,#22c3ff);box-shadow:0 0 0 6px rgba(139,92,246,.12)}
+  .nh-flow-text{color:#f4f7ff;font-size:15px;line-height:1.65;letter-spacing:-.01em}
+  .nh-flow-text strong{font-weight:800}
+  .nh-arrow-stack{display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px 0}
+  .nh-arrow-stack span{display:block;color:#7aa6da;font-size:18px;line-height:1;opacity:.85;text-shadow:0 0 16px rgba(34,195,255,.35)}
+  .nh-metrics-stack{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-content:start}
+  .nh-metric{position:relative;overflow:hidden;border-radius:22px;background:linear-gradient(180deg,rgba(17,24,39,.84),rgba(12,19,32,.92));border:1px solid rgba(148,163,184,.14);color:#e8f0ff;padding:18px;box-shadow:0 18px 44px rgba(2,8,23,.16)}
+  .nh-metric::before{content:'';position:absolute;inset:auto -10% -18% auto;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(34,195,255,.16),rgba(34,195,255,0) 66%);pointer-events:none}
+  .nh-metric strong{display:block;font-size:25px;line-height:1;color:#fff;letter-spacing:-.05em;margin-bottom:8px}
+  .nh-metric span{display:block;font-size:13px;color:#a9bedf;line-height:1.45}
+  .nh-kpi-grid,.nh-funnel-wrap{display:none}
+  .nh-card{display:none}
   .nh-agents-list{display:grid;gap:10px}
   .nh-agent-item{display:flex;gap:10px;align-items:flex-start;padding:10px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid rgba(148,163,184,.08);min-width:0}
   .nh-dot{width:28px;height:28px;border-radius:50%;flex:0 0 auto;background:linear-gradient(135deg,var(--c1),var(--c2));box-shadow:0 0 0 6px rgba(255,255,255,.03),0 0 24px color-mix(in srgb, var(--c2) 28%, transparent)}
   .nh-agent-item strong,.nh-module strong{display:block;color:#fff;font-size:14px;margin-bottom:4px}
   .nh-agent-item span,.nh-module span,.nh-flow-msg{color:#b6c7e5;font-size:13px;line-height:1.55}
-  .nh-statbar{margin-top:24px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .nh-statbar{margin-top:20px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
   .nh-section{padding:68px 0 0;color:#10203b}
   .nh-section h2{margin:0 0 14px;font-size:clamp(28px,3.2vw,48px);line-height:1.05;letter-spacing:-.04em;color:#081225}
   .nh-section p.lead{margin:0 0 28px;color:#4d5f7c;font-size:18px;line-height:1.7;max-width:62ch}
@@ -97,7 +105,7 @@ const styles = `
   .nh-whatsapp-meta .nh-icon{width:42px;height:42px;border-radius:14px}
   @media (max-width: 1100px){
     .nh-hero-grid,.nh-dashboard,.nh-funnel-wrap,.nh-footer-grid,.nh-whatsapp-band{grid-template-columns:1fr}
-    .nh-kpi-grid,.nh-statbar,.nh-module-grid,.nh-grid-cards,.nh-flow-shell,.nh-card-grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .nh-kpi-grid,.nh-statbar,.nh-module-grid,.nh-grid-cards,.nh-flow-shell,.nh-card-grid-2,.nh-hero-cards,.nh-metrics-stack{grid-template-columns:repeat(2,minmax(0,1fr))}
   }
   @media (max-width: 720px){
     .nh-wrap{padding:0 20px}
@@ -108,10 +116,10 @@ const styles = `
     .nh-title{font-size:clamp(38px,11vw,48px);max-width:100%}
     .nh-sub{font-size:16px}
     .nh-kpi-grid,.nh-statbar,.nh-module-grid,.nh-grid-cards,.nh-flow-shell,.nh-form,.nh-card-grid-2{grid-template-columns:1fr}
-    .nh-dashboard{max-width:100%;height:auto;min-height:0}
+    .nh-dashboard{max-width:100%;height:auto;min-height:0;grid-template-columns:1fr}
     .nh-panel{padding:12px}
-    .nh-sidebar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-    .nh-main{padding:12px}
+    .nh-flow-stage{padding:14px}
+    .nh-metrics-stack{grid-template-columns:1fr}
     .nh-funnel{height:190px}
   }
 `;
@@ -186,67 +194,42 @@ function buildDashboardHtml() {
   return `
     <div class="nh-panel">
       <div class="nh-dashboard">
-        <aside class="nh-sidebar">
-          <img src="/brand/neuralhire-logo-compact-dark.svg" alt="NeuralHire" style="height:28px;width:auto;margin-bottom:16px">
-          <h3>Suite comercial</h3>
-          <div class="nh-side-item">Dashboard</div>
-          <div class="nh-side-item">Clientes</div>
-          <div class="nh-side-item">Oportunidades</div>
-          <div class="nh-side-item">Pedidos</div>
-          <div class="nh-side-item">Produtos</div>
-          <div class="nh-side-item">Fábricas</div>
-          <div class="nh-side-item">WhatsApp</div>
-          <div class="nh-side-item">Aprovações</div>
-          <div class="nh-side-item">Agentes IA</div>
-          <div class="nh-side-item">Relatórios</div>
-        </aside>
-        <section class="nh-main">
+        <section class="nh-flow-stage">
           <div class="nh-main-head">
             <div>
-              <h3>Dashboard</h3>
-              <span>Visão operacional em tempo real</span>
+              <h3>IA em ação</h3>
+              <span>NeuralHire acompanhando, retomando e vendendo pelo WhatsApp</span>
             </div>
-            <span style="color:#7dd3fc;font-weight:700">Online</span>
+            <span style="color:#7dd3fc;font-weight:700">Ao vivo</span>
           </div>
-          <div class="nh-kpi-grid">
-            <div class="nh-kpi"><div class="label">Oportunidades</div><div class="value">128</div><div class="delta">+32%</div></div>
-            <div class="nh-kpi"><div class="label">Pedidos</div><div class="value">56</div><div class="delta">+18%</div></div>
-            <div class="nh-kpi"><div class="label">Faturamento</div><div class="value">R$ 248.760</div><div class="delta">No período</div></div>
-            <div class="nh-kpi"><div class="label">Clientes ativos</div><div class="value">342</div><div class="delta">+12%</div></div>
-          </div>
-          <div class="nh-funnel-wrap">
-            <div class="nh-card">
-              <h4>Funil comercial</h4>
-              <svg class="nh-funnel" viewBox="0 0 640 260" role="img" aria-label="Funil com etapas de descoberta, qualificação, proposta, negociação e fechado">
-                <defs>
-                  <linearGradient id="funnelGradient" x1="0" x2="1">
-                    <stop offset="0%" stop-color="#8b5cf6"/>
-                    <stop offset="100%" stop-color="#2563eb"/>
-                  </linearGradient>
-                </defs>
-                <rect x="24" y="24" width="592" height="212" rx="24" fill="rgba(255,255,255,0.02)" stroke="rgba(148,163,184,0.16)"/>
-                <path d="M72 54 H568 L506 96 H134 Z" fill="url(#funnelGradient)" opacity=".95"/>
-                <path d="M120 98 H520 L456 138 H184 Z" fill="url(#funnelGradient)" opacity=".8"/>
-                <path d="M172 140 H468 L414 176 H226 Z" fill="url(#funnelGradient)" opacity=".64"/>
-                <path d="M226 180 H414 L370 208 H270 Z" fill="url(#funnelGradient)" opacity=".48"/>
-                <path d="M278 212 H362 L330 228 H310 Z" fill="url(#funnelGradient)" opacity=".38"/>
-                <g fill="#dbeafe" font-size="12" font-family="Inter,Segoe UI,Arial,sans-serif">
-                  <text x="304" y="74" text-anchor="middle">Descoberta</text>
-                  <text x="304" y="118" text-anchor="middle">Qualificação</text>
-                  <text x="304" y="160" text-anchor="middle">Proposta</text>
-                  <text x="304" y="196" text-anchor="middle">Negociação</text>
-                  <text x="304" y="224" text-anchor="middle">Fechado</text>
-                </g>
-              </svg>
+          <div class="nh-flow-list">
+            <div class="nh-flow-bubble client">
+              <div class="nh-flow-label">${premiumIcon('whatsapp', '#25d366', '#16a34a')}Cliente</div>
+              <div class="nh-flow-text">“Me chama em 30 dias.”</div>
             </div>
-            <div class="nh-card">
-              <h4>Atividades dos Agentes</h4>
-              <div class="nh-agents-list">
-                ${agentCards.slice(0, 4).map(([title, text, icon, c1, c2]) => `<div class="nh-agent-item">${premiumIcon(icon, c1, c2)}<div><strong>${title}</strong><span>${text}</span></div></div>`).join('')}
-              </div>
+            <div class="nh-arrow-stack" aria-hidden="true"><span>↓</span><span>↓</span><span>↓</span></div>
+            <div class="nh-flow-bubble ai">
+              <div class="nh-flow-label"><span class="dot"></span>IA NeuralHire</div>
+              <div class="nh-flow-text">“Retomada criada para 03/07.”</div>
+            </div>
+            <div class="nh-arrow-stack" aria-hidden="true"><span>↓</span><span>↓</span><span>↓</span></div>
+            <div class="nh-flow-bubble approval">
+              <div class="nh-flow-label">${premiumIcon('dashboard', '#8b5cf6', '#22c3ff')}Igor</div>
+              <div class="nh-flow-text">“Aprovado.”</div>
+            </div>
+            <div class="nh-arrow-stack" aria-hidden="true"><span>↓</span><span>↓</span><span>↓</span></div>
+            <div class="nh-flow-bubble sent">
+              <div class="nh-flow-label">${premiumIcon('whatsapp', '#25d366', '#16a34a')}Mensagem enviada</div>
+              <div class="nh-flow-text">✓ WhatsApp entregue</div>
             </div>
           </div>
         </section>
+        <aside class="nh-metrics-stack" aria-label="Métricas da IA">
+          <div class="nh-metric"><strong>87</strong><span>oportunidades monitoradas</span></div>
+          <div class="nh-metric"><strong>32</strong><span>clientes recuperados</span></div>
+          <div class="nh-metric"><strong>14</strong><span>pedidos iniciados</span></div>
+          <div class="nh-metric"><strong>R$ 18.700</strong><span>recuperados</span></div>
+        </aside>
       </div>
     </div>
   `;
@@ -257,7 +240,7 @@ function buildLandingHtml() {
     <main class="nh-landing">
       <div class="nh-wrap">
         <header class="nh-topbar">
-          <a class="nh-brand" href="#/" aria-label="NeuralHire">
+          <a class="nh-brand nh-brand-inline" href="#/" aria-label="NeuralHire">
             <img class="nh-brand-mark" src="/brand/neuralhire-mark-app-icon.svg" alt="" aria-hidden="true">
             <span class="nh-brand-wordmark">
               <span class="nh-brand-name"><span class="neural">Neural</span><span class="hire">Hire</span></span>
@@ -280,8 +263,14 @@ function buildLandingHtml() {
               <p style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden">A nova geração da representação comercial chegou.</p>
               <p style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden">Agentes Comerciais de IA</p>
               <p class="nh-kicker">Plataforma SaaS premium para representação comercial</p>
-              <h1 class="nh-title">A primeira plataforma de representação comercial com <strong>agentes de IA</strong> operando pelo WhatsApp.</h1>
-              <p class="nh-sub">CRM, pedidos, produtos, fábricas e agentes inteligentes que acompanham clientes, identificam oportunidades e preparam negociações. Tudo integrado ao WhatsApp.</p>
+              <h1 class="nh-title">Agentes de IA <strong>que vendem junto com sua equipe.</strong></h1>
+              <p class="nh-sub">WhatsApp, CRM, Follow-up, Pedidos e Inteligência Comercial operando em uma única plataforma.</p>
+              <div class="nh-hero-cards" aria-label="Diferenciais da primeira dobra">
+                <div class="nh-hero-card">🧠 Follow-up Inteligente</div>
+                <div class="nh-hero-card">📈 Reativação Automática</div>
+                <div class="nh-hero-card">💬 WhatsApp Integrado</div>
+                <div class="nh-hero-card">⚡ Aprovação Humana</div>
+              </div>
               <div class="nh-btns">
                 <a class="nh-cta" href="#lista">Entrar na Lista de Interesse</a>
                 <a class="nh-cta nh-btn-secondary" href="#como-funciona">Ver como funciona</a>
@@ -409,7 +398,7 @@ function buildLandingHtml() {
         <footer class="nh-footer">
           <div class="nh-footer-grid">
             <div>
-          <a class="nh-brand nh-brand-compact" href="#/" aria-label="NeuralHire" style="margin-bottom:12px;color:#081225">
+          <a class="nh-brand nh-brand-compact nh-brand-inline" href="#/" aria-label="NeuralHire" style="margin-bottom:12px;color:#081225">
                 <img class="nh-brand-mark" src="/brand/neuralhire-mark-app-icon.svg" alt="" aria-hidden="true">
                 <span class="nh-brand-wordmark">
                   <span class="nh-brand-name"><span class="neural">Neural</span><span class="hire">Hire</span></span>
