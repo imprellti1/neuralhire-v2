@@ -9,10 +9,10 @@ export function setupFrontendDom(hash = '#/') {
   global.window = dom.window;
   global.document = dom.window.document;
   window.__NEURALHIRE_CONFIG__ = {
-    VITE_APP_ENV: 'homologation',
-    VITE_DEMO_ACCOUNT_ID: 'acc-analytics-001',
-    VITE_DEMO_ROLE: 'manager',
-    ALLOW_TEST_HEADERS: true
+    VITE_APP_ENV: 'development',
+    VITE_SUPABASE_URL: 'https://qvwbsadesksrhcslmmjg.supabase.co',
+    VITE_SUPABASE_ANON_KEY: 'test-anon-key',
+    VITE_API_URL: 'https://api.neuralhire.com.br'
   };
   Object.defineProperty(global, 'navigator', {
     value: dom.window.navigator,

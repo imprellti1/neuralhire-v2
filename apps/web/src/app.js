@@ -67,6 +67,9 @@ export function bootstrapWebApp() {
   const appEnv = String(window.__NEURALHIRE_CONFIG__?.VITE_APP_ENV || import.meta.env?.VITE_APP_ENV || '').toLowerCase();
   const hasDemoConfig = Boolean(window.__NEURALHIRE_CONFIG__?.VITE_DEMO_ACCOUNT_ID);
   const requiresLogin = (appEnv === 'homologation' || appEnv === 'production') && !hasDemoConfig;
+  const hostname = String(window.location?.hostname || '').toLowerCase();
+  const isPublicSite = hostname === 'neuralhire.com.br' || hostname === 'www.neuralhire.com.br';
+  const isAppSite = hostname === 'app.neuralhire.com.br';
   const renderRoute = () => {
     const route = window.location.hash || '#/';
     if (route === '#/logout') {
@@ -74,7 +77,12 @@ export function bootstrapWebApp() {
       window.location.hash = '#/login';
       return;
     }
-    if (route === '#/' || route === '#') {
+    if (isPublicSite || route === '#/' || route === '#') {
+      document.body.innerHTML = '';
+      renderPublicLandingPage(document.body, { apiClient: api });
+      return;
+    }
+    if (!isAppSite && route === '#/login') {
       document.body.innerHTML = '';
       renderPublicLandingPage(document.body, { apiClient: api });
       return;

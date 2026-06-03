@@ -1,8 +1,8 @@
-﻿import { createServer } from 'node:http';
+import './config/load-env.js';
+import { createServer } from 'node:http';
 import { createApiApp } from './app.js';
 import { env, getEnvSummary } from './config/env.js';
 import { logger } from './core/logger.js';
-import { loadDemoMemoryFromDisk } from './testing/demo-memory.store.js';
 
 const app = createApiApp();
 const server = createServer(app);
@@ -21,11 +21,6 @@ process.on('unhandledRejection', (reason) => {
 });
 
 async function bootstrap() {
-  const demo = await loadDemoMemoryFromDisk();
-  if (demo.loaded) {
-    logger.info('demo_memory_loaded', { mode: 'memory', source: 'disk' });
-  }
-
   server.listen(env.API_PORT, () => {
     logger.info('api_server_started', {
       port: env.API_PORT,

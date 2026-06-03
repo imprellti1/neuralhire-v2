@@ -36,6 +36,10 @@ export function validateEnv(source = process.env) {
     parsed[key] = value;
   }
 
+  if (!parsed.API_PORT && parsed.PORT) {
+    parsed.API_PORT = parsed.PORT;
+  }
+
   return parsed;
 }
 
@@ -46,7 +50,9 @@ export function getEnvSummary() {
     nodeEnv: env.NODE_ENV,
     appEnv: env.APP_ENV,
     apiPort: env.API_PORT,
+    port: env.PORT,
     authMode: env.AUTH_MODE,
+    corsOrigin: env.CORS_ORIGIN,
     supabaseConfigured: Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY),
     hasServiceRoleKey: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
     hasAnonKey: Boolean(env.SUPABASE_ANON_KEY)

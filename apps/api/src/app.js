@@ -7,9 +7,10 @@ import { corsMiddleware } from './core/cors.middleware.js';
 import { securityHeadersMiddleware } from './core/security-headers.middleware.js';
 import { authContextMiddleware } from './core/auth-context.middleware.js';
 import { registerModules } from './modules/index.js';
+import { env } from './config/env.js';
 
 const globalMiddlewares = [
-  corsMiddleware(),
+  corsMiddleware({ origin: env.CORS_ORIGIN }),
   securityHeadersMiddleware(),
   authContextMiddleware()
 ];
