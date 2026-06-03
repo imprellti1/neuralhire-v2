@@ -21,13 +21,13 @@ const styles = `
   .nh-cta{display:inline-flex;align-items:center;justify-content:center;padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:800;color:#fff;background:linear-gradient(135deg,#8b5cf6,#2563eb);box-shadow:0 16px 30px rgba(37,99,235,.28),0 0 0 1px rgba(255,255,255,.08) inset}
   .nh-btns{display:flex;flex-wrap:wrap;gap:12px}
   .nh-btn-secondary{background:rgba(255,255,255,.08);border:1px solid rgba(191,219,254,.24);box-shadow:none}
-  .nh-hero{min-height:calc(100vh - 120px);padding:44px 0 56px;display:block}
-  .nh-hero-grid{display:grid;grid-template-columns:minmax(0,.44fr) minmax(0,.56fr);gap:32px;align-items:center}
-  .nh-kicker{margin:0 0 14px;text-transform:uppercase;letter-spacing:.18em;font-size:12px;color:#8ab4ff;font-weight:800}
+  .nh-hero{min-height:calc(100vh - 120px);padding:18px 0 56px;display:block}
+  .nh-hero-grid{display:grid;grid-template-columns:minmax(0,.48fr) minmax(0,.52fr);gap:32px;align-items:start}
+  .nh-kicker{margin:2px 0 8px;text-transform:uppercase;letter-spacing:.18em;font-size:12px;color:#8ab4ff;font-weight:800}
   .nh-title{margin:0;font-size:clamp(42px,4.45vw,68px);line-height:.98;letter-spacing:-.055em;color:#fff;max-width:12ch}
   .nh-title strong{color:transparent;background:linear-gradient(135deg,#b69cff,#61b3ff);-webkit-background-clip:text;background-clip:text}
-  .nh-sub{margin:20px 0 24px;color:#bdd0f2;font-size:18px;line-height:1.7;max-width:500px}
-  .nh-hero-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:18px 0 8px}
+  .nh-sub{margin:14px 0 18px;color:#bdd0f2;font-size:18px;line-height:1.7;max-width:500px}
+  .nh-hero-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0 8px}
   .nh-hero-card{padding:16px 18px;border-radius:18px;background:linear-gradient(180deg,rgba(12,20,38,.84),rgba(15,23,42,.72));border:1px solid rgba(148,163,184,.16);color:#edf4ff;font-size:14px;font-weight:700;box-shadow:0 14px 34px rgba(2,8,23,.18)}
   .nh-badges,.nh-metrics{display:flex;flex-wrap:wrap;gap:10px}
   .nh-pill,.nh-metric{background:rgba(9,19,37,.72);border:1px solid rgba(148,163,184,.18);border-radius:999px;color:#e8f0ff;padding:10px 14px;font-size:13px;box-shadow:0 10px 30px rgba(2,8,23,.14)}
@@ -36,10 +36,10 @@ const styles = `
   .nh-panel{position:relative;background:
     radial-gradient(circle at 20% 0%,rgba(139,92,246,.16),transparent 28%),
     radial-gradient(circle at 88% 12%,rgba(34,195,255,.18),transparent 24%),
-    linear-gradient(180deg,rgba(8,14,27,.96),rgba(10,17,32,.94));border:1px solid rgba(148,163,184,.18);border-radius:34px;padding:18px;box-shadow:0 30px 90px rgba(2,8,23,.5),0 0 0 1px rgba(255,255,255,.03) inset;align-self:center;overflow:hidden}
+    linear-gradient(180deg,rgba(8,14,27,.96),rgba(10,17,32,.94));border:1px solid rgba(148,163,184,.18);border-radius:34px;padding:18px;box-shadow:0 30px 90px rgba(2,8,23,.5),0 0 0 1px rgba(255,255,255,.03) inset;align-self:start;overflow:hidden;transform:scale(1.02);transform-origin:center}
   .nh-panel::before{content:'';position:absolute;inset:auto -12% -24% auto;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(34,195,255,.24),rgba(34,195,255,0) 68%);pointer-events:none;filter:blur(6px)}
   .nh-panel::after{content:'';position:absolute;inset:-1px;background:linear-gradient(135deg,rgba(139,92,246,.14),rgba(34,195,255,.05),rgba(37,211,102,.06));pointer-events:none;mask:linear-gradient(#000,transparent 88%)}
-  .nh-dashboard{display:grid;grid-template-columns:minmax(0,.66fr) minmax(260px,.34fr);gap:14px;width:100%;max-width:900px;align-items:stretch}
+  .nh-dashboard{display:grid;grid-template-columns:minmax(0,.66fr) minmax(260px,.34fr);gap:14px;width:100%;max-width:900px;align-items:start}
   .nh-flow-stage{background:linear-gradient(180deg,rgba(13,20,37,.98),rgba(9,15,29,.94));border:1px solid rgba(148,163,184,.16);border-radius:28px;padding:20px;box-shadow:0 18px 44px rgba(2,8,23,.18)}
   .nh-main-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px}
   .nh-main-head h3{margin:0;color:#fff;font-size:20px;letter-spacing:-.03em}
@@ -57,6 +57,9 @@ const styles = `
   .nh-flow-checks{display:grid;gap:6px;margin:10px 0 12px;padding-left:2px}
   .nh-flow-check{display:flex;gap:8px;align-items:flex-start;color:#dbebff;font-size:13px;line-height:1.4}
   .nh-flow-check::before{content:'✓';color:#38d39f;font-weight:900;flex:0 0 auto}
+  .nh-checklist{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr));padding:22px 24px;border-radius:26px;background:linear-gradient(180deg,#ffffff,#f6f9ff);border:1px solid #dce7f6;box-shadow:0 18px 42px rgba(16,32,59,.08)}
+  .nh-checklist-item{display:flex;gap:12px;align-items:flex-start;color:#17304f;font-size:15px;line-height:1.55;font-weight:700}
+  .nh-checklist-item::before{content:'✓';display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:999px;background:linear-gradient(135deg,#8b5cf6,#22c3ff);color:#fff;font-size:13px;flex:0 0 auto;box-shadow:0 8px 20px rgba(139,92,246,.18)}
   .nh-flow-suggest{margin-top:10px}
   .nh-flow-suggest-label{color:#67b8ff;font-size:12px;font-weight:700;margin-bottom:8px}
   .nh-flow-suggest-box{border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.04);border-radius:14px;padding:12px 14px;color:#f5f8ff;line-height:1.55;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
@@ -65,6 +68,92 @@ const styles = `
   .nh-flow-time{color:#98b4db;font-size:12px}
   .nh-arrow-stack{display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px 0}
   .nh-arrow-stack span{display:block;color:#7aa6da;font-size:18px;line-height:1;opacity:.85;text-shadow:0 0 16px rgba(34,195,255,.35)}
+  .nh-hero-preview-band{margin-top:20px;padding:18px;border-radius:28px;background:linear-gradient(180deg,rgba(10,16,30,.95),rgba(10,16,30,.86));border:1px solid rgba(148,163,184,.16);box-shadow:0 24px 70px rgba(2,8,23,.36);overflow:hidden}
+  .nh-hero-preview-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
+  .nh-hero-preview-head h2{margin:0;color:#fff;font-size:20px;letter-spacing:-.03em}
+  .nh-hero-preview-head p{margin:6px 0 0;color:#9eb6db;font-size:13px;line-height:1.5;max-width:68ch}
+  .nh-hero-preview-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+  .nh-hero-preview-card{position:relative;min-height:340px;border-radius:26px;padding:18px;overflow:hidden;border:1px solid rgba(148,163,184,.16);box-shadow:0 18px 44px rgba(2,8,23,.18)}
+  .nh-hero-preview-card::before{content:'';position:absolute;inset:auto -10% -18% auto;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(34,195,255,.2),rgba(34,195,255,0) 68%);pointer-events:none;filter:blur(4px)}
+  .nh-hero-preview-card::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.03),transparent 40%,rgba(255,255,255,.02));pointer-events:none}
+  .nh-hero-preview-tag{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px}
+  .nh-hero-preview-title{margin:0;color:#fff;font-size:24px;line-height:1.02;letter-spacing:-.05em}
+  .nh-hero-preview-sub{margin:8px 0 0;color:#bbcff0;font-size:13px;line-height:1.55;max-width:32ch}
+  .nh-hero-preview-list{display:grid;gap:10px;margin-top:18px}
+  .nh-hero-preview-item{display:flex;gap:10px;align-items:flex-start;padding:12px 13px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(148,163,184,.14);color:#ecf4ff;font-size:13px;line-height:1.45}
+  .nh-hero-preview-item::before{content:'✓';display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:999px;background:linear-gradient(135deg,#8b5cf6,#22c3ff);color:#fff;font-size:12px;font-weight:900;flex:0 0 auto;box-shadow:0 0 0 6px rgba(139,92,246,.12)}
+  .nh-hero-preview-item strong{display:block;color:#fff}
+  .nh-hero-preview-flow{display:grid;gap:12px;margin-top:18px}
+  .nh-hero-preview-bubble{padding:14px 15px;border-radius:20px;border:1px solid rgba(148,163,184,.14);background:rgba(255,255,255,.05);color:#f6f8ff;box-shadow:0 14px 24px rgba(2,8,23,.14)}
+  .nh-hero-preview-bubble.client{background:linear-gradient(180deg,rgba(18,28,47,.96),rgba(12,20,34,.92))}
+  .nh-hero-preview-bubble.ai{background:linear-gradient(180deg,rgba(11,28,44,.96),rgba(9,22,36,.92))}
+  .nh-hero-preview-bubble.team{background:linear-gradient(180deg,rgba(22,28,50,.96),rgba(15,22,38,.92))}
+  .nh-hero-preview-bubble.sent{background:linear-gradient(180deg,rgba(12,34,25,.96),rgba(10,26,19,.92))}
+  .nh-hero-preview-label{display:flex;align-items:center;gap:8px;margin-bottom:8px;color:#d7e4fb;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+  .nh-hero-preview-label .dot{width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,#8b5cf6,#22c3ff);box-shadow:0 0 0 6px rgba(139,92,246,.1)}
+  .nh-hero-preview-quote{font-size:13px;line-height:1.55;color:#f5f8ff}
+  .nh-hero-preview-chiprow{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .nh-hero-preview-chip{padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(148,163,184,.14);color:#dfeaff;font-size:11px;font-weight:700}
+  .nh-hero-preview-entity{display:flex;align-items:center;gap:10px}
+  .nh-hero-preview-avatar{width:48px;height:48px;border-radius:16px;background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.35),rgba(255,255,255,.08) 30%,rgba(255,255,255,0) 72%),linear-gradient(135deg,var(--c1),var(--c2));box-shadow:0 14px 30px rgba(37,99,235,.16),0 0 0 1px rgba(255,255,255,.18) inset;display:grid;place-items:center}
+  .nh-hero-preview-avatar svg{width:28px;height:28px;display:block}
+  .nh-hero-preview-entity strong{display:block;color:#fff;font-size:15px}
+  .nh-hero-preview-entity span{display:block;color:#bdd0f2;font-size:12px;line-height:1.45}
+  .nh-hero-preview-card.a{background:linear-gradient(180deg,rgba(9,15,27,.98),rgba(11,18,33,.94));box-shadow:0 24px 60px rgba(10,18,34,.32),0 0 0 1px rgba(255,255,255,.03) inset}
+  .nh-hero-preview-card.b{background:linear-gradient(180deg,rgba(8,29,20,.96),rgba(7,20,15,.94));border-color:rgba(67,181,129,.16);box-shadow:0 24px 60px rgba(6,44,30,.24),0 0 0 1px rgba(255,255,255,.03) inset}
+  .nh-hero-preview-card.c{background:linear-gradient(180deg,rgba(10,16,30,.98),rgba(8,14,26,.94));box-shadow:0 24px 60px rgba(8,16,33,.3),0 0 0 1px rgba(255,255,255,.03) inset}
+  .nh-live-demo{position:relative;min-height:388px;border-radius:30px;padding:18px;overflow:hidden;border:1px solid rgba(148,163,184,.16);background:
+    radial-gradient(circle at 18% 14%,rgba(139,92,246,.18),transparent 28%),
+    radial-gradient(circle at 84% 10%,rgba(34,195,255,.16),transparent 24%),
+    linear-gradient(180deg,rgba(7,12,24,.98),rgba(7,13,24,.9));box-shadow:0 28px 72px rgba(2,8,23,.34),0 0 0 1px rgba(255,255,255,.03) inset}
+  .nh-live-demo::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.04),transparent 28%,rgba(255,255,255,.02));pointer-events:none}
+  .nh-live-demo::after{content:'';position:absolute;inset:auto 10% -22% 8%;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(37,211,102,.16),rgba(37,211,102,0) 68%);filter:blur(10px);pointer-events:none}
+  .nh-live-demo__frame{position:relative;z-index:1;display:grid;grid-template-rows:auto auto 1fr;gap:14px;min-height:100%}
+  .nh-live-demo__top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .nh-live-demo__badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:rgba(37,211,102,.12);border:1px solid rgba(37,211,102,.2);color:#9cf1be;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+  .nh-live-demo__status{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(148,163,184,.14);color:#cfe0fb;font-size:12px;font-weight:700}
+  .nh-live-demo__status-dot{width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,#8b5cf6,#22c3ff);box-shadow:0 0 0 6px rgba(139,92,246,.12)}
+  .nh-live-demo__track{position:relative;display:grid;gap:12px;padding:6px 0 0}
+  .nh-live-demo__rail{position:absolute;left:22px;top:12px;bottom:10px;width:2px;background:linear-gradient(180deg,rgba(34,195,255,.3),rgba(139,92,246,.24),rgba(37,211,102,.08));opacity:.9}
+  .nh-live-demo__rail::after{content:'';position:absolute;left:-5px;top:0;width:12px;height:12px;border-radius:50%;background:linear-gradient(135deg,#22c3ff,#8b5cf6);box-shadow:0 0 0 0 rgba(34,195,255,.3);animation:nh-live-pulse 2.4s ease-in-out infinite}
+  .nh-live-demo__message{position:relative;z-index:1;display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:flex-start;padding:12px 14px 12px 10px;border-radius:22px;border:1px solid rgba(148,163,184,.14);background:rgba(255,255,255,.045);box-shadow:0 16px 28px rgba(2,8,23,.14);opacity:.34;transform:translateY(10px) scale(.985);transition:opacity .55s ease,transform .55s ease,box-shadow .55s ease,border-color .55s ease}
+  .nh-live-demo__message::before{content:'';width:12px;height:12px;border-radius:50%;margin:7px 0 0 10px;background:linear-gradient(135deg,#8b5cf6,#22c3ff);box-shadow:0 0 0 6px rgba(139,92,246,.12)}
+  .nh-live-demo__message.is-active{opacity:1;transform:translateY(0) scale(1);border-color:rgba(148,163,184,.22)}
+  .nh-live-demo__message.is-active .nh-live-demo__bubble{box-shadow:0 22px 36px rgba(2,8,23,.2)}
+  .nh-live-demo__message.is-complete{opacity:1;transform:none}
+  .nh-live-demo__message.is-complete::before{background:linear-gradient(135deg,#22c55e,#25d366);box-shadow:0 0 0 6px rgba(34,197,94,.12)}
+  .nh-live-demo__message.is-hidden{display:none}
+  .nh-live-demo__label{color:#cfe0fb;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px}
+  .nh-live-demo__bubble{display:inline-block;padding:13px 14px;border-radius:18px;color:#f6f8ff;line-height:1.5;font-size:13px;letter-spacing:-.01em;background:linear-gradient(180deg,rgba(16,24,40,.98),rgba(12,20,33,.94));border:1px solid rgba(148,163,184,.12);transition:box-shadow .55s ease,transform .55s ease}
+  .nh-live-demo__bubble.client{background:linear-gradient(180deg,rgba(17,27,45,.98),rgba(13,21,36,.94))}
+  .nh-live-demo__bubble.ai{background:linear-gradient(180deg,rgba(10,29,46,.98),rgba(8,22,37,.94))}
+  .nh-live-demo__bubble.team{background:linear-gradient(180deg,rgba(21,28,50,.98),rgba(15,23,41,.94))}
+  .nh-live-demo__bubble.sent{background:linear-gradient(180deg,rgba(11,38,27,.98),rgba(9,25,18,.94))}
+  .nh-live-demo__bubble strong{font-weight:800}
+  .nh-live-demo__checks{display:grid;gap:6px;margin-top:12px}
+  .nh-live-demo__check{display:flex;gap:8px;align-items:flex-start;color:#d9e7fb;font-size:12px;line-height:1.45;opacity:.3;transform:translateX(-4px);transition:opacity .45s ease,transform .45s ease}
+  .nh-live-demo__check::before{content:'✓';display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:999px;background:rgba(34,197,94,.14);color:#53e3a6;font-size:11px;font-weight:900;flex:0 0 auto}
+  .nh-live-demo__check.is-on{opacity:1;transform:translateX(0)}
+  .nh-live-demo__suggest{margin-top:12px;padding:12px 13px;border-radius:18px;background:rgba(255,255,255,.045);border:1px solid rgba(148,163,184,.12);opacity:0;transform:translateY(8px);transition:opacity .45s ease,transform .45s ease}
+  .nh-live-demo__suggest.is-visible{opacity:1;transform:translateY(0)}
+  .nh-live-demo__suggest-label{color:#8db8ff;font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;margin-bottom:8px}
+  .nh-live-demo__suggest-text{color:#eff6ff;font-size:13px;line-height:1.55}
+  .nh-live-demo__actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
+  .nh-live-demo__button{display:inline-flex;align-items:center;justify-content:center;border-radius:12px;padding:11px 14px;font-weight:800;font-size:13px;color:#fff;text-decoration:none;background:linear-gradient(135deg,#8b5cf6,#2563eb);box-shadow:0 14px 28px rgba(37,99,235,.3),0 0 0 1px rgba(255,255,255,.08) inset;opacity:0;transform:translateY(6px) scale(.98);transition:opacity .45s ease,transform .45s ease}
+  .nh-live-demo__button.is-visible{opacity:1;transform:translateY(0) scale(1)}
+  .nh-live-demo__time{color:#9eb6db;font-size:12px}
+  .nh-live-demo__approval{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:18px;background:linear-gradient(180deg,rgba(25,31,54,.96),rgba(15,22,38,.94));border:1px solid rgba(148,163,184,.12);margin-top:12px;opacity:0;transform:translateY(8px);transition:opacity .45s ease,transform .45s ease}
+  .nh-live-demo__approval.is-visible{opacity:1;transform:translateY(0)}
+  .nh-live-demo__approval strong{display:block;color:#fff;font-size:14px}
+  .nh-live-demo__approval span{display:block;color:#a8bedf;font-size:12px;line-height:1.45}
+  .nh-live-demo__approval-pill{padding:8px 12px;border-radius:999px;background:rgba(34,197,94,.14);border:1px solid rgba(34,197,94,.2);color:#95edba;font-size:12px;font-weight:800}
+  .nh-live-demo__footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:auto;padding-top:2px;color:#8ea8d0;font-size:12px}
+  .nh-live-demo__footer strong{color:#fff}
+  .nh-live-demo__progress{position:relative;flex:1;height:8px;border-radius:999px;background:rgba(148,163,184,.14);overflow:hidden}
+  .nh-live-demo__progress span{display:block;height:100%;width:0;background:linear-gradient(90deg,#8b5cf6,#22c3ff,#25d366);box-shadow:0 0 24px rgba(34,195,255,.28);transition:width .45s ease}
+  .nh-live-demo__tag{display:inline-flex;align-items:center;gap:8px;padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(148,163,184,.12);color:#cfe0fb;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+  .nh-live-demo__tag .dot{width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,#25d366,#16a34a);box-shadow:0 0 0 6px rgba(37,211,102,.1)}
+  @keyframes nh-live-pulse{0%,100%{transform:translateY(0) scale(1);box-shadow:0 0 0 0 rgba(34,195,255,.25)}50%{transform:translateY(2px) scale(1.12);box-shadow:0 0 0 12px rgba(34,195,255,0)}}
   .nh-metrics-stack{display:grid;grid-template-columns:1fr;gap:12px;align-content:start}
   .nh-metric{position:relative;overflow:hidden;border-radius:22px;background:linear-gradient(180deg,rgba(17,24,39,.88),rgba(12,19,32,.94));border:1px solid rgba(148,163,184,.14);color:#e8f0ff;padding:18px;box-shadow:0 18px 44px rgba(2,8,23,.16);min-height:132px;display:flex;flex-direction:column;justify-content:center}
   .nh-metric::before{content:'';position:absolute;inset:auto -10% -18% auto;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(34,195,255,.16),rgba(34,195,255,0) 66%);pointer-events:none}
@@ -118,6 +207,7 @@ const styles = `
   @media (max-width: 1100px){
     .nh-hero-grid,.nh-dashboard,.nh-funnel-wrap,.nh-footer-grid,.nh-whatsapp-band{grid-template-columns:1fr}
     .nh-kpi-grid,.nh-statbar,.nh-module-grid,.nh-grid-cards,.nh-flow-shell,.nh-card-grid-2,.nh-hero-cards,.nh-metrics-stack{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .nh-hero-preview-grid{grid-template-columns:1fr}
   }
   @media (max-width: 720px){
     .nh-wrap{padding:0 20px}
@@ -133,6 +223,20 @@ const styles = `
     .nh-flow-stage{padding:14px}
     .nh-metrics-stack{grid-template-columns:1fr}
     .nh-funnel{height:190px}
+    .nh-hero-preview-band{padding:14px}
+    .nh-hero-preview-head{flex-direction:column}
+    .nh-hero-preview-card{min-height:unset}
+    .nh-live-demo{min-height:340px;padding:14px;border-radius:24px}
+    .nh-live-demo__footer{flex-direction:column;align-items:flex-start}
+    .nh-live-demo__actions{flex-direction:column;align-items:flex-start}
+    .nh-live-demo__approval{flex-direction:column;align-items:flex-start}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .nh-live-demo__rail::after,.nh-live-demo__message,.nh-live-demo__bubble,.nh-live-demo__suggest,.nh-live-demo__button,.nh-live-demo__approval,.nh-live-demo__progress span{animation:none !important;transition:none !important}
+    .nh-live-demo__message{opacity:1;transform:none}
+    .nh-live-demo__check{opacity:1;transform:none}
+    .nh-live-demo__suggest,.nh-live-demo__button,.nh-live-demo__approval{opacity:1;transform:none}
+    .nh-live-demo__progress span{width:100%}
   }
 `;
 
@@ -202,9 +306,77 @@ function renderIconCard([title, text, icon, c1, c2]) {
   return `<article class="nh-module"><div class="nh-module-head">${premiumIcon(icon, c1, c2)}<div><strong>${title}</strong><span>${text}</span></div></div></article>`;
 }
 
+function buildLiveDemoHtml() {
+  return `
+    <div class="nh-live-demo" aria-label="Demonstração animada do fluxo de IA no WhatsApp com aprovação humana" data-live-demo>
+      <div class="nh-live-demo__frame">
+        <div class="nh-live-demo__top">
+          <div class="nh-live-demo__badge">${premiumIcon('whatsapp', '#25d366', '#16a34a')}WhatsApp vivo</div>
+          <div class="nh-live-demo__status" data-demo-status><span class="nh-live-demo__status-dot"></span><span data-demo-status-text>analisando...</span></div>
+        </div>
+        <div class="nh-live-demo__track">
+          <div class="nh-live-demo__rail" aria-hidden="true"></div>
+          <div class="nh-live-demo__message is-active" data-step="0">
+            <div>
+              <div class="nh-live-demo__label">Cliente</div>
+              <div class="nh-live-demo__bubble client">“Me chama em 30 dias.”</div>
+            </div>
+          </div>
+          <div class="nh-live-demo__message" data-step="1">
+            <div>
+              <div class="nh-live-demo__label">IA NeuralHire</div>
+              <div class="nh-live-demo__bubble ai">Pedido de retomada detectado.</div>
+              <div class="nh-live-demo__checks">
+                <div class="nh-live-demo__check" data-check="0">Pedido de retomada detectado.</div>
+                <div class="nh-live-demo__check" data-check="1">Retomada agendada para 03/07.</div>
+              </div>
+            </div>
+          </div>
+          <div class="nh-live-demo__message" data-step="2">
+            <div>
+              <div class="nh-live-demo__label">IA NeuralHire</div>
+              <div class="nh-live-demo__bubble ai">Mensagem sugerida pronta.</div>
+              <div class="nh-live-demo__suggest" data-suggest>
+                <div class="nh-live-demo__suggest-label">Mensagem sugerida</div>
+                <div class="nh-live-demo__suggest-text">Olá! Conforme combinado, estou retomando nosso contato para te ajudar no próximo passo.</div>
+                <div class="nh-live-demo__actions">
+                  <button class="nh-live-demo__button" type="button" data-approve-btn>Aprovar mensagem</button>
+                  <span class="nh-live-demo__time">10:32</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="nh-live-demo__approval" data-approval>
+            <div>
+              <strong>Equipe</strong>
+              <span>Aprovado.</span>
+            </div>
+            <div class="nh-live-demo__approval-pill">Aprovação humana</div>
+          </div>
+          <div class="nh-live-demo__message" data-step="3">
+            <div>
+              <div class="nh-live-demo__label">WhatsApp</div>
+              <div class="nh-live-demo__bubble sent">Mensagem enviada.</div>
+              <div class="nh-live-demo__checks">
+                <div class="nh-live-demo__check" data-check="2">WhatsApp entregue.</div>
+                <div class="nh-live-demo__check" data-check="3">Cliente reativado.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="nh-live-demo__footer">
+          <span><strong data-demo-caption>Fluxo em execução</strong></span>
+          <div class="nh-live-demo__progress" aria-hidden="true"><span data-demo-progress></span></div>
+          <span class="nh-live-demo__tag"><span class="dot"></span>Loop silencioso</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function buildDashboardHtml() {
   return `
-    <div class="nh-panel">
+    <div class="nh-panel" aria-label="IA em ação">
       <div class="nh-dashboard">
         <section class="nh-flow-stage">
           <div class="nh-main-head">
@@ -263,6 +435,122 @@ function buildDashboardHtml() {
   `;
 }
 
+function buildPreviewCardA() {
+  return `
+    <article class="nh-hero-preview-card a">
+      <div class="nh-hero-preview-tag" style="background:rgba(139,92,246,.14);color:#c9b7ff;border:1px solid rgba(139,92,246,.22)">Opção A · IA trabalhando</div>
+      <h3 class="nh-hero-preview-title">NeuralHire acompanhando a operação em tempo real</h3>
+      <p class="nh-hero-preview-sub">Um card dark premium com sensação de processamento inteligente, sem cair em dashboard ou gráfico.</p>
+      <div class="nh-hero-preview-list">
+        <div class="nh-hero-preview-item">Monitorando clientes...</div>
+        <div class="nh-hero-preview-item">Analisando oportunidades...</div>
+        <div class="nh-hero-preview-item">Detectando retomadas...</div>
+        <div class="nh-hero-preview-item">Preparando mensagem...</div>
+        <div class="nh-hero-preview-item">Aguardando aprovação...</div>
+        <div class="nh-hero-preview-item">Mensagem enviada...</div>
+      </div>
+    </article>
+  `;
+}
+
+function buildPreviewCardB() {
+  return `
+    <article class="nh-hero-preview-card b">
+      <div class="nh-hero-preview-tag" style="background:rgba(37,211,102,.14);color:#7ff0b0;border:1px solid rgba(37,211,102,.24)">Opção B · WhatsApp vivo</div>
+      <h3 class="nh-hero-preview-title">O produto em ação, com aprovação humana visível</h3>
+      <p class="nh-hero-preview-sub">A leitura comercial mais direta: cliente pede retorno, IA prepara, equipe aprova e o WhatsApp entrega.</p>
+      <div class="nh-hero-preview-flow">
+        <div class="nh-hero-preview-bubble client">
+          <div class="nh-hero-preview-label"><span class="dot"></span>Cliente</div>
+          <div class="nh-hero-preview-quote">“Me chama em 30 dias.”</div>
+        </div>
+        <div class="nh-hero-preview-bubble ai">
+          <div class="nh-hero-preview-label"><span class="dot"></span>IA NeuralHire</div>
+          <div class="nh-hero-preview-quote">Pedido de retomada detectado. Mensagem preparada para aprovação.</div>
+        </div>
+        <div class="nh-hero-preview-bubble team">
+          <div class="nh-hero-preview-label"><span class="dot"></span>Equipe</div>
+          <div class="nh-hero-preview-quote">Aprovado.</div>
+        </div>
+        <div class="nh-hero-preview-bubble sent">
+          <div class="nh-hero-preview-label"><span class="dot"></span>WhatsApp</div>
+          <div class="nh-hero-preview-quote">Mensagem enviada e entregue.</div>
+        </div>
+      </div>
+      <div class="nh-hero-preview-chiprow">
+        <span class="nh-hero-preview-chip">Aprovação humana</span>
+        <span class="nh-hero-preview-chip">Retomada comercial</span>
+        <span class="nh-hero-preview-chip">WhatsApp nativo</span>
+      </div>
+    </article>
+  `;
+}
+
+function buildPreviewCardC() {
+  return `
+    <article class="nh-hero-preview-card c">
+      <div class="nh-hero-preview-tag" style="background:rgba(34,197,94,.12);color:#9ff4bf;border:1px solid rgba(34,197,94,.18)">Opção C · Agente comercial IA</div>
+      <div class="nh-hero-preview-entity">
+        <div class="nh-hero-preview-avatar" style="--c1:#8b5cf6;--c2:#22c3ff">${iconSvg('cs')}</div>
+        <div>
+          <strong>Agente comercial digital</strong>
+          <span>Uma presença abstrata, moderna e B2B para humanizar a IA sem cartoon.</span>
+        </div>
+      </div>
+      <div class="nh-hero-preview-list">
+        <div class="nh-hero-preview-item">Reativando cliente</div>
+        <div class="nh-hero-preview-item">Enviando catálogo</div>
+        <div class="nh-hero-preview-item">Preparando follow-up</div>
+        <div class="nh-hero-preview-item">Solicitando aprovação</div>
+        <div class="nh-hero-preview-item">Recuperando oportunidade</div>
+      </div>
+      <div class="nh-hero-preview-chiprow">
+        <span class="nh-hero-preview-chip">Premium</span>
+        <span class="nh-hero-preview-chip">Moderno</span>
+        <span class="nh-hero-preview-chip">B2B</span>
+      </div>
+    </article>
+  `;
+}
+
+function buildHeroPreviewHtml(mode) {
+  const previewMap = {
+    a: buildPreviewCardA(),
+    b: buildPreviewCardB(),
+    c: buildPreviewCardC(),
+  };
+  if (mode && previewMap[mode]) {
+    return `
+      <div class="nh-hero-preview-band">
+        <div class="nh-hero-preview-head">
+          <div>
+            <h2>Preview visual da primeira dobra</h2>
+            <p>Modo local de comparação para escolher a melhor ocupação do espaço do hero sem alterar a landing principal.</p>
+          </div>
+        </div>
+        <div class="nh-hero-preview-grid">
+          ${previewMap[mode]}
+        </div>
+      </div>
+    `;
+  }
+  return `
+    <div class="nh-hero-preview-band">
+      <div class="nh-hero-preview-head">
+        <div>
+          <h2>Preview visual da primeira dobra</h2>
+          <p>Três leituras possíveis para ocupar o espaço vazio abaixo dos CTAs: IA trabalhando, WhatsApp vivo e agente comercial IA.</p>
+        </div>
+      </div>
+      <div class="nh-hero-preview-grid">
+        ${buildPreviewCardA()}
+        ${buildPreviewCardB()}
+        ${buildPreviewCardC()}
+      </div>
+    </div>
+  `;
+}
+
 function buildLandingHtml() {
   return `
     <main class="nh-landing">
@@ -292,7 +580,7 @@ function buildLandingHtml() {
               <p style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden">Agentes Comerciais de IA</p>
               <p class="nh-kicker">Plataforma SaaS premium para representação comercial</p>
               <h1 class="nh-title">Agentes de IA <strong>que vendem junto com sua equipe.</strong></h1>
-              <p class="nh-sub">WhatsApp, CRM, Follow-up, Pedidos e Inteligência Comercial operando em uma única plataforma.</p>
+              <p class="nh-sub">IA comercial operando clientes pelo WhatsApp com aprovação humana. A plataforma entra para sustentar a operação depois.</p>
               <div class="nh-hero-cards" aria-label="Diferenciais da primeira dobra">
                 <div class="nh-hero-card">🧠 Follow-up Inteligente</div>
                 <div class="nh-hero-card">📈 Reativação Automática</div>
@@ -309,31 +597,30 @@ function buildLandingHtml() {
                 <span class="nh-pill">Sem fidelidade</span>
                 <span class="nh-pill">Implantação assistida</span>
               </div>
+              ${buildLiveDemoHtml()}
             </div>
 
             ${buildDashboardHtml()}
+          </div>
+          <div style="margin-top:22px">
+            <h2 style="margin:0 0 18px;font-size:clamp(24px,2.4vw,36px);line-height:1.1;letter-spacing:-.04em;color:#081225">O que a IA faz sozinha?</h2>
+            <div class="nh-checklist" aria-label="O que a IA faz sozinha">
+              <div class="nh-checklist-item">Detecta clientes esquecidos</div>
+              <div class="nh-checklist-item">Agenda retomadas</div>
+              <div class="nh-checklist-item">Sugere mensagens</div>
+              <div class="nh-checklist-item">Reativa oportunidades</div>
+              <div class="nh-checklist-item">Solicita aprovação quando necessário</div>
+              <div class="nh-checklist-item">Entrega tudo no WhatsApp</div>
+            </div>
+          </div>
+          <div style="margin-top:22px">
+            <h2 style="margin:0 0 14px;font-size:clamp(24px,2.4vw,36px);line-height:1.1;letter-spacing:-.04em;color:#081225">Resultados monitorados pela IA</h2>
           </div>
           <div class="nh-statbar">
             <div class="nh-metric"><strong>+50%</strong>mais oportunidades identificadas</div>
             <div class="nh-metric"><strong>24h</strong>monitoramento dos clientes</div>
             <div class="nh-metric"><strong>100%</strong>WhatsApp integrado</div>
             <div class="nh-metric"><strong>15 dias</strong>gratuitos no lançamento</div>
-          </div>
-        </section>
-
-        <section class="nh-section" id="agentes">
-          <h2>Seu vendedor continua vendendo. Os agentes cuidam do resto.</h2>
-          <p class="lead">Agentes inteligentes que trabalham 24 horas por dia para prospectar, atender, recuperar e fidelizar seus clientes.</p>
-          <div class="nh-grid-cards">
-            ${agentCards.map(renderIconCard).join('')}
-          </div>
-        </section>
-
-        <section class="nh-section" id="modulos">
-          <h2>Tudo que sua equipe comercial precisa, em uma única plataforma.</h2>
-          <p class="lead">Uma base única para operar CRM, pedidos, produtos, fábricas, aprovações e inteligência de receita sem sair do fluxo comercial.</p>
-          <div class="nh-module-grid">
-            ${moduleCards.map(renderIconCard).join('')}
           </div>
         </section>
 
@@ -376,6 +663,22 @@ function buildLandingHtml() {
                 <div class="nh-agent-item" style="background:rgba(255,255,255,.52)">${premiumIcon('dashboard', '#22c55e', '#14b8a6')}<div><strong style="color:#0b3d21">Aprovação humana</strong><span style="color:#2f6344">Mantém controle e qualidade antes do disparo.</span></div></div>
               </div>
             </div>
+          </div>
+        </section>
+
+        <section class="nh-section" id="agentes">
+          <h2>Seu vendedor continua vendendo. Os agentes cuidam do resto.</h2>
+          <p class="lead">Agentes inteligentes executando trabalho comercial real para prospectar, retomar, acompanhar e manter a operação em movimento.</p>
+          <div class="nh-grid-cards">
+            ${agentCards.map(renderIconCard).join('')}
+          </div>
+        </section>
+
+        <section class="nh-section" id="modulos">
+          <h2>Uma operação comercial inteira, orquestrada por IA.</h2>
+          <p class="lead">CRM, pedidos, catálogo, aprovação, WhatsApp e inteligência comercial trabalhando juntos para sua equipe.</p>
+          <div class="nh-module-grid">
+            ${moduleCards.map(renderIconCard).join('')}
           </div>
         </section>
 
@@ -462,6 +765,60 @@ function buildLandingHtml() {
 
 export function renderPublicLandingPage(container, { apiClient } = {}) {
   container.innerHTML = `<style>${styles}</style>${buildLandingHtml()}`;
+  const liveDemo = container.querySelector('[data-live-demo]');
+  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches || false;
+  if (liveDemo) {
+    const statusText = liveDemo.querySelector('[data-demo-status-text]');
+    const caption = liveDemo.querySelector('[data-demo-caption]');
+    const progress = liveDemo.querySelector('[data-demo-progress]');
+    const approval = liveDemo.querySelector('[data-approval]');
+    const suggest = liveDemo.querySelector('[data-suggest]');
+    const approveBtn = liveDemo.querySelector('[data-approve-btn]');
+    const steps = Array.from(liveDemo.querySelectorAll('.nh-live-demo__message'));
+    const checks = Array.from(liveDemo.querySelectorAll('.nh-live-demo__check'));
+    const sequence = [
+      { active: [0], completed: [], visibleChecks: [], status: 'analisando...', caption: 'Cliente iniciou o fluxo', progress: 18 },
+      { active: [1], completed: [0], visibleChecks: [0], status: 'detectando intenção...', caption: 'IA detectou retomada', progress: 38 },
+      { active: [2], completed: [0, 1], visibleChecks: [0, 1], status: 'pronto para aprovação', caption: 'Mensagem pronta para aprovação', progress: 62, showSuggest: true },
+      { active: [], completed: [0, 1, 2], visibleChecks: [0, 1], status: 'aguardando aprovação', caption: 'Equipe revisando', progress: 76, showApproval: true, showBtn: true },
+      { active: [3], completed: [0, 1, 2, 3], visibleChecks: [0, 1, 2, 3], status: 'enviado', caption: 'WhatsApp entregue', progress: 100, showSent: true },
+    ];
+    const applyState = (state) => {
+      steps.forEach((step, index) => {
+        step.classList.toggle('is-active', state.active.includes(index));
+        step.classList.toggle('is-complete', state.completed.includes(index));
+        step.classList.toggle('is-hidden', state.active.length > 0 ? !state.active.includes(index) && !state.completed.includes(index) : index !== 3);
+      });
+      checks.forEach((check, index) => check.classList.toggle('is-on', state.visibleChecks.includes(index)));
+      approval?.classList.toggle('is-visible', !!state.showApproval);
+      suggest?.classList.toggle('is-visible', !!state.showSuggest);
+      approveBtn?.classList.toggle('is-visible', !!state.showBtn);
+      if (statusText) statusText.textContent = state.status;
+      if (caption) caption.textContent = state.caption;
+      if (progress) progress.style.width = `${state.progress}%`;
+      if (state.showApproval && approveBtn) approveBtn.focus?.({ preventScroll: true });
+    };
+    if (reducedMotion) {
+      applyState({ active: [0, 1, 2, 3], completed: [0, 1, 2, 3], visibleChecks: [0, 1, 2, 3], status: 'enviado', caption: 'WhatsApp entregue', progress: 100, showApproval: true, showSuggest: true, showBtn: true });
+    } else {
+      let timer = 0;
+      const run = (index = 0) => {
+        applyState(sequence[index]);
+        const delays = [1400, 1400, 1400, 1600, 2000];
+        if (index < sequence.length - 1) {
+          timer = window.setTimeout(() => run(index + 1), delays[index]);
+        } else {
+          timer = window.setTimeout(() => run(0), 1600);
+        }
+      };
+      timer = window.setTimeout(() => run(0), 500);
+      window.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          window.clearTimeout(timer);
+        }
+      }, { passive: true });
+    }
+  }
   let submitting = false;
   const form = container.querySelector('#interest-form');
   form?.addEventListener('submit', async (event) => {
