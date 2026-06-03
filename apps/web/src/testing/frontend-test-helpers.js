@@ -14,6 +14,11 @@ export function setupFrontendDom(hash = '#/') {
     VITE_SUPABASE_ANON_KEY: 'test-anon-key',
     VITE_API_URL: 'https://api.neuralhire.com.br'
   };
+  window.__NEURALHIRE_SUPABASE_CREATE_CLIENT__ = () => ({
+    auth: {
+      signInWithPassword: async () => ({ data: { session: { access_token: 'test-token' } }, error: null })
+    }
+  });
   Object.defineProperty(global, 'navigator', {
     value: dom.window.navigator,
     configurable: true,
@@ -27,6 +32,9 @@ export function setupFrontendDom(hash = '#/') {
 }
 
 export function teardownFrontendDom(dom) {
+  if (typeof global.window !== 'undefined') {
+    delete global.window.__NEURALHIRE_SUPABASE_CREATE_CLIENT__;
+  }
   dom.window.close();
   delete global.window;
   delete global.document;

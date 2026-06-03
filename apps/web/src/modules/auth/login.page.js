@@ -1,5 +1,5 @@
-import { createClient } from '@supabase/supabase-js';
 import { clearAuthSession, saveAuthSession } from '../../core/auth-session.js';
+import { createSupabaseClient } from '../../core/supabase-client.js';
 
 function getSupabaseConfig() {
   const runtime = typeof window !== 'undefined' ? window.__NEURALHIRE_CONFIG__ || {} : {};
@@ -10,14 +10,15 @@ function getSupabaseConfig() {
   };
 }
 
-function createSupabaseAuthClient() {
+async function createSupabaseAuthClient() {
   const { url, anonKey } = getSupabaseConfig();
   if (!url || !anonKey) return null;
-  return createClient(url, anonKey, { auth: { persistSession: false, detectSessionInUrl: true } });
+  const client = await createSupabaseClient(url, anonKey);
+  if (!client) return null;
+  return client;
 }
 
-export function renderLoginPage(container, { onLogin = null } = {}) {
-  const supabase = createSupabaseAuthClient();
+export async function renderLoginPage(container, { onLogin = null } = {}) {
   clearAuthSession();
   container.innerHTML = `
     <section style="max-width:480px;margin:64px auto;padding:32px;border-radius:24px;background:#fff;box-shadow:0 18px 44px rgba(15,35,74,.12)">
@@ -33,10 +34,14 @@ export function renderLoginPage(container, { onLogin = null } = {}) {
 
   const form = container.querySelector('#nh-login-form');
   const status = container.querySelector('#nh-login-status');
+  const supabase = await createSupabaseAuthClient();
+  if (!supabase) {
+    status.textContent = 'Configuração de autenticação indisponível.';
+  }
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!supabase) {
-      status.textContent = 'Configuração Supabase ausente.';
+      status.textContent = 'Configuração de autenticação indisponível.';
       return;
     }
     const formData = new FormData(form);
