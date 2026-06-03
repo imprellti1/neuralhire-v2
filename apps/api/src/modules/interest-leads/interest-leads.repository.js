@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { ConflictError, DatabaseError, NotFoundError } from '../../core/errors.js';
 import { logger } from '../../core/logger.js';
 import { assertTenantContext, getAccountIdFromContext } from '../../core/tenant-context.js';
+import { env } from '../../config/env.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 
 const memory = [];
@@ -69,6 +70,22 @@ function resolveAccountId(options = {}) {
   return accountId || null;
 }
 
+function resolvePublicInterestAccountId() {
+  return String(env.PUBLIC_INTEREST_ACCOUNT_ID || env.INTEREST_LEADS_ACCOUNT_ID || '').trim() || null;
+}
+
+function requirePublicInterestAccountId() {
+  const accountId = resolvePublicInterestAccountId() || resolveAccountId();
+  if (!accountId) {
+    throw new DatabaseError('Conta publica de interest leads nao configurada', {
+      code: 'INTEREST_LEADS_ACCOUNT_NOT_CONFIGURED',
+      domain: 'pre-lancamento-interest-leads',
+      details: { env: ['PUBLIC_INTEREST_ACCOUNT_ID', 'INTEREST_LEADS_ACCOUNT_ID'] }
+    });
+  }
+  return accountId;
+}
+
 async function addEvent(lead, tipo, descricao = '') {
   if (getInterestLeadsRepositoryMode().mode === 'supabase') {
     const supabase = resolveSupabaseClient();
@@ -89,8 +106,7 @@ export async function createInterestLead(payload, options = {}) {
   if (getInterestLeadsRepositoryMode().mode === 'supabase') {
     const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const accountId = resolveAccountId(options);
-    assertTenantContext({ auth: { accountId } }, { domain: 'pre-lancamento-interest-leads' });
+    const accountId = requirePublicInterestAccountId();
     const dbPayload = { ...toDbLead(payload), account_id: accountId };
     const { data, error } = await supabase.from('interest_leads').insert(dbPayload).select('*').single();
     if (error) {
@@ -107,7 +123,7 @@ export async function createInterestLead(payload, options = {}) {
     return item;
   }
   const now = new Date().toISOString();
-  const accountId = resolveAccountId(options) || 'pre-lancamento';
+  const accountId = requirePublicInterestAccountId();
   const item = { id: randomUUID(), ...payload, created_at: now, updated_at: now, account_id: accountId };
   memory.push(item);
   await addEvent(item, 'lead_criado', 'Lead criado');
@@ -271,11 +287,11 @@ function renderTemplate(raw, lead) {
 }
 
 export async function listLaunchTemplates() { return [...memoryTemplates].sort((a,b)=>String(b.updated_at).localeCompare(String(a.updated_at))); }
-export async function createLaunchTemplate(payload, options = {}) { const now = new Date().toISOString(); const accountId = resolveAccountId(options) || 'pre-lancamento'; const item = { id: randomUUID(), account_id: accountId, ...payload, created_at: now, updated_at: now }; memoryTemplates.push(item); return item; }
+export async function createLaunchTemplate(payload, options = {}) { const now = new Date().toISOString(); const accountId = resolvePublicInterestAccountId() || resolveAccountId(options) || null; const item = { id: randomUUID(), account_id: accountId, ...payload, created_at: now, updated_at: now }; memoryTemplates.push(item); return item; }
 export async function patchLaunchTemplate(id, patch) { const i=memoryTemplates.findIndex((x)=>x.id===id); if(i<0) throw new NotFoundError('Template nao encontrado'); memoryTemplates[i] = { ...memoryTemplates[i], ...patch, updated_at: new Date().toISOString() }; return memoryTemplates[i]; }
 export async function deleteLaunchTemplate(id) { return patchLaunchTemplate(id, { status: 'archived' }); }
-export async function launchPreview({ leadId, templateId }, options = {}) { const lead = await getInterestLeadById(leadId, options); const tpl = memoryTemplates.find((x)=>x.id===templateId); if(!tpl) throw new NotFoundError('Template nao encontrado'); const preview = { channel: tpl.channel, subject: renderTemplate(tpl.subject || '', lead), body: renderTemplate(tpl.body || '', lead) }; memoryLogs.push({ id: randomUUID(), account_id: resolveAccountId(options) || 'pre-lancamento', lead_id: leadId, template_id: templateId, channel: tpl.channel, status: 'previewed', payload_preview: JSON.stringify(preview), created_at: new Date().toISOString() }); await addEvent(lead, 'launch_preview_gerado', `Preview: ${tpl.name}`); return preview; }
-export async function queueLaunch({ leadIds, templateId }, options = {}) { const tpl = memoryTemplates.find((x)=>x.id===templateId); if(!tpl) throw new NotFoundError('Template nao encontrado'); const items=[]; for (const leadId of leadIds){ const lead=await getInterestLeadById(leadId, options); const preview={ channel:tpl.channel, subject: renderTemplate(tpl.subject || '', lead), body: renderTemplate(tpl.body || '', lead)}; memoryLogs.push({ id: randomUUID(), account_id: resolveAccountId(options) || 'pre-lancamento', lead_id: leadId, template_id: templateId, channel: tpl.channel, status: 'queued', payload_preview: JSON.stringify(preview), created_at: new Date().toISOString() }); const updated = await patchInterestLeadInvite(leadId, { inviteStatus: 'agendado' }, options); await addEvent(updated, 'launch_message_queued', `Template: ${tpl.name}`); items.push({ leadId, status:'queued' }); } return { items }; }
+export async function launchPreview({ leadId, templateId }, options = {}) { const lead = await getInterestLeadById(leadId, options); const tpl = memoryTemplates.find((x)=>x.id===templateId); if(!tpl) throw new NotFoundError('Template nao encontrado'); const preview = { channel: tpl.channel, subject: renderTemplate(tpl.subject || '', lead), body: renderTemplate(tpl.body || '', lead) }; memoryLogs.push({ id: randomUUID(), account_id: resolvePublicInterestAccountId() || resolveAccountId(options) || null, lead_id: leadId, template_id: templateId, channel: tpl.channel, status: 'previewed', payload_preview: JSON.stringify(preview), created_at: new Date().toISOString() }); await addEvent(lead, 'launch_preview_gerado', `Preview: ${tpl.name}`); return preview; }
+export async function queueLaunch({ leadIds, templateId }, options = {}) { const tpl = memoryTemplates.find((x)=>x.id===templateId); if(!tpl) throw new NotFoundError('Template nao encontrado'); const items=[]; for (const leadId of leadIds){ const lead=await getInterestLeadById(leadId, options); const preview={ channel:tpl.channel, subject: renderTemplate(tpl.subject || '', lead), body: renderTemplate(tpl.body || '', lead)}; memoryLogs.push({ id: randomUUID(), account_id: resolvePublicInterestAccountId() || resolveAccountId(options) || null, lead_id: leadId, template_id: templateId, channel: tpl.channel, status: 'queued', payload_preview: JSON.stringify(preview), created_at: new Date().toISOString() }); const updated = await patchInterestLeadInvite(leadId, { inviteStatus: 'agendado' }, options); await addEvent(updated, 'launch_message_queued', `Template: ${tpl.name}`); items.push({ leadId, status:'queued' }); } return { items }; }
 
 export async function convertLeadToSubscriber(id, options = {}) {
   const lead = await getInterestLeadById(id, options);

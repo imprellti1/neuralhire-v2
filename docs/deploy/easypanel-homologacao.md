@@ -50,6 +50,7 @@ AUTH_MODE=supabase
 SUPABASE_URL=https://qvwbsadesksrhcslmmjg.supabase.co
 SUPABASE_ANON_KEY=<SUPABASE_ANON_KEY>
 SUPABASE_SERVICE_ROLE_KEY=<SUPABASE_SERVICE_ROLE_KEY>
+PUBLIC_INTEREST_ACCOUNT_ID=7b8d9d4f-7c67-4a3f-8c85-5f6d5df1a114
 CORS_ORIGIN=https://neuralhire.com.br,https://app.neuralhire.com.br
 ```
 
@@ -57,6 +58,7 @@ Observações:
 
 - a API aceita `Authorization: Bearer <jwt>`
 - o tenant deve ser resolvido por `account_users`
+- o `POST /interest-leads` público usa `PUBLIC_INTEREST_ACCOUNT_ID`
 - não usar `x-test-*`
 - não usar demo ou memory no fluxo real
 
