@@ -2,7 +2,7 @@ const styles = `
   .nh-landing{font-family:Inter,Segoe UI,Arial,sans-serif;background:
     radial-gradient(circle at 18% 8%,rgba(139,92,246,.22),transparent 24%),
     radial-gradient(circle at 86% 10%,rgba(34,195,255,.18),transparent 22%),
-    linear-gradient(180deg,#07111f 0%,#091528 19%,#ffffff 19.1%,#ffffff 100%);min-height:100vh;color:#0f172a;overflow-x:hidden}
+    linear-gradient(180deg,#07111f 0%,#091528 18.7%,#ffffff 18.8%,#ffffff 100%);min-height:100vh;color:#0f172a;overflow-x:hidden}
   .nh-landing *{box-sizing:border-box}
   .nh-wrap{max-width:1280px;margin:0 auto;padding:0 32px}
   .nh-topbar{position:sticky;top:0;z-index:20;backdrop-filter:blur(18px);background:linear-gradient(180deg,rgba(7,17,31,.94),rgba(7,17,31,.74));border:1px solid rgba(148,163,184,.18);border-radius:28px;height:84px;padding:0 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;box-shadow:0 18px 60px rgba(2,8,23,.34);width:100%;margin-top:24px}
@@ -33,28 +33,40 @@ const styles = `
   .nh-pill,.nh-metric{background:rgba(9,19,37,.72);border:1px solid rgba(148,163,184,.18);border-radius:999px;color:#e8f0ff;padding:10px 14px;font-size:13px;box-shadow:0 10px 30px rgba(2,8,23,.14)}
   .nh-metric{border-radius:18px;background:#fff;color:#183153}
   .nh-metric strong{display:block;font-size:18px;margin-bottom:4px;color:#0f172a}
-  .nh-panel{position:relative;background:linear-gradient(180deg,rgba(8,14,27,.94),rgba(12,20,37,.88));border:1px solid rgba(148,163,184,.18);border-radius:34px;padding:18px;box-shadow:0 30px 90px rgba(2,8,23,.5),0 0 0 1px rgba(255,255,255,.03) inset;align-self:center;overflow:hidden}
-  .nh-panel::before{content:'';position:absolute;inset:auto -18% -26% auto;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(34,195,255,.22),rgba(34,195,255,0) 68%);pointer-events:none;filter:blur(4px)}
-  .nh-panel::after{content:'';position:absolute;inset:-1px;background:linear-gradient(135deg,rgba(139,92,246,.10),rgba(34,195,255,.04),rgba(37,211,102,.05));pointer-events:none;mask:linear-gradient(#000,transparent 88%)}
-  .nh-dashboard{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,.72fr);gap:14px;width:100%;max-width:860px;align-items:stretch}
-  .nh-flow-stage{background:linear-gradient(180deg,rgba(13,20,37,.96),rgba(10,16,30,.9));border:1px solid rgba(148,163,184,.14);border-radius:28px;padding:20px;box-shadow:0 18px 44px rgba(2,8,23,.18)}
+  .nh-panel{position:relative;background:
+    radial-gradient(circle at 20% 0%,rgba(139,92,246,.16),transparent 28%),
+    radial-gradient(circle at 88% 12%,rgba(34,195,255,.18),transparent 24%),
+    linear-gradient(180deg,rgba(8,14,27,.96),rgba(10,17,32,.94));border:1px solid rgba(148,163,184,.18);border-radius:34px;padding:18px;box-shadow:0 30px 90px rgba(2,8,23,.5),0 0 0 1px rgba(255,255,255,.03) inset;align-self:center;overflow:hidden}
+  .nh-panel::before{content:'';position:absolute;inset:auto -12% -24% auto;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(34,195,255,.24),rgba(34,195,255,0) 68%);pointer-events:none;filter:blur(6px)}
+  .nh-panel::after{content:'';position:absolute;inset:-1px;background:linear-gradient(135deg,rgba(139,92,246,.14),rgba(34,195,255,.05),rgba(37,211,102,.06));pointer-events:none;mask:linear-gradient(#000,transparent 88%)}
+  .nh-dashboard{display:grid;grid-template-columns:minmax(0,.66fr) minmax(260px,.34fr);gap:14px;width:100%;max-width:900px;align-items:stretch}
+  .nh-flow-stage{background:linear-gradient(180deg,rgba(13,20,37,.98),rgba(9,15,29,.94));border:1px solid rgba(148,163,184,.16);border-radius:28px;padding:20px;box-shadow:0 18px 44px rgba(2,8,23,.18)}
   .nh-main-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px}
   .nh-main-head h3{margin:0;color:#fff;font-size:20px;letter-spacing:-.03em}
   .nh-main-head span{color:#8fb0e6;font-size:12px}
   .nh-flow-list{display:grid;gap:12px}
   .nh-flow-bubble{position:relative;padding:16px 18px;border-radius:22px;border:1px solid rgba(148,163,184,.14);background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.04));box-shadow:0 16px 32px rgba(2,8,23,.18),0 0 0 1px rgba(255,255,255,.03) inset}
-  .nh-flow-bubble.client{border-top-left-radius:10px;background:linear-gradient(180deg,rgba(16,24,40,.98),rgba(20,29,47,.92))}
-  .nh-flow-bubble.ai{border-top-right-radius:10px;background:linear-gradient(180deg,rgba(12,35,45,.94),rgba(10,28,35,.9))}
+  .nh-flow-bubble.client{border-top-left-radius:10px;background:linear-gradient(180deg,rgba(16,24,40,.98),rgba(18,28,47,.92))}
+  .nh-flow-bubble.ai{border-top-right-radius:10px;background:linear-gradient(180deg,rgba(12,30,48,.96),rgba(10,24,40,.92))}
   .nh-flow-bubble.approval{border-top-left-radius:10px;background:linear-gradient(180deg,rgba(20,27,48,.98),rgba(15,23,42,.93))}
-  .nh-flow-bubble.sent{border-top-right-radius:10px;background:linear-gradient(180deg,rgba(12,36,24,.95),rgba(10,28,20,.9))}
+  .nh-flow-bubble.sent{border-top-right-radius:10px;background:linear-gradient(180deg,rgba(12,36,24,.96),rgba(10,28,20,.92))}
   .nh-flow-label{display:flex;align-items:center;gap:10px;margin-bottom:8px;color:#d8e5fb;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
   .nh-flow-label .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,#8b5cf6,#22c3ff);box-shadow:0 0 0 6px rgba(139,92,246,.12)}
   .nh-flow-text{color:#f4f7ff;font-size:15px;line-height:1.65;letter-spacing:-.01em}
   .nh-flow-text strong{font-weight:800}
+  .nh-flow-checks{display:grid;gap:6px;margin:10px 0 12px;padding-left:2px}
+  .nh-flow-check{display:flex;gap:8px;align-items:flex-start;color:#dbebff;font-size:13px;line-height:1.4}
+  .nh-flow-check::before{content:'✓';color:#38d39f;font-weight:900;flex:0 0 auto}
+  .nh-flow-suggest{margin-top:10px}
+  .nh-flow-suggest-label{color:#67b8ff;font-size:12px;font-weight:700;margin-bottom:8px}
+  .nh-flow-suggest-box{border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.04);border-radius:14px;padding:12px 14px;color:#f5f8ff;line-height:1.55;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+  .nh-flow-action{margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .nh-flow-button{display:inline-flex;align-items:center;justify-content:center;border-radius:12px;padding:12px 16px;font-weight:800;color:#fff;text-decoration:none;background:linear-gradient(135deg,#8b5cf6,#2563eb);box-shadow:0 14px 28px rgba(37,99,235,.32),0 0 0 1px rgba(255,255,255,.08) inset}
+  .nh-flow-time{color:#98b4db;font-size:12px}
   .nh-arrow-stack{display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px 0}
   .nh-arrow-stack span{display:block;color:#7aa6da;font-size:18px;line-height:1;opacity:.85;text-shadow:0 0 16px rgba(34,195,255,.35)}
-  .nh-metrics-stack{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-content:start}
-  .nh-metric{position:relative;overflow:hidden;border-radius:22px;background:linear-gradient(180deg,rgba(17,24,39,.84),rgba(12,19,32,.92));border:1px solid rgba(148,163,184,.14);color:#e8f0ff;padding:18px;box-shadow:0 18px 44px rgba(2,8,23,.16)}
+  .nh-metrics-stack{display:grid;grid-template-columns:1fr;gap:12px;align-content:start}
+  .nh-metric{position:relative;overflow:hidden;border-radius:22px;background:linear-gradient(180deg,rgba(17,24,39,.88),rgba(12,19,32,.94));border:1px solid rgba(148,163,184,.14);color:#e8f0ff;padding:18px;box-shadow:0 18px 44px rgba(2,8,23,.16);min-height:132px;display:flex;flex-direction:column;justify-content:center}
   .nh-metric::before{content:'';position:absolute;inset:auto -10% -18% auto;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(34,195,255,.16),rgba(34,195,255,0) 66%);pointer-events:none}
   .nh-metric strong{display:block;font-size:25px;line-height:1;color:#fff;letter-spacing:-.05em;margin-bottom:8px}
   .nh-metric span{display:block;font-size:13px;color:#a9bedf;line-height:1.45}
@@ -211,16 +223,32 @@ function buildDashboardHtml() {
             <div class="nh-flow-bubble ai">
               <div class="nh-flow-label"><span class="dot"></span>IA NeuralHire</div>
               <div class="nh-flow-text">“Retomada criada para 03/07.”</div>
+              <div class="nh-flow-checks">
+                <div class="nh-flow-check">Cliente pausado identificado</div>
+                <div class="nh-flow-check">Retomada agendada para 03/07</div>
+                <div class="nh-flow-check">Canal: WhatsApp</div>
+              </div>
+              <div class="nh-flow-suggest">
+                <div class="nh-flow-suggest-label">Mensagem sugerida:</div>
+                <div class="nh-flow-suggest-box">Olá! Tudo bem? Conforme combinado, estou retornando para saber como posso ajudar.</div>
+                <div class="nh-flow-action">
+                  <a class="nh-flow-button" href="#lista">Aprovar mensagem</a>
+                  <span class="nh-flow-time">10:32</span>
+                </div>
+              </div>
             </div>
             <div class="nh-arrow-stack" aria-hidden="true"><span>↓</span><span>↓</span><span>↓</span></div>
             <div class="nh-flow-bubble approval">
-              <div class="nh-flow-label">${premiumIcon('dashboard', '#8b5cf6', '#22c3ff')}Igor</div>
+              <div class="nh-flow-label">${premiumIcon('dashboard', '#8b5cf6', '#22c3ff')}Equipe</div>
               <div class="nh-flow-text">“Aprovado.”</div>
             </div>
             <div class="nh-arrow-stack" aria-hidden="true"><span>↓</span><span>↓</span><span>↓</span></div>
             <div class="nh-flow-bubble sent">
               <div class="nh-flow-label">${premiumIcon('whatsapp', '#25d366', '#16a34a')}Mensagem enviada</div>
-              <div class="nh-flow-text">✓ WhatsApp entregue</div>
+              <div class="nh-flow-checks">
+                <div class="nh-flow-check">WhatsApp entregue</div>
+                <div class="nh-flow-check">Lido pelo cliente</div>
+              </div>
             </div>
           </div>
         </section>
@@ -331,8 +359,8 @@ function buildLandingHtml() {
                   <div class="body">O agente reconhece intenção, contexto e sugere a melhor retomada.</div>
                 </div>
                 <div class="nh-flow-card">
-                  <div class="step">${premiumIcon('dashboard', '#22c55e', '#14b8a6')}<span>3</span>Igor aprova</div>
-                  <div class="body">Igor valida a mensagem, ajusta o tom e libera o envio com governança.</div>
+                  <div class="step">${premiumIcon('dashboard', '#22c55e', '#14b8a6')}<span>3</span>Equipe aprova</div>
+                  <div class="body">Equipe valida a mensagem, ajusta o tom e libera o envio com governança.</div>
                 </div>
                 <div class="nh-flow-card alt">
                   <div class="step">${premiumIcon('whatsapp', '#25d366', '#16a34a')}<span>4</span>Mensagem enviada</div>
