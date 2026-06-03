@@ -841,7 +841,7 @@ export function renderPublicLandingPage(container, { apiClient } = {}) {
     }
     try {
       submitting = true;
-      submitButton.disabled = true;
+      if (submitButton) submitButton.disabled = true;
       feedback.textContent = 'Enviando seu interesse...';
       await apiClient.post('/interest-leads', { nome, empresa, whatsapp, email });
       feedback.textContent = 'Interesse registrado com sucesso. Avisaremos quando o acesso antecipado estiver disponível.';
@@ -850,7 +850,7 @@ export function renderPublicLandingPage(container, { apiClient } = {}) {
       feedback.textContent = error?.message || 'Nao foi possivel registrar agora. Tente novamente em instantes.';
     } finally {
       submitting = false;
-      submitButton.disabled = false;
+      if (submitButton) submitButton.disabled = false;
     }
   });
 }

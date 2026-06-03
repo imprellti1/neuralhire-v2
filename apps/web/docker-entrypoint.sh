@@ -10,7 +10,8 @@ echo "[NeuralHire] HAS_DEMO_ROLE=$([ -n "${VITE_DEMO_ROLE:-}" ] && echo true || 
 
 cat > /usr/share/nginx/html/runtime-config.js <<EOF
 window.__NEURALHIRE_CONFIG__ = {
-  VITE_API_URL: "${VITE_API_URL:-https://api.neuralhire.com.br}",
+  VITE_API_URL: "${VITE_API_URL:-https://api.neuralhire.com.br}"
+    .replace('https://api-v2.neuralhire.com.br', 'https://api.neuralhire.com.br'),
   VITE_DEMO_ACCOUNT_ID: "${VITE_DEMO_ACCOUNT_ID:-}",
   VITE_DEMO_ROLE: "${VITE_DEMO_ROLE:-}",
   VITE_DEMO_USER_ID: "${VITE_DEMO_USER_ID:-}",
