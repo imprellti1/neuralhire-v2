@@ -21,8 +21,8 @@ const styles = `
   .nh-cta{display:inline-flex;align-items:center;justify-content:center;padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:800;color:#fff;background:linear-gradient(135deg,#8b5cf6,#2563eb);box-shadow:0 16px 30px rgba(37,99,235,.28),0 0 0 1px rgba(255,255,255,.08) inset}
   .nh-btns{display:flex;flex-wrap:wrap;gap:12px}
   .nh-btn-secondary{background:rgba(255,255,255,.08);border:1px solid rgba(191,219,254,.24);box-shadow:none}
-  .nh-hero{min-height:calc(100vh - 120px);padding:18px 0 56px;display:block}
-  .nh-hero-grid{display:grid;grid-template-columns:minmax(0,.48fr) minmax(0,.52fr);gap:32px;align-items:start}
+  .nh-hero{height:auto;min-height:0;padding:18px 0 56px;display:block}
+  .nh-hero-grid{display:grid;grid-template-columns:minmax(0,.48fr) minmax(0,.52fr);gap:32px;align-items:stretch}
   .nh-kicker{margin:2px 0 8px;text-transform:uppercase;letter-spacing:.18em;font-size:12px;color:#8ab4ff;font-weight:800}
   .nh-title{margin:0;font-size:clamp(42px,4.45vw,68px);line-height:.98;letter-spacing:-.055em;color:#fff;max-width:12ch}
   .nh-title strong{color:transparent;background:linear-gradient(135deg,#b69cff,#61b3ff);-webkit-background-clip:text;background-clip:text}
@@ -36,7 +36,7 @@ const styles = `
   .nh-panel{position:relative;background:
     radial-gradient(circle at 20% 0%,rgba(139,92,246,.16),transparent 28%),
     radial-gradient(circle at 88% 12%,rgba(34,195,255,.18),transparent 24%),
-    linear-gradient(180deg,rgba(8,14,27,.96),rgba(10,17,32,.94));border:1px solid rgba(148,163,184,.18);border-radius:34px;padding:18px;box-shadow:0 30px 90px rgba(2,8,23,.5),0 0 0 1px rgba(255,255,255,.03) inset;align-self:start;overflow:hidden;transform:none;transform-origin:center}
+    linear-gradient(180deg,rgba(8,14,27,.96),rgba(10,17,32,.94));border:1px solid rgba(148,163,184,.18);border-radius:34px;padding:18px;box-shadow:0 30px 90px rgba(2,8,23,.5),0 0 0 1px rgba(255,255,255,.03) inset;align-self:start;transform:none;transform-origin:center}
   .nh-panel::before{content:'';position:absolute;inset:auto -12% -24% auto;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(34,195,255,.24),rgba(34,195,255,0) 68%);pointer-events:none;filter:blur(6px)}
   .nh-panel::after{content:'';position:absolute;inset:-1px;background:linear-gradient(135deg,rgba(139,92,246,.14),rgba(34,195,255,.05),rgba(37,211,102,.06));pointer-events:none;mask:linear-gradient(#000,transparent 88%)}
   .nh-dashboard{display:grid;grid-template-columns:1fr;gap:14px;width:100%;max-width:100%;align-items:start}
@@ -153,7 +153,7 @@ const styles = `
   .nh-live-demo__progress span{display:block;height:100%;width:0;background:linear-gradient(90deg,#8b5cf6,#22c3ff,#25d366);box-shadow:0 0 24px rgba(34,195,255,.28);transition:width .45s ease}
   .nh-live-demo__tag{display:inline-flex;align-items:center;gap:8px;padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(148,163,184,.12);color:#cfe0fb;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
   .nh-live-demo__tag .dot{width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,#25d366,#16a34a);box-shadow:0 0 0 6px rgba(37,211,102,.1)}
-  .nh-whatsapp-hero{display:grid;gap:14px;min-height:100%;padding:20px}
+  .nh-whatsapp-hero{display:grid;gap:14px;height:auto;min-height:0;padding:20px}
   .nh-whatsapp-hero__head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
   .nh-whatsapp-hero__eyebrow{display:inline-flex;align-items:center;gap:10px;color:#9cf1be;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px}
   .nh-whatsapp-hero__status-dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,#25d366,#16a34a);box-shadow:0 0 0 6px rgba(37,211,102,.1)}
