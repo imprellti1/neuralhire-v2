@@ -1,4 +1,4 @@
-﻿import { env } from '../config/env.js';
+import { env } from '../config/env.js';
 
 function write(level, message, meta = {}) {
   const payload = {
@@ -21,18 +21,33 @@ function write(level, message, meta = {}) {
   console.log(JSON.stringify(payload));
 }
 
+function normalizeArgs(messageOrMeta, meta = {}) {
+  if (messageOrMeta && typeof messageOrMeta === 'object' && !Array.isArray(messageOrMeta)) {
+    return {
+      message: messageOrMeta.message || 'log_event',
+      meta: { ...messageOrMeta }
+    };
+  }
+
+  return { message: messageOrMeta, meta };
+}
+
 export const logger = {
   info(message, meta = {}) {
-    write('info', message, meta);
+    const normalized = normalizeArgs(message, meta);
+    write('info', normalized.message, normalized.meta);
   },
   warn(message, meta = {}) {
-    write('warn', message, meta);
+    const normalized = normalizeArgs(message, meta);
+    write('warn', normalized.message, normalized.meta);
   },
   error(message, meta = {}) {
-    write('error', message, meta);
+    const normalized = normalizeArgs(message, meta);
+    write('error', normalized.message, normalized.meta);
   },
   debug(message, meta = {}) {
     if (env.NODE_ENV === 'production') return;
-    write('debug', message, meta);
+    const normalized = normalizeArgs(message, meta);
+    write('debug', normalized.message, normalized.meta);
   }
 };

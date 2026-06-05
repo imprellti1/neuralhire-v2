@@ -44,12 +44,15 @@ export function createApiApp() {
       await router.resolve(req, res, context);
     } catch (error) {
       sendError(res, error, context);
-      logger.error('request_failed', {
+      logger.error({
         requestId: context.requestId,
         method: context.method,
         url: context.url,
+        route: context?.route?.path || null,
         errorCode: error?.code || 'INTERNAL_SERVER_ERROR',
-        errorMessage: error?.message || 'Erro nao identificado'
+        message: error?.message || 'Erro nao identificado',
+        stack: error?.stack,
+        cause: error?.cause
       });
     } finally {
       logger.info('request_finished', {
