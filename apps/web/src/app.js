@@ -187,7 +187,8 @@ export function bootstrapWebApp() {
     const activeRoute = route.startsWith('#/pedidos/') ? '#/pedidos'
       : route.startsWith('#/clientes/') ? '#/clientes'
     : route.startsWith('#/fabricantes/') ? '#/fabricantes'
-    : route.startsWith('#/product-audit/') ? '#/product-audit'
+    : route === '#/fabricas' ? '#/fabricantes'
+      : route.startsWith('#/product-audit/') ? '#/product-audit'
       : route.startsWith('#/interest-leads/') ? '#/interest-leads'
       : route.startsWith('#/customer-memory/') ? '#/customer-memory/cliente-demo'
       : route;
@@ -219,7 +220,7 @@ export function bootstrapWebApp() {
     if (route === '#/whatsapp-conversations') return renderWhatsappConversationsPage(content, { apiClient: api });
     if (route === '#/message-approvals') return renderMessageApprovalsPage(content, { apiClient: api });
     if (route === '#/approval-intelligence') return renderApprovalIntelligencePage(content, { apiClient: api });
-    if (route === '#/fabricantes') return renderFabricantesPage(content, { apiClient: api });
+    if (route === '#/fabricantes' || route === '#/fabricas') return renderFabricantesPage(content, { apiClient: api });
     if (route.startsWith('#/fabricantes/')) return renderFabricantesPage(content, { apiClient: api, fabricanteId: route.slice('#/fabricantes/'.length).split('?')[0] });
     if (route === '#/product-audit') return renderProductAuditPage(content, { apiClient: api });
     if (route === '#/executive-dashboard') return renderExecutiveDashboardPage(content, { apiClient: api });

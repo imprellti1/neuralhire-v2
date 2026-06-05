@@ -14,7 +14,6 @@ export const createFabricanteSchema = {
   pedido_minimo: { required: false, type: 'number' },
   boleto_minimo: { required: false, type: 'number' },
   comissao_padrao_percentual: { required: false, type: 'number' },
-  prazo_maximo_dias: { required: false, type: 'number' },
   observacoes: { required: false, type: 'string', maxLength: 2000 }
 };
 
