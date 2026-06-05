@@ -27,6 +27,12 @@ export const PERMISSIONS = {
   FABRICANTES_WRITE: 'fabricantes:write',
   VENDEDORES_READ: 'vendedores:read',
   VENDEDORES_WRITE: 'vendedores:write',
+  VENDEDORES_CREATE: 'vendedores:create',
+  VENDEDORES_UPDATE: 'vendedores:update',
+  VENDEDORES_DELETE: 'vendedores:delete',
+  VENDEDORES_STATUS: 'vendedores:status',
+  VENDEDORES_FABRICANTES_READ: 'vendedores:fabricantes:read',
+  VENDEDORES_FABRICANTES_UPDATE: 'vendedores:fabricantes:update',
   PEDIDOS_READ: 'pedidos:read',
   PEDIDOS_WRITE: 'pedidos:write',
   PEDIDOS_STATUS_UPDATE: 'pedidos:status:update',
@@ -42,10 +48,10 @@ export const PERMISSIONS = {
 
 export const ROLE_PERMISSIONS = {
   super_admin: ['*'],
-  account_admin: ['clientes:read', 'clientes:write', 'fabricantes:read', 'fabricantes:write', 'vendedores:read', 'vendedores:write', 'pedidos:read', 'pedidos:write', 'pedidos:status:update', 'produtos:read', 'produtos:write', 'analytics:read', 'followup:read', 'followup:write', 'system:admin'],
-  owner: ['clientes:read', 'clientes:write', 'fabricantes:read', 'fabricantes:write', 'pedidos:read', 'pedidos:write', 'pedidos:status:update', 'produtos:read', 'produtos:write', 'analytics:read', 'followup:read', 'followup:write', 'system:admin'],
+  account_admin: ['clientes:read', 'clientes:write', 'fabricantes:read', 'fabricantes:write', 'vendedores:read', 'vendedores:write', 'vendedores:create', 'vendedores:update', 'vendedores:delete', 'vendedores:status', 'vendedores:fabricantes:read', 'vendedores:fabricantes:update', 'pedidos:read', 'pedidos:write', 'pedidos:status:update', 'produtos:read', 'produtos:write', 'analytics:read', 'followup:read', 'followup:write', 'system:admin'],
+  owner: ['clientes:read', 'clientes:write', 'fabricantes:read', 'fabricantes:write', 'vendedores:read', 'vendedores:write', 'vendedores:create', 'vendedores:update', 'vendedores:delete', 'vendedores:status', 'vendedores:fabricantes:read', 'vendedores:fabricantes:update', 'pedidos:read', 'pedidos:write', 'pedidos:status:update', 'produtos:read', 'produtos:write', 'analytics:read', 'followup:read', 'followup:write', 'system:admin'],
   admin: [
-    'clientes:read', 'clientes:write', 'fabricantes:read', 'fabricantes:write', 'vendedores:read', 'vendedores:write', 'pedidos:read', 'pedidos:write', 'pedidos:status:update',
+    'clientes:read', 'clientes:write', 'fabricantes:read', 'fabricantes:write', 'vendedores:read', 'vendedores:write', 'vendedores:create', 'vendedores:update', 'vendedores:delete', 'vendedores:status', 'vendedores:fabricantes:read', 'vendedores:fabricantes:update', 'pedidos:read', 'pedidos:write', 'pedidos:status:update',
     'produtos:read', 'produtos:write', 'analytics:read', 'followup:read', 'followup:write', 'system:admin'
   ],
   manager: ['clientes:read', 'clientes:write', 'fabricantes:read', 'pedidos:read', 'pedidos:write', 'pedidos:status:update', 'produtos:read', 'analytics:read', 'followup:read', 'followup:write'],
