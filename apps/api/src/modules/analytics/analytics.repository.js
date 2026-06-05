@@ -1,8 +1,6 @@
 import { DatabaseError, ForbiddenError } from '../../core/errors.js';
-import { applyOwnerFilter } from '../../core/commercial-scope.js';
 import { logger } from '../../core/logger.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
-import { ensureDemoMemoryLoaded } from '../../testing/demo-memory.store.js';
 
 function assertAccountId(accountId) { if (!accountId) throw new ForbiddenError('Contexto de tenant obrigatorio', { code: 'TENANT_REQUIRED', domain: 'analytics-comercial' }); }
 const memoryStatus = ['rascunho', 'enviado', 'aprovado', 'faturado', 'cancelado'];
@@ -34,13 +32,12 @@ function summarize(pedidos, clientes, produtos) {
 export function getAnalyticsRepositoryMode() { return { mode: isSupabaseConfigured() ? 'supabase' : 'memory', supabaseConfigured: isSupabaseConfigured() }; }
 
 async function fetchData(accountId, context) {
-  const scoped = context ? applyOwnerFilter(context, {}) : {};
   if (getAnalyticsRepositoryMode().mode === 'supabase') {
     const supabase = getSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const [{ data: pedidos, error: pErr }, { data: itens, error: iErr }, { data: clientes, error: cErr }, { data: produtos, error: prErr }] = await Promise.all([
       supabase.from('pedidos').select('id,account_id,cliente_id,status,total,created_at').eq('account_id', accountId),
       supabase.from('pedido_itens').select('pedido_id,produto_id,produto_nome,quantidade,total').eq('account_id', accountId),
-      supabase.from('clientes').select('id,nome,ativo,owner_user_id').eq('account_id', accountId).match(scoped.owner_user_id ? { owner_user_id: scoped.owner_user_id } : {}),
+      supabase.from('clientes').select('id,nome,ativo').eq('account_id', accountId),
       supabase.from('produtos').select('id,nome,ativo').eq('account_id', accountId)
     ]);
     const supabaseError = pErr || iErr || cErr || prErr;
@@ -55,14 +52,7 @@ async function fetchData(accountId, context) {
       });
       throw new DatabaseError('Falha ao carregar dados analytics', { details: supabaseError });
     }
-    const clientesById = new Map((clientes || []).map((cliente) => [cliente.id, cliente]));
-    const pedidosFiltrados = scoped.owner_user_id
-      ? (pedidos || []).filter((pedido) => clientesById.get(pedido.cliente_id)?.owner_user_id === scoped.owner_user_id)
-      : (pedidos || []);
-    const itensFiltrados = scoped.owner_user_id
-      ? (itens || []).filter((item) => pedidosFiltrados.some((pedido) => pedido.id === item.pedido_id))
-      : (itens || []);
-    return { pedidos: pedidosFiltrados, itens: itensFiltrados, clientes: clientes || [], produtos: produtos || [] };
+    return { pedidos: pedidos || [], itens: itens || [], clientes: clientes || [], produtos: produtos || [] };
   }
 
   const { listPedidos } = await import('../pedidos/pedidos.repository.js');
@@ -71,14 +61,6 @@ async function fetchData(accountId, context) {
   let pedidos = await listPedidos({ page: 1, limit: 100 }, { accountId, context });
   let clientes = await listClientes({ page: 1, limit: 100 }, { accountId, context });
   let produtos = await listProdutos({ page: 1, limit: 100 }, { accountId });
-
-  // Auto-hydrate demo data only when tenant has no memory records yet.
-  if (pedidos.total === 0 && clientes.total === 0 && produtos.total === 0) {
-    await ensureDemoMemoryLoaded();
-    pedidos = await listPedidos({ page: 1, limit: 100 }, { accountId, context });
-    clientes = await listClientes({ page: 1, limit: 100 }, { accountId, context });
-    produtos = await listProdutos({ page: 1, limit: 100 }, { accountId });
-  }
   const itens = [];
   for (const pedido of pedidos.items) {
     const full = await import('../pedidos/pedidos.repository.js').then((m) => m.getPedidoById(pedido.id, { accountId, context }));
