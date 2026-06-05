@@ -53,6 +53,15 @@ function avg(values) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
+function hasMeaningfulValue(value) {
+  return String(value || '').trim().length > 0;
+}
+
+function isCnpjLookupComplete(data) {
+  const primaryFields = [data?.razao_social, data?.nome_fantasia || data?.nome, data?.email, data?.telefone, data?.site];
+  return primaryFields.filter(hasMeaningfulValue).length >= 3 && hasMeaningfulValue(data?.razao_social);
+}
+
 function parseCondicoes(raw) {
   if (Array.isArray(raw)) return raw;
   if (typeof raw === 'string' && raw.trim()) {
@@ -180,15 +189,21 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
   }
 
   function applyLookup(data) {
+    const razaoSocial = data.razao_social || state.form.razao_social || '';
+    const nomeFantasia = data.nome_fantasia || data.nome || razaoSocial || '';
+    const email = data.email || state.form.email_comercial || '';
+    const telefone = data.telefone || state.form.telefone || '';
+    const site = data.site || state.form.site || '';
+    const partial = !isCnpjLookupComplete({ ...data, nome_fantasia: nomeFantasia, nome: nomeFantasia, email, telefone, site, razao_social: razaoSocial });
     state.form = {
       ...state.form,
       cnpj: data.cnpj || state.form.cnpj,
-      razao_social: data.razao_social || state.form.razao_social,
-      nome_fantasia: data.nome_fantasia || state.form.nome_fantasia,
-      nome: data.nome || state.form.nome || data.nome_fantasia || '',
-      email_comercial: data.email || state.form.email_comercial,
-      telefone: data.telefone || state.form.telefone,
-      site: data.site || state.form.site,
+      razao_social: razaoSocial,
+      nome_fantasia: nomeFantasia,
+      nome: data.nome || state.form.nome || nomeFantasia || '',
+      email_comercial: email,
+      telefone,
+      site,
       observacoes: state.form.observacoes || '',
       endereco_logradouro: data.endereco?.logradouro || '',
       endereco_numero: data.endereco?.numero || '',
@@ -201,7 +216,9 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     };
     state.cnpjValidated = true;
     state.cnpjManualUnlock = false;
-    state.cnpjMessage = 'CNPJ localizado e campos preenchidos automaticamente.';
+    state.cnpjMessage = partial
+      ? 'CNPJ localizado. Alguns campos foram preenchidos automaticamente. Complete os dados restantes manualmente.'
+      : 'CNPJ localizado e campos preenchidos automaticamente.';
   }
 
   function bindEvents() {

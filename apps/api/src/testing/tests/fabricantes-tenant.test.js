@@ -118,6 +118,37 @@ export function getFabricantesTenantTests() {
       }
     },
     {
+      name: 'GET /cnpj/:cnpj normaliza retorno parcial do fallback',
+      run: async () => {
+        const originalFetch = global.fetch;
+        global.fetch = async (url) => ({
+          ok: true,
+          status: 200,
+          text: async () => {
+            if (String(url).includes('brasilapi.com.br')) return JSON.stringify({ razao_social: 'fallback' });
+            return JSON.stringify({
+              razao_social: 'Fallback LTDA',
+              nome_fantasia: '',
+              emails: [{ email: 'contato@fallback.com' }],
+              telefones: [{ ddd: '11', numero: '99990000' }],
+              website: 'https://fallback.com',
+              endereco: { logradouro: 'Rua F', numero: '1', bairro: 'Centro', municipio: 'Sao Paulo', uf: 'SP', cep: '01000000' }
+            });
+          }
+        });
+        try {
+          const app = createApiApp();
+          const { body } = await call(app, { method: 'GET', url: '/cnpj/12345678000190', role: 'owner', accountId: 'acc-fab-cnpj' });
+          assertEqual(body.ok, true);
+          assertEqual(body.data.razao_social, 'Fallback LTDA');
+          assertEqual(body.data.email, 'contato@fallback.com');
+          assertEqual(body.data.telefone, '1199990000');
+        } finally {
+          global.fetch = originalFetch;
+        }
+      }
+    },
+    {
       name: 'GET /cnpj/:cnpj faz fallback quando BrasilAPI falha',
       run: async () => {
         const originalFetch = global.fetch;

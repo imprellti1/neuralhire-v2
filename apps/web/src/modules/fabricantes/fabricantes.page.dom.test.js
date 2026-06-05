@@ -45,6 +45,28 @@ test('fabricantes: buscar CNPJ habilita com 14 digitos e preenche campos', async
   teardownFrontendDom(dom);
 });
 
+test('fabricantes: retorno parcial de CNPJ mostra mensagem honesta', async () => {
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
+  installFetchMock({
+    'GET /fabricantes': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }),
+    'GET /cnpj/12345678000190': () => ({ ok: true, data: { cnpj: '12345678000190', razao_social: 'Empresa Parcial LTDA' } })
+  });
+  bootstrapWebApp();
+  await flush(); await flush();
+  document.querySelector('#nhf-new').click();
+  await flush();
+  dispatchInput(document.querySelector('#nhf-cnpj'), '12345678000190');
+  await flush();
+  document.querySelector('#nhf-unlock-manual').click();
+  await flush();
+  document.querySelector('#nhf-buscar-cnpj').click();
+  await flush(); await flush();
+  assert.match(document.body.textContent, /Alguns campos foram preenchidos automaticamente/);
+  assert.equal(document.querySelector('[data-form-field="razao_social"]').value, 'Empresa Parcial LTDA');
+  teardownFrontendDom(dom);
+});
+
 test('fabricantes: falha de consulta libera preenchimento manual', async () => {
   const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
   mockAuthenticatedSession();

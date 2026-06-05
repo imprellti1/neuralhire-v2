@@ -30,6 +30,10 @@ function truncateBody(body) {
   return text.length > 1000 ? `${text.slice(0, 1000)}...` : text;
 }
 
+function firstMeaningful(...values) {
+  return values.find((value) => String(value || '').trim()) || '';
+}
+
 async function fetchJsonWithTimeout(url, { timeoutMs = 8000 } = {}) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(new Error('CNPJ lookup timeout')), timeoutMs);
@@ -88,13 +92,13 @@ function buildProviderData(provider, cnpj, body) {
 
   return {
     cnpj,
-    razao_social: body?.razao_social || body?.nome || '',
-    nome: body?.nome_fantasia || body?.nome || '',
-    nome_fantasia: body?.nome_fantasia || body?.nome || '',
+    razao_social: firstMeaningful(body?.razao_social, body?.nome, body?.razaoSocial),
+    nome: firstMeaningful(body?.nome_fantasia, body?.nome, body?.razao_social, body?.razaoSocial),
+    nome_fantasia: firstMeaningful(body?.nome_fantasia, body?.nome, body?.razao_social, body?.razaoSocial),
     situacao: body?.situacao_cadastral || body?.situacao || '',
-    email: body?.email || '',
-    telefone: body?.telefone || '',
-    site: body?.site || '',
+    email: firstMeaningful(body?.email, body?.emails?.[0]?.email),
+    telefone: firstMeaningful(body?.telefone, body?.telefones?.[0]?.ddd && body?.telefones?.[0]?.numero ? `${body.telefones[0].ddd}${body.telefones[0].numero}` : '', body?.telefones?.[0]?.numero),
+    site: firstMeaningful(body?.site, body?.website),
     endereco: {
       logradouro: body?.logradouro || body?.endereco?.logradouro || '',
       numero: body?.numero || body?.endereco?.numero || '',
@@ -104,7 +108,7 @@ function buildProviderData(provider, cnpj, body) {
       uf: body?.uf || body?.endereco?.uf || '',
       cep: body?.cep || body?.endereco?.cep || ''
     },
-    atividade_principal: body?.atividade_principal || body?.atividade || ''
+    atividade_principal: body?.atividade_principal || body?.atividade || body?.atividade_principal?.descricao || ''
   };
 }
 
