@@ -8,11 +8,15 @@ test('vendedores: nome atualiza form, trim envia payload e valida antes da api',
   const dom = setupFrontendDom('#/vendedores', 'app.neuralhire.com.br');
   mockAuthenticatedSession();
   resetFetchCalls();
+  let vendedores = [];
   installFetchMock({
-    'GET /vendedores': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }),
-    'GET /fabricantes': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }),
-    'POST /vendedores': ({ body }) => ({ id: 'v1', ...body }),
-    'PUT /vendedores/v1/fabricantes': () => ({ ok: true, items: [] })
+    'GET /vendedores': () => ({ items: vendedores, pagination: { page: 1, totalPages: 1, total: vendedores.length, limit: 20 } }),
+    'GET /fabricantes': () => ({ items: [{ id: 'fab-1', nome: 'Fabrica Alpha', cnpj: '123' }], pagination: { page: 1, totalPages: 1, total: 1, limit: 20 } }),
+    'POST /vendedores': ({ body }) => { vendedores = [{ id: 'v1', ...body, fabricantes: [] }]; return { id: 'v1', ...body }; },
+    'PUT /vendedores/v1/fabricantes': ({ body }) => {
+      vendedores = [{ id: 'v1', nome: 'Ana Souza', email: null, telefone: null, status: 'ativo', observacoes: null, fabricantes: [{ fabricante_id: 'fab-1', fabricantes: { nome: 'Fabrica Alpha' } }] }];
+      return { ok: true, items: [{ fabricante_id: 'fab-1', fabricantes: { nome: 'Fabrica Alpha' } }] };
+    }
   });
 
   bootstrapWebApp();
@@ -48,6 +52,7 @@ test('vendedores: nome atualiza form, trim envia payload e valida antes da api',
   assert.equal(calls.length, 1);
   assert.equal(calls[0].body.nome, 'Ana Souza');
   assert.equal(calls[0].body.email, null);
+  assert.match(document.body.textContent, /Fabrica Alpha/);
 
   teardownFrontendDom(dom);
 });

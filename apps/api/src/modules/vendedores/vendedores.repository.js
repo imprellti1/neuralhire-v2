@@ -17,6 +17,15 @@ function listMemoryFabricantes(accountId, vendedorId) {
   return memoryVendedorFabricantes.filter((item) => item.account_id === accountId && item.vendedor_id === vendedorId);
 }
 
+async function hydrateVendedoresWithFabricantes(items = [], options = {}) {
+  const hydrated = [];
+  for (const item of items) {
+    const vinculos = await listVendedorFabricantes(item.id, options);
+    hydrated.push({ ...item, fabricantes: vinculos.items || [] });
+  }
+  return hydrated;
+}
+
 export async function listVendedores(filters = {}, options = {}) {
   const accountId = options.accountId || null; assertAccountId(accountId); const { page, limit } = normalizePagination(filters); debugRepository('listVendedores', { accountId, filters });
   if (isSupabaseMode()) {
@@ -26,19 +35,19 @@ export async function listVendedores(filters = {}, options = {}) {
     if (filters.search) { const search = String(filters.search).trim(); if (search) q = q.or(`nome.ilike.%${search}%,email.ilike.%${search}%,telefone.ilike.%${search}%`); }
     const from = (page - 1) * limit; const to = from + limit - 1;
     const { data, error, count } = await q.range(from, to); if (error) throw new DatabaseError('Falha ao listar vendedores', { details: error });
-    return { items: data || [], total: count || 0, page, limit, totalPages: Math.max(1, Math.ceil((count || 0) / limit)) };
+    return { items: await hydrateVendedoresWithFabricantes(data || [], options), total: count || 0, page, limit, totalPages: Math.max(1, Math.ceil((count || 0) / limit)) };
   }
   const items = memoryVendedores.filter((item) => item.account_id === accountId);
   const q = String(filters.search || '').trim().toLowerCase();
   const filtered = items.filter((item) => (!filters.status || item.status === filters.status) && (!q || [item.nome, item.email, item.telefone].some((v) => String(v || '').toLowerCase().includes(q))));
   const total = filtered.length; const from = (page - 1) * limit;
-  return { items: filtered.slice(from, from + limit), total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
+  return { items: await hydrateVendedoresWithFabricantes(filtered.slice(from, from + limit), options), total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
 }
 
 export async function getVendedorById(id, options = {}) {
   const accountId = options.accountId || null; assertAccountId(accountId);
-  if (isSupabaseMode()) { const supabase = getSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel'); const { data, error } = await supabase.from('vendedores').select('*').eq('account_id', accountId).eq('id', id).maybeSingle(); if (error) throw new DatabaseError('Falha ao buscar vendedor', { details: error }); if (!data) throw new NotFoundError('Vendedor nao encontrado', { domain: 'vendedores', code: 'VENDEDOR_NOT_FOUND' }); return data; }
-  const item = memoryVendedores.find((row) => row.id === id && row.account_id === accountId); if (!item) throw new NotFoundError('Vendedor nao encontrado', { domain: 'vendedores', code: 'VENDEDOR_NOT_FOUND' }); return item;
+  if (isSupabaseMode()) { const supabase = getSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel'); const { data, error } = await supabase.from('vendedores').select('*').eq('account_id', accountId).eq('id', id).maybeSingle(); if (error) throw new DatabaseError('Falha ao buscar vendedor', { details: error }); if (!data) throw new NotFoundError('Vendedor nao encontrado', { domain: 'vendedores', code: 'VENDEDOR_NOT_FOUND' }); const vinculos = await listVendedorFabricantes(id, { accountId }); return { ...data, fabricantes: vinculos.items || [] }; }
+  const item = memoryVendedores.find((row) => row.id === id && row.account_id === accountId); if (!item) throw new NotFoundError('Vendedor nao encontrado', { domain: 'vendedores', code: 'VENDEDOR_NOT_FOUND' }); return { ...item, fabricantes: listMemoryFabricantes(accountId, id).map((row) => ({ ...row })) };
 }
 
 export async function createVendedor(data, options = {}) {

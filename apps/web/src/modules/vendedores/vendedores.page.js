@@ -145,6 +145,9 @@ export function renderVendedoresPage(root, { apiClient }) {
         await saveVendedorFabricantes(apiClient, saved.id || state.selected?.id, state.form.fabricante_ids || []);
         closeModal();
         await load();
+      } catch (error) {
+        state.formError = 'Nao foi possivel salvar os vinculos com as fabricas. Tente novamente.';
+        render();
       } finally {
         state.saving = false;
         render();
