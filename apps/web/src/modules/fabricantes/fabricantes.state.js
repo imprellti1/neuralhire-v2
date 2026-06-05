@@ -33,10 +33,10 @@ export function createFabricantesState() {
       pedido_minimo: 0,
       boleto_minimo: 0,
       comissao_padrao_percentual: 0,
-      prazo_medio_faturamento: '',
-      prazo_medio_entrega: '',
-      politica_pagamento: '',
-      condicoes_comerciais: '',
+      condicao_pagamento: '',
+      parcelas_pagamento: '',
+      prazo_medio_pagamento: '',
+      juros_pagamento: '',
       condicoes_pagamento: ''
     },
     saveBlocked: true

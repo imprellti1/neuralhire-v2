@@ -6,6 +6,13 @@ function brl(value) {
   return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+function formatCurrencyInput(value) {
+  const raw = String(value || '').replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
+  const num = Number(raw);
+  if (!Number.isFinite(num)) return '';
+  return brl(num);
+}
+
 function onlyDigits(value) {
   return String(value || '').replace(/\D/g, '');
 }
@@ -21,11 +28,21 @@ function formatCnpj(value) {
   }, '');
 }
 
+function parsePaymentCondition(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return { valid: false, parcelas: '', prazoMedio: '', normalized: '' };
+  const parts = raw.split('/').map((part) => Number(String(part).trim())).filter((part) => Number.isFinite(part) && part > 0);
+  if (!parts.length) return { valid: false, parcelas: '', prazoMedio: '', normalized: '' };
+  const parcelas = parts.length;
+  const prazoMedio = parts.reduce((sum, part) => sum + part, 0) / parcelas;
+  return { valid: true, parcelas, prazoMedio, normalized: parts.join('/') };
+}
+
 function injectStyles() {
   if (document.getElementById('nh-fab-style')) return;
   const style = document.createElement('style');
   style.id = 'nh-fab-style';
-  style.textContent = `.nhf-wrap{max-width:1400px;margin:0 auto}.nhf-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}.nhf-title{font-size:30px;font-weight:700}.nhf-sub{color:#61708f}.nhf-panel{background:#fff;border:1px solid #dbe4f2;border-radius:16px;padding:18px;box-shadow:0 8px 24px rgba(16,34,68,.06);margin-bottom:14px}.nhf-tools{display:grid;grid-template-columns:minmax(280px,1fr) 150px 120px;gap:10px}.nhf-input,.nhf-btn,.nhf-tab{height:38px;border:1px solid #d4deee;border-radius:10px;padding:0 10px}.nhf-btn{background:#1f56dc;color:#fff;border-color:#1f56dc;cursor:pointer}.nhf-btn[disabled],.nhf-tab[aria-selected="false"]{opacity:.55;cursor:not-allowed}.nhf-grid{display:grid;grid-template-columns:1fr;gap:14px}.nhf-table{width:100%;border-collapse:collapse;font-size:13px}.nhf-table td,.nhf-table th{padding:10px;border-bottom:1px solid #ebf0f8;text-align:left;white-space:nowrap}.nhf-row{cursor:pointer}.nhf-row:hover td{background:#f7faff}.nhf-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.nhf-kpis div{padding:10px;border:1px solid #e5ecf8;border-radius:12px}.nhf-kpis strong{display:block;font-size:18px}.nhf-modal-backdrop{position:fixed;inset:0;background:rgba(9,16,32,.46);display:flex;align-items:center;justify-content:center;padding:20px;z-index:90}.nhf-modal{width:min(1040px,100%);max-height:92vh;overflow:auto;background:#f7f9fe;border:1px solid #dce6f5;border-radius:20px;box-shadow:0 30px 80px rgba(5,15,30,.32)}.nhf-modal-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;padding:18px 22px;border-bottom:1px solid #e6edf8;background:linear-gradient(180deg,#fff,#f8fbff)}.nhf-modal-tabs{display:flex;gap:8px;padding:14px 22px 0}.nhf-tab{background:#eef4ff;color:#1f56dc;cursor:pointer}.nhf-tab[aria-selected="true"]{background:#1f56dc;color:#fff}.nhf-modal-body{padding:18px 22px 22px}.nhf-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.nhf-field{display:grid;gap:6px}.nhf-field input,.nhf-field textarea,.nhf-field select{height:38px;border:1px solid #d4deee;border-radius:10px;padding:0 10px;background:#fff}.nhf-field textarea{height:80px;padding:10px;resize:vertical}.nhf-field input:disabled,.nhf-field textarea:disabled,.nhf-field select:disabled{background:#edf2f7;color:#6c7a92}.nhf-field-full{grid-column:1/-1}.nhf-muted{color:#61708f;font-size:13px}.nhf-state{padding:24px;text-align:center;color:#61708f}.nhf-inline{display:flex;gap:10px;align-items:end}.nhf-inline > .nhf-field{flex:1}.nhf-pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef4ff;color:#1f56dc;font-size:12px;font-weight:600}.nhf-error{color:#9f1239}.nhf-success{color:#166534}@media (max-width:1024px){.nhf-grid,.nhf-tools,.nhf-kpis,.nhf-form-grid{grid-template-columns:1fr}.nhf-title{font-size:24px}.nhf-modal{width:100%}.nhf-inline{flex-direction:column;align-items:stretch}}`;
+  style.textContent = `.nhf-wrap{max-width:1400px;margin:0 auto}.nhf-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}.nhf-title{font-size:30px;font-weight:700}.nhf-sub{color:#61708f}.nhf-panel{background:#fff;border:1px solid #dbe4f2;border-radius:16px;padding:18px;box-shadow:0 8px 24px rgba(16,34,68,.06);margin-bottom:14px}.nhf-tools{display:grid;grid-template-columns:minmax(280px,1fr) 150px 120px;gap:10px}.nhf-input,.nhf-btn,.nhf-tab{height:38px;border:1px solid #d4deee;border-radius:10px;padding:0 10px}.nhf-btn{background:#1f56dc;color:#fff;border-color:#1f56dc;cursor:pointer}.nhf-btn[disabled]{opacity:.55;cursor:not-allowed}.nhf-grid{display:grid;grid-template-columns:1fr;gap:14px}.nhf-table{width:100%;border-collapse:collapse;font-size:13px}.nhf-table td,.nhf-table th{padding:10px;border-bottom:1px solid #ebf0f8;text-align:left;white-space:nowrap}.nhf-row{cursor:pointer}.nhf-row:hover td{background:#f7faff}.nhf-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.nhf-kpis div{padding:10px;border:1px solid #e5ecf8;border-radius:12px}.nhf-kpis strong{display:block;font-size:18px}.nhf-modal-backdrop{position:fixed;inset:0;background:rgba(9,16,32,.46);display:flex;align-items:center;justify-content:center;padding:20px;z-index:90}.nhf-modal{width:min(1040px,100%);max-height:92vh;overflow:auto;background:#f7f9fe;border:1px solid #dce6f5;border-radius:20px;box-shadow:0 30px 80px rgba(5,15,30,.32)}.nhf-modal-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;padding:18px 22px;border-bottom:1px solid #e6edf8;background:linear-gradient(180deg,#fff,#f8fbff)}.nhf-modal-tabs{display:flex;gap:8px;padding:14px 22px 0}.nhf-tab{background:#eef4ff;color:#1f56dc;cursor:pointer}.nhf-tab[aria-selected="true"]{background:#1f56dc;color:#fff}.nhf-tab[aria-selected="false"]{opacity:.88}.nhf-modal-body{padding:18px 22px 22px}.nhf-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.nhf-field{display:grid;gap:6px}.nhf-field input,.nhf-field textarea,.nhf-field select{height:38px;border:1px solid #d4deee;border-radius:10px;padding:0 10px;background:#fff}.nhf-field textarea{height:80px;padding:10px;resize:vertical}.nhf-field input:disabled,.nhf-field textarea:disabled,.nhf-field select:disabled{background:#edf2f7;color:#6c7a92}.nhf-field-full{grid-column:1/-1}.nhf-muted{color:#61708f;font-size:13px}.nhf-state{padding:24px;text-align:center;color:#61708f}.nhf-inline{display:flex;gap:10px;align-items:end}.nhf-inline > .nhf-field{flex:1}.nhf-pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef4ff;color:#1f56dc;font-size:12px;font-weight:600}.nhf-error{color:#9f1239}.nhf-success{color:#166534}.nhf-inline-error{font-size:12px;color:#9f1239;margin-top:2px}@media (max-width:1024px){.nhf-grid,.nhf-tools,.nhf-kpis,.nhf-form-grid{grid-template-columns:1fr}.nhf-title{font-size:24px}.nhf-modal{width:100%}.nhf-inline{flex-direction:column;align-items:stretch}}`;
   document.head.appendChild(style);
 }
 
@@ -45,10 +62,10 @@ function emptyForm() {
     pedido_minimo: 0,
     boleto_minimo: 0,
     comissao_padrao_percentual: 0,
-    prazo_medio_faturamento: '',
-    prazo_medio_entrega: '',
-    politica_pagamento: '',
-    condicoes_comerciais: '',
+    condicao_pagamento: '',
+    parcelas_pagamento: '',
+    prazo_medio_pagamento: '',
+    juros_pagamento: '',
     condicoes_pagamento: ''
   };
 }
@@ -76,6 +93,10 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     state.form = selected ? { ...emptyForm(), ...selected, cnpj: selected.cnpj || '' } : emptyForm();
     state.form.pedido_minimo = selected?.pedido_minimo ?? 0;
     state.form.comissao_padrao_percentual = selected?.comissao_padrao_percentual ?? 0;
+    state.form.condicao_pagamento = '';
+    state.form.parcelas_pagamento = '';
+    state.form.prazo_medio_pagamento = '';
+    state.form.juros_pagamento = '';
     state.cnpjValidated = Boolean(selected?.cnpj);
     state.cnpjManualUnlock = false;
     state.cnpjMessage = '';
@@ -94,11 +115,10 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       state.condicoes = condicoes.items || [];
       const condicao = state.condicoes[0] || null;
       state.condicaoId = condicao?.id || null;
-      state.form.politica_pagamento = condicao?.nome || '';
-      state.form.condicoes_pagamento = condicao?.codigo || '';
-      state.form.prazo_medio_faturamento = condicao?.prazo_medio_dias ?? '';
-      state.form.comissao_padrao_percentual = Number(condicao?.percentual_acrescimo ?? state.form.comissao_padrao_percentual ?? 0);
-      state.form.condicoes_comerciais = condicao?.observacoes || '';
+      state.form.condicao_pagamento = condicao?.nome || '';
+      state.form.parcelas_pagamento = condicao?.parcelas ?? '';
+      state.form.prazo_medio_pagamento = condicao?.prazo_medio_dias ?? '';
+      state.form.juros_pagamento = condicao?.percentual_acrescimo ?? '';
       render();
     } catch {
       state.error = true;
@@ -214,32 +234,63 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       state.cnpjMessage = 'Preenchimento manual liberado.';
       render();
     });
+    root.querySelector('[data-form-field="pedido_minimo"]')?.addEventListener('input', (e) => {
+      const raw = String(e.target.value || '').replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
+      const num = Number(raw);
+      state.form.pedido_minimo = Number.isFinite(num) ? String(num) : '';
+      e.target.value = Number.isFinite(num) ? formatCurrencyInput(num) : '';
+    });
+    root.querySelector('[data-form-field="condicao_pagamento"]')?.addEventListener('input', (e) => {
+      const raw = String(e.target.value || '').replace(/\s+/g, '').replace(/[^0-9/]/g, '').replace(/\/+/g, '/').replace(/^\/|\/$/g, '');
+      const parsed = parsePaymentCondition(raw);
+      state.form.condicao_pagamento = raw;
+      state.form.parcelas_pagamento = parsed.valid ? String(parsed.parcelas) : '';
+      state.form.prazo_medio_pagamento = parsed.valid ? String(parsed.prazoMedio).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1') : '';
+      e.target.value = raw;
+      const parcelasInput = root.querySelector('[data-form-field="parcelas_pagamento"]');
+      const prazoInput = root.querySelector('[data-form-field="prazo_medio_pagamento"]');
+      if (parcelasInput) parcelasInput.value = state.form.parcelas_pagamento;
+      if (prazoInput) prazoInput.value = state.form.prazo_medio_pagamento;
+    });
+    root.querySelector('[data-form-field="juros_pagamento"]')?.addEventListener('input', (e) => {
+      const raw = String(e.target.value || '').replace(/[^\d,.-]/g, '').replace(',', '.');
+      state.form.juros_pagamento = raw;
+      e.target.value = raw ? `${raw}%` : '';
+      if (e.target.value.endsWith('%%')) e.target.value = e.target.value.replace(/%+$/, '%');
+    });
     root.querySelector('#nhf-save')?.addEventListener('click', async () => {
       if (!isCnpjValid()) return;
       state.saving = true;
       render();
       try {
+        const parsedCondition = parsePaymentCondition(state.form.condicao_pagamento);
+        if (state.form.condicao_pagamento && !parsedCondition.valid) {
+          state.error = true;
+          state.saving = false;
+          render();
+          return;
+        }
         const fabricantePayload = {
           nome: state.form.nome || state.form.nome_fantasia || state.form.razao_social || '',
           cnpj: onlyDigits(state.form.cnpj),
           razao_social: state.form.razao_social || null,
           logo_url: state.form.logo_url || null,
-          pedido_minimo: Number(state.form.pedido_minimo || 0),
+          pedido_minimo: Number(String(state.form.pedido_minimo || 0).replace(/[^\d.-]/g, '')) || 0,
           boleto_minimo: Number(state.form.boleto_minimo || 0),
           comissao_padrao_percentual: Number(state.form.comissao_padrao_percentual || 0),
           observacoes: state.form.observacoes || null,
           status: state.selected?.status === 'inativo' ? 'inativo' : 'ativo'
         };
         const saved = await saveFabricante(apiClient, fabricantePayload, state.selected?.id || null);
-        const hasCondicao = state.form.politica_pagamento || state.form.condicoes_pagamento || state.form.condicoes_comerciais || state.form.prazo_medio_faturamento || state.form.prazo_medio_entrega;
+        const hasCondicao = state.form.condicao_pagamento || state.form.juros_pagamento;
         if (hasCondicao) {
           const condicaoPayload = {
-            nome: state.form.politica_pagamento || state.form.condicoes_pagamento || 'Condição padrão',
-            parcelas: 1,
-            prazo_medio_dias: Number(state.form.prazo_medio_faturamento || 0) || 0,
+            nome: parsedCondition.valid ? parsedCondition.normalized : (state.form.condicao_pagamento || 'Condição padrão'),
+            parcelas: parsedCondition.valid ? parsedCondition.parcelas : Number(state.form.parcelas_pagamento || 0) || 0,
+            prazo_medio_dias: parsedCondition.valid ? parsedCondition.prazoMedio : Number(state.form.prazo_medio_pagamento || 0) || 0,
             valor_minimo: Number(state.form.pedido_minimo || 0),
-            percentual_acrescimo: Number(state.form.comissao_padrao_percentual || 0),
-            observacoes: [state.form.condicoes_comerciais, state.form.prazo_medio_entrega ? `Prazo médio de entrega: ${state.form.prazo_medio_entrega}` : ''].filter(Boolean).join(' | ')
+            percentual_acrescimo: Number(state.form.juros_pagamento || 0) || 0,
+            observacoes: null
           };
           await saveCondicaoPagamento(apiClient, saved.id || state.selected?.id || null, condicaoPayload, state.condicaoId);
         }
@@ -267,7 +318,11 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
 
   function renderRulesTab() {
     const locked = isLocked();
-    return `<div class="nhf-form-grid"><label class="nhf-field"><span>Pedido mínimo</span><input data-form-field="pedido_minimo" value="${state.form.pedido_minimo ?? 0}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Política de pagamento</span><input data-form-field="politica_pagamento" value="${state.form.politica_pagamento || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Condições de pagamento</span><textarea data-form-field="condicoes_pagamento" ${locked ? 'disabled' : ''}>${state.form.condicoes_pagamento || ''}</textarea></label><label class="nhf-field"><span>Prazo médio de faturamento</span><input data-form-field="prazo_medio_faturamento" value="${state.form.prazo_medio_faturamento || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Prazo médio de entrega</span><input data-form-field="prazo_medio_entrega" value="${state.form.prazo_medio_entrega || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Percentual de comissão</span><input data-form-field="comissao_padrao_percentual" value="${state.form.comissao_padrao_percentual ?? 0}" ${locked ? 'disabled' : ''}></label><label class="nhf-field nhf-field-full"><span>Observações comerciais</span><textarea data-form-field="condicoes_comerciais" ${locked ? 'disabled' : ''}>${state.form.condicoes_comerciais || ''}</textarea></label></div>`;
+    const payment = parsePaymentCondition(state.form.condicao_pagamento);
+    const parcelasValue = payment.valid ? String(payment.parcelas) : String(state.form.parcelas_pagamento || '');
+    const prazoValue = payment.valid ? String(payment.prazoMedio).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1') : String(state.form.prazo_medio_pagamento || '');
+    const error = state.form.condicao_pagamento && !payment.valid ? '<div class="nhf-inline-error">Use apenas prazos numéricos separados por "/"</div>' : '';
+    return `<div class="nhf-form-grid"><label class="nhf-field"><span>Pedido mínimo</span><input data-form-field="pedido_minimo" value="${formatCurrencyInput(state.form.pedido_minimo ?? 0)}" ${locked ? 'disabled' : ''} inputmode="decimal"></label><label class="nhf-field"><span>Condição de pagamento</span><input data-form-field="condicao_pagamento" value="${state.form.condicao_pagamento || ''}" ${locked ? 'disabled' : ''} placeholder="30/60/90"></label><label class="nhf-field"><span>Quantidade de parcelas</span><input data-form-field="parcelas_pagamento" value="${parcelasValue}" ${locked ? 'disabled' : ''} placeholder="3" readonly></label><label class="nhf-field"><span>Prazo médio</span><input data-form-field="prazo_medio_pagamento" value="${prazoValue}" ${locked ? 'disabled' : ''} placeholder="60" readonly></label><label class="nhf-field"><span>Juros</span><input data-form-field="juros_pagamento" value="${state.form.juros_pagamento ? `${state.form.juros_pagamento}%` : ''}" ${locked ? 'disabled' : ''} placeholder="1%" inputmode="decimal"></label><div class="nhf-field nhf-field-full">${error}</div></div>`;
   }
 
   function renderModal() {
