@@ -16,6 +16,7 @@ export function mapClientesData(response = {}, search = '') {
       telefoneExibicao: item?.telefone || '-',
       cidadeExibicao: item?.cidade || '-',
       ufExibicao: item?.estado || item?.uf || '-',
+      vendedorExibicao: item?.vendedor?.nome || item?.vendedor_nome || item?.vendedor_id || '-',
       statusExibicao: item?.status || '-',
       criadoEmExibicao: asDate(item?.created_at || item?.createdAt)
     }))

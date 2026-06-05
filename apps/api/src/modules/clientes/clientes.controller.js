@@ -1,7 +1,7 @@
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { NotFoundError, ValidationError } from '../../core/errors.js';
-import { applyOwnerFilter, canAccessAllTenantData, resolveOwnerUserIdForCreate } from '../../core/commercial-scope.js';
-import { createCliente, getClienteById, getClientesRepositoryMode, listClientes } from './clientes.repository.js';
+import { applyOwnerFilter, canAccessAllTenantData } from '../../core/commercial-scope.js';
+import { createCliente, getClienteById, getClientesRepositoryMode, listClientes, updateCliente } from './clientes.repository.js';
 
 function parseBoolean(value) {
   if (value === true || value === 'true') return true;
@@ -39,11 +39,12 @@ export async function createClienteHandler(context) {
   const body = { ...(context.body || {}) };
   delete body.account_id;
   delete body.accountId;
-  if (!canAccessAllTenantData(context)) {
-    delete body.owner_user_id;
+  if (String(context?.auth?.role || '').toLowerCase() === 'sales') {
+    body.vendedor_id = context?.auth?.userId || null;
+  }
+  if (!canAccessAllTenantData(context) && String(context?.auth?.role || '').toLowerCase() !== 'sales') {
     delete body.vendedor_id;
   }
-  body.owner_user_id = resolveOwnerUserIdForCreate(context, body);
 
   const item = await createCliente(body, { accountId, context });
   return {
@@ -61,7 +62,28 @@ export async function getClienteByIdHandler(context = {}) {
     const item = await getClienteById(id, { accountId, context });
     return { ok: true, repositoryMode: getClientesRepositoryMode(), item };
   } catch (error) {
-    if (error?.code === 'OWNER_SCOPE_FORBIDDEN') {
+    if (error?.code === 'OWNER_SCOPE_FORBIDDEN' || error?.code === 'VENDEDOR_SCOPE_FORBIDDEN') {
+      throw new NotFoundError('Cliente nao encontrado', { code: 'CLIENTE_NOT_FOUND', domain: 'clientes-crm' });
+    }
+    throw error;
+  }
+}
+
+export async function updateClienteHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const id = String(context?.params?.id || '').trim();
+  if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
+  const body = { ...(context.body || {}) };
+  delete body.account_id;
+  delete body.accountId;
+  if (String(context?.auth?.role || '').toLowerCase() === 'sales') {
+    delete body.vendedor_id;
+  }
+  try {
+    const item = await updateCliente(id, body, { accountId, context });
+    return { ok: true, repositoryMode: getClientesRepositoryMode(), item };
+  } catch (error) {
+    if (error?.code === 'OWNER_SCOPE_FORBIDDEN' || error?.code === 'VENDEDOR_SCOPE_FORBIDDEN') {
       throw new NotFoundError('Cliente nao encontrado', { code: 'CLIENTE_NOT_FOUND', domain: 'clientes-crm' });
     }
     throw error;

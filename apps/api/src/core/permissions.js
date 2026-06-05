@@ -1,6 +1,7 @@
 export const ROLES = {
   SUPER_ADMIN: 'super_admin',
   ADMIN: 'admin',
+  ACCOUNT_ADMIN: 'account_admin',
   OWNER: 'owner',
   MANAGER: 'manager',
   SALES: 'sales',
@@ -10,6 +11,7 @@ export const ROLES = {
 
 export const ROLE_HIERARCHY = {
   super_admin: 100,
+  account_admin: 85,
   owner: 90,
   admin: 80,
   manager: 60,
@@ -23,6 +25,8 @@ export const PERMISSIONS = {
   CLIENTES_WRITE: 'clientes:write',
   FABRICANTES_READ: 'fabricantes:read',
   FABRICANTES_WRITE: 'fabricantes:write',
+  VENDEDORES_READ: 'vendedores:read',
+  VENDEDORES_WRITE: 'vendedores:write',
   PEDIDOS_READ: 'pedidos:read',
   PEDIDOS_WRITE: 'pedidos:write',
   PEDIDOS_STATUS_UPDATE: 'pedidos:status:update',
@@ -38,9 +42,10 @@ export const PERMISSIONS = {
 
 export const ROLE_PERMISSIONS = {
   super_admin: ['*'],
+  account_admin: ['clientes:read', 'clientes:write', 'fabricantes:read', 'fabricantes:write', 'vendedores:read', 'vendedores:write', 'pedidos:read', 'pedidos:write', 'pedidos:status:update', 'produtos:read', 'produtos:write', 'analytics:read', 'followup:read', 'followup:write', 'system:admin'],
   owner: ['clientes:read', 'clientes:write', 'fabricantes:read', 'fabricantes:write', 'pedidos:read', 'pedidos:write', 'pedidos:status:update', 'produtos:read', 'produtos:write', 'analytics:read', 'followup:read', 'followup:write', 'system:admin'],
   admin: [
-    'clientes:read', 'clientes:write', 'fabricantes:read', 'fabricantes:write', 'pedidos:read', 'pedidos:write', 'pedidos:status:update',
+    'clientes:read', 'clientes:write', 'fabricantes:read', 'fabricantes:write', 'vendedores:read', 'vendedores:write', 'pedidos:read', 'pedidos:write', 'pedidos:status:update',
     'produtos:read', 'produtos:write', 'analytics:read', 'followup:read', 'followup:write', 'system:admin'
   ],
   manager: ['clientes:read', 'clientes:write', 'fabricantes:read', 'pedidos:read', 'pedidos:write', 'pedidos:status:update', 'produtos:read', 'analytics:read', 'followup:read', 'followup:write'],

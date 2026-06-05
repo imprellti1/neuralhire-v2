@@ -15,7 +15,7 @@ function injectStyles() {
   .nhc-header{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:14px;flex-wrap:wrap}
   .nhc-title{font-size:30px;font-weight:700;letter-spacing:-.02em}
   .nhc-sub{margin-top:6px;color:#61708f;font-size:14px;max-width:68ch}
-  .nhc-tools{display:grid;grid-template-columns:minmax(320px,520px) 120px 140px;gap:10px;align-items:center}
+  .nhc-tools{display:grid;grid-template-columns:minmax(260px,460px) 180px 120px 140px;gap:10px;align-items:center}
   .nhc-input,.nhc-btn{height:38px;border:1px solid #d4deee;border-radius:10px;padding:0 10px;background:#fff;color:#16284a}
   .nhc-btn{background:#1f56dc;color:#fff;border-color:#1f56dc;font-weight:600;cursor:pointer}
   .nhc-meta{display:flex;justify-content:space-between;align-items:center;margin:10px 0 8px;color:#61708f;font-size:13px}
@@ -74,7 +74,7 @@ export function renderClientesPage(root, { apiClient }) {
         </div>
         <div class="nhc-table-wrap"><table class="nhc-table">
           <tr>
-            <th>Empresa</th><th>Razão Social</th><th>Contato</th><th>Telefone</th><th>Cidade</th><th>UF</th><th>Status</th><th>Criação</th>
+            <th>Empresa</th><th>Razão Social</th><th>Contato</th><th>Telefone</th><th>Cidade</th><th>UF</th><th>Vendedor</th><th>Status</th><th>Criação</th>
           </tr>
           ${rows}
         </table></div><div class="nhc-pager">
@@ -91,6 +91,7 @@ export function renderClientesPage(root, { apiClient }) {
         <div><div class="nhc-title">Clientes CRM</div><div class="nhc-sub">Listagem operacional de clientes com busca local e paginação da API.</div></div>
         <div class="nhc-tools">
           <input id="nhc-search" class="nhc-input" placeholder="Pesquisar cliente" value="${state.search}" />
+          <select id="nhc-vendedor" class="nhc-input"><option value="">Todos os vendedores</option></select>
           <button id="nhc-refresh" class="nhc-btn">Atualizar</button>
           <button id="nhc-new" class="nhc-btn">Novo Cliente</button>
         </div>

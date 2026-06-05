@@ -53,6 +53,8 @@ import { registerCommercialAgentRoutes } from './commercial-agent/commercial-age
 import { commercialAgentModule } from './commercial-agent/commercial-agent.module.js';
 import { registerFabricantesRoutes } from './fabricantes/fabricantes.routes.js';
 import { fabricantesModule } from './fabricantes/fabricantes.module.js';
+import { registerVendedoresRoutes } from './vendedores/vendedores.routes.js';
+import { vendedoresModule } from './vendedores/vendedores.module.js';
 import { registerProductAuditRoutes } from './product-audit/product-audit.routes.js';
 import { productAuditModule } from './product-audit/product-audit.module.js';
 import { registerProductEditorRoutes } from './product-editor/product-editor.routes.js';
@@ -65,7 +67,7 @@ export const registeredModules = [
   accountActivationModule, implementationTrackerModule, customerSuccessModule, customerSuccessAutomationModule,
   customerSuccessTimelineModule, customerRetentionModule, executiveDashboardModule, executivePortfolioAnalyticsModule,
   revenueIntelligenceModule, portfolioDashboardModule, legacyImportModule, customerMemoryModule,
-  whatsappConversationsModule, messageDraftsModule, messageApprovalsModule, approvalIntelligenceModule, whatsappDeliveryModule, commercialAgentModule, fabricantesModule
+  whatsappConversationsModule, messageDraftsModule, messageApprovalsModule, approvalIntelligenceModule, whatsappDeliveryModule, commercialAgentModule, fabricantesModule, vendedoresModule
   ,productAuditModule, productEditorModule
 ];
 
@@ -82,6 +84,7 @@ export function registerModules(router, options = {}) {
   registerWhatsappDeliveryRoutes(router);
   registerCommercialAgentRoutes(router);
   registerFabricantesRoutes(router);
+  registerVendedoresRoutes(router);
   registerProductAuditRoutes(router);
   registerProductEditorRoutes(router);
 }

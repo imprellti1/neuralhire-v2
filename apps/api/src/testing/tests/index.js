@@ -89,7 +89,9 @@ const [
   commercialAgent,
   approvalIntelligence,
   productAudit,
-  productEditor
+  productEditor,
+  vendedores,
+  clientesVendedorScope
 ] = await Promise.all([
   import('./auth.test.js'),
   import('./rbac.test.js'),
@@ -170,7 +172,9 @@ const [
   import('./commercial-agent.test.js'),
   import('./approval-intelligence.test.js'),
   import('./product-audit.test.js'),
-  import('./product-editor.test.js')
+  import('./product-editor.test.js'),
+  import('./vendedores.test.js'),
+  import('./clientes-vendedor-scope.test.js')
 ]);
 
 async function main() {
@@ -254,7 +258,9 @@ async function main() {
     ['Fabricantes', fabricantes.getFabricantesTests()],
     ['Fabricantes Tenant', fabricantesTenant.getFabricantesTenantTests()],
     ['Product Audit', productAudit.getProductAuditTests()],
-    ['Product Editor', productEditor.getProductEditorTests()]
+    ['Product Editor', productEditor.getProductEditorTests()],
+    ['Vendedores', vendedores.getVendedoresTests()],
+    ['Clientes Vendedor Scope', clientesVendedorScope.getClientesVendedorScopeTests()]
   ];
 
   const summary = { total: 0, passed: 0, failed: 0 };

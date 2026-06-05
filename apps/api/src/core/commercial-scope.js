@@ -1,6 +1,6 @@
 import { ForbiddenError } from './errors.js';
 
-const FULL_ACCESS_ROLES = new Set(['super_admin', 'admin', 'manager']);
+const FULL_ACCESS_ROLES = new Set(['super_admin', 'account_admin', 'admin', 'manager']);
 
 export function getUserIdFromContext(context = {}) {
   return context?.auth?.userId || context?.auth?.user?.id || null;

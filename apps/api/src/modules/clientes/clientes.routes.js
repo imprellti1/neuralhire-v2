@@ -1,7 +1,7 @@
 import { asyncHandler } from '../../core/async-handler.js';
 import { sendSuccess } from '../../core/response.js';
-import { createClienteHandler, getClienteByIdHandler, getClientes } from './clientes.controller.js';
-import { createClienteSchema } from './clientes.schemas.js';
+import { createClienteHandler, getClienteByIdHandler, getClientes, updateClienteHandler } from './clientes.controller.js';
+import { createClienteSchema, updateClienteSchema } from './clientes.schemas.js';
 
 export function registerClientesRoutes(router) {
   router.registerRoute({
@@ -29,6 +29,16 @@ export function registerClientesRoutes(router) {
     schema: createClienteSchema,
     handler: asyncHandler(async (req, res, context) => {
       sendSuccess(res, await createClienteHandler(context));
+    })
+  });
+
+  router.registerRoute({
+    method: 'PATCH',
+    path: '/clientes/:id',
+    domain: 'clientes-crm',
+    schema: updateClienteSchema,
+    handler: asyncHandler(async (req, res, context) => {
+      sendSuccess(res, await updateClienteHandler(context));
     })
   });
 }
