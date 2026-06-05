@@ -92,7 +92,7 @@ window.__NEURALHIRE_CONFIG__ = {
 
 Observações:
 
-- abrir em `https://app.neuralhire.com.br/#/login`
+- abrir em `https://app.neuralhire.com.br` e cair em `#/login` quando não houver sessão
 - login real via Supabase
 - o app usa a API real em `https://api.neuralhire.com.br`
 - não habilitar demo mode
@@ -101,7 +101,9 @@ Observações:
 Health check:
 
 - abrir `https://app.neuralhire.com.br`
-- validar que carrega a landing ou redireciona corretamente para o fluxo interno
+- validar que o host interno não mostra a landing pública
+- validar que, sem sessão, o app vai para `#/login`
+- validar que, com sessão, o app abre o fluxo interno autenticado
 
 ### 3. Site institucional
 

@@ -5,7 +5,7 @@ import { flush, setHash, setupFrontendDom, teardownFrontendDom } from '../../tes
 import { getSanitizedFetchCalls, installFetchMock } from '../../testing/mocks/api-client.mock.js';
 
 test('landing publica 56: conversao com POST real', async () => {
-  const dom = setupFrontendDom('#/');
+  const dom = setupFrontendDom('#/', 'neuralhire.com.br');
   installFetchMock({ 'POST /interest-leads': () => ({ ok: true, item: { id: 'l1' } }) });
   bootstrapWebApp();
   await flush(); await flush();

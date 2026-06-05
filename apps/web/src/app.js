@@ -71,13 +71,17 @@ export function bootstrapWebApp() {
   const isPublicSite = hostname === 'neuralhire.com.br' || hostname === 'www.neuralhire.com.br';
   const isAppSite = hostname === 'app.neuralhire.com.br';
   const renderRoute = () => {
-    const route = window.location.hash || '#/';
+    let route = window.location.hash || '#/';
+    if (isAppSite && (route === '#/' || route === '#')) {
+      route = hasAuthSession() ? '#/dashboard-comercial' : '#/login';
+      window.location.hash = route;
+    }
     if (route === '#/logout') {
       clearAuthSession();
       window.location.hash = '#/login';
       return;
     }
-    if (isPublicSite || route === '#/' || route === '#') {
+    if (isPublicSite) {
       document.body.innerHTML = '';
       renderPublicLandingPage(document.body, { apiClient: api });
       return;

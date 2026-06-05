@@ -5,7 +5,7 @@ import { flush, setupFrontendDom, teardownFrontendDom } from '../../testing/fron
 import { installFetchMock } from '../../testing/mocks/api-client.mock.js';
 
 test('landing para lead integration', async () => {
-  const dom = setupFrontendDom('#/');
+  const dom = setupFrontendDom('#/', 'neuralhire.com.br');
   installFetchMock({ 'POST /interest-leads': () => ({ ok: true, item: { id: 'lead-1' } }) });
   bootstrapWebApp();
   await flush(); await flush();

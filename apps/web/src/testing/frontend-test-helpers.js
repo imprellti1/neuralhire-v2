@@ -4,8 +4,8 @@ export function flush() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-export function setupFrontendDom(hash = '#/') {
-  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: `http://localhost/${hash}` });
+export function setupFrontendDom(hash = '#/', hostname = 'localhost') {
+  const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: `http://${hostname}/${hash}` });
   global.window = dom.window;
   global.document = dom.window.document;
   window.__NEURALHIRE_CONFIG__ = {
