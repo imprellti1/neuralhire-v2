@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bootstrapWebApp } from '../../app.js';
-import { setupFrontendDom, teardownFrontendDom, flush, findButtonByText } from '../../testing/frontend-test-helpers.js';
+import { flush, findButtonByText, mockAuthenticatedSession, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 import { installFetchMock } from '../../testing/mocks/api-client.mock.js';
 
 test('message drafts panel dom', async () => {
-  const dom = setupFrontendDom('#/whatsapp-conversations');
+  const dom = setupFrontendDom('#/whatsapp-conversations', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
   const originalClipboard = global.navigator.clipboard;
   global.navigator.clipboard = {
     writeText: async () => {}

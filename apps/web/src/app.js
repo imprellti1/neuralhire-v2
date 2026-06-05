@@ -37,13 +37,14 @@ import { renderFabricantesPage } from './modules/fabricantes/fabricantes.page.js
 import { renderProductAuditPage } from './modules/product-audit/product-audit.page.js';
 import { renderProductEditorPage } from './modules/product-editor/product-editor.page.js';
 import { renderLoginPage } from './modules/auth/login.page.js';
-import { hasAuthSession, clearAuthSession } from './core/auth-session.js';
+import { clearAuthSession, getAuthSession, saveAuthSession } from './core/auth-session.js';
+import { createSupabaseClient } from './core/supabase-client.js';
 
 function injectAppStyles() {
   if (document.getElementById('nh-app-style')) return;
   const style = document.createElement('style');
   style.id = 'nh-app-style';
-  style.textContent = `:root{--bg:#f4f7fc;--bg-soft:#eef3fb;--panel:#ffffff;--text:#12203a;--muted:#61708f;--line:#dbe4f2;--brand:#2563eb;--brand-soft:#dbe7ff;--ok:#047857;--warn:#b45309;--danger:#b42318;--shadow:0 14px 34px rgba(15,35,74,.08)}*{box-sizing:border-box}body{margin:0;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;color:var(--text);background:radial-gradient(1000px 500px at 90% -20%,#dbe8ff 0%,rgba(219,232,255,0) 70%),linear-gradient(180deg,#f8fbff 0%,var(--bg) 100%)}.nh-shell{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:100vh}.nh-sidebar{padding:24px 18px;border-right:1px solid var(--line);background:rgba(255,255,255,.8);backdrop-filter:blur(8px)}.nh-brand{padding:12px 14px;border-radius:14px;background:linear-gradient(135deg,#1948bf,#2563eb);color:#fff;font-weight:700;letter-spacing:.02em;box-shadow:var(--shadow)}.nh-brand small{display:block;font-weight:500;opacity:.85;margin-top:4px}.nh-nav{margin-top:18px;display:grid;gap:8px}.nh-menu-item{display:block;padding:12px 14px;border-radius:12px;color:#20304f;text-decoration:none;font-weight:600;transition:.2s background,.2s color,.2s transform}.nh-menu-item:hover{background:#edf3ff;transform:translateY(-1px)}.nh-menu-item.is-active{background:var(--brand-soft);color:#0f3da8;box-shadow:inset 0 0 0 1px #c8dafd}.nh-main{padding:0 24px 28px;min-width:0}.nh-content{max-width:1360px;width:100%;margin:0 auto;padding-top:24px}@media (max-width:1280px){.nh-shell{grid-template-columns:220px minmax(0,1fr)}.nh-main{padding:0 20px 24px}.nh-content{padding-top:20px}}@media (max-width:1024px){.nh-shell{grid-template-columns:1fr}.nh-sidebar{display:none}.nh-main{padding:0 12px 20px}.nh-content{padding-top:12px}}`;
+  style.textContent = `:root{--bg:#f4f7fc;--bg-soft:#eef3fb;--panel:#ffffff;--text:#12203a;--muted:#61708f;--line:#dbe4f2;--brand:#2563eb;--brand-soft:#dbe7ff;--ok:#047857;--warn:#b45309;--danger:#b42318;--shadow:0 14px 34px rgba(15,35,74,.08)}*{box-sizing:border-box}body{margin:0;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;color:var(--text);background:radial-gradient(1000px 500px at 90% -20%,#dbe8ff 0%,rgba(219,232,255,0) 70%),linear-gradient(180deg,#f8fbff 0%,var(--bg) 100%)}.nh-shell{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:100vh}.nh-sidebar{padding:24px 18px;border-right:1px solid var(--line);background:rgba(255,255,255,.8);backdrop-filter:blur(8px)}.nh-brand{padding:12px 14px;border-radius:14px;background:linear-gradient(135deg,#1948bf,#2563eb);color:#fff;font-weight:700;letter-spacing:.02em;box-shadow:var(--shadow)}.nh-brand small{display:block;font-weight:500;opacity:.85;margin-top:4px}.nh-nav{margin-top:18px;display:grid;gap:8px}.nh-menu-item{display:block;padding:12px 14px;border-radius:12px;color:#20304f;text-decoration:none;font-weight:600;transition:.2s background,.2s color,.2s transform}.nh-menu-item:hover{background:#edf3ff;transform:translateY(-1px)}.nh-menu-item.is-active{background:var(--brand-soft);color:#0f3da8;box-shadow:inset 0 0 0 1px #c8dafd}.nh-main{padding:0 24px 28px;min-width:0}.nh-content{max-width:1360px;width:100%;margin:0 auto;padding-top:24px}.nh-login-shell{min-height:100vh;display:grid;place-items:center;padding:24px}.nh-login-shell .nh-content{max-width:100%;margin:0;padding:0}@media (max-width:1280px){.nh-shell{grid-template-columns:220px minmax(0,1fr)}.nh-main{padding:0 20px 24px}.nh-content{padding-top:20px}}@media (max-width:1024px){.nh-shell{grid-template-columns:1fr}.nh-sidebar{display:none}.nh-main{padding:0 12px 20px}.nh-content{padding-top:12px}}`;
   document.head.appendChild(style);
 }
 
@@ -54,41 +55,124 @@ function createLayout() {
   return root;
 }
 
+function createLoginShell() {
+  const root = document.createElement('div');
+  root.className = 'nh-login-shell';
+  root.innerHTML = '<section class="nh-content" id="app-content"></section>';
+  return root;
+}
+
 function setActiveMenu(route) {
   document.querySelectorAll('.nh-menu-item').forEach((el) => {
     el.classList.toggle('is-active', el.getAttribute('data-route') === route);
   });
 }
 
+function getRuntimeConfig() {
+  const runtime = typeof window !== 'undefined' ? window.__NEURALHIRE_CONFIG__ || {} : {};
+  const env = typeof import.meta !== 'undefined' ? import.meta.env || {} : {};
+  return {
+    VITE_APP_ENV: runtime.VITE_APP_ENV || env.VITE_APP_ENV || '',
+    VITE_SUPABASE_URL: runtime.VITE_SUPABASE_URL || env.VITE_SUPABASE_URL || '',
+    VITE_SUPABASE_ANON_KEY: runtime.VITE_SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || '',
+    VITE_API_URL: runtime.VITE_API_URL || env.VITE_API_URL || ''
+  };
+}
+
+async function verifySupabaseSession() {
+  const { VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY } = getRuntimeConfig();
+  const storedSession = getAuthSession();
+  if (!VITE_SUPABASE_URL || !VITE_SUPABASE_ANON_KEY || !storedSession?.access_token) {
+    return { ready: false, session: null, error: null, configMissing: true };
+  }
+
+  const client = await createSupabaseClient(VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY);
+  if (!client?.auth?.getUser) {
+    return { ready: false, session: null, error: null, configMissing: true };
+  }
+
+  const { data, error } = await client.auth.getUser(storedSession.access_token);
+  if (error || !data?.user) {
+    clearAuthSession();
+    return { ready: true, session: null, error: error || null, configMissing: false };
+  }
+
+  return { ready: true, session: storedSession, error: null, configMissing: false };
+}
+
+function ensureRootShell(kind) {
+  let shell = document.querySelector(kind === 'login' ? '.nh-login-shell' : '.nh-shell');
+  if (shell) return shell;
+  shell = kind === 'login' ? createLoginShell() : createLayout();
+  document.body.innerHTML = '';
+  document.body.appendChild(shell);
+  return shell;
+}
+
 export function bootstrapWebApp() {
   if (typeof document === 'undefined') return;
   injectAppStyles();
   const api = createApiClient();
-  const appEnv = String(window.__NEURALHIRE_CONFIG__?.VITE_APP_ENV || import.meta.env?.VITE_APP_ENV || '').toLowerCase();
-  const hasDemoConfig = Boolean(window.__NEURALHIRE_CONFIG__?.VITE_DEMO_ACCOUNT_ID);
-  const requiresLogin = (appEnv === 'homologation' || appEnv === 'production') && !hasDemoConfig;
   const hostname = String(window.location?.hostname || '').toLowerCase();
   const isPublicSite = hostname === 'neuralhire.com.br' || hostname === 'www.neuralhire.com.br';
   const isAppSite = hostname === 'app.neuralhire.com.br';
-  const renderRoute = () => {
+  const authState = { promise: null };
+  const getAuthState = async () => {
+    if (!authState.promise) authState.promise = verifySupabaseSession();
+    return authState.promise;
+  };
+  const invalidateAuthState = () => {
+    authState.promise = null;
+  };
+
+  const renderPublic = () => {
+    document.body.innerHTML = '';
+    renderPublicLandingPage(document.body, { apiClient: api });
+  };
+
+  const renderRoute = async () => {
     let route = window.location.hash || '#/';
     if (isAppSite && (route === '#/' || route === '#')) {
-      route = hasAuthSession() ? '#/dashboard-comercial' : '#/login';
+      const auth = await getAuthState();
+      route = auth.session ? '#/dashboard-comercial' : '#/login';
       window.location.hash = route;
     }
     if (route === '#/logout') {
       clearAuthSession();
+      invalidateAuthState();
       window.location.hash = '#/login';
       return;
     }
     if (isPublicSite) {
-      document.body.innerHTML = '';
-      renderPublicLandingPage(document.body, { apiClient: api });
+      renderPublic();
       return;
     }
     if (!isAppSite && route === '#/login') {
-      document.body.innerHTML = '';
-      renderPublicLandingPage(document.body, { apiClient: api });
+      renderPublic();
+      return;
+    }
+
+    const auth = await getAuthState();
+    if (route !== '#/login' && !auth.session) {
+      window.location.hash = '#/login';
+      const loginShell = ensureRootShell('login');
+      const loginContent = document.getElementById('app-content');
+      if (loginContent) await renderLoginPage(loginContent, { onLogin: () => window.location.hash = '#/dashboard-comercial' });
+      return;
+    }
+
+    if (route === '#/login') {
+      const loginShell = ensureRootShell('login');
+      const loginContent = document.getElementById('app-content');
+      if (loginContent) {
+        await renderLoginPage(loginContent, {
+          onLogin: (session) => {
+            saveAuthSession(session);
+            invalidateAuthState();
+            window.location.hash = '#/dashboard-comercial';
+          }
+        });
+      }
       return;
     }
 
@@ -100,7 +184,7 @@ export function bootstrapWebApp() {
     }
 
     const content = document.getElementById('app-content');
-  const activeRoute = route.startsWith('#/pedidos/') ? '#/pedidos'
+    const activeRoute = route.startsWith('#/pedidos/') ? '#/pedidos'
       : route.startsWith('#/clientes/') ? '#/clientes'
     : route.startsWith('#/fabricantes/') ? '#/fabricantes'
     : route.startsWith('#/product-audit/') ? '#/product-audit'
@@ -109,11 +193,6 @@ export function bootstrapWebApp() {
       : route;
     setActiveMenu(activeRoute);
 
-    if (route === '#/login') return renderLoginPage(content);
-    if (requiresLogin && !hasAuthSession() && route !== '#/login') {
-      window.location.hash = '#/login';
-      return;
-    }
     if (route === '#/clientes') return renderClientesPage(content, { apiClient: api });
     if (route === '#/clientes/novo') return renderClienteCreatePage(content, { apiClient: api });
     if (route.startsWith('#/clientes/')) return renderClienteDetailsPage(content, { apiClient: api, clienteId: route.slice('#/clientes/'.length).split('?')[0] });

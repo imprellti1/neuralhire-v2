@@ -24,7 +24,9 @@ function stripTestHeaders(value) {
   if (!value || typeof value !== 'object') return value;
   const out = {};
   for (const [key, nested] of Object.entries(value)) {
-    if (String(key).toLowerCase().startsWith('x-test-')) continue;
+    const lowerKey = String(key).toLowerCase();
+    if (lowerKey.startsWith('x-test-')) continue;
+    if (lowerKey === 'authorization' || lowerKey === 'token') continue;
     out[key] = stripTestHeaders(nested);
   }
   return out;

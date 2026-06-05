@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bootstrapWebApp } from '../../app.js';
-import { dispatchInput, flush, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
+import { dispatchInput, flush, mockAuthenticatedSession, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 import { createProdutosMockHandlers } from '../../testing/mocks/produtos.mock.js';
 import { assertNoSensitiveTransportFields, getSanitizedFetchCalls, installFetchMock } from '../../testing/mocks/api-client.mock.js';
 import { assertTransportSnapshot } from '../../testing/transport-snapshot.js';
@@ -11,6 +11,7 @@ import { assertProdutoPatchPayload, assertProdutoPostPayload } from '../../testi
 
 test('produtos: listagem/criacao/detalhe/edicao + contrato + snapshot', async () => {
   const dom = setupFrontendDom('#/produtos');
+  mockAuthenticatedSession();
   installFetchMock(createProdutosMockHandlers());
   bootstrapWebApp();
   await flush(); await flush();
@@ -41,6 +42,7 @@ test('produtos: listagem/criacao/detalhe/edicao + contrato + snapshot', async ()
 
 test('produto 360: GET sucesso + PATCH 422 e 500 + GET 404 isolado', async () => {
   const dom422 = setupFrontendDom('#/produtos/p1');
+  mockAuthenticatedSession();
   installFetchMock(createProdutosMockHandlers({ scenario: 'validationError' }));
   bootstrapWebApp();
   await flush(); await flush();
@@ -53,6 +55,7 @@ test('produto 360: GET sucesso + PATCH 422 e 500 + GET 404 isolado', async () =>
   teardownFrontendDom(dom422);
 
   const dom500 = setupFrontendDom('#/produtos/p1');
+  mockAuthenticatedSession();
   const base = createProdutosMockHandlers();
   installFetchMock({ ...base, 'PATCH /produtos/p1': () => ({ __mockError: true, status: 500, body: { error: { message: 'Erro interno' } } }) });
   bootstrapWebApp();
@@ -66,6 +69,7 @@ test('produto 360: GET sucesso + PATCH 422 e 500 + GET 404 isolado', async () =>
   teardownFrontendDom(dom500);
 
   const dom404 = setupFrontendDom('#/produtos/p1');
+  mockAuthenticatedSession();
   installFetchMock(createProdutosMockHandlers({ scenario: 'notFound' }));
   bootstrapWebApp();
   await flush(); await flush();
@@ -75,6 +79,7 @@ test('produto 360: GET sucesso + PATCH 422 e 500 + GET 404 isolado', async () =>
 
 test('produtos: rota novo nao pode colidir com rota de detalhe dinamica', async () => {
   const dom = setupFrontendDom('#/produtos/novo');
+  mockAuthenticatedSession();
   installFetchMock(createProdutosMockHandlers());
   bootstrapWebApp();
   await flush(); await flush();
@@ -87,6 +92,7 @@ test('produtos: rota novo nao pode colidir com rota de detalhe dinamica', async 
 
 test('produtos: rota invalida e detalhe inexistente mantem estado seguro', async () => {
   const domInvalid = setupFrontendDom('#/produtos/nao-existe/rota');
+  mockAuthenticatedSession();
   installFetchMock(createProdutosMockHandlers());
   bootstrapWebApp();
   await flush(); await flush();
@@ -94,6 +100,7 @@ test('produtos: rota invalida e detalhe inexistente mantem estado seguro', async
   teardownFrontendDom(domInvalid);
 
   const domMissing = setupFrontendDom('#/produtos/p999');
+  mockAuthenticatedSession();
   installFetchMock(createProdutosMockHandlers({ scenario: 'notFound' }));
   bootstrapWebApp();
   await flush(); await flush();

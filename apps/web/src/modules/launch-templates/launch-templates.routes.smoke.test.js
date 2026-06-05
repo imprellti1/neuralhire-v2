@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bootstrapWebApp } from '../../app.js';
-import { flush, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
+import { flush, mockAuthenticatedSession, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 import { installFetchMock } from '../../testing/mocks/api-client.mock.js';
 
 test('launch-templates route smoke', async () => {
-  const dom = setupFrontendDom('#/launch/templates');
+  const dom = setupFrontendDom('#/launch/templates', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
   installFetchMock({
     'GET /launch/templates': () => ({ ok: true, items: [] }),
     'GET /interest-leads': () => ({ ok: true, items: [], pagination: { page: 1, limit: 100, total: 0, totalPages: 1 } })

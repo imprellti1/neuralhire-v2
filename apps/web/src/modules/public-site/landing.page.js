@@ -287,6 +287,22 @@ const styles = `
   }
 `;
 
+function getRaf() {
+  if (typeof window === 'undefined') {
+    return {
+      raf: (callback) => setTimeout(callback, 16),
+      caf: clearTimeout
+    };
+  }
+  const raf = typeof window.requestAnimationFrame === 'function'
+    ? window.requestAnimationFrame.bind(window)
+    : (callback) => window.setTimeout(callback, 16);
+  const caf = typeof window.cancelAnimationFrame === 'function'
+    ? window.cancelAnimationFrame.bind(window)
+    : window.clearTimeout.bind(window);
+  return { raf, caf };
+}
+
 const ICONS = {
   crm: ['M6 9h12M6 14h12M6 19h8', 'M4 5h16v16H4z', 'M8 5v16'],
   pedidos: ['M6 7h10l4 4v10H6zM16 7v4h4', 'M9 11h5M9 15h7', 'M8 18h8'],
@@ -866,6 +882,7 @@ export function renderPublicLandingPage(container, { apiClient } = {}) {
   const liveDemo = container.querySelector('[data-live-demo]');
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches || false;
   if (liveDemo) {
+    const { raf, caf } = getRaf();
     const content = liveDemo.querySelector('.hero-live-demo-content');
     const statusText = liveDemo.querySelector('[data-demo-status-text]');
     const caption = liveDemo.querySelector('[data-demo-caption]');
@@ -882,6 +899,7 @@ export function renderPublicLandingPage(container, { apiClient } = {}) {
       { active: [], completed: [0, 1, 2], visibleChecks: [0, 1], status: 'aguardando aprovação', caption: 'Equipe revisando', progress: 76, showApproval: true, showBtn: true },
       { active: [3], completed: [0, 1, 2, 3], visibleChecks: [0, 1, 2, 3], status: 'enviado', caption: 'WhatsApp entregue', progress: 100, showSent: true },
     ];
+    let frameId = null;
     const scrollToStep = (state) => {
       if (!content) return;
       const target = state.showApproval
@@ -900,7 +918,12 @@ export function renderPublicLandingPage(container, { apiClient } = {}) {
         nextScrollTop += deltaBottom + padding;
       }
       const maxScroll = Math.max(0, content.scrollHeight - content.clientHeight);
-      content.scrollTo({ top: Math.max(0, Math.min(maxScroll, nextScrollTop)), behavior: reducedMotion ? 'auto' : 'smooth' });
+      const targetScrollTop = Math.max(0, Math.min(maxScroll, nextScrollTop));
+      if (typeof content.scrollTo === 'function') {
+        content.scrollTo({ top: targetScrollTop, behavior: reducedMotion ? 'auto' : 'smooth' });
+      } else {
+        content.scrollTop = targetScrollTop;
+      }
     };
     const applyState = (state) => {
       steps.forEach((step, index) => {
@@ -915,7 +938,13 @@ export function renderPublicLandingPage(container, { apiClient } = {}) {
       if (statusText) statusText.textContent = state.status;
       if (caption) caption.textContent = state.caption;
       if (progress) progress.style.width = `${state.progress}%`;
-      window.requestAnimationFrame(() => scrollToStep(state));
+      if (frameId !== null) {
+        caf(frameId);
+      }
+      frameId = raf(() => {
+        frameId = null;
+        scrollToStep(state);
+      });
       if (state.showApproval && approveBtn) approveBtn.focus?.({ preventScroll: true });
     };
     if (reducedMotion) {
@@ -935,6 +964,10 @@ export function renderPublicLandingPage(container, { apiClient } = {}) {
       window.addEventListener('visibilitychange', () => {
         if (document.hidden) {
           window.clearTimeout(timer);
+          if (frameId !== null) {
+            caf(frameId);
+            frameId = null;
+          }
         }
       }, { passive: true });
     }

@@ -22,8 +22,8 @@ export async function renderLoginPage(container, { onLogin = null } = {}) {
   clearAuthSession();
   container.innerHTML = `
     <section style="max-width:480px;margin:64px auto;padding:32px;border-radius:24px;background:#fff;box-shadow:0 18px 44px rgba(15,35,74,.12)">
-      <h1 style="margin:0 0 8px;font-size:32px;color:#10203b">Entrar na homologação</h1>
-      <p style="margin:0 0 24px;color:#5f6f8d">Use sua conta Supabase real para acessar a área interna.</p>
+      <h1 style="margin:0 0 8px;font-size:32px;color:#10203b">Entrar no NeuralHire</h1>
+      <p style="margin:0 0 24px;color:#5f6f8d">Acesse sua conta para entrar na área administrativa.</p>
       <form id="nh-login-form" style="display:grid;gap:14px">
         <label>Email<input name="email" type="email" required style="width:100%;padding:12px;border:1px solid #cfd9ea;border-radius:12px"></label>
         <label>Senha<input name="password" type="password" required style="width:100%;padding:12px;border:1px solid #cfd9ea;border-radius:12px"></label>
@@ -34,14 +34,15 @@ export async function renderLoginPage(container, { onLogin = null } = {}) {
 
   const form = container.querySelector('#nh-login-form');
   const status = container.querySelector('#nh-login-status');
+  const authMessage = 'Configuração de autenticação indisponível.';
   const supabase = await createSupabaseAuthClient();
   if (!supabase) {
-    status.textContent = 'Configuração de autenticação indisponível.';
+    status.textContent = authMessage;
   }
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!supabase) {
-      status.textContent = 'Configuração de autenticação indisponível.';
+      status.textContent = authMessage;
       return;
     }
     const formData = new FormData(form);
@@ -54,6 +55,6 @@ export async function renderLoginPage(container, { onLogin = null } = {}) {
     }
     saveAuthSession(data.session);
     if (typeof onLogin === 'function') onLogin(data.session);
-    window.location.hash = '#/product-editor';
+    window.location.hash = '#/dashboard-comercial';
   });
 }

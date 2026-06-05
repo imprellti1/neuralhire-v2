@@ -16,7 +16,8 @@ export function setupFrontendDom(hash = '#/', hostname = 'localhost') {
   };
   window.__NEURALHIRE_SUPABASE_CREATE_CLIENT__ = () => ({
     auth: {
-      signInWithPassword: async () => ({ data: { session: { access_token: 'test-token' } }, error: null })
+      signInWithPassword: async () => ({ data: { session: { access_token: 'test-token' } }, error: null }),
+      getUser: async () => ({ data: { user: { id: 'test-user', email: 'test@neuralhire.com.br' } }, error: null })
     }
   });
   Object.defineProperty(global, 'navigator', {
@@ -28,12 +29,37 @@ export function setupFrontendDom(hash = '#/', hostname = 'localhost') {
   global.URL = dom.window.URL;
   global.Event = dom.window.Event;
   global.KeyboardEvent = dom.window.KeyboardEvent;
+  window.requestAnimationFrame = (callback) => setTimeout(callback, 16);
+  window.cancelAnimationFrame = clearTimeout;
   return dom;
 }
 
+export function mockAuthenticatedSession(session = {}) {
+  const authSession = {
+    access_token: session.access_token || 'test-token',
+    refresh_token: session.refresh_token || 'test-refresh-token',
+    token_type: session.token_type || 'bearer',
+    user: session.user || { id: 'test-user', email: 'test@neuralhire.com.br' },
+    expires_at: session.expires_at || Math.floor(Date.now() / 1000) + 3600,
+    ...session
+  };
+  window.localStorage.setItem('neuralhire.supabase.session', JSON.stringify(authSession));
+  window.localStorage.setItem('neuralhire.supabase.access_token', authSession.access_token);
+  window.__NEURALHIRE_SUPABASE_CREATE_CLIENT__ = () => ({
+    auth: {
+      signInWithPassword: async () => ({ data: { session: authSession }, error: null }),
+      getUser: async () => ({ data: { user: authSession.user }, error: null })
+    }
+  });
+  return authSession;
+}
+
 export function teardownFrontendDom(dom) {
-  if (typeof global.window !== 'undefined') {
-    delete global.window.__NEURALHIRE_SUPABASE_CREATE_CLIENT__;
+  const win = typeof global.window !== 'undefined' ? global.window : null;
+  if (win) {
+    delete win.__NEURALHIRE_SUPABASE_CREATE_CLIENT__;
+    delete win.requestAnimationFrame;
+    delete win.cancelAnimationFrame;
   }
   dom.window.close();
   delete global.window;

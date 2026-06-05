@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bootstrapWebApp } from '../../app.js';
-import { setupFrontendDom, teardownFrontendDom, flush, dispatchInput } from '../../testing/frontend-test-helpers.js';
+import { dispatchInput, flush, mockAuthenticatedSession, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 import { installFetchMock, getSanitizedFetchCalls, assertNoSensitiveTransportFields } from '../../testing/mocks/api-client.mock.js';
 
 test('fabricantes: modal novo abre com title e bloqueio por CNPJ', async () => {
-  const dom = setupFrontendDom('#/fabricantes');
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
   installFetchMock({ 'GET /fabricantes': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }) });
   bootstrapWebApp();
   await flush(); await flush();
@@ -18,7 +19,8 @@ test('fabricantes: modal novo abre com title e bloqueio por CNPJ', async () => {
 });
 
 test('fabricantes: buscar CNPJ habilita com 14 digitos e preenche campos', async () => {
-  const dom = setupFrontendDom('#/fabricantes');
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
   installFetchMock({
     'GET /fabricantes': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }),
     'GET /cnpj/12345678000190': () => ({ ok: true, data: { cnpj: '12345678000190', razao_social: 'Empresa Teste LTDA', nome_fantasia: 'Teste', email: 'contato@teste.com', telefone: '11999990000', site: 'https://teste.com', endereco: { logradouro: 'Rua X', numero: '10', complemento: '', bairro: 'Centro', cidade: 'Sao Paulo', uf: 'SP', cep: '01000000' }, atividade_principal: 'Comercio' } }),
@@ -40,7 +42,8 @@ test('fabricantes: buscar CNPJ habilita com 14 digitos e preenche campos', async
 });
 
 test('fabricantes: falha de consulta libera preenchimento manual', async () => {
-  const dom = setupFrontendDom('#/fabricantes');
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
   installFetchMock({
     'GET /fabricantes': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }),
     'GET /cnpj/12345678000190': () => { throw new Error('fail'); }
@@ -59,7 +62,8 @@ test('fabricantes: falha de consulta libera preenchimento manual', async () => {
 });
 
 test('fabricantes: regras comerciais em aba separada e lista sem prazo maximo', async () => {
-  const dom = setupFrontendDom('#/fabricantes');
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
   installFetchMock({
     'GET /fabricantes': () => ({ items: [{ id: 'f1', nome: 'Fábrica 1', cnpj: '123', status: 'ativo', pedido_minimo: 10, boleto_minimo: 20, comissao_padrao_percentual: 5 }], pagination: { page: 1, totalPages: 1, total: 1, limit: 20 } })
   });
@@ -75,7 +79,8 @@ test('fabricantes: regras comerciais em aba separada e lista sem prazo maximo', 
 });
 
 test('fabricantes: salva sem campos sensiveis', async () => {
-  const dom = setupFrontendDom('#/fabricantes');
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
   installFetchMock({
     'GET /fabricantes': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }),
     'GET /cnpj/12345678000190': () => ({ ok: true, data: { cnpj: '12345678000190' } }),

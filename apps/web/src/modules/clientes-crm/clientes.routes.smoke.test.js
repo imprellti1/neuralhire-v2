@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bootstrapWebApp } from '../../app.js';
-import { dispatchInput, flush, setHash, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
+import { dispatchInput, flush, mockAuthenticatedSession, setHash, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 import { createClientesMockHandlers } from '../../testing/mocks/clientes.mock.js';
 import { assertNoSensitiveTransportFields, getSanitizedFetchCalls, installFetchMock } from '../../testing/mocks/api-client.mock.js';
 import { assertTransportSnapshot } from '../../testing/transport-snapshot.js';
@@ -9,6 +9,7 @@ import { assertClientePostPayload } from '../../testing/payload-contracts.js';
 
 test('clientes: listagem/detalhe/criacao + contrato + snapshot', async () => {
   const dom = setupFrontendDom('#/clientes');
+  mockAuthenticatedSession();
   installFetchMock(createClientesMockHandlers());
   bootstrapWebApp();
   await flush(); await flush();
@@ -30,6 +31,7 @@ test('clientes: listagem/detalhe/criacao + contrato + snapshot', async () => {
 
 test('clientes: GET sucesso + detalhe 404 e GET sucesso + detalhe 500', async () => {
   const dom404 = setupFrontendDom('#/clientes');
+  mockAuthenticatedSession();
   installFetchMock(createClientesMockHandlers({ scenario: 'notFound' }));
   bootstrapWebApp();
   await flush(); await flush();
@@ -40,6 +42,7 @@ test('clientes: GET sucesso + detalhe 404 e GET sucesso + detalhe 500', async ()
   teardownFrontendDom(dom404);
 
   const dom500 = setupFrontendDom('#/clientes');
+  mockAuthenticatedSession();
   installFetchMock(createClientesMockHandlers({ scenario: 'serverError' }));
   bootstrapWebApp();
   await flush(); await flush();
@@ -52,6 +55,7 @@ test('clientes: GET sucesso + detalhe 404 e GET sucesso + detalhe 500', async ()
 
 test('clientes: POST 422 e POST 500 em criação com erro seguro', async () => {
   const dom422 = setupFrontendDom('#/clientes/novo');
+  mockAuthenticatedSession();
   installFetchMock(createClientesMockHandlers({ scenario: 'createValidationError' }));
   bootstrapWebApp();
   await flush();
@@ -63,6 +67,7 @@ test('clientes: POST 422 e POST 500 em criação com erro seguro', async () => {
   teardownFrontendDom(dom422);
 
   const dom500 = setupFrontendDom('#/clientes/novo');
+  mockAuthenticatedSession();
   installFetchMock(createClientesMockHandlers({ scenario: 'createServerError' }));
   bootstrapWebApp();
   await flush();
@@ -77,6 +82,7 @@ test('clientes: POST 422 e POST 500 em criação com erro seguro', async () => {
 
 test('clientes: cenario misto com listagem sucesso + detalhe 404/500 + criacao 422/500', async () => {
   const dom404 = setupFrontendDom('#/clientes');
+  mockAuthenticatedSession();
   installFetchMock(createClientesMockHandlers({
     overrides: {
       'GET /clientes/c1': () => ({ __mockError: true, status: 404, body: { error: { message: 'Cliente nao encontrado' } } })
@@ -90,6 +96,7 @@ test('clientes: cenario misto com listagem sucesso + detalhe 404/500 + criacao 4
   teardownFrontendDom(dom404);
 
   const dom500 = setupFrontendDom('#/clientes');
+  mockAuthenticatedSession();
   installFetchMock(createClientesMockHandlers({
     overrides: {
       'GET /clientes/c1': () => ({ __mockError: true, status: 500, body: { error: { message: 'Erro interno' } } })
@@ -103,6 +110,7 @@ test('clientes: cenario misto com listagem sucesso + detalhe 404/500 + criacao 4
   teardownFrontendDom(dom500);
 
   const dom422 = setupFrontendDom('#/clientes/novo');
+  mockAuthenticatedSession();
   installFetchMock(createClientesMockHandlers({ scenario: 'createValidationError' }));
   bootstrapWebApp();
   await flush();
@@ -116,6 +124,7 @@ test('clientes: cenario misto com listagem sucesso + detalhe 404/500 + criacao 4
   teardownFrontendDom(dom422);
 
   const dom500Create = setupFrontendDom('#/clientes/novo');
+  mockAuthenticatedSession();
   installFetchMock(createClientesMockHandlers({ scenario: 'createServerError' }));
   bootstrapWebApp();
   await flush();

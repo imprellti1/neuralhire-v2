@@ -1,0 +1,9 @@
+:root {
+  --neuralhire-purple: #8B5CF6;
+  --neuralhire-blue: #22C3FF;
+  --neuralhire-dark: #07111F;
+  --neuralhire-ink: #0B1020;
+  --neuralhire-white: #FFFFFF;
+  --neuralhire-muted: #A7B0C0;
+  --neuralhire-gradient: linear-gradient(135deg, #8B5CF6 0%, #22C3FF 100%);
+}

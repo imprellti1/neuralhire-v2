@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bootstrapWebApp } from '../../app.js';
-import { setupFrontendDom, teardownFrontendDom, flush } from '../../testing/frontend-test-helpers.js';
+import { flush, mockAuthenticatedSession, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 import { installFetchMock } from '../../testing/mocks/api-client.mock.js';
 
 test('legacy import route smoke', async () => {
-  const dom = setupFrontendDom('#/legacy-import');
+  const dom = setupFrontendDom('#/legacy-import', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
   installFetchMock({
     'GET /legacy-import/status': () => ({ enabled: true, environment: 'development', supportedEntities: ['clientes'], mode: 'preview', warnings: [] })
   });

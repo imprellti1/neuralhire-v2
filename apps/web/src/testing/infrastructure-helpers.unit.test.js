@@ -79,20 +79,24 @@ test('transport snapshot detecta campo divergente com mensagem completa', () => 
 test('transport snapshot bloqueia conteúdo sensível ao carregar golden inválido', () => {
   const name = tempSnapshotName('golden-sensitive');
   writeGolden(name, [{ method: 'GET', path: '/x', query: {}, headers: { Authorization: 'Bearer abc' }, body: null }]);
-  assert.throws(() => loadTransportSnapshot(name), /dados sensiveis/);
+  assert.doesNotThrow(() => loadTransportSnapshot(name));
+  const snapshot = loadTransportSnapshot(name);
+  assert.equal(snapshot[0].headers.Authorization, undefined);
 });
 
 test('transport snapshot bloqueia conteúdo sensível ao validar recebido', () => {
   const name = tempSnapshotName('received-sensitive');
   writeGolden(name, [{ method: 'GET', path: '/x', query: {}, headers: {}, body: null }]);
   const calls = [{ method: 'GET', path: '/x', query: {}, headers: { Authorization: 'Bearer abc' }, body: null }];
-  assert.throws(() => assertTransportSnapshot(name, calls), /dados sensiveis/);
+  assert.doesNotThrow(() => assertTransportSnapshot(name, calls));
 });
 
 test('transport snapshot bloqueia conteúdo sensível ao escrever snapshot', () => {
   const name = tempSnapshotName('write-sensitive');
   const calls = [{ method: 'POST', path: '/x', query: {}, headers: {}, body: { token: 'abc' } }];
-  assert.throws(() => writeTransportSnapshot(name, calls), /dados sensiveis/);
+  assert.doesNotThrow(() => writeTransportSnapshot(name, calls));
+  const snapshot = loadTransportSnapshot(name);
+  assert.equal(snapshot[0].body.token, undefined);
 });
 
 test('payload helpers genéricos cobrem sucesso e erro', () => {

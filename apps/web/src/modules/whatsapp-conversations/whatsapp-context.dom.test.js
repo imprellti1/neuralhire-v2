@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bootstrapWebApp } from '../../app.js';
-import { setupFrontendDom, teardownFrontendDom, flush, findButtonByText } from '../../testing/frontend-test-helpers.js';
+import { flush, findButtonByText, mockAuthenticatedSession, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 import { installFetchMock } from '../../testing/mocks/api-client.mock.js';
 
 test('whatsapp conversations customer memory dom', async () => {
-  const dom = setupFrontendDom('#/whatsapp-conversations');
+  const dom = setupFrontendDom('#/whatsapp-conversations', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
   installFetchMock({
     'GET /whatsapp/conversations': () => ({ items: [{ id: 'conv-1', contact_name: 'Ana', phone: '5511999999999', status: 'open' }], total: 1, page: 1, limit: 20, totalPages: 1 }),
     'GET /whatsapp/conversations/conv-1/context': () => ({
