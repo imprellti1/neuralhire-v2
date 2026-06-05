@@ -8,8 +8,8 @@ test('product editor renderiza lista, editor e salva sem campos sensiveis', asyn
   let patchCalls = [];
   const apiClient = {
     async get(path) {
-      if (path === '/product-editor/products') return { items: [{ id: 'p1', nome: 'Produto 1', sku: 'SKU1', fabricante: { nome: 'Fab 1' }, status: 'ativo' }], pagination: { page: 1, totalPages: 1, total: 1, limit: 20 } };
-      if (path === '/product-editor/products/p1') return { id: 'p1', nome: 'Produto 1', sku: 'SKU1', imagemUrl: 'https://img.test/a.jpg' };
+      if (path === '/produtos') return { items: [{ id: 'p1', nome: 'Produto 1', sku: 'SKU1', fabricante: { nome: 'Fab 1' }, status: 'ativo' }], pagination: { page: 1, totalPages: 1, total: 1, limit: 20 } };
+      if (path === '/produtos/p1') return { id: 'p1', nome: 'Produto 1', sku: 'SKU1', imagemUrl: 'https://img.test/a.jpg' };
       if (path === '/product-editor/products/p1/variations') return { items: [{ id: 'v1', sku: 'VAR1', cor: 'Azul', tamanho: 'M', estoque: 1, preco: 10, imagemUrl: '', ativo: true }] };
       throw new Error(path);
     },
@@ -25,6 +25,6 @@ test('product editor renderiza lista, editor e salva sem campos sensiveis', asyn
   dispatchInput(root.querySelector('#pe-nome'), 'Produto Editado');
   root.querySelector('#pe-save').click();
   await flush(); await flush();
-  assert.ok(patchCalls.some((call) => call.path === '/product-editor/products/p1'));
+  assert.ok(patchCalls.some((call) => call.path === '/produtos/p1'));
   teardownFrontendDom(dom);
 });

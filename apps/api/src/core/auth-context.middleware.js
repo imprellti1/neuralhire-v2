@@ -1,5 +1,6 @@
 import { getSupabaseClient, getSupabaseStatus, resolveAccountMembership } from '../database/supabase.client.js';
 import { env } from '../config/env.js';
+import { UnauthorizedError, ForbiddenError } from './errors.js';
 
 function parseBearerToken(headerValue) {
   if (!headerValue || typeof headerValue !== 'string') return null;
@@ -49,6 +50,11 @@ export function authContextMiddleware() {
       jwtClaims: buildJwtClaims()
     };
 
+    if (env.AUTH_MODE === 'supabase' && testRole) {
+      context.auth.authError = 'TEST_HEADERS_DISABLED';
+      return true;
+    }
+
     if (testRole) {
       const normalizedRole = String(testRole).toLowerCase();
       const normalizedAccountId = testAccountId || null;
@@ -63,6 +69,7 @@ export function authContextMiddleware() {
         authError: null,
         jwtClaims: buildJwtClaims({ role: normalizedRole, accountId: normalizedAccountId, rawAvailable: true })
       };
+      context.accountId = normalizedAccountId;
       return true;
     }
 
@@ -82,18 +89,25 @@ export function authContextMiddleware() {
 
     const { data, error } = await supabase.auth.getUser(token);
     if (error || !data?.user) {
-      context.auth = {
-        ...context.auth,
-        tokenPresent: true,
-        authError: 'INVALID_TOKEN'
-      };
-      return true;
+      throw new UnauthorizedError('Token Supabase invalido', {
+        code: 'INVALID_TOKEN',
+        domain: 'autenticacao-contas',
+        details: { supabaseConfigured: supabaseStatus.configured, source: 'supabase' }
+      });
     }
 
     const user = data.user;
-    const membership = await resolveAccountMembership(supabase, user.id);
+    const membership = await resolveAccountMembership(supabase, user.id, user.email);
     const role = membership?.role || user.app_metadata?.role || user.user_metadata?.role || 'user';
     const accountId = membership?.account_id || getAccountIdFromUser(user);
+
+    if (!accountId) {
+      throw new ForbiddenError('Usuario sem vinculo com conta', {
+        code: 'ACCOUNT_MEMBERSHIP_REQUIRED',
+        domain: 'autenticacao-contas',
+        details: { userId: user.id }
+      });
+    }
 
     context.auth = {
       authenticated: true,
@@ -107,6 +121,8 @@ export function authContextMiddleware() {
       authError: null,
       jwtClaims: buildJwtClaims({ role, accountId, rawAvailable: true })
     };
+    context.auth.accountId = accountId;
+    context.accountId = accountId;
 
     return true;
   };

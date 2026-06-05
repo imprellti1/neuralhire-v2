@@ -1,26 +1,21 @@
 -- NeuralHire v2
 -- Seed seguro para homologacao com Supabase real.
 -- Execucao via SQL Editor:
--- Substitua homologacao_auth_user_id abaixo pelo UUID real
--- encontrado em Authentication > Users.
+-- UUID de homologacao validado em Authentication > Users.
 -- Requisitos:
 -- - criar/confirmar o usuario no Supabase Auth pelo painel
--- - definir o GUC neuralhire.homologacao_auth_user_id na mesma sessao antes de executar este script
---   exemplo:
---   select set_config('neuralhire.homologacao_auth_user_id', '00000000-0000-0000-0000-000000000000', false);
 
 do $$
 declare
   v_account_id uuid := '7b8d9d4f-7c67-4a3f-8c85-5f6d5df1a114';
-  homologacao_auth_user_id uuid := null;
+  homologacao_auth_user_id uuid := '7dfcb407-28ed-42b0-92da-ca2b25b8675c'::uuid;
 begin
-  homologacao_auth_user_id := coalesce(
-    nullif(current_setting('neuralhire.homologacao_auth_user_id', true), '')::uuid,
-    homologacao_auth_user_id
-  );
-
-  if homologacao_auth_user_id is null then
-    raise exception 'Informe um auth.users.id valido antes de executar o seed. Use select set_config(''neuralhire.homologacao_auth_user_id'', ''<UUID>'', false) ou substitua homologacao_auth_user_id no script.';
+  if not exists (
+    select 1
+      from auth.users
+     where id = homologacao_auth_user_id
+  ) then
+    raise exception 'Usuário de homologação não encontrado em auth.users';
   end if;
 
   insert into public.accounts (id, name, slug, status, created_at, updated_at)
@@ -42,19 +37,25 @@ begin
          nome = 'NeuralHire Homologação',
          role = 'owner',
          updated_at = now()
-   where account_id = v_account_id
-     and user_id = homologacao_auth_user_id;
+ where account_id = v_account_id;
 
   if not exists (
     select 1
-     from public.account_users
+      from public.account_users
      where account_id = v_account_id
-       and user_id = homologacao_auth_user_id
   ) then
-    insert into public.account_users (account_id, user_id, email, nome, role, created_at, updated_at)
+    insert into public.account_users (
+      id,
+      account_id,
+      email,
+      nome,
+      role,
+      created_at,
+      updated_at
+    )
     values (
+      gen_random_uuid(),
       v_account_id,
-      homologacao_auth_user_id,
       'homologacao@neuralhire.local',
       'NeuralHire Homologação',
       'owner',
@@ -65,9 +66,9 @@ begin
 
   insert into public.fabricantes (id, account_id, nome, razao_social, cnpj, logo_url, status, pedido_minimo, boleto_minimo, comissao_padrao_percentual, prazo_maximo_dias, observacoes, created_at, updated_at)
   values
-    ('11111111-1111-1111-1111-111111111111', v_account_id::text, 'Aurora Componentes', 'Aurora Componentes Industriais Ltda.', null, null, 'ativo', 1500, 0, 4.5, 21, 'Fabricante ficticio para homologacao', now(), now()),
-    ('22222222-2222-2222-2222-222222222222', v_account_id::text, 'Atlas Ferragens', 'Atlas Ferragens e Acessorios Ltda.', null, null, 'ativo', 1000, 0, 3.75, 14, 'Fabricante ficticio para homologacao', now(), now()),
-    ('33333333-3333-3333-3333-333333333333', v_account_id::text, 'Nexo Materiais', 'Nexo Materiais Industriais Ltda.', null, null, 'ativo', 2000, 0, 5.0, 28, 'Fabricante ficticio para homologacao', now(), now())
+    ('11111111-1111-1111-1111-111111111111', v_account_id, 'Aurora Componentes', 'Aurora Componentes Industriais Ltda.', null, null, 'ativo', 1500, 0, 4.5, 21, 'Fabricante ficticio para homologacao', now(), now()),
+    ('22222222-2222-2222-2222-222222222222', v_account_id, 'Atlas Ferragens', 'Atlas Ferragens e Acessorios Ltda.', null, null, 'ativo', 1000, 0, 3.75, 14, 'Fabricante ficticio para homologacao', now(), now()),
+    ('33333333-3333-3333-3333-333333333333', v_account_id, 'Nexo Materiais', 'Nexo Materiais Industriais Ltda.', null, null, 'ativo', 2000, 0, 5.0, 28, 'Fabricante ficticio para homologacao', now(), now())
   on conflict (id) do update
     set nome = excluded.nome,
         razao_social = excluded.razao_social,

@@ -55,6 +55,7 @@ export function getEnvSummary() {
     corsOrigin: env.CORS_ORIGIN,
     supabaseConfigured: Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY),
     hasServiceRoleKey: Boolean(env.SUPABASE_SERVICE_ROLE_KEY),
-    hasAnonKey: Boolean(env.SUPABASE_ANON_KEY)
+    hasAnonKey: Boolean(env.SUPABASE_ANON_KEY),
+    publicInterestAccountConfigured: Boolean(env.PUBLIC_INTEREST_ACCOUNT_ID || env.INTEREST_LEADS_ACCOUNT_ID)
   };
 }

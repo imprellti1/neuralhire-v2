@@ -1,6 +1,7 @@
 export const ROLES = {
   SUPER_ADMIN: 'super_admin',
   ADMIN: 'admin',
+  OWNER: 'owner',
   MANAGER: 'manager',
   SALES: 'sales',
   VIEWER: 'viewer',
@@ -9,6 +10,7 @@ export const ROLES = {
 
 export const ROLE_HIERARCHY = {
   super_admin: 100,
+  owner: 90,
   admin: 80,
   manager: 60,
   sales: 40,
@@ -19,6 +21,8 @@ export const ROLE_HIERARCHY = {
 export const PERMISSIONS = {
   CLIENTES_READ: 'clientes:read',
   CLIENTES_WRITE: 'clientes:write',
+  FABRICANTES_READ: 'fabricantes:read',
+  FABRICANTES_WRITE: 'fabricantes:write',
   PEDIDOS_READ: 'pedidos:read',
   PEDIDOS_WRITE: 'pedidos:write',
   PEDIDOS_STATUS_UPDATE: 'pedidos:status:update',
@@ -34,19 +38,20 @@ export const PERMISSIONS = {
 
 export const ROLE_PERMISSIONS = {
   super_admin: ['*'],
+  owner: ['clientes:read', 'clientes:write', 'fabricantes:read', 'fabricantes:write', 'pedidos:read', 'pedidos:write', 'pedidos:status:update', 'produtos:read', 'produtos:write', 'analytics:read', 'followup:read', 'followup:write', 'system:admin'],
   admin: [
-    'clientes:read', 'clientes:write', 'pedidos:read', 'pedidos:write', 'pedidos:status:update',
+    'clientes:read', 'clientes:write', 'fabricantes:read', 'fabricantes:write', 'pedidos:read', 'pedidos:write', 'pedidos:status:update',
     'produtos:read', 'produtos:write', 'analytics:read', 'followup:read', 'followup:write', 'system:admin'
   ],
-  manager: ['clientes:read', 'clientes:write', 'pedidos:read', 'pedidos:write', 'pedidos:status:update', 'produtos:read', 'analytics:read', 'followup:read', 'followup:write'],
-  sales: ['clientes:read', 'clientes:write', 'pedidos:read', 'pedidos:write', 'produtos:read', 'analytics:read', 'followup:read'],
-  viewer: ['clientes:read', 'pedidos:read', 'produtos:read', 'analytics:read'],
+  manager: ['clientes:read', 'clientes:write', 'fabricantes:read', 'pedidos:read', 'pedidos:write', 'pedidos:status:update', 'produtos:read', 'analytics:read', 'followup:read', 'followup:write'],
+  sales: ['clientes:read', 'clientes:write', 'fabricantes:read', 'pedidos:read', 'pedidos:write', 'produtos:read', 'analytics:read', 'followup:read'],
+  viewer: ['clientes:read', 'fabricantes:read', 'pedidos:read', 'produtos:read', 'analytics:read'],
   user: []
 };
 
 export function normalizeRole(role) {
   const normalized = String(role || '').toLowerCase();
-  if (!ROLE_HIERARCHY[normalized]) return ROLES.USER;
+  if (!(normalized in ROLE_HIERARCHY)) return ROLES.USER;
   return normalized;
 }
 

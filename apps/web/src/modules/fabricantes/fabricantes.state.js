@@ -11,27 +11,29 @@ export function createFabricantesState() {
     items: [],
     selected: null,
     condicoes: [],
+    modalOpen: false,
+    modalTab: 'gerais',
+    cnpjLookupStatus: 'idle',
+    cnpjManualUnlock: false,
+    cnpjValidated: false,
+    cnpjMessage: '',
     form: {
+      cnpj: '',
       nome: '',
       razao_social: '',
-      cnpj: '',
+      nome_fantasia: '',
+      email_comercial: '',
+      telefone: '',
+      site: '',
       logo_url: '',
-      status: 'ativo',
+      responsavel_comercial: '',
+      regiao_atendida: '',
+      observacoes: '',
       pedido_minimo: 0,
       boleto_minimo: 0,
       comissao_padrao_percentual: 0,
-      prazo_maximo_dias: '',
-      observacoes: ''
+      condicoes_pagamento: ''
     },
-    condicaoForm: {
-      nome: '',
-      codigo: '',
-      parcelas: 1,
-      prazo_medio_dias: 0,
-      valor_minimo: 0,
-      percentual_acrescimo: 0,
-      ativo: true,
-      observacoes: ''
-    }
+    saveBlocked: true
   };
 }

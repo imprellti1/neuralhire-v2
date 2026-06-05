@@ -1,5 +1,3 @@
-console.error('[API CLIENT M1.11 ACTIVE]');
-
 function resolveDefaultApiUrl() {
   if (typeof window !== 'undefined' && window.__NEURALHIRE_CONFIG__?.VITE_API_URL) {
     return window.__NEURALHIRE_CONFIG__.VITE_API_URL;
@@ -26,12 +24,6 @@ function resolveRuntimeConfig() {
   };
 }
 
-function allowTestHeaders() {
-  const runtimeConfig = typeof window !== 'undefined' ? window.__NEURALHIRE_CONFIG__ || {} : {};
-  const envConfig = typeof import.meta !== 'undefined' ? import.meta.env || {} : {};
-  return Boolean(runtimeConfig.ALLOW_TEST_HEADERS || envConfig.ALLOW_TEST_HEADERS);
-}
-
 function getStoredSession() {
   if (typeof window === 'undefined') return null;
   try {
@@ -54,19 +46,15 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
       const accessToken = getStoredSession()?.access_token || (typeof window !== 'undefined' ? window.localStorage.getItem('neuralhire.supabase.access_token') : null);
       if (accessToken) {
         mergedHeaders.Authorization = `Bearer ${accessToken}`;
-      } else if (allowTestHeaders()) {
-        const runtimeConfig = typeof window !== 'undefined' ? window.__NEURALHIRE_CONFIG__ || {} : {};
-        const envConfig = typeof import.meta !== 'undefined' ? import.meta.env || {} : {};
-        const demoAccountId = runtimeConfig.VITE_DEMO_ACCOUNT_ID || envConfig.VITE_DEMO_ACCOUNT_ID;
-        const demoRole = runtimeConfig.VITE_DEMO_ROLE || envConfig.VITE_DEMO_ROLE;
-        const demoUserId = runtimeConfig.VITE_DEMO_USER_ID || envConfig.VITE_DEMO_USER_ID;
-        if (demoAccountId) {
-          mergedHeaders['x-test-account-id'] = demoAccountId;
-          if (demoRole) mergedHeaders['x-test-role'] = demoRole;
-          if (demoUserId) mergedHeaders['x-test-user-id'] = demoUserId;
-        }
       }
     }
+
+    delete mergedHeaders['x-test-account-id'];
+    delete mergedHeaders['x-test-role'];
+    delete mergedHeaders['x-test-user-id'];
+    delete mergedHeaders['X-Test-Account-Id'];
+    delete mergedHeaders['X-Test-Role'];
+    delete mergedHeaders['X-Test-User-Id'];
 
     return mergedHeaders;
   }

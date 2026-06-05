@@ -19,3 +19,7 @@ export async function saveCondicaoPagamento(apiClient, fabricanteId, payload, co
     ? apiClient.patch(`/fabricantes/${fabricanteId}/condicoes-pagamento/${condicaoId}`, payload)
     : apiClient.post(`/fabricantes/${fabricanteId}/condicoes-pagamento`, payload);
 }
+
+export async function lookupCnpj(apiClient, cnpj) {
+  return apiClient.get(`/cnpj/${cnpj}`);
+}

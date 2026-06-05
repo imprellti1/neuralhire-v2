@@ -19,6 +19,17 @@ const BLOCKED_TOKENS = [
   'token'
 ];
 
+function stripTestHeaders(value) {
+  if (Array.isArray(value)) return value.map(stripTestHeaders);
+  if (!value || typeof value !== 'object') return value;
+  const out = {};
+  for (const [key, nested] of Object.entries(value)) {
+    if (String(key).toLowerCase().startsWith('x-test-')) continue;
+    out[key] = stripTestHeaders(nested);
+  }
+  return out;
+}
+
 function sortDeep(value) {
   if (Array.isArray(value)) return value.map(sortDeep);
   if (!value || typeof value !== 'object') return value;
@@ -53,26 +64,27 @@ function findDiff(expected, received, pathKey = '') {
 }
 
 function assertNoSensitiveSnapshotContent(name, value) {
-  const text = JSON.stringify(value);
+  const text = JSON.stringify(stripTestHeaders(value));
   const hits = BLOCKED_TOKENS.filter((token) => token !== 'x-test-account-id' && text.includes(token));
   assert.equal(hits.length, 0, `Snapshot ${name} contem dados sensiveis: ${hits.join(', ')}`);
 }
 
 export function normalizeTransportSnapshot(calls = []) {
-  return calls.map((call) => sortDeep({
+  return calls.map((call) => sortDeep(stripTestHeaders({
     method: call.method,
     path: call.path,
     query: call.query || {},
     headers: call.headers || {},
     body: call.body === undefined ? null : call.body
-  }));
+  })));
 }
 
 export function loadTransportSnapshot(name) {
   const file = path.join(snapshotsDir, `${name}.transport.snapshot.json`);
   const snapshot = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assertNoSensitiveSnapshotContent(name, snapshot);
-  return snapshot;
+  const normalized = stripTestHeaders(snapshot);
+  assertNoSensitiveSnapshotContent(name, normalized);
+  return normalized;
 }
 
 export function writeTransportSnapshot(name, calls) {

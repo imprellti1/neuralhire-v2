@@ -6,7 +6,7 @@ import { installFetchMock } from '../../testing/mocks/api-client.mock.js';
 
 test('product editor route smoke', async () => {
   const dom = setupFrontendDom('#/product-editor');
-  installFetchMock({ 'GET /product-editor/products': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }) });
+  installFetchMock({ 'GET /produtos': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }) });
   bootstrapWebApp();
   await flush(); await flush();
   assert.match(document.body.textContent, /Editor de Produtos/);

@@ -1,6 +1,7 @@
 import { runTestSuite } from '../test-runner.js';
 import { getAuthTests } from './auth.test.js';
 import { getRbacTests } from './rbac.test.js';
+import { getSupabaseMembershipTests } from './supabase-membership.test.js';
 import { getValidationTests } from './validation.test.js';
 import { getPublicRouteTests } from './public-routes.test.js';
 import { getCorsTests } from './cors.test.js';
@@ -61,6 +62,7 @@ import { getCustomerSuccessTimelineTests } from './customer-success-timeline.tes
 import { getPortfolioDashboardTests } from './portfolio-dashboard.test.js';
 import { getExecutivePortfolioAnalyticsTests } from './executive-portfolio-analytics.test.js';
 import { getFabricantesTests } from './fabricantes.test.js';
+import { getFabricantesTenantTests } from './fabricantes-tenant.test.js';
 import { getLegacyImportTests } from './legacy-import.test.js';
 import { getLegacyImportStagingTests } from './legacy-import-staging.test.js';
 import { getLegacyImportApprovalTests } from './legacy-import-approval.test.js';
@@ -82,6 +84,7 @@ async function main() {
   const suites = [
     ['Auth', getAuthTests()],
     ['RBAC', getRbacTests()],
+    ['Supabase Membership', getSupabaseMembershipTests()],
     ['Validation', getValidationTests()],
     ['Public Routes', getPublicRouteTests()],
     ['CORS', getCorsTests()],
@@ -156,6 +159,7 @@ async function main() {
     ['Billing Onboarding Integration', getBillingOnboardingIntegrationTests()],
     ['Executive Portfolio Analytics', getExecutivePortfolioAnalyticsTests()],
     ['Fabricantes', getFabricantesTests()],
+    ['Fabricantes Tenant', getFabricantesTenantTests()],
     ['Product Audit', getProductAuditTests()],
     ['Product Editor', getProductEditorTests()]
   ];

@@ -6,7 +6,7 @@ export const listFabricantesQuerySchema = {
 };
 
 export const createFabricanteSchema = {
-  nome: { required: true, type: 'string', minLength: 2, maxLength: 180 },
+  nome: { required: false, type: 'string', minLength: 2, maxLength: 180 },
   razao_social: { required: false, type: 'string', maxLength: 180 },
   cnpj: { required: false, type: 'string', maxLength: 20 },
   logo_url: { required: false, type: 'string', maxLength: 500 },
@@ -32,3 +32,7 @@ export const createCondicaoPagamentoSchema = {
 };
 
 export const updateCondicaoPagamentoSchema = createCondicaoPagamentoSchema;
+
+export const cnpjLookupSchema = {
+  cnpj: { required: true, type: 'string', minLength: 14, maxLength: 20 }
+};

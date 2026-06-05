@@ -200,6 +200,17 @@ const styles = `
   .nh-form input{border:1px solid #d7e1f1;border-radius:14px;padding:14px 16px;font:inherit}
   .nh-form .full{grid-column:1/-1}
   .nh-form button,.nh-mailbox button{border:0}
+  .nh-consent-banner{position:fixed;left:16px;right:16px;bottom:16px;z-index:80;display:none;justify-content:center;pointer-events:none}
+  .nh-consent-banner.is-visible{display:flex}
+  .nh-consent-card{width:min(960px,100%);display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 20px;border-radius:22px;background:rgba(7,17,31,.94);border:1px solid rgba(148,163,184,.2);box-shadow:0 20px 70px rgba(2,8,23,.36);backdrop-filter:blur(16px);pointer-events:auto}
+  .nh-consent-copy{color:#eff6ff;font-size:14px;line-height:1.55;max-width:720px}
+  .nh-consent-copy strong{display:block;font-size:15px;margin-bottom:4px}
+  .nh-consent-actions{display:flex;gap:10px;flex-shrink:0}
+  .nh-consent-btn{appearance:none;border:none;border-radius:999px;padding:12px 16px;font:inherit;font-weight:800;cursor:pointer}
+  .nh-consent-accept{background:linear-gradient(135deg,#8b5cf6,#22c3ff);color:#fff;box-shadow:0 14px 28px rgba(37,99,235,.28)}
+  .nh-consent-reject{background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(148,163,184,.24)}
+  .nh-consent-settings{margin-top:6px;font-size:12px;color:#9fb5d8}
+  .nh-consent-settings code{background:rgba(255,255,255,.08);padding:2px 6px;border-radius:6px;color:#eef6ff}
   .nh-whatsapp-band{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;align-items:stretch}
   .nh-whatsapp-panel{background:linear-gradient(180deg,#e8fbef,#effaf2);border:1px solid #cdebd8;border-radius:22px;padding:18px}
   .nh-whatsapp-meta{display:flex;gap:12px;align-items:center;margin-bottom:12px}
@@ -235,6 +246,9 @@ const styles = `
     .nh-live-demo__footer{flex-direction:column;align-items:flex-start}
     .nh-live-demo__actions{flex-direction:column;align-items:flex-start}
     .nh-live-demo__approval{flex-direction:column;align-items:flex-start}
+    .nh-consent-card{flex-direction:column;align-items:flex-start}
+    .nh-consent-actions{width:100%}
+    .nh-consent-btn{flex:1}
   }
   @media (prefers-reduced-motion: reduce){
     .nh-live-demo__rail::after,.nh-live-demo__message,.nh-live-demo__bubble,.nh-live-demo__suggest,.nh-live-demo__button,.nh-live-demo__approval,.nh-live-demo__progress span{animation:none !important;transition:none !important}
@@ -765,11 +779,93 @@ function buildLandingHtml() {
         </footer>
       </div>
     </main>
+    <div class="nh-consent-banner" data-consent-banner hidden>
+      <div class="nh-consent-card" role="dialog" aria-live="polite" aria-label="Consentimento de cookies">
+        <div class="nh-consent-copy">
+          <strong>Utilizamos cookies para melhorar sua experiência e medir acessos.</strong>
+          Ao aceitar, você permite a ativação do Analytics nesta landing. Você pode recusar e seguir navegando normalmente.
+          <div class="nh-consent-settings">Sua escolha fica salva em <code>localStorage</code>.</div>
+        </div>
+        <div class="nh-consent-actions">
+          <button type="button" class="nh-consent-btn nh-consent-reject" data-consent-reject>Recusar</button>
+          <button type="button" class="nh-consent-btn nh-consent-accept" data-consent-accept>Aceitar</button>
+        </div>
+      </div>
+    </div>
   `;
+}
+
+function loadGoogleAnalytics(measurementId) {
+  if (!measurementId || typeof document === 'undefined') return false;
+  if (window.__NEURALHIRE_GA_LOADED__) return true;
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function () {
+    window.dataLayer.push(arguments);
+  };
+  const script = document.createElement('script');
+  script.async = true;
+  script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(measurementId)}`;
+  document.head.appendChild(script);
+  window.gtag('js', new Date());
+  window.gtag('config', measurementId);
+  window.__NEURALHIRE_GA_LOADED__ = true;
+  return true;
+}
+
+function trackLandingLeadCaptured() {
+  if (typeof window === 'undefined' || typeof window.gtag !== 'function') return false;
+  window.gtag('event', 'lead_capturado', {
+    origem: 'landing'
+  });
+  return true;
 }
 
 export function renderPublicLandingPage(container, { apiClient } = {}) {
   container.innerHTML = `<style>${styles}</style>${buildLandingHtml()}`;
+  const consentKey = 'nh_cookie_consent';
+  const consentBanner = container.querySelector('[data-consent-banner]');
+  const acceptBtn = container.querySelector('[data-consent-accept]');
+  const rejectBtn = container.querySelector('[data-consent-reject]');
+  const measurementId = String(window.__NEURALHIRE_CONFIG__?.VITE_GA_MEASUREMENT_ID || '').trim();
+  const getStoredConsent = () => {
+    try {
+      return window.localStorage?.getItem(consentKey);
+    } catch {
+      return null;
+    }
+  };
+  const setStoredConsent = (value) => {
+    try {
+      window.localStorage?.setItem(consentKey, value);
+    } catch {
+      // Ignore storage failures and keep the banner functional.
+    }
+  };
+  const hideBanner = () => {
+    consentBanner?.classList.remove('is-visible');
+    consentBanner?.setAttribute('hidden', '');
+  };
+  const showBanner = () => {
+    consentBanner?.removeAttribute('hidden');
+    consentBanner?.classList.add('is-visible');
+  };
+  const consent = getStoredConsent();
+  if (consent === 'accepted' && measurementId) {
+    loadGoogleAnalytics(measurementId);
+  } else if (consent === 'rejected') {
+    hideBanner();
+  } else {
+    showBanner();
+  }
+  acceptBtn?.addEventListener('click', () => {
+    setStoredConsent('accepted');
+    loadGoogleAnalytics(measurementId);
+    hideBanner();
+  });
+  rejectBtn?.addEventListener('click', () => {
+    setStoredConsent('rejected');
+    hideBanner();
+  });
   const liveDemo = container.querySelector('[data-live-demo]');
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches || false;
   if (liveDemo) {
@@ -844,6 +940,7 @@ export function renderPublicLandingPage(container, { apiClient } = {}) {
       if (submitButton) submitButton.disabled = true;
       feedback.textContent = 'Enviando seu interesse...';
       await apiClient.post('/interest-leads', { nome, empresa, whatsapp, email });
+      trackLandingLeadCaptured();
       feedback.textContent = 'Interesse registrado com sucesso. Avisaremos quando o acesso antecipado estiver disponível.';
       form.reset();
     } catch (error) {

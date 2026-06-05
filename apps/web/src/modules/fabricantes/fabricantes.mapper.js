@@ -14,7 +14,6 @@ export function mapFabricantesData(response = {}) {
       pedidoMinimoExibicao: Number(item?.pedido_minimo || 0),
       boletoMinimoExibicao: Number(item?.boleto_minimo || 0),
       comissaoExibicao: Number(item?.comissao_padrao_percentual || 0),
-      prazoMaximoExibicao: item?.prazo_maximo_dias ?? '-',
       semLogo: !item?.logo_url,
       createdAtDate: asDate(item?.created_at || item?.createdAt)
     })),

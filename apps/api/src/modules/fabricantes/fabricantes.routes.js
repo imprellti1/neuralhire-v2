@@ -1,11 +1,14 @@
 import { asyncHandler } from '../../core/async-handler.js';
 import { sendSuccess } from '../../core/response.js';
+import { requirePermission } from '../../core/rbac.middleware.js';
+import { requireTenant } from '../../core/tenant.middleware.js';
 import {
   createCondicaoPagamentoHandler,
   createFabricanteHandler,
   getCondicoesPagamento,
   getFabricante,
   getFabricantes,
+  lookupCnpjHandler,
   updateCondicaoPagamentoHandler,
   updateFabricanteHandler
 } from './fabricantes.controller.js';
@@ -17,11 +20,15 @@ import {
 } from './fabricantes.schemas.js';
 
 export function registerFabricantesRoutes(router) {
-  router.registerRoute({ method: 'GET', path: '/fabricantes', domain: 'fabricantes', handler: asyncHandler(async (req, res, context) => sendSuccess(res, await getFabricantes(context))) });
-  router.registerRoute({ method: 'GET', path: '/fabricantes/:id', domain: 'fabricantes', handler: asyncHandler(async (req, res, context) => sendSuccess(res, await getFabricante(context))) });
-  router.registerRoute({ method: 'POST', path: '/fabricantes', domain: 'fabricantes', schema: createFabricanteSchema, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await createFabricanteHandler(context))) });
-  router.registerRoute({ method: 'PATCH', path: '/fabricantes/:id', domain: 'fabricantes', schema: updateFabricanteSchema, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await updateFabricanteHandler(context))) });
-  router.registerRoute({ method: 'GET', path: '/fabricantes/:id/condicoes-pagamento', domain: 'fabricantes', handler: asyncHandler(async (req, res, context) => sendSuccess(res, await getCondicoesPagamento(context))) });
-  router.registerRoute({ method: 'POST', path: '/fabricantes/:id/condicoes-pagamento', domain: 'fabricantes', schema: createCondicaoPagamentoSchema, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await createCondicaoPagamentoHandler(context))) });
-  router.registerRoute({ method: 'PATCH', path: '/fabricantes/:id/condicoes-pagamento/:condicaoId', domain: 'fabricantes', schema: updateCondicaoPagamentoSchema, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await updateCondicaoPagamentoHandler(context))) });
+  const readMiddlewares = [requirePermission('fabricantes:read'), requireTenant({ domain: 'fabricantes' })];
+  const writeMiddlewares = [requirePermission('fabricantes:write'), requireTenant({ domain: 'fabricantes' })];
+
+  router.registerRoute({ method: 'GET', path: '/fabricantes', domain: 'fabricantes', middlewares: readMiddlewares, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await getFabricantes(context))) });
+  router.registerRoute({ method: 'GET', path: '/fabricantes/:id', domain: 'fabricantes', middlewares: readMiddlewares, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await getFabricante(context))) });
+  router.registerRoute({ method: 'POST', path: '/fabricantes', domain: 'fabricantes', middlewares: writeMiddlewares, schema: createFabricanteSchema, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await createFabricanteHandler(context))) });
+  router.registerRoute({ method: 'PATCH', path: '/fabricantes/:id', domain: 'fabricantes', middlewares: writeMiddlewares, schema: updateFabricanteSchema, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await updateFabricanteHandler(context))) });
+  router.registerRoute({ method: 'GET', path: '/fabricantes/:id/condicoes-pagamento', domain: 'fabricantes', middlewares: readMiddlewares, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await getCondicoesPagamento(context))) });
+  router.registerRoute({ method: 'POST', path: '/fabricantes/:id/condicoes-pagamento', domain: 'fabricantes', middlewares: writeMiddlewares, schema: createCondicaoPagamentoSchema, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await createCondicaoPagamentoHandler(context))) });
+  router.registerRoute({ method: 'PATCH', path: '/fabricantes/:id/condicoes-pagamento/:condicaoId', domain: 'fabricantes', middlewares: writeMiddlewares, schema: updateCondicaoPagamentoSchema, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await updateCondicaoPagamentoHandler(context))) });
+  router.registerRoute({ method: 'GET', path: '/cnpj/:cnpj', domain: 'fabricantes', middlewares: [requirePermission('fabricantes:read'), requireTenant({ domain: 'fabricantes' })], schema: null, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await lookupCnpjHandler(context))) });
 }
