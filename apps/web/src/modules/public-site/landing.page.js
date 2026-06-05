@@ -102,13 +102,14 @@ const styles = `
   .nh-hero-preview-card.a{background:linear-gradient(180deg,rgba(9,15,27,.98),rgba(11,18,33,.94));box-shadow:0 24px 60px rgba(10,18,34,.32),0 0 0 1px rgba(255,255,255,.03) inset}
   .nh-hero-preview-card.b{background:linear-gradient(180deg,rgba(8,29,20,.96),rgba(7,20,15,.94));border-color:rgba(67,181,129,.16);box-shadow:0 24px 60px rgba(6,44,30,.24),0 0 0 1px rgba(255,255,255,.03) inset}
   .nh-hero-preview-card.c{background:linear-gradient(180deg,rgba(10,16,30,.98),rgba(8,14,26,.94));box-shadow:0 24px 60px rgba(8,16,33,.3),0 0 0 1px rgba(255,255,255,.03) inset}
-  .nh-live-demo{position:relative;min-height:388px;border-radius:30px;padding:18px;overflow:hidden;border:1px solid rgba(148,163,184,.16);background:
+  .nh-live-demo{position:relative;display:flex;flex-direction:column;height:100%;min-height:0;gap:14px}
+  .nh-live-demo-frame{position:relative;flex:1;aspect-ratio:16/10;min-height:420px;max-height:520px;overflow:hidden;border-radius:30px;padding:18px;border:1px solid rgba(148,163,184,.16);background:
     radial-gradient(circle at 18% 14%,rgba(139,92,246,.18),transparent 28%),
     radial-gradient(circle at 84% 10%,rgba(34,195,255,.16),transparent 24%),
     linear-gradient(180deg,rgba(7,12,24,.98),rgba(7,13,24,.9));box-shadow:0 28px 72px rgba(2,8,23,.34),0 0 0 1px rgba(255,255,255,.03) inset}
-  .nh-live-demo::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.04),transparent 28%,rgba(255,255,255,.02));pointer-events:none}
-  .nh-live-demo::after{content:'';position:absolute;inset:auto 10% -22% 8%;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(37,211,102,.16),rgba(37,211,102,0) 68%);filter:blur(10px);pointer-events:none}
-  .nh-live-demo__frame{position:relative;z-index:1;display:grid;grid-template-rows:auto auto 1fr;gap:14px;min-height:100%}
+  .nh-live-demo-frame::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.04),transparent 28%,rgba(255,255,255,.02));pointer-events:none}
+  .nh-live-demo-frame::after{content:'';position:absolute;inset:auto 10% -22% 8%;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(37,211,102,.16),rgba(37,211,102,0) 68%);filter:blur(10px);pointer-events:none}
+  .nh-live-demo__frame{position:relative;z-index:1;display:grid;grid-template-rows:auto auto 1fr;gap:14px;min-height:100%;height:100%}
   .nh-live-demo__top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
   .nh-live-demo__badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:rgba(37,211,102,.12);border:1px solid rgba(37,211,102,.2);color:#9cf1be;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
   .nh-live-demo__status{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(148,163,184,.14);color:#cfe0fb;font-size:12px;font-weight:700}
@@ -153,7 +154,7 @@ const styles = `
   .nh-live-demo__progress span{display:block;height:100%;width:0;background:linear-gradient(90deg,#8b5cf6,#22c3ff,#25d366);box-shadow:0 0 24px rgba(34,195,255,.28);transition:width .45s ease}
   .nh-live-demo__tag{display:inline-flex;align-items:center;gap:8px;padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(148,163,184,.12);color:#cfe0fb;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
   .nh-live-demo__tag .dot{width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,#25d366,#16a34a);box-shadow:0 0 0 6px rgba(37,211,102,.1)}
-  .nh-whatsapp-hero{display:grid;gap:14px;height:auto;min-height:0;padding:20px}
+  .nh-whatsapp-hero{display:flex;flex-direction:column;gap:14px;height:100%;min-height:0;padding:20px}
   .nh-whatsapp-hero__head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
   .nh-whatsapp-hero__eyebrow{display:inline-flex;align-items:center;gap:10px;color:#9cf1be;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px}
   .nh-whatsapp-hero__status-dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,#25d366,#16a34a);box-shadow:0 0 0 6px rgba(37,211,102,.1)}
@@ -253,7 +254,8 @@ const styles = `
     .nh-hero-preview-band{padding:14px}
     .nh-hero-preview-head{flex-direction:column}
     .nh-hero-preview-card{min-height:unset}
-    .nh-live-demo{min-height:340px;padding:14px;border-radius:24px}
+    .nh-live-demo{gap:12px}
+    .nh-live-demo-frame{min-height:320px;max-height:380px;padding:14px;border-radius:24px}
     .nh-whatsapp-hero{padding:14px}
     .nh-whatsapp-hero__head{flex-direction:column}
     .nh-whatsapp-hero__head p{max-width:none}
@@ -343,7 +345,8 @@ function renderIconCard([title, text, icon, c1, c2]) {
 function buildLiveDemoHtml() {
   return `
     <div class="nh-live-demo" aria-label="Demonstração animada do fluxo de IA no WhatsApp com aprovação humana" data-live-demo>
-      <div class="nh-live-demo__frame">
+      <div class="nh-live-demo-frame">
+        <div class="nh-live-demo__frame">
         <div class="nh-live-demo__top">
           <div class="nh-live-demo__badge">${premiumIcon('whatsapp', '#25d366', '#16a34a')}WhatsApp vivo</div>
           <div class="nh-live-demo__status" data-demo-status><span class="nh-live-demo__status-dot"></span><span data-demo-status-text>analisando...</span></div>
@@ -403,6 +406,7 @@ function buildLiveDemoHtml() {
           <div class="nh-live-demo__progress" aria-hidden="true"><span data-demo-progress></span></div>
           <span class="nh-live-demo__tag"><span class="dot"></span>Loop silencioso</span>
         </div>
+      </div>
       </div>
     </div>
   `;
