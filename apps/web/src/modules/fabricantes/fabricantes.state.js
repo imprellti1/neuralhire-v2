@@ -11,6 +11,7 @@ export function createFabricantesState() {
     items: [],
     selected: null,
     condicoes: [],
+    condicaoId: null,
     modalOpen: false,
     modalTab: 'gerais',
     cnpjLookupStatus: 'idle',
@@ -32,6 +33,10 @@ export function createFabricantesState() {
       pedido_minimo: 0,
       boleto_minimo: 0,
       comissao_padrao_percentual: 0,
+      prazo_medio_faturamento: '',
+      prazo_medio_entrega: '',
+      politica_pagamento: '',
+      condicoes_comerciais: '',
       condicoes_pagamento: ''
     },
     saveBlocked: true

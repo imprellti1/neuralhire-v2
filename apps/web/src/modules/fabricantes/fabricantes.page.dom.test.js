@@ -30,8 +30,12 @@ test('fabricantes: buscar CNPJ habilita com 14 digitos e preenche campos', async
   await flush(); await flush();
   document.querySelector('#nhf-new').click();
   await flush();
-  dispatchInput(document.querySelector('#nhf-cnpj'), '12345678000190');
+  const cnpjInput = document.querySelector('#nhf-cnpj');
+  cnpjInput.focus();
+  dispatchInput(cnpjInput, '12345678000190');
   await flush();
+  assert.equal(document.activeElement, cnpjInput);
+  assert.equal(cnpjInput.value, '12.345.678/0001-90');
   assert.equal(document.querySelector('#nhf-buscar-cnpj').disabled, false);
   document.querySelector('#nhf-buscar-cnpj').click();
   await flush(); await flush();
@@ -90,8 +94,11 @@ test('fabricantes: salva sem campos sensiveis', async () => {
   await flush(); await flush();
   document.querySelector('#nhf-new').click();
   await flush();
-  dispatchInput(document.querySelector('#nhf-cnpj'), '12345678000190');
+  const cnpjInput = document.querySelector('#nhf-cnpj');
+  cnpjInput.focus();
+  dispatchInput(cnpjInput, '12345678000190');
   await flush();
+  assert.equal(cnpjInput.value, '12.345.678/0001-90');
   document.querySelector('#nhf-buscar-cnpj').click();
   await flush(); await flush();
   document.querySelector('[data-form-field="nome_fantasia"]').value = 'Nova';
@@ -101,5 +108,26 @@ test('fabricantes: salva sem campos sensiveis', async () => {
   const calls = getSanitizedFetchCalls();
   assert.ok(calls.some((c) => c.method === 'POST' && c.path === '/fabricantes'));
   assert.doesNotThrow(() => assertNoSensitiveTransportFields());
+  teardownFrontendDom(dom);
+});
+
+test('fabricantes: formatCnpj mascara enquanto digita sem perder foco', async () => {
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
+  installFetchMock({ 'GET /fabricantes': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }) });
+  bootstrapWebApp();
+  await flush(); await flush();
+  document.querySelector('#nhf-new').click();
+  await flush();
+  const cnpjInput = document.querySelector('#nhf-cnpj');
+  cnpjInput.focus();
+  dispatchInput(cnpjInput, '1');
+  await flush();
+  dispatchInput(cnpjInput, '12');
+  await flush();
+  dispatchInput(cnpjInput, '12345678000190');
+  await flush();
+  assert.equal(document.activeElement, cnpjInput);
+  assert.equal(cnpjInput.value, '12.345.678/0001-90');
   teardownFrontendDom(dom);
 });
