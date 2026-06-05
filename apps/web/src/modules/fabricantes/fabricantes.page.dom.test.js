@@ -64,6 +64,25 @@ test('fabricantes: retorno parcial de CNPJ mostra mensagem honesta', async () =>
   await flush(); await flush();
   assert.match(document.body.textContent, /Alguns campos foram preenchidos automaticamente/);
   assert.equal(document.querySelector('[data-form-field="razao_social"]').value, 'Empresa Parcial LTDA');
+  assert.match(document.querySelector('.nhf-lookup-partial').textContent, /Alguns campos/);
+  teardownFrontendDom(dom);
+});
+
+test('fabricantes: logo aceita upload local e mostra preview', async () => {
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
+  installFetchMock({ 'GET /fabricantes': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }) });
+  bootstrapWebApp();
+  await flush(); await flush();
+  document.querySelector('#nhf-new').click();
+  await flush();
+  const fileInput = document.querySelector('[data-form-field="logo_upload"]');
+  const file = new File(['fake-image'], 'logo.png', { type: 'image/png' });
+  Object.defineProperty(fileInput, 'files', { value: [file], configurable: true });
+  fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush(); await flush();
+  assert.match(document.body.textContent, /logo.png/);
+  assert.ok(document.querySelector('.nhf-logo-box'));
   teardownFrontendDom(dom);
 });
 
@@ -124,10 +143,11 @@ test('fabricantes: condicao 30/60/90 calcula parcelas e prazo medio', async () =
   condicaoRow.focus();
   dispatchInput(condicaoRow, '30/60/90');
   await flush();
-  assert.equal(document.querySelectorAll('tr[data-condicao-index]').length, 1);
-  const rowInputs = document.querySelectorAll('tr[data-condicao-index="0"] input');
+  assert.equal(document.querySelectorAll('tr[data-condicao-id]').length, 1);
+  const rowInputs = document.querySelectorAll('tr[data-condicao-id] input');
   assert.equal(rowInputs[1].value, '3');
   assert.equal(rowInputs[2].value, '60');
+  assert.equal(document.activeElement, condicaoRow);
   const juros = document.querySelector('[data-condicao-field="juros"]');
   dispatchInput(juros, '1');
   await flush();

@@ -18,6 +18,7 @@ export function createFabricantesState() {
     cnpjManualUnlock: false,
     cnpjValidated: false,
     cnpjMessage: '',
+    cnpjMessageTone: '',
     form: {
       cnpj: '',
       nome: '',
@@ -37,7 +38,9 @@ export function createFabricantesState() {
       parcelas_pagamento: '',
       prazo_medio_pagamento: '',
       juros_pagamento: '',
-      condicoes_pagamento: []
+      condicoes_pagamento: [],
+      logo_file_name: '',
+      logo_preview: ''
     },
     saveBlocked: true
   };

@@ -32,6 +32,8 @@ export const createCondicaoPagamentoSchema = {
 
 export const updateCondicaoPagamentoSchema = createCondicaoPagamentoSchema;
 
+export const deleteCondicaoPagamentoSchema = null;
+
 export const cnpjLookupSchema = {
   cnpj: { required: true, type: 'string', minLength: 14, maxLength: 20 }
 };
