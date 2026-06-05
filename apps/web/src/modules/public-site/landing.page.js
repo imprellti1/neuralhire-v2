@@ -24,7 +24,7 @@ const styles = `
   .nh-cta{display:inline-flex;align-items:center;justify-content:center;padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:800;color:#fff;background:linear-gradient(135deg,#8b5cf6,#2563eb);box-shadow:0 16px 30px rgba(37,99,235,.28),0 0 0 1px rgba(255,255,255,.08) inset}
   .nh-btns{display:flex;flex-wrap:wrap;gap:12px}
   .nh-btn-secondary{background:rgba(255,255,255,.08);border:1px solid rgba(191,219,254,.24);box-shadow:none}
-  .nh-hero{height:auto;min-height:0;padding:18px 0 72px;display:block}
+  .nh-hero{height:auto;min-height:0;padding:18px 0 80px;display:block}
   .nh-hero-grid{display:grid;grid-template-columns:minmax(0,.48fr) minmax(0,.52fr);gap:32px;align-items:stretch}
   .nh-kicker{margin:2px 0 8px;text-transform:uppercase;letter-spacing:.18em;font-size:12px;color:#8ab4ff;font-weight:800}
   .nh-title{margin:0;font-size:clamp(42px,4.45vw,68px);line-height:.98;letter-spacing:-.055em;color:#fff;max-width:12ch}
@@ -106,13 +106,14 @@ const styles = `
   .nh-hero-preview-card.b{background:linear-gradient(180deg,rgba(8,29,20,.96),rgba(7,20,15,.94));border-color:rgba(67,181,129,.16);box-shadow:0 24px 60px rgba(6,44,30,.24),0 0 0 1px rgba(255,255,255,.03) inset}
   .nh-hero-preview-card.c{background:linear-gradient(180deg,rgba(10,16,30,.98),rgba(8,14,26,.94));box-shadow:0 24px 60px rgba(8,16,33,.3),0 0 0 1px rgba(255,255,255,.03) inset}
   .nh-live-demo{position:relative;display:flex;flex-direction:column;height:100%;min-height:0;gap:14px}
-  .nh-live-demo-frame{position:relative;flex:1;aspect-ratio:16/10;min-height:560px;max-height:660px;overflow:hidden;max-width:100%;box-sizing:border-box;border-radius:30px;padding:18px;border:1px solid rgba(148,163,184,.16);background:
+  .nh-live-demo-frame{position:relative;flex:0 0 500px;height:500px;min-height:500px;max-height:500px;overflow:hidden;max-width:100%;box-sizing:border-box;border-radius:30px;padding:18px;border:1px solid rgba(148,163,184,.16);background:
     radial-gradient(circle at 18% 14%,rgba(139,92,246,.18),transparent 28%),
     radial-gradient(circle at 84% 10%,rgba(34,195,255,.16),transparent 24%),
     linear-gradient(180deg,rgba(7,12,24,.98),rgba(7,13,24,.9));box-shadow:0 28px 72px rgba(2,8,23,.34),0 0 0 1px rgba(255,255,255,.03) inset}
   .nh-live-demo-frame::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.04),transparent 28%,rgba(255,255,255,.02));pointer-events:none}
   .nh-live-demo-frame::after{content:'';position:absolute;inset:auto 10% -22% 8%;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(37,211,102,.16),rgba(37,211,102,0) 68%);filter:blur(10px);pointer-events:none}
-  .nh-live-demo__frame{position:relative;z-index:1;display:grid;grid-template-rows:auto auto 1fr;gap:12px;min-height:100%;height:100%;max-width:100%;box-sizing:border-box;overflow:hidden;transform:scale(.88);transform-origin:top center;width:100%;margin-inline:auto}
+  .hero-live-demo-content{position:relative;z-index:1;display:flex;flex-direction:column;gap:12px;height:100%;min-height:0;max-width:100%;box-sizing:border-box;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;overscroll-behavior:contain;animation:nh-live-demo-drift 10s ease-in-out infinite alternate}
+  .hero-live-demo-content::-webkit-scrollbar{width:0;height:0}
   .nh-live-demo__top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
   .nh-live-demo__badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:rgba(37,211,102,.12);border:1px solid rgba(37,211,102,.2);color:#9cf1be;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
   .nh-live-demo__status{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(148,163,184,.14);color:#cfe0fb;font-size:12px;font-weight:700}
@@ -169,6 +170,7 @@ const styles = `
   .nh-whatsapp-hero__trust-item strong{display:block;color:#fff;font-size:13px;margin-bottom:4px}
   .nh-whatsapp-hero__trust-item span{display:block;color:#a9bedf;font-size:12px;line-height:1.45}
   @keyframes nh-live-pulse{0%,100%{transform:translateY(0) scale(1);box-shadow:0 0 0 0 rgba(34,195,255,.25)}50%{transform:translateY(2px) scale(1.12);box-shadow:0 0 0 12px rgba(34,195,255,0)}}
+  @keyframes nh-live-demo-drift{0%{transform:translateY(0)}100%{transform:translateY(-4px)}}
   .nh-metrics-stack{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-content:start;min-width:0;width:100%}
   .nh-metric{position:relative;overflow:hidden;border-radius:22px;background:linear-gradient(180deg,rgba(17,24,39,.88),rgba(12,19,32,.94));border:1px solid rgba(148,163,184,.14);color:#e8f0ff;padding:18px;box-shadow:0 18px 44px rgba(2,8,23,.16);min-height:132px;display:flex;flex-direction:column;justify-content:center}
   .nh-metric::before{content:'';position:absolute;inset:auto -10% -18% auto;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(34,195,255,.16),rgba(34,195,255,0) 66%);pointer-events:none}
@@ -263,8 +265,8 @@ const styles = `
     .nh-hero-preview-head{flex-direction:column}
     .nh-hero-preview-card{min-height:unset}
     .nh-live-demo{gap:12px}
-    .nh-live-demo-frame{min-height:380px;max-height:420px;padding:14px;border-radius:24px}
-    .nh-live-demo__frame{transform:scale(.94);width:100%}
+    .nh-live-demo-frame{height:auto;min-height:420px;max-height:none;padding:14px;border-radius:24px}
+    .hero-live-demo-content{animation:none}
     .nh-whatsapp-hero{padding:14px}
     .nh-whatsapp-hero__head{flex-direction:column}
     .nh-whatsapp-hero__head p{max-width:none}
@@ -355,67 +357,67 @@ function buildLiveDemoHtml() {
   return `
     <div class="nh-live-demo" aria-label="Demonstração animada do fluxo de IA no WhatsApp com aprovação humana" data-live-demo>
       <div class="nh-live-demo-frame">
-        <div class="nh-live-demo__frame">
-        <div class="nh-live-demo__top">
-          <div class="nh-live-demo__badge">${premiumIcon('whatsapp', '#25d366', '#16a34a')}WhatsApp vivo</div>
-          <div class="nh-live-demo__status" data-demo-status><span class="nh-live-demo__status-dot"></span><span data-demo-status-text>analisando...</span></div>
-        </div>
-        <div class="nh-live-demo__track">
-          <div class="nh-live-demo__rail" aria-hidden="true"></div>
-          <div class="nh-live-demo__message is-active" data-step="0">
-            <div>
-              <div class="nh-live-demo__label">Cliente</div>
-              <div class="nh-live-demo__bubble client">“Me chama em 30 dias.”</div>
-            </div>
+        <div class="hero-live-demo-content">
+          <div class="nh-live-demo__top">
+            <div class="nh-live-demo__badge">${premiumIcon('whatsapp', '#25d366', '#16a34a')}WhatsApp vivo</div>
+            <div class="nh-live-demo__status" data-demo-status><span class="nh-live-demo__status-dot"></span><span data-demo-status-text>analisando...</span></div>
           </div>
-          <div class="nh-live-demo__message" data-step="1">
-            <div>
-              <div class="nh-live-demo__label">IA NeuralHire</div>
-              <div class="nh-live-demo__bubble ai">Pedido de retomada detectado.</div>
-              <div class="nh-live-demo__checks">
-                <div class="nh-live-demo__check" data-check="0">Pedido de retomada detectado.</div>
-                <div class="nh-live-demo__check" data-check="1">Retomada agendada para 03/07.</div>
+          <div class="nh-live-demo__track">
+            <div class="nh-live-demo__rail" aria-hidden="true"></div>
+            <div class="nh-live-demo__message is-active" data-step="0">
+              <div>
+                <div class="nh-live-demo__label">Cliente</div>
+                <div class="nh-live-demo__bubble client">“Me chama em 30 dias.”</div>
               </div>
             </div>
-          </div>
-          <div class="nh-live-demo__message" data-step="2">
-            <div>
-              <div class="nh-live-demo__label">IA NeuralHire</div>
-              <div class="nh-live-demo__bubble ai">Mensagem sugerida pronta.</div>
-              <div class="nh-live-demo__suggest" data-suggest>
-                <div class="nh-live-demo__suggest-label">Mensagem sugerida</div>
-                <div class="nh-live-demo__suggest-text">Olá! Conforme combinado, estou retomando nosso contato para te ajudar no próximo passo.</div>
-                <div class="nh-live-demo__actions">
-                  <button class="nh-live-demo__button" type="button" data-approve-btn>Aprovar mensagem</button>
-                  <span class="nh-live-demo__time">10:32</span>
+            <div class="nh-live-demo__message" data-step="1">
+              <div>
+                <div class="nh-live-demo__label">IA NeuralHire</div>
+                <div class="nh-live-demo__bubble ai">Pedido de retomada detectado.</div>
+                <div class="nh-live-demo__checks">
+                  <div class="nh-live-demo__check" data-check="0">Pedido de retomada detectado.</div>
+                  <div class="nh-live-demo__check" data-check="1">Retomada agendada para 03/07.</div>
+                </div>
+              </div>
+            </div>
+            <div class="nh-live-demo__message" data-step="2">
+              <div>
+                <div class="nh-live-demo__label">IA NeuralHire</div>
+                <div class="nh-live-demo__bubble ai">Mensagem sugerida pronta.</div>
+                <div class="nh-live-demo__suggest" data-suggest>
+                  <div class="nh-live-demo__suggest-label">Mensagem sugerida</div>
+                  <div class="nh-live-demo__suggest-text">Olá! Conforme combinado, estou retomando nosso contato para te ajudar no próximo passo.</div>
+                  <div class="nh-live-demo__actions">
+                    <button class="nh-live-demo__button" type="button" data-approve-btn>Aprovar mensagem</button>
+                    <span class="nh-live-demo__time">10:32</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="nh-live-demo__approval" data-approval>
+              <div>
+                <strong>Equipe</strong>
+                <span>Aprovado.</span>
+              </div>
+              <div class="nh-live-demo__approval-pill">Aprovação humana</div>
+            </div>
+            <div class="nh-live-demo__message" data-step="3">
+              <div>
+                <div class="nh-live-demo__label">WhatsApp</div>
+                <div class="nh-live-demo__bubble sent">Mensagem enviada.</div>
+                <div class="nh-live-demo__checks">
+                  <div class="nh-live-demo__check" data-check="2">WhatsApp entregue.</div>
+                  <div class="nh-live-demo__check" data-check="3">Cliente reativado.</div>
                 </div>
               </div>
             </div>
           </div>
-          <div class="nh-live-demo__approval" data-approval>
-            <div>
-              <strong>Equipe</strong>
-              <span>Aprovado.</span>
-            </div>
-            <div class="nh-live-demo__approval-pill">Aprovação humana</div>
-          </div>
-          <div class="nh-live-demo__message" data-step="3">
-            <div>
-              <div class="nh-live-demo__label">WhatsApp</div>
-              <div class="nh-live-demo__bubble sent">Mensagem enviada.</div>
-              <div class="nh-live-demo__checks">
-                <div class="nh-live-demo__check" data-check="2">WhatsApp entregue.</div>
-                <div class="nh-live-demo__check" data-check="3">Cliente reativado.</div>
-              </div>
-            </div>
+          <div class="nh-live-demo__footer">
+            <span><strong data-demo-caption>Fluxo em execução</strong></span>
+            <div class="nh-live-demo__progress" aria-hidden="true"><span data-demo-progress></span></div>
+            <span class="nh-live-demo__tag"><span class="dot"></span>Loop silencioso</span>
           </div>
         </div>
-        <div class="nh-live-demo__footer">
-          <span><strong data-demo-caption>Fluxo em execução</strong></span>
-          <div class="nh-live-demo__progress" aria-hidden="true"><span data-demo-progress></span></div>
-          <span class="nh-live-demo__tag"><span class="dot"></span>Loop silencioso</span>
-        </div>
-      </div>
       </div>
     </div>
   `;
@@ -864,6 +866,7 @@ export function renderPublicLandingPage(container, { apiClient } = {}) {
   const liveDemo = container.querySelector('[data-live-demo]');
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches || false;
   if (liveDemo) {
+    const content = liveDemo.querySelector('.hero-live-demo-content');
     const statusText = liveDemo.querySelector('[data-demo-status-text]');
     const caption = liveDemo.querySelector('[data-demo-caption]');
     const progress = liveDemo.querySelector('[data-demo-progress]');
@@ -879,6 +882,26 @@ export function renderPublicLandingPage(container, { apiClient } = {}) {
       { active: [], completed: [0, 1, 2], visibleChecks: [0, 1], status: 'aguardando aprovação', caption: 'Equipe revisando', progress: 76, showApproval: true, showBtn: true },
       { active: [3], completed: [0, 1, 2, 3], visibleChecks: [0, 1, 2, 3], status: 'enviado', caption: 'WhatsApp entregue', progress: 100, showSent: true },
     ];
+    const scrollToStep = (state) => {
+      if (!content) return;
+      const target = state.showApproval
+        ? content.querySelector('[data-approval]')
+        : content.querySelector(`.nh-live-demo__message[data-step="${state.active[state.active.length - 1] ?? state.completed[state.completed.length - 1] ?? 0}"]`);
+      if (!target) return;
+      const contentRect = content.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const padding = 18;
+      const deltaTop = targetRect.top - contentRect.top;
+      const deltaBottom = targetRect.bottom - contentRect.bottom;
+      let nextScrollTop = content.scrollTop;
+      if (deltaTop < padding) {
+        nextScrollTop += deltaTop - padding;
+      } else if (deltaBottom > -padding) {
+        nextScrollTop += deltaBottom + padding;
+      }
+      const maxScroll = Math.max(0, content.scrollHeight - content.clientHeight);
+      content.scrollTo({ top: Math.max(0, Math.min(maxScroll, nextScrollTop)), behavior: reducedMotion ? 'auto' : 'smooth' });
+    };
     const applyState = (state) => {
       steps.forEach((step, index) => {
         step.classList.toggle('is-active', state.active.includes(index));
@@ -892,6 +915,7 @@ export function renderPublicLandingPage(container, { apiClient } = {}) {
       if (statusText) statusText.textContent = state.status;
       if (caption) caption.textContent = state.caption;
       if (progress) progress.style.width = `${state.progress}%`;
+      window.requestAnimationFrame(() => scrollToStep(state));
       if (state.showApproval && approveBtn) approveBtn.focus?.({ preventScroll: true });
     };
     if (reducedMotion) {
