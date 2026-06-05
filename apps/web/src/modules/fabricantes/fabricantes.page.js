@@ -10,6 +10,22 @@ function onlyDigits(value) {
   return String(value || '').replace(/\D/g, '');
 }
 
+function formatCnpj(value) {
+  const digits = onlyDigits(value).slice(0, 14);
+  const p1 = digits.slice(0, 2);
+  const p2 = digits.slice(2, 5);
+  const p3 = digits.slice(5, 8);
+  const p4 = digits.slice(8, 12);
+  const p5 = digits.slice(12, 14);
+  return [p1, p2, p3, p4, p5].filter(Boolean).reduce((acc, part, index) => {
+    if (index === 0) return part;
+    if (index === 1) return `${acc}.${part}`;
+    if (index === 2) return `${acc}.${part}`;
+    if (index === 3) return `${acc}/${part}`;
+    return `${acc}-${part}`;
+  }, '');
+}
+
 function injectStyles() {
   if (document.getElementById('nh-fab-style')) return;
   const style = document.createElement('style');
@@ -112,10 +128,16 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       btn.addEventListener('click', () => { state.modalTab = btn.getAttribute('data-tab'); render(); });
     });
     root.querySelector('#nhf-cnpj')?.addEventListener('input', (e) => {
-      state.form.cnpj = onlyDigits(e.target.value);
+      const raw = onlyDigits(e.target.value).slice(0, 14);
+      const formatted = formatCnpj(raw);
+      state.form.cnpj = raw;
       state.cnpjValidated = false;
       state.cnpjMessage = '';
-      render();
+      e.target.value = formatted;
+      const buscarBtn = root.querySelector('#nhf-buscar-cnpj');
+      if (buscarBtn) buscarBtn.disabled = raw.length !== 14;
+      const saveBtn = root.querySelector('#nhf-save');
+      if (saveBtn) saveBtn.disabled = raw.length !== 14;
     });
     root.querySelector('#nhf-buscar-cnpj')?.addEventListener('click', async () => {
       if (!isCnpjValid()) return;
@@ -171,7 +193,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
   function renderFormTab() {
     const locked = isLocked();
     const lookupReady = isCnpjValid();
-    return `<div class="nhf-form-grid"><div class="nhf-field nhf-field-full"><div class="nhf-inline"><label class="nhf-field">CNPJ<input id="nhf-cnpj" value="${state.form.cnpj || ''}" placeholder="Somente numeros" maxlength="18"></label><button id="nhf-buscar-cnpj" class="nhf-btn" ${lookupReady ? '' : 'disabled'}>${state.cnpjLookupStatus === 'loading' ? 'Buscando...' : 'Buscar CNPJ'}</button></div><div class="nhf-muted">O campo CNPJ precisa ter 14 digitos para habilitar a consulta.</div>${state.cnpjMessage ? `<div class="${state.cnpjManualUnlock ? 'nhf-success' : 'nhf-error'} nhf-muted">${state.cnpjMessage}</div>` : ''}</div><label class="nhf-field"><span>Nome fantasia</span><input data-form-field="nome_fantasia" value="${state.form.nome_fantasia || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Razão social</span><input data-form-field="razao_social" value="${state.form.razao_social || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>E-mail comercial</span><input data-form-field="email_comercial" value="${state.form.email_comercial || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Telefone</span><input data-form-field="telefone" value="${state.form.telefone || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Site</span><input data-form-field="site" value="${state.form.site || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Logo URL</span><input data-form-field="logo_url" value="${state.form.logo_url || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Responsável comercial</span><input data-form-field="responsavel_comercial" value="${state.form.responsavel_comercial || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Região atendida</span><input data-form-field="regiao_atendida" value="${state.form.regiao_atendida || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field nhf-field-full"><span>Observações</span><textarea data-form-field="observacoes" ${locked ? 'disabled' : ''}>${state.form.observacoes || ''}</textarea></label><div class="nhf-field nhf-field-full"><button id="nhf-unlock-manual" class="nhf-btn" type="button" ${state.cnpjValidated ? 'disabled' : ''}>Liberar preenchimento manual</button></div></div>`;
+    return `<div class="nhf-form-grid"><div class="nhf-field nhf-field-full"><div class="nhf-inline"><label class="nhf-field">CNPJ<input id="nhf-cnpj" value="${formatCnpj(state.form.cnpj || '')}" placeholder="00.000.000/0000-00" maxlength="18" inputmode="numeric"></label><button id="nhf-buscar-cnpj" class="nhf-btn" ${lookupReady ? '' : 'disabled'}>${state.cnpjLookupStatus === 'loading' ? 'Buscando...' : 'Buscar CNPJ'}</button></div><div class="nhf-muted">O campo CNPJ precisa ter 14 digitos para habilitar a consulta.</div>${state.cnpjMessage ? `<div class="${state.cnpjManualUnlock ? 'nhf-success' : 'nhf-error'} nhf-muted">${state.cnpjMessage}</div>` : ''}</div><label class="nhf-field"><span>Nome fantasia</span><input data-form-field="nome_fantasia" value="${state.form.nome_fantasia || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Razão social</span><input data-form-field="razao_social" value="${state.form.razao_social || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>E-mail comercial</span><input data-form-field="email_comercial" value="${state.form.email_comercial || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Telefone</span><input data-form-field="telefone" value="${state.form.telefone || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Site</span><input data-form-field="site" value="${state.form.site || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Logo URL</span><input data-form-field="logo_url" value="${state.form.logo_url || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Responsável comercial</span><input data-form-field="responsavel_comercial" value="${state.form.responsavel_comercial || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Região atendida</span><input data-form-field="regiao_atendida" value="${state.form.regiao_atendida || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field nhf-field-full"><span>Observações</span><textarea data-form-field="observacoes" ${locked ? 'disabled' : ''}>${state.form.observacoes || ''}</textarea></label><div class="nhf-field nhf-field-full"><button id="nhf-unlock-manual" class="nhf-btn" type="button" ${state.cnpjValidated ? 'disabled' : ''}>Liberar preenchimento manual</button></div></div>`;
   }
 
   function renderRulesTab() {
