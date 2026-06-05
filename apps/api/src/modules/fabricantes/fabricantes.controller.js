@@ -8,7 +8,8 @@ import {
   updateFabricante
 } from './fabricantes.repository.js';
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
-import { BadRequestError, DatabaseError, NotFoundError } from '../../core/errors.js';
+import { BadRequestError, ExternalServiceError, NotFoundError } from '../../core/errors.js';
+import { logger } from '../../core/logger.js';
 
 const normalizeCnpj = (value) => String(value || '').replace(/\D/g, '') || null;
 
@@ -20,13 +21,84 @@ function assertCnpj(value) {
   return cnpj;
 }
 
-async function lookupPublicCnpj(cnpj) {
-  const response = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, { headers: { accept: 'application/json' } });
-  if (!response.ok) {
-    if (response.status === 404) throw new NotFoundError('CNPJ nao encontrado', { code: 'CNPJ_NAO_ENCONTRADO', domain: 'fabricantes' });
-    throw new DatabaseError('Falha ao consultar CNPJ', { code: 'CNPJ_LOOKUP_FAILED', domain: 'fabricantes' });
+async function lookupPublicCnpj(cnpj, context = {}) {
+  const url = `https://brasilapi.com.br/api/cnpj/v1/${cnpj}`;
+  const requestId = context?.requestId || context?.request_id || null;
+  const controller = new AbortController();
+  const timeoutMs = 8000;
+  const timeoutId = setTimeout(() => controller.abort(new Error('CNPJ lookup timeout')), timeoutMs);
+
+  try {
+    const response = await fetch(url, { headers: { accept: 'application/json' }, signal: controller.signal });
+    let responseText = '';
+    let responseBody = null;
+    if (typeof response.text === 'function') {
+      responseText = await response.text();
+      try {
+        responseBody = responseText ? JSON.parse(responseText) : null;
+      } catch {
+        responseBody = responseText;
+      }
+    } else if (typeof response.json === 'function') {
+      responseBody = await response.json();
+      responseText = typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody || {});
+    }
+
+    if (!response.ok) {
+      logger.error('Falha ao consultar CNPJ externamente', {
+        domain: 'fabricantes',
+        url,
+        requestId,
+        status: response.status,
+        body: typeof responseText === 'string' ? responseText.slice(0, 1000) : responseBody,
+        errorMessage: null,
+        errorStack: null
+      });
+
+      if (response.status === 404) {
+        throw new NotFoundError('CNPJ nao encontrado', { code: 'CNPJ_NAO_ENCONTRADO', domain: 'fabricantes' });
+      }
+      if (response.status === 400) {
+        throw new BadRequestError('CNPJ invalido', { code: 'CNPJ_INVALIDO', domain: 'fabricantes' });
+      }
+      throw new ExternalServiceError('Nao foi possivel consultar o CNPJ agora. Voce pode continuar com preenchimento manual.', {
+        code: 'CNPJ_LOOKUP_FAILED',
+        domain: 'fabricantes',
+        details: { status: response.status, url }
+      });
+    }
+
+    return responseBody || {};
+  } catch (error) {
+    const message = String(error?.message || '');
+    const isTimeout = message.toLowerCase().includes('timeout') || error?.name === 'AbortError';
+    logger.error('Falha ao consultar CNPJ externamente', {
+      domain: 'fabricantes',
+      url,
+      requestId,
+      status: error?.status || null,
+      body: null,
+      errorMessage: error?.message || null,
+      errorStack: error?.stack || null
+    });
+    if (error instanceof NotFoundError || error instanceof BadRequestError || error instanceof ExternalServiceError) {
+      throw error;
+    }
+    if (isTimeout) {
+      throw new ExternalServiceError('Nao foi possivel consultar o CNPJ agora. Voce pode continuar com preenchimento manual.', {
+        code: 'CNPJ_LOOKUP_TIMEOUT',
+        domain: 'fabricantes',
+        details: { url, timeoutMs }
+      });
+    }
+    throw new ExternalServiceError('Nao foi possivel consultar o CNPJ agora. Voce pode continuar com preenchimento manual.', {
+      code: 'CNPJ_LOOKUP_FAILED',
+      domain: 'fabricantes',
+      details: { url, reason: error?.message || 'unknown' }
+    });
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return response.json();
 }
 
 function normalizeLookupResponse(source, cnpj) {
@@ -100,6 +172,6 @@ export async function lookupCnpjHandler(context) {
     throw new BadRequestError('Tenant invalido', { code: 'TENANT_REQUIRED', domain: 'fabricantes' });
   }
   const cnpj = assertCnpj(context.params.cnpj || context.body?.cnpj);
-  const source = await lookupPublicCnpj(cnpj);
+  const source = await lookupPublicCnpj(cnpj, context);
   return normalizeLookupResponse(source, cnpj);
 }
