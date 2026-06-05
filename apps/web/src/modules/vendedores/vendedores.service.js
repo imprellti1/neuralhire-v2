@@ -10,7 +10,11 @@ export async function fetchFabricantesLookup(apiClient) {
 }
 
 export async function saveVendedor(apiClient, payload, id = null) {
-  return id ? apiClient.patch(`/vendedores/${id}`, payload) : apiClient.post('/vendedores', payload);
+  const normalizedPayload = {
+    ...payload,
+    nome: String(payload?.nome || '').trim()
+  };
+  return id ? apiClient.patch(`/vendedores/${id}`, normalizedPayload) : apiClient.post('/vendedores', normalizedPayload);
 }
 
 export async function saveVendedorFabricantes(apiClient, vendedorId, fabricanteIds) {

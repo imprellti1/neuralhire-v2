@@ -34,6 +34,7 @@ export function renderVendedoresPage(root, { apiClient }) {
     state.modalOpen = true;
     state.selected = item;
     state.form = normalizeVendedorForm(item);
+    state.formError = '';
     render();
     if (item?.id) loadFabricantesFor(item.id);
   }
@@ -42,7 +43,15 @@ export function renderVendedoresPage(root, { apiClient }) {
     state.modalOpen = false;
     state.selected = null;
     state.form = normalizeVendedorForm();
+    state.formError = '';
     render();
+  }
+
+  function validateVendedorForm() {
+    const nome = String(state.form.nome || '').trim();
+    if (!nome) return 'Informe o nome do vendedor.';
+    if (nome.length < 2) return 'O nome do vendedor precisa ter pelo menos 2 caracteres.';
+    return '';
   }
 
   async function loadFabricantesFor(vendedorId) {
@@ -67,10 +76,10 @@ export function renderVendedoresPage(root, { apiClient }) {
       </label>`).join('');
     const modeText = state.selected ? 'Edição de vendedor' : 'Novo cadastro';
     const statusText = state.form.status === 'ativo' ? 'Ativo' : 'Inativo';
-    const feedbackClass = selectedCount === 0 ? 'nhv-feedback is-warning' : 'nhv-feedback';
-    const feedbackText = selectedCount === 0
+    const feedbackClass = state.formError ? 'nhv-feedback is-error' : selectedCount === 0 ? 'nhv-feedback is-warning' : 'nhv-feedback';
+    const feedbackText = state.formError || (selectedCount === 0
       ? 'Nenhuma fábrica vinculada ainda. Você pode salvar assim mesmo ou selecionar ao menos uma para refletir o escopo comercial.'
-      : `${selectedCount} fábrica(s) vinculada(s) de ${availableCount} disponível(is).`;
+      : `${selectedCount} fábrica(s) vinculada(s) de ${availableCount} disponível(is).`);
     return `<div class="nhv-modal-backdrop" id="nhv-modal-backdrop" tabindex="0"><div class="nhv-modal"><div class="nhv-modal-head"><div><div class="nhv-modal-kicker">${modeText}</div><div class="nhv-modal-title">${state.selected ? 'Editar vendedor' : 'Cadastrar vendedor'}</div><div class="nhv-modal-sub">${state.selected ? 'Atualize o perfil, o status e os vínculos com fábricas.' : 'Preencha os dados básicos e selecione as fábricas que este vendedor poderá representar.'}</div></div><button id="nhv-close" class="nhv-btn nhv-btn-secondary" type="button">Fechar</button></div><div class="nhv-modal-body"><div class="nhv-form"><div class="nhv-section nhv-field-full"><div class="nhv-section-head"><div><div class="nhv-section-title">Dados do vendedor</div><div class="nhv-section-help">Esses dados identificam o responsável comercial e seu estado operacional.</div></div><span class="nhv-pill ${state.form.status === 'inativo' ? 'nhv-pill-inactive' : ''}">${statusText}</span></div><div class="nhv-form"><label class="nhv-field"><span>Nome completo *</span><input id="nhv-nome" value="${state.form.nome}" placeholder="Ex.: Ana Souza"></label><label class="nhv-field"><span>E-mail comercial</span><input id="nhv-email" value="${state.form.email}" placeholder="ana@empresa.com.br"></label><label class="nhv-field"><span>Telefone / WhatsApp</span><input id="nhv-telefone" value="${state.form.telefone}" placeholder="(11) 99999-9999"></label><label class="nhv-field"><span>Status operacional</span><select id="nhv-status-form"><option value="ativo" ${state.form.status === 'ativo' ? 'selected' : ''}>Ativo</option><option value="inativo" ${state.form.status === 'inativo' ? 'selected' : ''}>Inativo</option></select></label><label class="nhv-field nhv-field-full"><span>Observações internas</span><textarea id="nhv-observacoes" class="nhv-textarea" placeholder="Use para contexto de carteira, cobertura ou detalhes internos.">${state.form.observacoes}</textarea></label></div></div><div class="nhv-section nhv-field-full"><div class="nhv-section-head"><div><div class="nhv-section-title">Fábricas vinculadas</div><div class="nhv-section-help">Marque uma ou mais fábricas. Este vínculo define o escopo comercial do vendedor.</div></div><span class="nhv-pill">${selectedCount} selecionada(s)</span></div><div class="nhv-summary"><div class="nhv-summary-card"><b>${selectedCount}</b><small>Vínculos escolhidos</small></div><div class="nhv-summary-card"><b>${availableCount}</b><small>Fábricas disponíveis</small></div><div class="nhv-summary-card"><b>${state.selected ? 'Editar' : 'Criar'}</b><small>${state.selected ? 'Atualize o vínculo' : 'Salve e distribua a carteira'}</small></div></div><div class="${feedbackClass}">${feedbackText}</div><div class="nhv-fabs">${fabList || '<div class="nhv-empty-fab">Nenhuma fábrica disponível para seleção.</div>'}</div></div></div><div class="nhv-actions"><button id="nhv-save" class="nhv-btn" type="button">${state.saving ? 'Salvando...' : state.selected ? 'Salvar alterações' : 'Criar vendedor'}</button></div></div></div></div>`;
   }
 
@@ -100,6 +109,14 @@ export function renderVendedoresPage(root, { apiClient }) {
     }));
     root.querySelector('#nhv-close')?.addEventListener('click', closeModal);
     root.querySelector('#nhv-modal-backdrop')?.addEventListener('click', (e) => { if (e.target.id === 'nhv-modal-backdrop') closeModal(); });
+    root.querySelector('#nhv-nome')?.addEventListener('input', (e) => {
+      state.form.nome = e.target.value;
+      if (state.formError) state.formError = '';
+    });
+    root.querySelector('#nhv-email')?.addEventListener('input', (e) => { state.form.email = e.target.value; });
+    root.querySelector('#nhv-telefone')?.addEventListener('input', (e) => { state.form.telefone = e.target.value; });
+    root.querySelector('#nhv-status-form')?.addEventListener('change', (e) => { state.form.status = e.target.value; });
+    root.querySelector('#nhv-observacoes')?.addEventListener('input', (e) => { state.form.observacoes = e.target.value; });
     root.querySelectorAll('[data-fab-id]').forEach((checkbox) => {
       checkbox.addEventListener('change', () => {
         const id = checkbox.getAttribute('data-fab-id');
@@ -109,10 +126,16 @@ export function renderVendedoresPage(root, { apiClient }) {
       });
     });
     root.querySelector('#nhv-save')?.addEventListener('click', async () => {
+      const validationError = validateVendedorForm();
+      if (validationError) {
+        state.formError = validationError;
+        render();
+        return;
+      }
       state.saving = true; render();
       try {
         const payload = {
-          nome: state.form.nome,
+          nome: String(state.form.nome || '').trim(),
           email: state.form.email || null,
           telefone: state.form.telefone || null,
           status: state.form.status || 'ativo',
