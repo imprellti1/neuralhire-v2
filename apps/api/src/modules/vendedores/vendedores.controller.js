@@ -4,7 +4,13 @@ import { canAccessAllTenantData } from '../../core/commercial-scope.js';
 import { createVendedor, getVendedorById, listVendedorFabricantes, listVendedores, replaceVendedorFabricantes, updateVendedor, updateVendedorStatus } from './vendedores.repository.js';
 
 function parseBoolean(value) { if (value === true || value === 'true') return true; if (value === false || value === 'false') return false; return undefined; }
-function assertAdminLike(context) { if (!canAccessAllTenantData(context) && String(context?.auth?.role || '').toLowerCase() !== 'account_admin') throw new BadRequestError('Acesso restrito a administracao', { domain: 'vendedores' }); }
+const ADMIN_LIKE_ROLES = new Set(['owner', 'admin', 'account_admin', 'super_admin']);
+function assertAdminLike(context) {
+  const role = String(context?.auth?.role || '').toLowerCase();
+  if (!canAccessAllTenantData(context) && !ADMIN_LIKE_ROLES.has(role)) {
+    throw new BadRequestError('Acesso restrito a administracao', { domain: 'vendedores' });
+  }
+}
 
 export async function getVendedores(context = {}) { const accountId = getAccountIdFromContext(context); assertAdminLike(context); const q = context.query || {}; const result = await listVendedores({ page: q.page ? Number(q.page) : undefined, limit: q.limit ? Number(q.limit) : undefined, search: q.search, status: q.status }, { accountId }); return { ok: true, pagination: { page: result.page, limit: result.limit, total: result.total, totalPages: result.totalPages }, items: result.items }; }
 export async function getVendedor(context = {}) { const accountId = getAccountIdFromContext(context); assertAdminLike(context); const id = String(context?.params?.id || '').trim(); if (!id) throw new ValidationError('Parametro id obrigatorio', { domain: 'vendedores' }); return { ok: true, item: await getVendedorById(id, { accountId }) }; }
