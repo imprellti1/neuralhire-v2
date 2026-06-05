@@ -1,167 +1,260 @@
 import { runTestSuite } from '../test-runner.js';
-import { getAuthTests } from './auth.test.js';
-import { getRbacTests } from './rbac.test.js';
-import { getSupabaseMembershipTests } from './supabase-membership.test.js';
-import { getValidationTests } from './validation.test.js';
-import { getPublicRouteTests } from './public-routes.test.js';
-import { getCorsTests } from './cors.test.js';
-import { getPayloadLimitTests } from './payload-limit.test.js';
-import { getScopesTests } from './scopes.test.js';
-import { getClientesRepositoryTests } from './clientes-repository.test.js';
-import { getClientesPaginationTests } from './clientes-pagination.test.js';
-import { getClientesTenantTests } from './clientes-tenant.test.js';
-import { getClientesRlsContractTests } from './clientes-rls-contract.test.js';
-import { getProdutosRepositoryTests } from './produtos-repository.test.js';
-import { getProdutosPaginationTests } from './produtos-pagination.test.js';
-import { getProdutosTenantTests } from './produtos-tenant.test.js';
-import { getProdutosSearchTests } from './produtos-search.test.js';
-import { getPedidosRepositoryTests } from './pedidos-repository.test.js';
-import { getPedidosPaginationTests } from './pedidos-pagination.test.js';
-import { getPedidosTenantTests } from './pedidos-tenant.test.js';
-import { getPedidosCreateRbacTests } from './pedidos-create-rbac.test.js';
-import { getPedidosCalculationTests } from './pedidos-calculation.test.js';
-import { getPedidosStatusTests } from './pedidos-status.test.js';
-import { getPedidosStatusUpdateTests } from './pedidos-status-update.test.js';
-import { getPedidosStatusRulesTests } from './pedidos-status-rules.test.js';
-import { getPedidosAuditTests } from './pedidos-audit.test.js';
-import { getPedidosItensUpdateTests } from './pedidos-itens-update.test.js';
-import { getPedidosUpdateTests } from './pedidos-update.test.js';
-import { getAnalyticsSummaryTests } from './analytics-summary.test.js';
-import { getAnalyticsProductsTests } from './analytics-products.test.js';
-import { getAnalyticsCustomersTests } from './analytics-customers.test.js';
-import { getAnalyticsPeriodsTests } from './analytics-periods.test.js';
-import { getAnalyticsTenantTests } from './analytics-tenant.test.js';
-import { getAnalyticsDateValidationTests } from './analytics-date-validation.test.js';
-import { getCommercialOwnershipTests } from './commercial-ownership.test.js';
-import { getInterestLeadsCreateTests } from './interest-leads-create.test.js';
-import { getInterestLeadsValidationTests } from './interest-leads-validation.test.js';
-import { getInterestLeadsListTests } from './interest-leads-list.test.js';
-import { getInterestLeadsStatusTests } from './interest-leads-status.test.js';
-import { getInterestLeadsExportTests } from './interest-leads-export.test.js';
-import { getInterestLeadsDashboardTests } from './interest-leads-dashboard.test.js';
-import { getInterestLeadsEventsTests } from './interest-leads-events.test.js';
-import { getInterestLeadsRepositoryTests } from './interest-leads-repository.test.js';
-import { getInterestLeadsInviteTests } from './interest-leads-invite.test.js';
-import { getInterestLeadsBulkBatchTests } from './interest-leads-bulk-batch.test.js';
-import { getInterestLeadsLaunchDashboardTests } from './interest-leads-launch-dashboard.test.js';
-import { getInterestLeadsConvertTests } from './interest-leads-convert.test.js';
-import { getLaunchTemplatesTests } from './launch-templates.test.js';
-import { getLaunchPreviewTests } from './launch-preview.test.js';
-import { getLaunchQueueTests } from './launch-queue.test.js';
-import { getOnboardingStartTests } from './onboarding-start.test.js';
-import { getOnboardingStepTests } from './onboarding-step.test.js';
-import { getOnboardingCompleteTests } from './onboarding-complete.test.js';
-import { getJornadaComercialE2ETests } from './jornada-comercial-e2e.test.js';
-import { getLeadToAccountTrialTests } from './lead-to-account-trial.test.js';
-import { getBillingOnboardingIntegrationTests } from './billing-onboarding-integration.test.js';
-import { getAccountActivationStatusTests } from './account-activation-status.test.js';
-import { getImplementationStatusTests } from './implementation-status.test.js';
-import { getCustomerSuccessTests } from './customer-success.test.js';
-import { getCustomerSuccessAutomationTests } from './customer-success-automation.test.js';
-import { getCustomerSuccessTimelineTests } from './customer-success-timeline.test.js';
-import { getPortfolioDashboardTests } from './portfolio-dashboard.test.js';
-import { getExecutivePortfolioAnalyticsTests } from './executive-portfolio-analytics.test.js';
-import { getFabricantesTests } from './fabricantes.test.js';
-import { getFabricantesTenantTests } from './fabricantes-tenant.test.js';
-import { getLegacyImportTests } from './legacy-import.test.js';
-import { getLegacyImportStagingTests } from './legacy-import-staging.test.js';
-import { getLegacyImportApprovalTests } from './legacy-import-approval.test.js';
-import { getLegacyImportPromotionTests } from './legacy-import-promotion.test.js';
-import { getCustomerMemoryTests } from './customer-memory.test.js';
-import { getWhatsappContextTests } from './whatsapp-context.test.js';
-import { getWhatsappConversationsTests } from './whatsapp-conversations.test.js';
-import { getWhatsappDraftStateTests } from './whatsapp-draft-state.test.js';
-import { getMessageDraftsTests } from './message-drafts.test.js';
-import { getActionAwareDraftsTests } from './action-aware-drafts.test.js';
-import { getMessageApprovalsTests } from './message-approvals.test.js';
-import { getWhatsappDeliveryTests } from './whatsapp-delivery.test.js';
-import { getCommercialAgentTests } from './commercial-agent.test.js';
-import { getApprovalIntelligenceTests } from './approval-intelligence.test.js';
-import { getProductAuditTests } from './product-audit.test.js';
-import { getProductEditorTests } from './product-editor.test.js';
+
+const PUBLIC_INTEREST_ACCOUNT_ID = 'acc-interest-public';
+
+function bootstrapTestEnv() {
+  process.env.NODE_ENV = process.env.NODE_ENV || 'test';
+  process.env.PUBLIC_INTEREST_ACCOUNT_ID = process.env.PUBLIC_INTEREST_ACCOUNT_ID || PUBLIC_INTEREST_ACCOUNT_ID;
+}
+
+bootstrapTestEnv();
+
+const [
+  auth,
+  rbac,
+  supabaseMembership,
+  validation,
+  publicRoutes,
+  cors,
+  payloadLimit,
+  scopes,
+  clientesRepository,
+  clientesPagination,
+  clientesTenant,
+  clientesRlsContract,
+  produtosRepository,
+  produtosPagination,
+  produtosTenant,
+  produtosSearch,
+  pedidosRepository,
+  pedidosPagination,
+  pedidosTenant,
+  pedidosCreateRbac,
+  pedidosCalculation,
+  pedidosStatus,
+  pedidosStatusUpdate,
+  pedidosStatusRules,
+  pedidosAudit,
+  pedidosItensUpdate,
+  pedidosUpdate,
+  analyticsSummary,
+  analyticsProducts,
+  analyticsCustomers,
+  analyticsPeriods,
+  analyticsTenant,
+  analyticsDateValidation,
+  commercialOwnership,
+  interestLeadsCreate,
+  interestLeadsValidation,
+  interestLeadsList,
+  interestLeadsStatus,
+  interestLeadsExport,
+  interestLeadsDashboard,
+  interestLeadsEvents,
+  interestLeadsRepository,
+  interestLeadsInvite,
+  interestLeadsBulkBatch,
+  interestLeadsLaunchDashboard,
+  interestLeadsConvert,
+  launchTemplates,
+  launchPreview,
+  launchQueue,
+  onboardingStart,
+  onboardingStep,
+  onboardingComplete,
+  jornadaComercialE2E,
+  leadToAccountTrial,
+  billingOnboardingIntegration,
+  accountActivationStatus,
+  implementationStatus,
+  customerSuccess,
+  customerSuccessAutomation,
+  customerSuccessTimeline,
+  portfolioDashboard,
+  executivePortfolioAnalytics,
+  fabricantes,
+  fabricantesTenant,
+  legacyImport,
+  legacyImportStaging,
+  legacyImportApproval,
+  legacyImportPromotion,
+  customerMemory,
+  whatsappContext,
+  whatsappConversations,
+  whatsappDraftState,
+  messageDrafts,
+  actionAwareDrafts,
+  messageApprovals,
+  whatsappDelivery,
+  commercialAgent,
+  approvalIntelligence,
+  productAudit,
+  productEditor
+] = await Promise.all([
+  import('./auth.test.js'),
+  import('./rbac.test.js'),
+  import('./supabase-membership.test.js'),
+  import('./validation.test.js'),
+  import('./public-routes.test.js'),
+  import('./cors.test.js'),
+  import('./payload-limit.test.js'),
+  import('./scopes.test.js'),
+  import('./clientes-repository.test.js'),
+  import('./clientes-pagination.test.js'),
+  import('./clientes-tenant.test.js'),
+  import('./clientes-rls-contract.test.js'),
+  import('./produtos-repository.test.js'),
+  import('./produtos-pagination.test.js'),
+  import('./produtos-tenant.test.js'),
+  import('./produtos-search.test.js'),
+  import('./pedidos-repository.test.js'),
+  import('./pedidos-pagination.test.js'),
+  import('./pedidos-tenant.test.js'),
+  import('./pedidos-create-rbac.test.js'),
+  import('./pedidos-calculation.test.js'),
+  import('./pedidos-status.test.js'),
+  import('./pedidos-status-update.test.js'),
+  import('./pedidos-status-rules.test.js'),
+  import('./pedidos-audit.test.js'),
+  import('./pedidos-itens-update.test.js'),
+  import('./pedidos-update.test.js'),
+  import('./analytics-summary.test.js'),
+  import('./analytics-products.test.js'),
+  import('./analytics-customers.test.js'),
+  import('./analytics-periods.test.js'),
+  import('./analytics-tenant.test.js'),
+  import('./analytics-date-validation.test.js'),
+  import('./commercial-ownership.test.js'),
+  import('./interest-leads-create.test.js'),
+  import('./interest-leads-validation.test.js'),
+  import('./interest-leads-list.test.js'),
+  import('./interest-leads-status.test.js'),
+  import('./interest-leads-export.test.js'),
+  import('./interest-leads-dashboard.test.js'),
+  import('./interest-leads-events.test.js'),
+  import('./interest-leads-repository.test.js'),
+  import('./interest-leads-invite.test.js'),
+  import('./interest-leads-bulk-batch.test.js'),
+  import('./interest-leads-launch-dashboard.test.js'),
+  import('./interest-leads-convert.test.js'),
+  import('./launch-templates.test.js'),
+  import('./launch-preview.test.js'),
+  import('./launch-queue.test.js'),
+  import('./onboarding-start.test.js'),
+  import('./onboarding-step.test.js'),
+  import('./onboarding-complete.test.js'),
+  import('./jornada-comercial-e2e.test.js'),
+  import('./lead-to-account-trial.test.js'),
+  import('./billing-onboarding-integration.test.js'),
+  import('./account-activation-status.test.js'),
+  import('./implementation-status.test.js'),
+  import('./customer-success.test.js'),
+  import('./customer-success-automation.test.js'),
+  import('./customer-success-timeline.test.js'),
+  import('./portfolio-dashboard.test.js'),
+  import('./executive-portfolio-analytics.test.js'),
+  import('./fabricantes.test.js'),
+  import('./fabricantes-tenant.test.js'),
+  import('./legacy-import.test.js'),
+  import('./legacy-import-staging.test.js'),
+  import('./legacy-import-approval.test.js'),
+  import('./legacy-import-promotion.test.js'),
+  import('./customer-memory.test.js'),
+  import('./whatsapp-context.test.js'),
+  import('./whatsapp-conversations.test.js'),
+  import('./whatsapp-draft-state.test.js'),
+  import('./message-drafts.test.js'),
+  import('./action-aware-drafts.test.js'),
+  import('./message-approvals.test.js'),
+  import('./whatsapp-delivery.test.js'),
+  import('./commercial-agent.test.js'),
+  import('./approval-intelligence.test.js'),
+  import('./product-audit.test.js'),
+  import('./product-editor.test.js')
+]);
 
 async function main() {
   const suites = [
-    ['Auth', getAuthTests()],
-    ['RBAC', getRbacTests()],
-    ['Supabase Membership', getSupabaseMembershipTests()],
-    ['Validation', getValidationTests()],
-    ['Public Routes', getPublicRouteTests()],
-    ['CORS', getCorsTests()],
-    ['Payload Limit', getPayloadLimitTests()],
-    ['Scopes', getScopesTests()],
-    ['Clientes Repository', getClientesRepositoryTests()],
-    ['Clientes Pagination', getClientesPaginationTests()],
-    ['Clientes Tenant', getClientesTenantTests()],
-    ['Clientes RLS Contract', getClientesRlsContractTests()],
-    ['Produtos Repository', getProdutosRepositoryTests()],
-    ['Produtos Pagination', getProdutosPaginationTests()],
-    ['Produtos Tenant', getProdutosTenantTests()],
-    ['Produtos Search', getProdutosSearchTests()],
-    ['Pedidos Repository', getPedidosRepositoryTests()],
-    ['Pedidos Pagination', getPedidosPaginationTests()],
-    ['Pedidos Tenant', getPedidosTenantTests()],
-    ['Pedidos Create RBAC', getPedidosCreateRbacTests()],
-    ['Pedidos Calculation', getPedidosCalculationTests()],
-    ['Pedidos Status', getPedidosStatusTests()],
-    ['Pedidos Status Update', getPedidosStatusUpdateTests()],
-    ['Pedidos Status Rules', getPedidosStatusRulesTests()],
-    ['Pedidos Audit', getPedidosAuditTests()],
-    ['Pedidos Itens Update', getPedidosItensUpdateTests()],
-    ['Pedidos Update', getPedidosUpdateTests()],
-    ['Analytics Summary', getAnalyticsSummaryTests()],
-    ['Analytics Products', getAnalyticsProductsTests()],
-    ['Analytics Customers', getAnalyticsCustomersTests()],
-    ['Analytics Periods', getAnalyticsPeriodsTests()],
-    ['Analytics Tenant', getAnalyticsTenantTests()],
-    ['Analytics Date Validation', getAnalyticsDateValidationTests()],
-    ['Commercial Ownership', getCommercialOwnershipTests()],
-    ['Interest Leads Create', getInterestLeadsCreateTests()],
-    ['Interest Leads Validation', getInterestLeadsValidationTests()],
-    ['Interest Leads List', getInterestLeadsListTests()],
-    ['Interest Leads Status', getInterestLeadsStatusTests()],
-    ['Interest Leads Export', getInterestLeadsExportTests()],
-    ['Interest Leads Dashboard', getInterestLeadsDashboardTests()],
-    ['Interest Leads Events', getInterestLeadsEventsTests()],
-    ['Interest Leads Repository', getInterestLeadsRepositoryTests()],
-    ['Interest Leads Invite', getInterestLeadsInviteTests()],
-    ['Interest Leads Bulk Batch', getInterestLeadsBulkBatchTests()],
-    ['Interest Leads Launch Dashboard', getInterestLeadsLaunchDashboardTests()],
-    ['Interest Leads Convert', getInterestLeadsConvertTests()],
-    ['Launch Templates', getLaunchTemplatesTests()],
-    ['Launch Preview', getLaunchPreviewTests()],
-    ['Launch Queue', getLaunchQueueTests()],
-    ['Onboarding Start', getOnboardingStartTests()],
-    ['Onboarding Step', getOnboardingStepTests()],
-    ['Onboarding Complete', getOnboardingCompleteTests()],
-    ['Account Activation Status', getAccountActivationStatusTests()],
-    ['Implementation Status', getImplementationStatusTests()],
-    ['Customer Success', getCustomerSuccessTests()],
-    ['Customer Success Automation', getCustomerSuccessAutomationTests()],
-    ['Customer Success Timeline', getCustomerSuccessTimelineTests()],
-    ['Customer Memory', getCustomerMemoryTests()],
-    ['WhatsApp Context', getWhatsappContextTests()],
-    ['WhatsApp Conversations', getWhatsappConversationsTests()],
-    ['WhatsApp Draft State', getWhatsappDraftStateTests()],
-    ['Message Drafts', getMessageDraftsTests()],
-    ['Action Aware Drafts', getActionAwareDraftsTests()],
-    ['Message Approvals', getMessageApprovalsTests()],
-    ['WhatsApp Delivery', getWhatsappDeliveryTests()],
-    ['Commercial Agent', getCommercialAgentTests()],
-    ['Approval Intelligence', getApprovalIntelligenceTests()],
-    ['Portfolio Dashboard', getPortfolioDashboardTests()],
-    ['Legacy Import', getLegacyImportTests()],
-    ['Legacy Import Staging', getLegacyImportStagingTests()],
-    ['Legacy Import Approval', getLegacyImportApprovalTests()],
-    ['Legacy Import Promotion', getLegacyImportPromotionTests()],
-    ['Jornada Comercial E2E', getJornadaComercialE2ETests()],
-    ['Lead to Account Trial', getLeadToAccountTrialTests()],
-    ['Billing Onboarding Integration', getBillingOnboardingIntegrationTests()],
-    ['Executive Portfolio Analytics', getExecutivePortfolioAnalyticsTests()],
-    ['Fabricantes', getFabricantesTests()],
-    ['Fabricantes Tenant', getFabricantesTenantTests()],
-    ['Product Audit', getProductAuditTests()],
-    ['Product Editor', getProductEditorTests()]
+    ['Auth', auth.getAuthTests()],
+    ['RBAC', rbac.getRbacTests()],
+    ['Supabase Membership', supabaseMembership.getSupabaseMembershipTests()],
+    ['Validation', validation.getValidationTests()],
+    ['Public Routes', publicRoutes.getPublicRouteTests()],
+    ['CORS', cors.getCorsTests()],
+    ['Payload Limit', payloadLimit.getPayloadLimitTests()],
+    ['Scopes', scopes.getScopesTests()],
+    ['Clientes Repository', clientesRepository.getClientesRepositoryTests()],
+    ['Clientes Pagination', clientesPagination.getClientesPaginationTests()],
+    ['Clientes Tenant', clientesTenant.getClientesTenantTests()],
+    ['Clientes RLS Contract', clientesRlsContract.getClientesRlsContractTests()],
+    ['Produtos Repository', produtosRepository.getProdutosRepositoryTests()],
+    ['Produtos Pagination', produtosPagination.getProdutosPaginationTests()],
+    ['Produtos Tenant', produtosTenant.getProdutosTenantTests()],
+    ['Produtos Search', produtosSearch.getProdutosSearchTests()],
+    ['Pedidos Repository', pedidosRepository.getPedidosRepositoryTests()],
+    ['Pedidos Pagination', pedidosPagination.getPedidosPaginationTests()],
+    ['Pedidos Tenant', pedidosTenant.getPedidosTenantTests()],
+    ['Pedidos Create RBAC', pedidosCreateRbac.getPedidosCreateRbacTests()],
+    ['Pedidos Calculation', pedidosCalculation.getPedidosCalculationTests()],
+    ['Pedidos Status', pedidosStatus.getPedidosStatusTests()],
+    ['Pedidos Status Update', pedidosStatusUpdate.getPedidosStatusUpdateTests()],
+    ['Pedidos Status Rules', pedidosStatusRules.getPedidosStatusRulesTests()],
+    ['Pedidos Audit', pedidosAudit.getPedidosAuditTests()],
+    ['Pedidos Itens Update', pedidosItensUpdate.getPedidosItensUpdateTests()],
+    ['Pedidos Update', pedidosUpdate.getPedidosUpdateTests()],
+    ['Analytics Summary', analyticsSummary.getAnalyticsSummaryTests()],
+    ['Analytics Products', analyticsProducts.getAnalyticsProductsTests()],
+    ['Analytics Customers', analyticsCustomers.getAnalyticsCustomersTests()],
+    ['Analytics Periods', analyticsPeriods.getAnalyticsPeriodsTests()],
+    ['Analytics Tenant', analyticsTenant.getAnalyticsTenantTests()],
+    ['Analytics Date Validation', analyticsDateValidation.getAnalyticsDateValidationTests()],
+    ['Commercial Ownership', commercialOwnership.getCommercialOwnershipTests()],
+    ['Interest Leads Create', interestLeadsCreate.getInterestLeadsCreateTests()],
+    ['Interest Leads Validation', interestLeadsValidation.getInterestLeadsValidationTests()],
+    ['Interest Leads List', interestLeadsList.getInterestLeadsListTests()],
+    ['Interest Leads Status', interestLeadsStatus.getInterestLeadsStatusTests()],
+    ['Interest Leads Export', interestLeadsExport.getInterestLeadsExportTests()],
+    ['Interest Leads Dashboard', interestLeadsDashboard.getInterestLeadsDashboardTests()],
+    ['Interest Leads Events', interestLeadsEvents.getInterestLeadsEventsTests()],
+    ['Interest Leads Repository', interestLeadsRepository.getInterestLeadsRepositoryTests()],
+    ['Interest Leads Invite', interestLeadsInvite.getInterestLeadsInviteTests()],
+    ['Interest Leads Bulk Batch', interestLeadsBulkBatch.getInterestLeadsBulkBatchTests()],
+    ['Interest Leads Launch Dashboard', interestLeadsLaunchDashboard.getInterestLeadsLaunchDashboardTests()],
+    ['Interest Leads Convert', interestLeadsConvert.getInterestLeadsConvertTests()],
+    ['Launch Templates', launchTemplates.getLaunchTemplatesTests()],
+    ['Launch Preview', launchPreview.getLaunchPreviewTests()],
+    ['Launch Queue', launchQueue.getLaunchQueueTests()],
+    ['Onboarding Start', onboardingStart.getOnboardingStartTests()],
+    ['Onboarding Step', onboardingStep.getOnboardingStepTests()],
+    ['Onboarding Complete', onboardingComplete.getOnboardingCompleteTests()],
+    ['Account Activation Status', accountActivationStatus.getAccountActivationStatusTests()],
+    ['Implementation Status', implementationStatus.getImplementationStatusTests()],
+    ['Customer Success', customerSuccess.getCustomerSuccessTests()],
+    ['Customer Success Automation', customerSuccessAutomation.getCustomerSuccessAutomationTests()],
+    ['Customer Success Timeline', customerSuccessTimeline.getCustomerSuccessTimelineTests()],
+    ['Customer Memory', customerMemory.getCustomerMemoryTests()],
+    ['WhatsApp Context', whatsappContext.getWhatsappContextTests()],
+    ['WhatsApp Conversations', whatsappConversations.getWhatsappConversationsTests()],
+    ['WhatsApp Draft State', whatsappDraftState.getWhatsappDraftStateTests()],
+    ['Message Drafts', messageDrafts.getMessageDraftsTests()],
+    ['Action Aware Drafts', actionAwareDrafts.getActionAwareDraftsTests()],
+    ['Message Approvals', messageApprovals.getMessageApprovalsTests()],
+    ['WhatsApp Delivery', whatsappDelivery.getWhatsappDeliveryTests()],
+    ['Commercial Agent', commercialAgent.getCommercialAgentTests()],
+    ['Approval Intelligence', approvalIntelligence.getApprovalIntelligenceTests()],
+    ['Portfolio Dashboard', portfolioDashboard.getPortfolioDashboardTests()],
+    ['Legacy Import', legacyImport.getLegacyImportTests()],
+    ['Legacy Import Staging', legacyImportStaging.getLegacyImportStagingTests()],
+    ['Legacy Import Approval', legacyImportApproval.getLegacyImportApprovalTests()],
+    ['Legacy Import Promotion', legacyImportPromotion.getLegacyImportPromotionTests()],
+    ['Jornada Comercial E2E', jornadaComercialE2E.getJornadaComercialE2ETests()],
+    ['Lead to Account Trial', leadToAccountTrial.getLeadToAccountTrialTests()],
+    ['Billing Onboarding Integration', billingOnboardingIntegration.getBillingOnboardingIntegrationTests()],
+    ['Executive Portfolio Analytics', executivePortfolioAnalytics.getExecutivePortfolioAnalyticsTests()],
+    ['Fabricantes', fabricantes.getFabricantesTests()],
+    ['Fabricantes Tenant', fabricantesTenant.getFabricantesTenantTests()],
+    ['Product Audit', productAudit.getProductAuditTests()],
+    ['Product Editor', productEditor.getProductEditorTests()]
   ];
 
   const summary = { total: 0, passed: 0, failed: 0 };

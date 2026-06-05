@@ -10,6 +10,8 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    env:
+      PUBLIC_INTEREST_ACCOUNT_ID: acc-interest-public
 
     steps:
       - name: Checkout repository

@@ -86,6 +86,27 @@ function requirePublicInterestAccountId() {
   return accountId;
 }
 
+function ensurePublicInterestMemoryAccount() {
+  const id = resolvePublicInterestAccountId();
+  if (!id) return null;
+  const now = new Date().toISOString();
+  const existing = memoryAccounts.find((account) => account.id === id);
+  const item = {
+    id,
+    name: 'Public Interest Account',
+    slug: 'public-interest',
+    status: 'active',
+    created_at: now,
+    updated_at: now
+  };
+  if (existing) {
+    Object.assign(existing, item);
+    return existing;
+  }
+  memoryAccounts.push(item);
+  return item;
+}
+
 async function addEvent(lead, tipo, descricao = '') {
   if (getInterestLeadsRepositoryMode().mode === 'supabase') {
     const supabase = resolveSupabaseClient();
@@ -250,8 +271,31 @@ export function __resetMemoryInterestLeadsForTests() {
   memoryEvents.length = 0;
   memoryTemplates.length = 0;
   memoryLogs.length = 0;
+  memoryAccounts.length = 0;
+  memoryAccountUsers.length = 0;
+  memoryAccountTrials.length = 0;
   supabaseClientOverride = null;
   supabaseConfiguredOverride = null;
+  ensurePublicInterestMemoryAccount();
+}
+
+export function __seedPublicInterestAccountForTests(accountId = 'acc-interest-public') {
+  const now = new Date().toISOString();
+  const existing = memoryAccounts.find((account) => account.id === accountId);
+  const item = {
+    id: accountId,
+    name: 'Public Interest Account',
+    slug: 'public-interest',
+    status: 'active',
+    created_at: now,
+    updated_at: now
+  };
+  if (existing) {
+    Object.assign(existing, item);
+    return existing;
+  }
+  memoryAccounts.push(item);
+  return item;
 }
 
 export async function patchInterestLeadInvite(id, payload, options = {}) {
