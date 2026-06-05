@@ -1,5 +1,6 @@
 import { DatabaseError, ForbiddenError } from '../../core/errors.js';
 import { applyOwnerFilter } from '../../core/commercial-scope.js';
+import { logger } from '../../core/logger.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { ensureDemoMemoryLoaded } from '../../testing/demo-memory.store.js';
 
@@ -42,7 +43,18 @@ async function fetchData(accountId, context) {
       supabase.from('clientes').select('id,nome,ativo,owner_user_id').eq('account_id', accountId).match(scoped.owner_user_id ? { owner_user_id: scoped.owner_user_id } : {}),
       supabase.from('produtos').select('id,nome,ativo').eq('account_id', accountId)
     ]);
-    if (pErr || iErr || cErr || prErr) throw new DatabaseError('Falha ao carregar dados analytics', { details: pErr || iErr || cErr || prErr });
+    const supabaseError = pErr || iErr || cErr || prErr;
+    if (supabaseError) {
+      logger.error({
+        message: 'analytics_fetch_failed',
+        supabaseMessage: supabaseError?.message,
+        supabaseCode: supabaseError?.code,
+        supabaseDetails: supabaseError?.details,
+        supabaseHint: supabaseError?.hint,
+        stack: supabaseError?.stack
+      });
+      throw new DatabaseError('Falha ao carregar dados analytics', { details: supabaseError });
+    }
     return { pedidos: pedidos || [], itens: itens || [], clientes: clientes || [], produtos: produtos || [] };
   }
 
