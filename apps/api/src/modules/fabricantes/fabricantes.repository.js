@@ -72,6 +72,25 @@ function normalizeFabricanteRecord(data = {}, current = null) {
   return payload;
 }
 
+function sanitizeFabricantePayload(payload = {}) {
+  const clean = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (value === undefined) continue;
+    clean[key] = key === 'logo_url' ? sanitizeLogoUrl(value) : value;
+  }
+  return clean;
+}
+
+function logSupabaseFailure(action, error, payload) {
+  console.error(`[fabricantes.repository] ${action} failed`, {
+    message: error?.message || null,
+    details: error?.details || null,
+    hint: error?.hint || null,
+    code: error?.code || null,
+    payload: sanitizeFabricantePayload(payload)
+  });
+}
+
 function normalizePagination(filters = {}) {
   const page = Number.isFinite(filters.page) && filters.page > 0 ? Math.floor(filters.page) : 1;
   const rawLimit = Number.isFinite(filters.limit) && filters.limit > 0 ? Math.floor(filters.limit) : 20;
@@ -187,7 +206,10 @@ export async function createFabricante(data, options = {}) {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data: inserted, error } = await supabase.from('fabricantes').insert(payload).select('*').single();
-    if (error) throw new DatabaseError('Falha ao criar fabricante', { details: error });
+    if (error) {
+      logSupabaseFailure('createFabricante', error, payload);
+      throw new DatabaseError('Falha ao criar fabricante', { details: error });
+    }
     return inserted;
   }
 
@@ -207,14 +229,17 @@ export async function updateFabricante(id, data, options = {}) {
 
   if (isSupabaseMode()) {
     const current = await getFabricanteById(id, { accountId });
-    const payload = normalizeFabricanteRecord(data, current);
+    const payload = sanitizeFabricantePayload(normalizeFabricanteRecord(data, current));
     const next = { ...current, ...payload };
     if (!next.nome) throw new BadRequestError('Nome obrigatorio', { domain: 'fabricantes' });
     if (findDuplicateFabricante(accountId, next, id)) throw new ConflictError('Fabricante duplicado', { domain: 'fabricantes', code: 'FABRICANTE_DUPLICADO' });
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data: updated, error } = await supabase.from('fabricantes').update(payload).eq('id', id).eq('account_id', accountId).select('*').single();
-    if (error) throw new DatabaseError('Falha ao atualizar fabricante', { details: error });
+    if (error) {
+      logSupabaseFailure('updateFabricante', error, payload);
+      throw new DatabaseError('Falha ao atualizar fabricante', { details: error });
+    }
     return updated;
   }
 

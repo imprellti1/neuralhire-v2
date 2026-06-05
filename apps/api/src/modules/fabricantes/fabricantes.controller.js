@@ -89,6 +89,49 @@ function normalizeFabricantePayload(body = {}) {
   };
 }
 
+function normalizeFabricantePatchPayload(body = {}) {
+  const endereco = body?.endereco || {};
+  const payload = {};
+  if (body?.nome !== undefined) payload.nome = String(body.nome || '').trim();
+  if (body?.razao_social !== undefined || body?.razaoSocial !== undefined) payload.razao_social = body?.razao_social ?? body?.razaoSocial ?? null;
+  if (body?.cnpj !== undefined) payload.cnpj = normalizeCnpj(body.cnpj);
+  if (body?.site !== undefined || body?.website !== undefined) payload.site = body?.site ?? body?.website ?? null;
+  if (body?.email_comercial !== undefined || body?.email !== undefined) payload.email_comercial = body?.email_comercial ?? body?.email ?? null;
+  if (body?.telefone !== undefined || body?.ddd_telefone_1 !== undefined) payload.telefone = body?.telefone ?? body?.ddd_telefone_1 ?? null;
+  if (body?.regiao_atendida !== undefined) payload.regiao_atendida = body.regiao_atendida ?? null;
+
+  if (body?.logradouro !== undefined || endereco?.logradouro !== undefined) payload.logradouro = firstMeaningful(body?.logradouro, endereco?.logradouro);
+  if (body?.numero !== undefined || endereco?.numero !== undefined) payload.numero = firstMeaningful(body?.numero, endereco?.numero);
+  if (body?.complemento !== undefined || endereco?.complemento !== undefined) payload.complemento = firstMeaningful(body?.complemento, endereco?.complemento);
+  if (body?.bairro !== undefined || endereco?.bairro !== undefined) payload.bairro = firstMeaningful(body?.bairro, endereco?.bairro);
+  if (body?.cidade !== undefined || endereco?.cidade !== undefined) payload.cidade = firstMeaningful(body?.cidade, endereco?.cidade);
+  if (body?.uf !== undefined || endereco?.uf !== undefined) payload.uf = firstMeaningful(body?.uf, endereco?.uf);
+  if (body?.cep !== undefined || endereco?.cep !== undefined) payload.cep = firstMeaningful(body?.cep, endereco?.cep);
+
+  if (body?.endereco_completo !== undefined) {
+    payload.endereco_completo = body.endereco_completo || null;
+  } else if (payload.logradouro !== undefined || payload.numero !== undefined || payload.complemento !== undefined || payload.bairro !== undefined || payload.cidade !== undefined || payload.uf !== undefined || payload.cep !== undefined) {
+    payload.endereco_completo = buildEnderecoCompleto({
+      logradouro: payload.logradouro,
+      numero: payload.numero,
+      complemento: payload.complemento,
+      bairro: payload.bairro,
+      cidade: payload.cidade,
+      uf: payload.uf,
+      cep: payload.cep,
+      pais: body?.pais || endereco?.pais || ''
+    });
+  }
+
+  if (body?.logo_url !== undefined) payload.logo_url = String(body.logo_url || '').trim();
+  if (body?.status !== undefined) payload.status = body.status;
+  if (body?.pedido_minimo !== undefined) payload.pedido_minimo = body.pedido_minimo;
+  if (body?.boleto_minimo !== undefined) payload.boleto_minimo = body.boleto_minimo;
+  if (body?.comissao_padrao_percentual !== undefined) payload.comissao_padrao_percentual = body.comissao_padrao_percentual;
+  if (body?.observacoes !== undefined) payload.observacoes = body.observacoes || null;
+  return payload;
+}
+
 async function fetchJsonWithTimeout(url, { timeoutMs = 8000 } = {}) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(new Error('CNPJ lookup timeout')), timeoutMs);
@@ -335,7 +378,7 @@ export async function createFabricanteHandler(context) {
 export async function updateFabricanteHandler(context) {
   const body = context.body || {};
   const accountId = getAccountIdFromContext(context);
-  return updateFabricante(context.params.id, normalizeFabricantePayload(body), { accountId });
+  return updateFabricante(context.params.id, normalizeFabricantePatchPayload(body), { accountId });
 }
 
 export async function getCondicoesPagamento(context) {
