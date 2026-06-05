@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { Buffer } from 'node:buffer';
 import { env } from '../../config/env.js';
 import { BadRequestError, ConflictError, DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
@@ -40,6 +41,78 @@ function sanitizeLogoUrl(value) {
   return logoUrl.startsWith('blob:') ? null : logoUrl;
 }
 
+const FABRICANTES_LOGO_BUCKET = 'fabricantes-logos';
+const ALLOWED_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp']);
+
+function normalizeLogoUpload(upload) {
+  if (!upload || typeof upload !== 'object') return null;
+  const fileName = String(upload.fileName || upload.filename || '').trim();
+  const mimeType = String(upload.mimeType || upload.contentType || '').trim().toLowerCase();
+  const base64 = String(upload.base64 || upload.data || '').trim();
+  if (!fileName || !base64 || !mimeType) return null;
+  if (!ALLOWED_LOGO_MIME_TYPES.has(mimeType)) return null;
+  return { fileName, mimeType, base64 };
+}
+
+async function ensureLogoBucket(supabase) {
+  try {
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const existing = Array.isArray(buckets) ? buckets.find((bucket) => bucket.name === FABRICANTES_LOGO_BUCKET) : null;
+    if (existing) return;
+    if (typeof supabase.storage.createBucket === 'function') {
+      await supabase.storage.createBucket(FABRICANTES_LOGO_BUCKET, {
+        public: true,
+        fileSizeLimit: 2 * 1024 * 1024
+      });
+    }
+  } catch {
+    // If bucket setup fails, uploads can still be skipped safely.
+  }
+}
+
+async function uploadFabricanteLogo({ supabase, accountId, fabricanteId, upload }) {
+  const normalized = normalizeLogoUpload(upload);
+  if (!supabase || !accountId || !fabricanteId || !normalized) return null;
+  try {
+    await ensureLogoBucket(supabase);
+    const ext = normalized.mimeType === 'image/png' ? 'png' : normalized.mimeType === 'image/webp' ? 'webp' : 'jpg';
+    const path = `fabricantes/${accountId}/${fabricanteId}/logo-${Date.now()}.${ext}`;
+    const bytes = Buffer.from(normalized.base64.replace(/^data:[^;]+;base64,/, ''), 'base64');
+    const { error } = await supabase.storage.from(FABRICANTES_LOGO_BUCKET).upload(path, bytes, {
+      upsert: true,
+      contentType: normalized.mimeType
+    });
+    if (error) {
+      logSupabaseFailure('uploadFabricanteLogo', error, { account_id: accountId, fabricante_id: fabricanteId, path, mimeType: normalized.mimeType });
+      return null;
+    }
+    const { data } = supabase.storage.from(FABRICANTES_LOGO_BUCKET).getPublicUrl(path);
+    const publicUrl = data?.publicUrl || null;
+    return sanitizeLogoUrl(publicUrl);
+  } catch (error) {
+    logSupabaseFailure('uploadFabricanteLogo', error, { account_id: accountId, fabricante_id: fabricanteId, upload: { fileName: normalized.fileName, mimeType: normalized.mimeType } });
+    return null;
+  }
+}
+
+export async function updateFabricanteLogo(id, upload, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new DatabaseError('Supabase indisponivel');
+  const current = await getFabricanteById(id, { accountId });
+  const normalized = normalizeLogoUpload(upload);
+  if (!normalized) throw new BadRequestError('Logo invalida', { domain: 'fabricantes' });
+  const logoUrl = await uploadFabricanteLogo({ supabase, accountId, fabricanteId: id, upload: normalized });
+  if (!logoUrl) throw new DatabaseError('Falha ao enviar logo', { domain: 'fabricantes' });
+  const { data: updated, error } = await supabase.from('fabricantes').update({ logo_url: logoUrl, updated_at: new Date().toISOString() }).eq('id', id).eq('account_id', accountId).select('*').single();
+  if (error) {
+    logSupabaseFailure('updateFabricanteLogo', error, { id, accountId, logo_url: logoUrl });
+    throw new DatabaseError('Falha ao atualizar logo', { details: error });
+  }
+  return updated || { ...current, logo_url: logoUrl };
+}
+
 function normalizeFabricanteRecord(data = {}, current = null) {
   const base = current || {};
   const payload = {
@@ -76,6 +149,7 @@ function sanitizeFabricantePayload(payload = {}) {
   const clean = {};
   for (const [key, value] of Object.entries(payload)) {
     if (value === undefined) continue;
+    if (key === 'logo_upload') continue;
     clean[key] = key === 'logo_url' ? sanitizeLogoUrl(value) : value;
   }
   return clean;
@@ -89,6 +163,12 @@ function logSupabaseFailure(action, error, payload) {
     code: error?.code || null,
     payload: sanitizeFabricantePayload(payload)
   });
+}
+
+function normalizeFabricantePatchData(data = {}) {
+  const payload = { ...data };
+  if (payload.logo_upload) delete payload.logo_upload;
+  return payload;
 }
 
 function normalizePagination(filters = {}) {
@@ -210,6 +290,15 @@ export async function createFabricante(data, options = {}) {
       logSupabaseFailure('createFabricante', error, payload);
       throw new DatabaseError('Falha ao criar fabricante', { details: error });
     }
+    const logoUrl = await uploadFabricanteLogo({ supabase, accountId, fabricanteId: inserted.id, upload: data.logo_upload });
+    if (logoUrl) {
+      const { data: logoUpdated, error: logoError } = await supabase.from('fabricantes').update({ logo_url: logoUrl, updated_at: new Date().toISOString() }).eq('id', inserted.id).eq('account_id', accountId).select('*').single();
+      if (logoError) {
+        logSupabaseFailure('createFabricanteLogoUrl', logoError, { id: inserted.id, accountId, logo_url: logoUrl });
+        return inserted;
+      }
+      return logoUpdated;
+    }
     return inserted;
   }
 
@@ -229,7 +318,8 @@ export async function updateFabricante(id, data, options = {}) {
 
   if (isSupabaseMode()) {
     const current = await getFabricanteById(id, { accountId });
-    const payload = sanitizeFabricantePayload(normalizeFabricanteRecord(data, current));
+    const normalizedData = normalizeFabricantePatchData(data);
+    const payload = sanitizeFabricantePayload(normalizeFabricanteRecord(normalizedData, current));
     const next = { ...current, ...payload };
     if (!next.nome) throw new BadRequestError('Nome obrigatorio', { domain: 'fabricantes' });
     if (findDuplicateFabricante(accountId, next, id)) throw new ConflictError('Fabricante duplicado', { domain: 'fabricantes', code: 'FABRICANTE_DUPLICADO' });
@@ -240,13 +330,22 @@ export async function updateFabricante(id, data, options = {}) {
       logSupabaseFailure('updateFabricante', error, payload);
       throw new DatabaseError('Falha ao atualizar fabricante', { details: error });
     }
+    const logoUrl = await uploadFabricanteLogo({ supabase, accountId, fabricanteId: id, upload: data.logo_upload });
+    if (logoUrl) {
+      const { data: logoUpdated, error: logoError } = await supabase.from('fabricantes').update({ logo_url: logoUrl, updated_at: new Date().toISOString() }).eq('id', id).eq('account_id', accountId).select('*').single();
+      if (logoError) {
+        logSupabaseFailure('updateFabricanteLogoUrl', logoError, { id, accountId, logo_url: logoUrl });
+        return updated;
+      }
+      return logoUpdated;
+    }
     return updated;
   }
 
   const idx = memoryFabricantes.findIndex((row) => row.id === id && row.account_id === accountId);
   if (idx < 0) throw new NotFoundError('Fabricante nao encontrado', { domain: 'fabricantes', code: 'FABRICANTE_NOT_FOUND' });
   const current = memoryFabricantes[idx];
-  const payload = normalizeFabricanteRecord(data, current);
+  const payload = normalizeFabricanteRecord(normalizeFabricantePatchData(data), current);
   if (!payload.nome) throw new BadRequestError('Nome obrigatorio', { domain: 'fabricantes' });
   if (findDuplicateFabricante(accountId, payload, id)) throw new ConflictError('Fabricante duplicado', { domain: 'fabricantes', code: 'FABRICANTE_DUPLICADO' });
   memoryFabricantes[idx] = payload;

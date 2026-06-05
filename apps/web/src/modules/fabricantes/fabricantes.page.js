@@ -1,5 +1,5 @@
 import { createFabricantesState } from './fabricantes.state.js';
-import { deleteCondicaoPagamento, fetchCondicoesPagamento, fetchFabricanteData, fetchFabricantesData, lookupCnpj, saveCondicaoPagamento, saveFabricante } from './fabricantes.service.js';
+import { deleteCondicaoPagamento, fetchCondicoesPagamento, fetchFabricanteData, fetchFabricantesData, lookupCnpj, saveCondicaoPagamento, saveFabricante, uploadFabricanteLogo } from './fabricantes.service.js';
 import { mapFabricantesData } from './fabricantes.mapper.js';
 
 function brl(value) {
@@ -72,6 +72,27 @@ function isPersistableLogoUrl(value) {
   return Boolean(raw) && !raw.startsWith('blob:');
 }
 
+async function fileToBase64(file) {
+  if (file && typeof file.arrayBuffer === 'function') {
+    const buffer = await file.arrayBuffer();
+    return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+  }
+  return await new Promise((resolve, reject) => {
+    if (typeof FileReader === 'undefined') {
+      reject(new Error('Leitura de arquivo indisponivel'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      const [, base64] = result.split(',', 2);
+      resolve(base64 || '');
+    };
+    reader.onerror = () => reject(reader.error || new Error('Falha ao ler arquivo'));
+    reader.readAsDataURL(file);
+  });
+}
+
 function generateRowId() {
   return `row-${Math.random().toString(36).slice(2)}-${Date.now()}`;
 }
@@ -138,6 +159,7 @@ function emptyForm() {
     telefone: '',
     site: '',
     logo_url: '',
+    logo_upload: null,
     logradouro: '',
     numero: '',
     complemento: '',
@@ -181,10 +203,13 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     state.condicoes = [];
     state.condicaoId = null;
     state.form = selected ? { ...emptyForm(), ...selected, cnpj: selected.cnpj || '' } : emptyForm();
+    state.form.nome_fantasia = selected?.nome || selected?.nome_fantasia || state.form.nome_fantasia || '';
     state.form.pedido_minimo = selected?.pedido_minimo ?? 0;
     state.form.comissao_padrao_percentual = selected?.comissao_padrao_percentual ?? 0;
     state.form.condicoes_pagamento = [];
     state.form.logo_file_name = '';
+    state.form.logo_file = null;
+    state.form.logo_upload = null;
     state.form.logo_preview = isPersistableLogoUrl(selected?.logo_url) ? selected.logo_url : '';
     state.cnpjValidated = Boolean(selected?.cnpj);
     state.cnpjManualUnlock = false;
@@ -200,7 +225,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     try {
       const detail = await fetchFabricanteData(apiClient, selected.id);
       state.selected = detail;
-      state.form = { ...state.form, ...detail, cnpj: detail.cnpj || '' };
+      state.form = { ...state.form, ...detail, nome_fantasia: detail.nome || detail.nome_fantasia || state.form.nome_fantasia || '', cnpj: detail.cnpj || '' };
       state.form.logo_preview = isPersistableLogoUrl(detail.logo_url) ? detail.logo_url : state.form.logo_preview || '';
       const condicoes = await fetchCondicoesPagamento(apiClient, selected.id);
       state.condicoes = (condicoes.items || []).map((row) => normalizeCondicaoRow({ ...row, juros: row.percentual_acrescimo, savedId: row.id }));
@@ -360,7 +385,13 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
         return;
       }
       state.form.logo_file_name = file.name;
+      state.form.logo_file = file;
       state.form.logo_url = '';
+      state.form.logo_upload = {
+        fileName: file.name,
+        mimeType: file.type,
+        base64: await fileToBase64(file)
+      };
       const preview = window.URL && typeof window.URL.createObjectURL === 'function' ? window.URL.createObjectURL(file) : '';
       state.form.logo_preview = preview;
       render();
@@ -378,8 +409,9 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
           return;
         }
         const fabricantePayload = {
-          nome: state.form.nome || state.form.nome_fantasia || state.form.razao_social || '',
+          nome: state.form.nome_fantasia || state.form.nome || state.form.razao_social || '',
           cnpj: onlyDigits(state.form.cnpj),
+          nome_fantasia: state.form.nome_fantasia || state.form.nome || '',
           razao_social: state.form.razao_social || null,
           site: state.form.site || null,
           email_comercial: state.form.email_comercial || null,
@@ -393,7 +425,6 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
           uf: state.form.uf || null,
           cep: state.form.cep || null,
           endereco_completo: state.form.endereco_completo || composeEnderecoCompleto(state.form) || null,
-          logo_url: isPersistableLogoUrl(state.form.logo_url) ? state.form.logo_url : null,
           pedido_minimo: Number(String(state.form.pedido_minimo || 0).replace(/[^\d.-]/g, '')) || 0,
           boleto_minimo: Number(state.form.boleto_minimo || 0),
           comissao_padrao_percentual: Number(state.form.comissao_padrao_percentual || 0),
@@ -402,6 +433,20 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
         };
         const saved = await saveFabricante(apiClient, fabricantePayload, state.selected?.id || null);
         const fabricanteId = saved.id || state.selected?.id || null;
+        let logoUploadError = false;
+        if (state.form.logo_file && fabricanteId) {
+          try {
+            const logoResult = await uploadFabricanteLogo(apiClient, fabricanteId, state.form.logo_file);
+            const logoUrl = logoResult?.data?.logo_url || logoResult?.logo_url || logoResult?.item?.logo_url || null;
+            if (logoUrl) {
+              saved.logo_url = logoUrl;
+              state.form.logo_url = logoUrl;
+              state.form.logo_preview = logoUrl;
+            }
+          } catch {
+            logoUploadError = true;
+          }
+        }
         const existing = new Map((state.condicoes || []).map((row) => [String(row.id), row]));
         const desired = condicoes.map((row) => ({ ...row, savedId: row.savedId || null }));
         for (const row of desired) {
@@ -419,6 +464,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
         }
         closeModal();
         await load();
+        if (logoUploadError) state.error = true;
       } catch {
         state.error = true;
       } finally {

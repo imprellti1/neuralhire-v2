@@ -67,11 +67,16 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
     });
 
     const finalHeaders = buildHeaders(headers);
+    const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+    if (isFormData) {
+      delete finalHeaders['content-type'];
+      delete finalHeaders['Content-Type'];
+    }
 
     const res = await fetch(url.toString(), {
       method,
       headers: finalHeaders,
-      ...(body !== undefined ? { body: JSON.stringify(body || {}) } : {})
+      ...(body !== undefined ? { body: isFormData ? body : JSON.stringify(body || {}) } : {})
     });
 
     return { res };

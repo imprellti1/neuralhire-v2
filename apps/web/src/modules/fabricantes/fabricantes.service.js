@@ -10,6 +10,12 @@ export async function saveFabricante(apiClient, payload, id = null) {
   return id ? apiClient.patch(`/fabricantes/${id}`, payload) : apiClient.post('/fabricantes', payload);
 }
 
+export async function uploadFabricanteLogo(apiClient, fabricanteId, file) {
+  const formData = new FormData();
+  formData.append('logo', file);
+  return apiClient.post(`/fabricantes/${fabricanteId}/logo`, formData);
+}
+
 export async function fetchCondicoesPagamento(apiClient, id) {
   return apiClient.get(`/fabricantes/${id}/condicoes-pagamento`);
 }

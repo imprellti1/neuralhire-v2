@@ -10,6 +10,7 @@ import {
   getFabricante,
   getFabricantes,
   lookupCnpjHandler,
+  updateFabricanteLogoHandler,
   updateCondicaoPagamentoHandler,
   updateFabricanteHandler
 } from './fabricantes.controller.js';
@@ -28,6 +29,7 @@ export function registerFabricantesRoutes(router) {
   router.registerRoute({ method: 'GET', path: '/fabricantes/:id', domain: 'fabricantes', middlewares: readMiddlewares, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await getFabricante(context))) });
   router.registerRoute({ method: 'POST', path: '/fabricantes', domain: 'fabricantes', middlewares: writeMiddlewares, schema: createFabricanteSchema, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await createFabricanteHandler(context))) });
   router.registerRoute({ method: 'PATCH', path: '/fabricantes/:id', domain: 'fabricantes', middlewares: writeMiddlewares, schema: updateFabricanteSchema, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await updateFabricanteHandler(context))) });
+  router.registerRoute({ method: 'POST', path: '/fabricantes/:id/logo', domain: 'fabricantes', middlewares: writeMiddlewares, schema: null, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await updateFabricanteLogoHandler(context))) });
   router.registerRoute({ method: 'GET', path: '/fabricantes/:id/condicoes-pagamento', domain: 'fabricantes', middlewares: readMiddlewares, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await getCondicoesPagamento(context))) });
   router.registerRoute({ method: 'POST', path: '/fabricantes/:id/condicoes-pagamento', domain: 'fabricantes', middlewares: writeMiddlewares, schema: createCondicaoPagamentoSchema, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await createCondicaoPagamentoHandler(context))) });
   router.registerRoute({ method: 'PATCH', path: '/fabricantes/:id/condicoes-pagamento/:condicaoId', domain: 'fabricantes', middlewares: writeMiddlewares, schema: updateCondicaoPagamentoSchema, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await updateCondicaoPagamentoHandler(context))) });

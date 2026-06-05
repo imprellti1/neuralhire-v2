@@ -5,6 +5,7 @@ import {
   getFabricanteById,
   listCondicoesPagamento,
   listFabricantes,
+  updateFabricanteLogo,
   updateCondicaoPagamento,
   updateFabricante
 } from './fabricantes.repository.js';
@@ -81,6 +82,7 @@ function normalizeFabricantePayload(body = {}) {
     cep,
     endereco_completo: enderecoCompleto,
     logo_url: resolvedLogoUrl,
+    logo_upload: body?.logo_upload || null,
     status: body?.status,
     pedido_minimo: body?.pedido_minimo,
     boleto_minimo: body?.boleto_minimo,
@@ -124,6 +126,7 @@ function normalizeFabricantePatchPayload(body = {}) {
   }
 
   if (body?.logo_url !== undefined) payload.logo_url = String(body.logo_url || '').trim();
+  if (body?.logo_upload !== undefined) payload.logo_upload = body.logo_upload;
   if (body?.status !== undefined) payload.status = body.status;
   if (body?.pedido_minimo !== undefined) payload.pedido_minimo = body.pedido_minimo;
   if (body?.boleto_minimo !== undefined) payload.boleto_minimo = body.boleto_minimo;
@@ -379,6 +382,14 @@ export async function updateFabricanteHandler(context) {
   const body = context.body || {};
   const accountId = getAccountIdFromContext(context);
   return updateFabricante(context.params.id, normalizeFabricantePatchPayload(body), { accountId });
+}
+
+export async function updateFabricanteLogoHandler(context) {
+  const accountId = getAccountIdFromContext(context);
+  const body = context.body || {};
+  const upload = body?.logo || body?.file || body?.logo_upload || null;
+  const updated = await updateFabricanteLogo(context.params.id, upload, { accountId });
+  return { data: { logo_url: updated.logo_url } };
 }
 
 export async function getCondicoesPagamento(context) {
