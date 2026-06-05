@@ -49,6 +49,46 @@ function buildEnderecoCompleto(endereco = {}) {
   return parts.join(' | ');
 }
 
+function normalizeFabricantePayload(body = {}) {
+  const endereco = body?.endereco || {};
+  const logoUrl = String(body?.logo_url || '').trim();
+  const resolvedLogoUrl = logoUrl && !logoUrl.startsWith('blob:') ? logoUrl : null;
+  const logradouro = firstMeaningful(body?.logradouro, endereco?.logradouro);
+  const numero = firstMeaningful(body?.numero, endereco?.numero);
+  const complemento = firstMeaningful(body?.complemento, endereco?.complemento);
+  const bairro = firstMeaningful(body?.bairro, endereco?.bairro);
+  const cidade = firstMeaningful(body?.cidade, endereco?.cidade);
+  const uf = firstMeaningful(body?.uf, endereco?.uf);
+  const cep = firstMeaningful(body?.cep, endereco?.cep);
+  const enderecoCompleto = firstMeaningful(
+    body?.endereco_completo,
+    buildEnderecoCompleto({ logradouro, numero, complemento, bairro, cidade, uf, cep, pais: body?.pais || endereco?.pais || '' })
+  );
+  return {
+    nome: body?.nome || body?.nome_fantasia || body?.razao_social || '',
+    razao_social: body?.razao_social || body?.razaoSocial || null,
+    cnpj: body?.cnpj ? normalizeCnpj(body.cnpj) : body?.cnpj,
+    site: body?.site || body?.website || null,
+    email_comercial: body?.email_comercial || body?.email || null,
+    telefone: body?.telefone || body?.ddd_telefone_1 || null,
+    regiao_atendida: body?.regiao_atendida || null,
+    logradouro,
+    numero,
+    complemento,
+    bairro,
+    cidade,
+    uf,
+    cep,
+    endereco_completo: enderecoCompleto,
+    logo_url: resolvedLogoUrl,
+    status: body?.status,
+    pedido_minimo: body?.pedido_minimo,
+    boleto_minimo: body?.boleto_minimo,
+    comissao_padrao_percentual: body?.comissao_padrao_percentual,
+    observacoes: body?.observacoes || null
+  };
+}
+
 async function fetchJsonWithTimeout(url, { timeoutMs = 8000 } = {}) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(new Error('CNPJ lookup timeout')), timeoutMs);
@@ -289,13 +329,13 @@ export async function getFabricante(context) {
 export async function createFabricanteHandler(context) {
   const body = context.body || {};
   const accountId = getAccountIdFromContext(context);
-  return createFabricante({ ...body, nome: body.nome || body.nome_fantasia || body.razao_social || '', cnpj: body.cnpj ? normalizeCnpj(body.cnpj) : null }, { accountId });
+  return createFabricante(normalizeFabricantePayload(body), { accountId });
 }
 
 export async function updateFabricanteHandler(context) {
   const body = context.body || {};
   const accountId = getAccountIdFromContext(context);
-  return updateFabricante(context.params.id, { ...body, nome: body.nome || body.nome_fantasia || body.razao_social || body.nome, cnpj: body.cnpj ? normalizeCnpj(body.cnpj) : body.cnpj }, { accountId });
+  return updateFabricante(context.params.id, normalizeFabricantePayload(body), { accountId });
 }
 
 export async function getCondicoesPagamento(context) {

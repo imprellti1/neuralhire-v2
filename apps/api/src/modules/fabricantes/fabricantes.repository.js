@@ -34,6 +34,44 @@ function composeEnderecoCompleto(data = {}) {
   return parts.join(' | ') || null;
 }
 
+function sanitizeLogoUrl(value) {
+  const logoUrl = String(value || '').trim();
+  if (!logoUrl) return null;
+  return logoUrl.startsWith('blob:') ? null : logoUrl;
+}
+
+function normalizeFabricanteRecord(data = {}, current = null) {
+  const base = current || {};
+  const payload = {
+    nome: data.nome !== undefined ? String(data.nome || '').trim() : base.nome,
+    razao_social: data.razao_social !== undefined ? (data.razao_social || null) : base.razao_social || null,
+    cnpj: data.cnpj !== undefined ? normalizeCnpj(data.cnpj) : base.cnpj || null,
+    site: data.site !== undefined ? (data.site || null) : base.site || null,
+    email_comercial: data.email_comercial !== undefined ? (data.email_comercial || null) : base.email_comercial || null,
+    telefone: data.telefone !== undefined ? (data.telefone || null) : base.telefone || null,
+    regiao_atendida: data.regiao_atendida !== undefined ? (data.regiao_atendida || null) : base.regiao_atendida || null,
+    logradouro: data.logradouro !== undefined ? (data.logradouro || null) : base.logradouro || null,
+    numero: data.numero !== undefined ? (data.numero || null) : base.numero || null,
+    complemento: data.complemento !== undefined ? (data.complemento || null) : base.complemento || null,
+    bairro: data.bairro !== undefined ? (data.bairro || null) : base.bairro || null,
+    cidade: data.cidade !== undefined ? (data.cidade || null) : base.cidade || null,
+    uf: data.uf !== undefined ? (data.uf || null) : base.uf || null,
+    cep: data.cep !== undefined ? (data.cep || null) : base.cep || null,
+    endereco_completo: data.endereco_completo !== undefined ? (data.endereco_completo || null) : base.endereco_completo || null,
+    logo_url: data.logo_url !== undefined ? sanitizeLogoUrl(data.logo_url) : sanitizeLogoUrl(base.logo_url),
+    status: data.status !== undefined ? (data.status === 'inativo' ? 'inativo' : 'ativo') : base.status || 'ativo',
+    pedido_minimo: data.pedido_minimo !== undefined ? normalizeNumber(data.pedido_minimo, 0) : normalizeNumber(base.pedido_minimo, 0),
+    boleto_minimo: data.boleto_minimo !== undefined ? normalizeNumber(data.boleto_minimo, 0) : normalizeNumber(base.boleto_minimo, 0),
+    comissao_padrao_percentual: data.comissao_padrao_percentual !== undefined ? normalizeNumber(data.comissao_padrao_percentual, 0) : normalizeNumber(base.comissao_padrao_percentual, 0),
+    observacoes: data.observacoes !== undefined ? (data.observacoes || null) : base.observacoes || null,
+    updated_at: new Date().toISOString()
+  };
+  if (!payload.endereco_completo) {
+    payload.endereco_completo = composeEnderecoCompleto(payload);
+  }
+  return payload;
+}
+
 function normalizePagination(filters = {}) {
   const page = Number.isFinite(filters.page) && filters.page > 0 ? Math.floor(filters.page) : 1;
   const rawLimit = Number.isFinite(filters.limit) && filters.limit > 0 ? Math.floor(filters.limit) : 20;
@@ -135,7 +173,7 @@ export async function createFabricante(data, options = {}) {
     uf: data.uf || null,
     cep: data.cep || null,
     endereco_completo: data.endereco_completo || composeEnderecoCompleto(data),
-    logo_url: data.logo_url || null,
+    logo_url: sanitizeLogoUrl(data.logo_url),
     status: data.status === 'inativo' ? 'inativo' : 'ativo',
     pedido_minimo: normalizeNumber(data.pedido_minimo, 0),
     boleto_minimo: normalizeNumber(data.boleto_minimo, 0),
@@ -169,30 +207,7 @@ export async function updateFabricante(id, data, options = {}) {
 
   if (isSupabaseMode()) {
     const current = await getFabricanteById(id, { accountId });
-    const payload = {
-      ...(data.nome !== undefined ? { nome: String(data.nome || '').trim() } : {}),
-      ...(data.razao_social !== undefined ? { razao_social: data.razao_social || null } : {}),
-      ...(data.cnpj !== undefined ? { cnpj: normalizeCnpj(data.cnpj) } : {}),
-      ...(data.site !== undefined ? { site: data.site || null } : {}),
-      ...(data.email_comercial !== undefined ? { email_comercial: data.email_comercial || null } : {}),
-      ...(data.telefone !== undefined ? { telefone: data.telefone || null } : {}),
-      ...(data.regiao_atendida !== undefined ? { regiao_atendida: data.regiao_atendida || null } : {}),
-      ...(data.logradouro !== undefined ? { logradouro: data.logradouro || null } : {}),
-      ...(data.numero !== undefined ? { numero: data.numero || null } : {}),
-      ...(data.complemento !== undefined ? { complemento: data.complemento || null } : {}),
-      ...(data.bairro !== undefined ? { bairro: data.bairro || null } : {}),
-      ...(data.cidade !== undefined ? { cidade: data.cidade || null } : {}),
-      ...(data.uf !== undefined ? { uf: data.uf || null } : {}),
-      ...(data.cep !== undefined ? { cep: data.cep || null } : {}),
-      ...(data.endereco_completo !== undefined ? { endereco_completo: data.endereco_completo || null } : {}),
-      ...(data.logo_url !== undefined ? { logo_url: data.logo_url || null } : {}),
-      ...(data.status !== undefined ? { status: data.status === 'inativo' ? 'inativo' : 'ativo' } : {}),
-      ...(data.pedido_minimo !== undefined ? { pedido_minimo: normalizeNumber(data.pedido_minimo, 0) } : {}),
-      ...(data.boleto_minimo !== undefined ? { boleto_minimo: normalizeNumber(data.boleto_minimo, 0) } : {}),
-      ...(data.comissao_padrao_percentual !== undefined ? { comissao_padrao_percentual: normalizeNumber(data.comissao_padrao_percentual, 0) } : {}),
-      ...(data.observacoes !== undefined ? { observacoes: data.observacoes || null } : {}),
-      updated_at: new Date().toISOString()
-    };
+    const payload = normalizeFabricanteRecord(data, current);
     const next = { ...current, ...payload };
     if (!next.nome) throw new BadRequestError('Nome obrigatorio', { domain: 'fabricantes' });
     if (findDuplicateFabricante(accountId, next, id)) throw new ConflictError('Fabricante duplicado', { domain: 'fabricantes', code: 'FABRICANTE_DUPLICADO' });
@@ -206,31 +221,7 @@ export async function updateFabricante(id, data, options = {}) {
   const idx = memoryFabricantes.findIndex((row) => row.id === id && row.account_id === accountId);
   if (idx < 0) throw new NotFoundError('Fabricante nao encontrado', { domain: 'fabricantes', code: 'FABRICANTE_NOT_FOUND' });
   const current = memoryFabricantes[idx];
-  const payload = {
-    ...current,
-    ...(data.nome !== undefined ? { nome: String(data.nome || '').trim() } : {}),
-    ...(data.razao_social !== undefined ? { razao_social: data.razao_social || null } : {}),
-    ...(data.cnpj !== undefined ? { cnpj: normalizeCnpj(data.cnpj) } : {}),
-    ...(data.site !== undefined ? { site: data.site || null } : {}),
-    ...(data.email_comercial !== undefined ? { email_comercial: data.email_comercial || null } : {}),
-    ...(data.telefone !== undefined ? { telefone: data.telefone || null } : {}),
-    ...(data.regiao_atendida !== undefined ? { regiao_atendida: data.regiao_atendida || null } : {}),
-    ...(data.logradouro !== undefined ? { logradouro: data.logradouro || null } : {}),
-    ...(data.numero !== undefined ? { numero: data.numero || null } : {}),
-    ...(data.complemento !== undefined ? { complemento: data.complemento || null } : {}),
-    ...(data.bairro !== undefined ? { bairro: data.bairro || null } : {}),
-    ...(data.cidade !== undefined ? { cidade: data.cidade || null } : {}),
-    ...(data.uf !== undefined ? { uf: data.uf || null } : {}),
-    ...(data.cep !== undefined ? { cep: data.cep || null } : {}),
-    ...(data.endereco_completo !== undefined ? { endereco_completo: data.endereco_completo || null } : {}),
-    ...(data.logo_url !== undefined ? { logo_url: data.logo_url || null } : {}),
-    ...(data.status !== undefined ? { status: data.status === 'inativo' ? 'inativo' : 'ativo' } : {}),
-    ...(data.pedido_minimo !== undefined ? { pedido_minimo: normalizeNumber(data.pedido_minimo, 0) } : {}),
-    ...(data.boleto_minimo !== undefined ? { boleto_minimo: normalizeNumber(data.boleto_minimo, 0) } : {}),
-    ...(data.comissao_padrao_percentual !== undefined ? { comissao_padrao_percentual: normalizeNumber(data.comissao_padrao_percentual, 0) } : {}),
-    ...(data.observacoes !== undefined ? { observacoes: data.observacoes || null } : {}),
-    updated_at: new Date().toISOString()
-  };
+  const payload = normalizeFabricanteRecord(data, current);
   if (!payload.nome) throw new BadRequestError('Nome obrigatorio', { domain: 'fabricantes' });
   if (findDuplicateFabricante(accountId, payload, id)) throw new ConflictError('Fabricante duplicado', { domain: 'fabricantes', code: 'FABRICANTE_DUPLICADO' });
   memoryFabricantes[idx] = payload;
