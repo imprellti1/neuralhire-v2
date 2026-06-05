@@ -153,6 +153,17 @@ const styles = `
   .nh-live-demo__progress span{display:block;height:100%;width:0;background:linear-gradient(90deg,#8b5cf6,#22c3ff,#25d366);box-shadow:0 0 24px rgba(34,195,255,.28);transition:width .45s ease}
   .nh-live-demo__tag{display:inline-flex;align-items:center;gap:8px;padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(148,163,184,.12);color:#cfe0fb;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
   .nh-live-demo__tag .dot{width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,#25d366,#16a34a);box-shadow:0 0 0 6px rgba(37,211,102,.1)}
+  .nh-whatsapp-hero{display:grid;gap:14px;min-height:100%;padding:20px}
+  .nh-whatsapp-hero__head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+  .nh-whatsapp-hero__eyebrow{display:inline-flex;align-items:center;gap:10px;color:#9cf1be;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px}
+  .nh-whatsapp-hero__status-dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,#25d366,#16a34a);box-shadow:0 0 0 6px rgba(37,211,102,.1)}
+  .nh-whatsapp-hero__head h3{margin:0;color:#fff;font-size:22px;line-height:1.08;letter-spacing:-.04em}
+  .nh-whatsapp-hero__head p{margin:10px 0 0;color:#b9cceb;font-size:14px;line-height:1.55;max-width:32ch}
+  .nh-whatsapp-hero__badge{display:inline-flex;align-items:center;justify-content:center;padding:10px 12px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(148,163,184,.14);color:#d8e5fb;font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;white-space:nowrap}
+  .nh-whatsapp-hero__trust{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  .nh-whatsapp-hero__trust-item{padding:14px 15px;border-radius:18px;background:rgba(255,255,255,.045);border:1px solid rgba(148,163,184,.12);color:#dbe9ff}
+  .nh-whatsapp-hero__trust-item strong{display:block;color:#fff;font-size:13px;margin-bottom:4px}
+  .nh-whatsapp-hero__trust-item span{display:block;color:#a9bedf;font-size:12px;line-height:1.45}
   @keyframes nh-live-pulse{0%,100%{transform:translateY(0) scale(1);box-shadow:0 0 0 0 rgba(34,195,255,.25)}50%{transform:translateY(2px) scale(1.12);box-shadow:0 0 0 12px rgba(34,195,255,0)}}
   .nh-metrics-stack{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-content:start;min-width:0;width:100%}
   .nh-metric{position:relative;overflow:hidden;border-radius:22px;background:linear-gradient(180deg,rgba(17,24,39,.88),rgba(12,19,32,.94));border:1px solid rgba(148,163,184,.14);color:#e8f0ff;padding:18px;box-shadow:0 18px 44px rgba(2,8,23,.16);min-height:132px;display:flex;flex-direction:column;justify-content:center}
@@ -243,6 +254,10 @@ const styles = `
     .nh-hero-preview-head{flex-direction:column}
     .nh-hero-preview-card{min-height:unset}
     .nh-live-demo{min-height:340px;padding:14px;border-radius:24px}
+    .nh-whatsapp-hero{padding:14px}
+    .nh-whatsapp-hero__head{flex-direction:column}
+    .nh-whatsapp-hero__head p{max-width:none}
+    .nh-whatsapp-hero__trust{grid-template-columns:1fr}
     .nh-live-demo__footer{flex-direction:column;align-items:flex-start}
     .nh-live-demo__actions{flex-direction:column;align-items:flex-start}
     .nh-live-demo__approval{flex-direction:column;align-items:flex-start}
@@ -393,62 +408,30 @@ function buildLiveDemoHtml() {
   `;
 }
 
-function buildDashboardHtml() {
+function buildWhatsAppVivoHeroHtml() {
   return `
-    <div class="nh-panel" aria-label="IA em ação">
-      <div class="nh-dashboard">
-        <section class="nh-flow-stage">
-          <div class="nh-main-head">
-            <div>
-              <h3>IA em ação</h3>
-              <span>NeuralHire acompanhando, retomando e vendendo pelo WhatsApp</span>
-            </div>
-            <span style="color:#7dd3fc;font-weight:700">Ao vivo</span>
+    <div class="nh-panel nh-whatsapp-hero" aria-label="WhatsApp Vivo">
+      <div class="nh-whatsapp-hero__head">
+        <div>
+          <div class="nh-whatsapp-hero__eyebrow">
+            <span class="nh-whatsapp-hero__status-dot" aria-hidden="true"></span>
+            WhatsApp Vivo
           </div>
-          <div class="nh-flow-list">
-            <div class="nh-flow-bubble client">
-              <div class="nh-flow-label">${premiumIcon('whatsapp', '#25d366', '#16a34a')}Cliente</div>
-              <div class="nh-flow-text">“Me chama em 30 dias.”</div>
-            </div>
-            <div class="nh-arrow-stack" aria-hidden="true"><span>↓</span><span>↓</span><span>↓</span></div>
-            <div class="nh-flow-bubble ai">
-              <div class="nh-flow-label"><span class="dot"></span>IA NeuralHire</div>
-              <div class="nh-flow-text">“Retomada criada para 03/07.”</div>
-              <div class="nh-flow-checks">
-                <div class="nh-flow-check">Cliente pausado identificado</div>
-                <div class="nh-flow-check">Retomada agendada para 03/07</div>
-                <div class="nh-flow-check">Canal: WhatsApp</div>
-              </div>
-              <div class="nh-flow-suggest">
-                <div class="nh-flow-suggest-label">Mensagem sugerida:</div>
-                <div class="nh-flow-suggest-box">Olá! Tudo bem? Conforme combinado, estou retornando para saber como posso ajudar.</div>
-                <div class="nh-flow-action">
-                  <a class="nh-flow-button" href="#lista">Aprovar mensagem</a>
-                  <span class="nh-flow-time">10:32</span>
-                </div>
-              </div>
-            </div>
-            <div class="nh-arrow-stack" aria-hidden="true"><span>↓</span><span>↓</span><span>↓</span></div>
-            <div class="nh-flow-bubble approval">
-              <div class="nh-flow-label">${premiumIcon('dashboard', '#8b5cf6', '#22c3ff')}Equipe</div>
-              <div class="nh-flow-text">“Aprovado.”</div>
-            </div>
-            <div class="nh-arrow-stack" aria-hidden="true"><span>↓</span><span>↓</span><span>↓</span></div>
-            <div class="nh-flow-bubble sent">
-              <div class="nh-flow-label">${premiumIcon('whatsapp', '#25d366', '#16a34a')}Mensagem enviada</div>
-              <div class="nh-flow-checks">
-                <div class="nh-flow-check">WhatsApp entregue</div>
-                <div class="nh-flow-check">Lido pelo cliente</div>
-              </div>
-            </div>
-          </div>
-        </section>
-        <aside class="nh-metrics-stack" aria-label="Métricas da IA">
-          <div class="nh-metric"><strong>87</strong><span>oportunidades monitoradas</span></div>
-          <div class="nh-metric"><strong>32</strong><span>clientes recuperados</span></div>
-          <div class="nh-metric"><strong>14</strong><span>pedidos iniciados</span></div>
-          <div class="nh-metric"><strong>R$ 18.700</strong><span>recuperados</span></div>
-        </aside>
+          <h3>Veja a IA atuando no WhatsApp</h3>
+          <p>Fluxo em tempo real com segurança, aprovação humana e envio assistido para a operação comercial.</p>
+        </div>
+        <div class="nh-whatsapp-hero__badge">Em tempo real</div>
+      </div>
+      ${buildLiveDemoHtml()}
+      <div class="nh-whatsapp-hero__trust">
+        <div class="nh-whatsapp-hero__trust-item">
+          <strong>Segurança</strong>
+          <span>Mensagens passam por validação quando necessário.</span>
+        </div>
+        <div class="nh-whatsapp-hero__trust-item">
+          <strong>Aprovação humana</strong>
+          <span>A equipe mantém o controle do envio final.</span>
+        </div>
       </div>
     </div>
   `;
@@ -616,10 +599,9 @@ function buildLandingHtml() {
                 <span class="nh-pill">Sem fidelidade</span>
                 <span class="nh-pill">Implantação assistida</span>
               </div>
-              ${buildLiveDemoHtml()}
             </div>
 
-            ${buildDashboardHtml()}
+            ${buildWhatsAppVivoHeroHtml()}
           </div>
           <div style="margin-top:22px">
             <h2 style="margin:0 0 18px;font-size:clamp(24px,2.4vw,36px);line-height:1.1;letter-spacing:-.04em;color:#081225">O que a IA faz sozinha?</h2>
