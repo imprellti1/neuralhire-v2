@@ -13,6 +13,9 @@ const styles = `
   .nh-brand-inline .nh-brand-name{white-space:nowrap}
   .nh-brand-inline .nh-brand-name .neural{color:#ffffff}
   .nh-brand-inline .nh-brand-name .hire{background:linear-gradient(135deg,#8b5cf6,#22c3ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .nh-brand-on-light .neural{color:#07142f}
+  .nh-brand-on-light .hire{background:linear-gradient(135deg,#8b5cf6,#22c3ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .nh-brand-on-light .nh-brand-mark{filter:drop-shadow(0 6px 14px rgba(7,20,47,.12))}
   .nh-brand-tagline{font-size:11px;color:#97a8c5;margin-top:4px;letter-spacing:.12em;text-transform:uppercase}
   .nh-brand-compact .nh-brand-mark{height:40px}
   .nh-brand-compact .nh-brand-name{font-size:18px}
@@ -21,7 +24,7 @@ const styles = `
   .nh-cta{display:inline-flex;align-items:center;justify-content:center;padding:12px 18px;border-radius:999px;text-decoration:none;font-weight:800;color:#fff;background:linear-gradient(135deg,#8b5cf6,#2563eb);box-shadow:0 16px 30px rgba(37,99,235,.28),0 0 0 1px rgba(255,255,255,.08) inset}
   .nh-btns{display:flex;flex-wrap:wrap;gap:12px}
   .nh-btn-secondary{background:rgba(255,255,255,.08);border:1px solid rgba(191,219,254,.24);box-shadow:none}
-  .nh-hero{height:auto;min-height:0;padding:18px 0 56px;display:block}
+  .nh-hero{height:auto;min-height:0;padding:18px 0 72px;display:block}
   .nh-hero-grid{display:grid;grid-template-columns:minmax(0,.48fr) minmax(0,.52fr);gap:32px;align-items:stretch}
   .nh-kicker{margin:2px 0 8px;text-transform:uppercase;letter-spacing:.18em;font-size:12px;color:#8ab4ff;font-weight:800}
   .nh-title{margin:0;font-size:clamp(42px,4.45vw,68px);line-height:.98;letter-spacing:-.055em;color:#fff;max-width:12ch}
@@ -103,13 +106,13 @@ const styles = `
   .nh-hero-preview-card.b{background:linear-gradient(180deg,rgba(8,29,20,.96),rgba(7,20,15,.94));border-color:rgba(67,181,129,.16);box-shadow:0 24px 60px rgba(6,44,30,.24),0 0 0 1px rgba(255,255,255,.03) inset}
   .nh-hero-preview-card.c{background:linear-gradient(180deg,rgba(10,16,30,.98),rgba(8,14,26,.94));box-shadow:0 24px 60px rgba(8,16,33,.3),0 0 0 1px rgba(255,255,255,.03) inset}
   .nh-live-demo{position:relative;display:flex;flex-direction:column;height:100%;min-height:0;gap:14px}
-  .nh-live-demo-frame{position:relative;flex:1;aspect-ratio:16/10;min-height:420px;max-height:520px;overflow:hidden;border-radius:30px;padding:18px;border:1px solid rgba(148,163,184,.16);background:
+  .nh-live-demo-frame{position:relative;flex:1;aspect-ratio:16/10;min-height:560px;max-height:660px;overflow:hidden;border-radius:30px;padding:18px;border:1px solid rgba(148,163,184,.16);background:
     radial-gradient(circle at 18% 14%,rgba(139,92,246,.18),transparent 28%),
     radial-gradient(circle at 84% 10%,rgba(34,195,255,.16),transparent 24%),
     linear-gradient(180deg,rgba(7,12,24,.98),rgba(7,13,24,.9));box-shadow:0 28px 72px rgba(2,8,23,.34),0 0 0 1px rgba(255,255,255,.03) inset}
   .nh-live-demo-frame::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.04),transparent 28%,rgba(255,255,255,.02));pointer-events:none}
   .nh-live-demo-frame::after{content:'';position:absolute;inset:auto 10% -22% 8%;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(37,211,102,.16),rgba(37,211,102,0) 68%);filter:blur(10px);pointer-events:none}
-  .nh-live-demo__frame{position:relative;z-index:1;display:grid;grid-template-rows:auto auto 1fr;gap:14px;min-height:100%;height:100%}
+  .nh-live-demo__frame{position:relative;z-index:1;display:grid;grid-template-rows:auto auto 1fr;gap:12px;min-height:100%;height:100%;transform:scale(.88);transform-origin:top center;width:113.636%;margin-inline:auto}
   .nh-live-demo__top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
   .nh-live-demo__badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:rgba(37,211,102,.12);border:1px solid rgba(37,211,102,.2);color:#9cf1be;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
   .nh-live-demo__status{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(148,163,184,.14);color:#cfe0fb;font-size:12px;font-weight:700}
@@ -176,12 +179,13 @@ const styles = `
   .nh-agents-list{display:grid;gap:10px}
   .nh-agent-item{display:flex;gap:10px;align-items:flex-start;padding:10px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid rgba(148,163,184,.08);min-width:0}
   .nh-dot{width:28px;height:28px;border-radius:50%;flex:0 0 auto;background:linear-gradient(135deg,var(--c1),var(--c2));box-shadow:0 0 0 6px rgba(255,255,255,.03),0 0 24px color-mix(in srgb, var(--c2) 28%, transparent)}
-  .nh-agent-item strong,.nh-module strong{display:block;color:#fff;font-size:14px;margin-bottom:4px}
-  .nh-agent-item span,.nh-module span,.nh-flow-msg{color:#b6c7e5;font-size:13px;line-height:1.55}
+  .nh-agent-item strong,.nh-module strong{display:block;color:#07142f;font-size:14px;font-weight:700;margin-bottom:4px}
+  .nh-agent-item span,.nh-module span,.nh-flow-msg{color:#334155;font-size:13px;line-height:1.45;font-weight:500}
   .nh-statbar{margin-top:20px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  .nh-hero-followup{margin-top:64px;padding-top:0}
   .nh-section{padding:68px 0 0;color:#10203b}
-  .nh-section h2{margin:0 0 14px;font-size:clamp(28px,3.2vw,48px);line-height:1.05;letter-spacing:-.04em;color:#081225}
-  .nh-section p.lead{margin:0 0 28px;color:#4d5f7c;font-size:18px;line-height:1.7;max-width:62ch}
+  .nh-section h2{margin:0 0 14px;font-size:clamp(28px,3.2vw,48px);line-height:1.05;letter-spacing:-.04em;color:#07142f}
+  .nh-section p.lead{margin:0 0 28px;color:#334155;font-size:18px;line-height:1.6;max-width:62ch;font-weight:500}
   .nh-grid-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
   .nh-agent-card,.nh-module{background:#fff;border:1px solid #dde7f7;border-radius:22px;padding:18px;box-shadow:0 16px 40px rgba(16,32,59,.08)}
   .nh-module-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
@@ -194,9 +198,12 @@ const styles = `
   .nh-flow-shell{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
   .nh-flow-card{border-radius:18px;padding:18px;border:1px solid rgba(59,130,246,.12);background:linear-gradient(180deg,#f8fdfb,#eef8f2);box-shadow:0 16px 40px rgba(16,32,59,.08)}
   .nh-flow-card.alt{background:linear-gradient(180deg,#eff5ff,#f8fbff)}
-  .nh-flow-card .step{display:flex;align-items:center;gap:10px;font-weight:800;color:#123157;margin-bottom:10px}
-  .nh-flow-card .step span{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#2563eb}
-  .nh-flow-card .body{color:#34506f;line-height:1.65;font-size:14px}
+  .nh-flow-card .step{display:flex;align-items:center;gap:10px;font-weight:700;color:#07142f;margin-bottom:10px;line-height:1.45}
+  .nh-flow-card .step span{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#475569}
+  .nh-flow-card .body{color:#334155;line-height:1.45;font-size:14px;font-weight:500}
+  .nh-module strong{font-size:15px;line-height:1.35}
+  .nh-module span{font-size:13px;line-height:1.45}
+  .nh-module-grid .nh-module{background:#fff;border:1px solid rgba(148,163,184,.16)}
   .nh-cta-band{margin:72px 0 0;border-radius:32px;padding:34px;background:linear-gradient(135deg,#07111f 0%,#12214a 52%,#1a1f63 100%);color:#fff;box-shadow:0 28px 90px rgba(11,18,32,.42);position:relative;overflow:hidden}
   .nh-cta-band::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 10% 50%,rgba(34,195,255,.18),transparent 24%),radial-gradient(circle at 88% 40%,rgba(139,92,246,.22),transparent 24%)}
   .nh-cta-band > *{position:relative}
@@ -245,6 +252,7 @@ const styles = `
     .nh-hero-grid{gap:24px}
     .nh-title{font-size:clamp(38px,11vw,48px);max-width:100%}
     .nh-sub{font-size:16px}
+    .nh-hero-followup{margin-top:40px}
     .nh-kpi-grid,.nh-statbar,.nh-module-grid,.nh-grid-cards,.nh-flow-shell,.nh-form,.nh-card-grid-2{grid-template-columns:1fr}
     .nh-dashboard{max-width:100%;height:auto;min-height:0;grid-template-columns:1fr}
     .nh-panel{padding:12px}
@@ -255,7 +263,8 @@ const styles = `
     .nh-hero-preview-head{flex-direction:column}
     .nh-hero-preview-card{min-height:unset}
     .nh-live-demo{gap:12px}
-    .nh-live-demo-frame{min-height:320px;max-height:380px;padding:14px;border-radius:24px}
+    .nh-live-demo-frame{min-height:380px;max-height:420px;padding:14px;border-radius:24px}
+    .nh-live-demo__frame{transform:scale(.94);width:106.383%}
     .nh-whatsapp-hero{padding:14px}
     .nh-whatsapp-hero__head{flex-direction:column}
     .nh-whatsapp-hero__head p{max-width:none}
@@ -607,7 +616,7 @@ function buildLandingHtml() {
 
             ${buildWhatsAppVivoHeroHtml()}
           </div>
-          <div style="margin-top:22px">
+          <div class="nh-hero-followup">
             <h2 style="margin:0 0 18px;font-size:clamp(24px,2.4vw,36px);line-height:1.1;letter-spacing:-.04em;color:#081225">O que a IA faz sozinha?</h2>
             <div class="nh-checklist" aria-label="O que a IA faz sozinha">
               <div class="nh-checklist-item">Detecta clientes esquecidos</div>
@@ -618,7 +627,7 @@ function buildLandingHtml() {
               <div class="nh-checklist-item">Entrega tudo no WhatsApp</div>
             </div>
           </div>
-          <div style="margin-top:22px">
+          <div class="nh-hero-followup">
             <h2 style="margin:0 0 14px;font-size:clamp(24px,2.4vw,36px);line-height:1.1;letter-spacing:-.04em;color:#081225">Resultados monitorados pela IA</h2>
           </div>
           <div class="nh-statbar">
@@ -660,12 +669,12 @@ function buildLandingHtml() {
                 </div>
               </div>
             </div>
-            <div class="nh-card" style="background:linear-gradient(180deg,#daf7e4,#ecfbf1);border-color:#c7ebd5">
-              <h4 style="color:#0b3d21">Resumo do fluxo</h4>
+              <div class="nh-card" style="background:linear-gradient(180deg,#daf7e4,#ecfbf1);border-color:#c7ebd5">
+              <h4 style="color:#07142f">Resumo do fluxo</h4>
               <div class="nh-agents-list">
-                <div class="nh-agent-item" style="background:rgba(255,255,255,.52)">${premiumIcon('whatsapp', '#25d366', '#16a34a')}<div><strong style="color:#0b3d21">WhatsApp nativo</strong><span style="color:#2f6344">Centraliza a conversa comercial sem blocos secos de texto.</span></div></div>
-                <div class="nh-agent-item" style="background:rgba(255,255,255,.52)">${premiumIcon('followup', '#8b5cf6', '#2563eb')}<div><strong style="color:#0b3d21">IA com contexto</strong><span style="color:#2f6344">Entende o momento da conversa e acelera a próxima ação.</span></div></div>
-                <div class="nh-agent-item" style="background:rgba(255,255,255,.52)">${premiumIcon('dashboard', '#22c55e', '#14b8a6')}<div><strong style="color:#0b3d21">Aprovação humana</strong><span style="color:#2f6344">Mantém controle e qualidade antes do disparo.</span></div></div>
+                <div class="nh-agent-item" style="background:rgba(255,255,255,.72)">${premiumIcon('whatsapp', '#25d366', '#16a34a')}<div><strong style="color:#07142f">WhatsApp nativo</strong><span style="color:#334155">Centraliza a conversa comercial sem blocos secos de texto.</span></div></div>
+                <div class="nh-agent-item" style="background:rgba(255,255,255,.72)">${premiumIcon('followup', '#8b5cf6', '#2563eb')}<div><strong style="color:#07142f">IA com contexto</strong><span style="color:#334155">Entende o momento da conversa e acelera a próxima ação.</span></div></div>
+                <div class="nh-agent-item" style="background:rgba(255,255,255,.72)">${premiumIcon('dashboard', '#22c55e', '#14b8a6')}<div><strong style="color:#07142f">Aprovação humana</strong><span style="color:#334155">Mantém controle e qualidade antes do disparo.</span></div></div>
               </div>
             </div>
           </div>
@@ -734,7 +743,7 @@ function buildLandingHtml() {
         <footer class="nh-footer">
           <div class="nh-footer-grid">
             <div>
-          <a class="nh-brand nh-brand-compact nh-brand-inline" href="#/" aria-label="NeuralHire" style="margin-bottom:12px;color:#081225">
+          <a class="nh-brand nh-brand-compact nh-brand-inline nh-brand-on-light" href="#/" aria-label="NeuralHire" style="margin-bottom:12px;color:#081225">
                 <img class="nh-brand-mark" src="/brand/neuralhire-mark-app-icon.svg" alt="" aria-hidden="true">
                 <span class="nh-brand-wordmark">
                   <span class="nh-brand-name"><span class="neural">Neural</span><span class="hire">Hire</span></span>
@@ -756,10 +765,11 @@ function buildLandingHtml() {
             </div>
             <div>
               <h4>Receba novidades</h4>
-              <div class="nh-mailbox">
-                <input type="email" placeholder="Seu e-mail">
-                <button class="nh-cta" type="button">Cadastrar</button>
-              </div>
+              <form class="nh-mailbox" id="newsletter-form">
+                <input type="email" name="email" placeholder="Seu e-mail" required>
+                <button class="nh-cta" id="newsletter-submit" type="submit">Cadastrar</button>
+              </form>
+              <div id="newsletter-feedback" aria-live="polite" style="min-height:20px;margin-top:8px;font-size:12px;line-height:1.4;color:#b42318"></div>
             </div>
           </div>
         </footer>
@@ -933,6 +943,40 @@ export function renderPublicLandingPage(container, { apiClient } = {}) {
       feedback.textContent = error?.message || 'Nao foi possivel registrar agora. Tente novamente em instantes.';
     } finally {
       submitting = false;
+      if (submitButton) submitButton.disabled = false;
+    }
+  });
+  let newsletterSubmitting = false;
+  const newsletterForm = container.querySelector('#newsletter-form');
+  newsletterForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (newsletterSubmitting) return;
+    const feedback = container.querySelector('#newsletter-feedback');
+    const submitButton = container.querySelector('#newsletter-submit');
+    const emailInput = newsletterForm.querySelector('input[name="email"]');
+    const email = String(emailInput?.value || '').trim();
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailPattern.test(email)) {
+      feedback.textContent = 'Informe um e-mail válido.';
+      return;
+    }
+    try {
+      newsletterSubmitting = true;
+      if (submitButton) submitButton.disabled = true;
+      feedback.textContent = 'Enviando cadastro...';
+      await apiClient.post('/interest-leads', {
+        nome: 'Lead Newsletter',
+        empresa: 'Newsletter',
+        email,
+        origem: 'landing-newsletter',
+      });
+      trackLandingLeadCaptured();
+      feedback.textContent = 'Cadastro realizado com sucesso.';
+      newsletterForm.reset();
+    } catch (error) {
+      feedback.textContent = error?.message || 'Não foi possível cadastrar agora. Tente novamente.';
+    } finally {
+      newsletterSubmitting = false;
       if (submitButton) submitButton.disabled = false;
     }
   });
