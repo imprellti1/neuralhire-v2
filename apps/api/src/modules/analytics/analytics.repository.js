@@ -38,7 +38,7 @@ async function fetchData(accountId, context) {
   if (getAnalyticsRepositoryMode().mode === 'supabase') {
     const supabase = getSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const [{ data: pedidos, error: pErr }, { data: itens, error: iErr }, { data: clientes, error: cErr }, { data: produtos, error: prErr }] = await Promise.all([
-      supabase.from('pedidos').select('id,account_id,cliente_id,status,total,created_at,owner_user_id').eq('account_id', accountId).match(scoped.owner_user_id ? { owner_user_id: scoped.owner_user_id } : {}),
+      supabase.from('pedidos').select('id,account_id,cliente_id,status,total,created_at').eq('account_id', accountId),
       supabase.from('pedido_itens').select('pedido_id,produto_id,produto_nome,quantidade,total').eq('account_id', accountId),
       supabase.from('clientes').select('id,nome,ativo,owner_user_id').eq('account_id', accountId).match(scoped.owner_user_id ? { owner_user_id: scoped.owner_user_id } : {}),
       supabase.from('produtos').select('id,nome,ativo').eq('account_id', accountId)
@@ -55,7 +55,14 @@ async function fetchData(accountId, context) {
       });
       throw new DatabaseError('Falha ao carregar dados analytics', { details: supabaseError });
     }
-    return { pedidos: pedidos || [], itens: itens || [], clientes: clientes || [], produtos: produtos || [] };
+    const clientesById = new Map((clientes || []).map((cliente) => [cliente.id, cliente]));
+    const pedidosFiltrados = scoped.owner_user_id
+      ? (pedidos || []).filter((pedido) => clientesById.get(pedido.cliente_id)?.owner_user_id === scoped.owner_user_id)
+      : (pedidos || []);
+    const itensFiltrados = scoped.owner_user_id
+      ? (itens || []).filter((item) => pedidosFiltrados.some((pedido) => pedido.id === item.pedido_id))
+      : (itens || []);
+    return { pedidos: pedidosFiltrados, itens: itensFiltrados, clientes: clientes || [], produtos: produtos || [] };
   }
 
   const { listPedidos } = await import('../pedidos/pedidos.repository.js');
