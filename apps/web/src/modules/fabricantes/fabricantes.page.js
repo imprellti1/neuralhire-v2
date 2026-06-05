@@ -195,7 +195,12 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       render();
       try {
         const result = await lookupCnpj(apiClient, onlyDigits(state.form.cnpj));
-        applyLookup(result?.data || result);
+        if (result?.found === false || result?.data === null) {
+          state.cnpjMessage = result?.message || 'Nao foi possivel consultar o CNPJ agora. Voce pode continuar com preenchimento manual.';
+          state.cnpjManualUnlock = true;
+        } else {
+          applyLookup(result?.data || result);
+        }
       } catch {
         state.cnpjMessage = 'Nao foi possivel consultar o CNPJ agora. Voce pode continuar com preenchimento manual.';
         state.cnpjManualUnlock = true;

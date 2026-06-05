@@ -8,7 +8,7 @@ import {
   updateFabricante
 } from './fabricantes.repository.js';
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
-import { BadRequestError, ExternalServiceError, NotFoundError } from '../../core/errors.js';
+import { BadRequestError } from '../../core/errors.js';
 import { logger } from '../../core/logger.js';
 
 const normalizeCnpj = (value) => String(value || '').replace(/\D/g, '') || null;
@@ -54,18 +54,12 @@ async function lookupPublicCnpj(cnpj, context = {}) {
         errorMessage: null,
         errorStack: null
       });
-
-      if (response.status === 404) {
-        throw new NotFoundError('CNPJ nao encontrado', { code: 'CNPJ_NAO_ENCONTRADO', domain: 'fabricantes' });
-      }
-      if (response.status === 400) {
-        throw new BadRequestError('CNPJ invalido', { code: 'CNPJ_INVALIDO', domain: 'fabricantes' });
-      }
-      throw new ExternalServiceError('Nao foi possivel consultar o CNPJ agora. Voce pode continuar com preenchimento manual.', {
-        code: 'CNPJ_LOOKUP_FAILED',
-        domain: 'fabricantes',
-        details: { status: response.status, url }
-      });
+      return {
+        ok: true,
+        found: false,
+        message: 'Nao foi possivel consultar o CNPJ agora. Voce pode continuar com preenchimento manual.',
+        data: null
+      };
     }
 
     return responseBody || {};
@@ -81,21 +75,15 @@ async function lookupPublicCnpj(cnpj, context = {}) {
       errorMessage: error?.message || null,
       errorStack: error?.stack || null
     });
-    if (error instanceof NotFoundError || error instanceof BadRequestError || error instanceof ExternalServiceError) {
-      throw error;
-    }
-    if (isTimeout) {
-      throw new ExternalServiceError('Nao foi possivel consultar o CNPJ agora. Voce pode continuar com preenchimento manual.', {
-        code: 'CNPJ_LOOKUP_TIMEOUT',
-        domain: 'fabricantes',
-        details: { url, timeoutMs }
-      });
-    }
-    throw new ExternalServiceError('Nao foi possivel consultar o CNPJ agora. Voce pode continuar com preenchimento manual.', {
-      code: 'CNPJ_LOOKUP_FAILED',
-      domain: 'fabricantes',
-      details: { url, reason: error?.message || 'unknown' }
-    });
+    return {
+      ok: true,
+      found: false,
+      message: 'Nao foi possivel consultar o CNPJ agora. Voce pode continuar com preenchimento manual.',
+      data: null,
+      error: {
+        timeout: isTimeout || undefined
+      }
+    };
   } finally {
     clearTimeout(timeoutId);
   }
@@ -173,5 +161,8 @@ export async function lookupCnpjHandler(context) {
   }
   const cnpj = assertCnpj(context.params.cnpj || context.body?.cnpj);
   const source = await lookupPublicCnpj(cnpj, context);
+  if (source && source.ok === true && source.found === false) {
+    return source;
+  }
   return normalizeLookupResponse(source, cnpj);
 }
