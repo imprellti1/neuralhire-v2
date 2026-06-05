@@ -24,6 +24,16 @@ function normalizeNumber(value, fallback = 0) {
   return Number.isFinite(num) ? num : fallback;
 }
 
+function composeEnderecoCompleto(data = {}) {
+  const parts = [
+    [data.logradouro, data.numero].filter(Boolean).join(', ').trim(),
+    data.complemento,
+    [data.bairro, data.cidade, data.uf].filter(Boolean).join(' - ').trim(),
+    data.cep
+  ].filter((part) => String(part || '').trim());
+  return parts.join(' | ') || null;
+}
+
 function normalizePagination(filters = {}) {
   const page = Number.isFinite(filters.page) && filters.page > 0 ? Math.floor(filters.page) : 1;
   const rawLimit = Number.isFinite(filters.limit) && filters.limit > 0 ? Math.floor(filters.limit) : 20;
@@ -113,6 +123,18 @@ export async function createFabricante(data, options = {}) {
     nome: String(data.nome || '').trim(),
     razao_social: data.razao_social || null,
     cnpj: normalizeCnpj(data.cnpj),
+    site: data.site || null,
+    email_comercial: data.email_comercial || null,
+    telefone: data.telefone || null,
+    regiao_atendida: data.regiao_atendida || null,
+    logradouro: data.logradouro || null,
+    numero: data.numero || null,
+    complemento: data.complemento || null,
+    bairro: data.bairro || null,
+    cidade: data.cidade || null,
+    uf: data.uf || null,
+    cep: data.cep || null,
+    endereco_completo: data.endereco_completo || composeEnderecoCompleto(data),
     logo_url: data.logo_url || null,
     status: data.status === 'inativo' ? 'inativo' : 'ativo',
     pedido_minimo: normalizeNumber(data.pedido_minimo, 0),
@@ -151,6 +173,18 @@ export async function updateFabricante(id, data, options = {}) {
       ...(data.nome !== undefined ? { nome: String(data.nome || '').trim() } : {}),
       ...(data.razao_social !== undefined ? { razao_social: data.razao_social || null } : {}),
       ...(data.cnpj !== undefined ? { cnpj: normalizeCnpj(data.cnpj) } : {}),
+      ...(data.site !== undefined ? { site: data.site || null } : {}),
+      ...(data.email_comercial !== undefined ? { email_comercial: data.email_comercial || null } : {}),
+      ...(data.telefone !== undefined ? { telefone: data.telefone || null } : {}),
+      ...(data.regiao_atendida !== undefined ? { regiao_atendida: data.regiao_atendida || null } : {}),
+      ...(data.logradouro !== undefined ? { logradouro: data.logradouro || null } : {}),
+      ...(data.numero !== undefined ? { numero: data.numero || null } : {}),
+      ...(data.complemento !== undefined ? { complemento: data.complemento || null } : {}),
+      ...(data.bairro !== undefined ? { bairro: data.bairro || null } : {}),
+      ...(data.cidade !== undefined ? { cidade: data.cidade || null } : {}),
+      ...(data.uf !== undefined ? { uf: data.uf || null } : {}),
+      ...(data.cep !== undefined ? { cep: data.cep || null } : {}),
+      ...(data.endereco_completo !== undefined ? { endereco_completo: data.endereco_completo || null } : {}),
       ...(data.logo_url !== undefined ? { logo_url: data.logo_url || null } : {}),
       ...(data.status !== undefined ? { status: data.status === 'inativo' ? 'inativo' : 'ativo' } : {}),
       ...(data.pedido_minimo !== undefined ? { pedido_minimo: normalizeNumber(data.pedido_minimo, 0) } : {}),
@@ -177,6 +211,18 @@ export async function updateFabricante(id, data, options = {}) {
     ...(data.nome !== undefined ? { nome: String(data.nome || '').trim() } : {}),
     ...(data.razao_social !== undefined ? { razao_social: data.razao_social || null } : {}),
     ...(data.cnpj !== undefined ? { cnpj: normalizeCnpj(data.cnpj) } : {}),
+    ...(data.site !== undefined ? { site: data.site || null } : {}),
+    ...(data.email_comercial !== undefined ? { email_comercial: data.email_comercial || null } : {}),
+    ...(data.telefone !== undefined ? { telefone: data.telefone || null } : {}),
+    ...(data.regiao_atendida !== undefined ? { regiao_atendida: data.regiao_atendida || null } : {}),
+    ...(data.logradouro !== undefined ? { logradouro: data.logradouro || null } : {}),
+    ...(data.numero !== undefined ? { numero: data.numero || null } : {}),
+    ...(data.complemento !== undefined ? { complemento: data.complemento || null } : {}),
+    ...(data.bairro !== undefined ? { bairro: data.bairro || null } : {}),
+    ...(data.cidade !== undefined ? { cidade: data.cidade || null } : {}),
+    ...(data.uf !== undefined ? { uf: data.uf || null } : {}),
+    ...(data.cep !== undefined ? { cep: data.cep || null } : {}),
+    ...(data.endereco_completo !== undefined ? { endereco_completo: data.endereco_completo || null } : {}),
     ...(data.logo_url !== undefined ? { logo_url: data.logo_url || null } : {}),
     ...(data.status !== undefined ? { status: data.status === 'inativo' ? 'inativo' : 'ativo' } : {}),
     ...(data.pedido_minimo !== undefined ? { pedido_minimo: normalizeNumber(data.pedido_minimo, 0) } : {}),

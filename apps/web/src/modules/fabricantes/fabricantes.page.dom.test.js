@@ -185,6 +185,45 @@ test('fabricantes: salva sem campos sensiveis', async () => {
   teardownFrontendDom(dom);
 });
 
+test('fabricantes: site e contato voltam ao editar', async () => {
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
+  installFetchMock({
+    'GET /fabricantes': () => ({ items: [{ id: 'f-site', nome: 'APPEL HOME', cnpj: '12345678000190', status: 'ativo', pedido_minimo: 10, boleto_minimo: 20, comissao_padrao_percentual: 5, site: 'https://appelhome.com', email_comercial: 'contato@appelhome.com', telefone: '11999990000', regiao_atendida: 'SP' }], pagination: { page: 1, totalPages: 1, total: 1, limit: 20 } }),
+    'GET /fabricantes/f-site': () => ({ id: 'f-site', nome: 'APPEL HOME', cnpj: '12345678000190', status: 'ativo', pedido_minimo: 10, boleto_minimo: 20, comissao_padrao_percentual: 5, site: 'https://appelhome.com', email_comercial: 'contato@appelhome.com', telefone: '11999990000', regiao_atendida: 'SP' }),
+    'GET /fabricantes/f-site/condicoes-pagamento': () => ({ items: [], total: 0 })
+  });
+  bootstrapWebApp();
+  await flush(); await flush();
+  document.querySelector('[data-edit-id="f-site"]').click();
+  await flush(); await flush();
+  assert.equal(document.querySelector('[data-form-field="site"]').value, 'https://appelhome.com');
+  assert.equal(document.querySelector('[data-form-field="email_comercial"]').value, 'contato@appelhome.com');
+  assert.equal(document.querySelector('[data-form-field="telefone"]').value, '11999990000');
+  assert.equal(document.querySelector('[data-form-field="regiao_atendida"]').value, 'SP');
+  teardownFrontendDom(dom);
+});
+
+test('fabricantes: endereco volta ao editar', async () => {
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
+  installFetchMock({
+    'GET /fabricantes': () => ({ items: [{ id: 'f-end', nome: 'APPEL HOME', cnpj: '12345678000190', status: 'ativo', pedido_minimo: 10, boleto_minimo: 20, comissao_padrao_percentual: 5, logradouro: 'Rua A', numero: '10', complemento: 'Sala 1', bairro: 'Centro', cidade: 'São Paulo', uf: 'SP', cep: '01000-000', endereco_completo: 'Rua A, 10 | Sala 1 | Centro - São Paulo - SP | 01000-000' }], pagination: { page: 1, totalPages: 1, total: 1, limit: 20 } }),
+    'GET /fabricantes/f-end': () => ({ id: 'f-end', nome: 'APPEL HOME', cnpj: '12345678000190', status: 'ativo', pedido_minimo: 10, boleto_minimo: 20, comissao_padrao_percentual: 5, logradouro: 'Rua A', numero: '10', complemento: 'Sala 1', bairro: 'Centro', cidade: 'São Paulo', uf: 'SP', cep: '01000-000', endereco_completo: 'Rua A, 10 | Sala 1 | Centro - São Paulo - SP | 01000-000' }),
+    'GET /fabricantes/f-end/condicoes-pagamento': () => ({ items: [], total: 0 })
+  });
+  bootstrapWebApp();
+  await flush(); await flush();
+  document.querySelector('[data-edit-id="f-end"]').click();
+  await flush(); await flush();
+  assert.equal(document.querySelector('[data-form-field="logradouro"]').value, 'Rua A');
+  assert.equal(document.querySelector('[data-form-field="numero"]').value, '10');
+  assert.equal(document.querySelector('[data-form-field="bairro"]').value, 'Centro');
+  assert.equal(document.querySelector('[data-form-field="cidade"]').value, 'São Paulo');
+  assert.match(document.querySelector('[data-form-field="endereco_completo"]').value, /Rua A/);
+  teardownFrontendDom(dom);
+});
+
 test('fabricantes: formatCnpj mascara enquanto digita sem perder foco', async () => {
   const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
   mockAuthenticatedSession();

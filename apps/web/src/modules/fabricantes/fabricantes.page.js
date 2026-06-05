@@ -57,6 +57,16 @@ function hasMeaningfulValue(value) {
   return String(value || '').trim().length > 0;
 }
 
+function composeEnderecoCompleto(form = {}) {
+  const parts = [
+    [form.logradouro, form.numero].filter(Boolean).join(', ').trim(),
+    form.complemento,
+    [form.bairro, form.cidade, form.uf].filter(Boolean).join(' - ').trim(),
+    form.cep
+  ].filter(hasMeaningfulValue);
+  return parts.join(' | ');
+}
+
 function generateRowId() {
   return `row-${Math.random().toString(36).slice(2)}-${Date.now()}`;
 }
@@ -123,6 +133,14 @@ function emptyForm() {
     telefone: '',
     site: '',
     logo_url: '',
+    logradouro: '',
+    numero: '',
+    complemento: '',
+    bairro: '',
+    cidade: '',
+    uf: '',
+    cep: '',
+    endereco_completo: '',
     responsavel_comercial: '',
     regiao_atendida: '',
     observacoes: '',
@@ -205,6 +223,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     const telefone = data.telefone || state.form.telefone || '';
     const site = data.site || state.form.site || '';
     const partial = !isCnpjLookupComplete({ ...data, nome_fantasia: nomeFantasia, nome: nomeFantasia, email, telefone, site, razao_social: razaoSocial });
+    const endereco = data.endereco || {};
     state.form = {
       ...state.form,
       cnpj: data.cnpj || state.form.cnpj,
@@ -214,14 +233,24 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       email_comercial: email,
       telefone,
       site,
+      regiao_atendida: data.regiao_atendida || state.form.regiao_atendida || '',
       observacoes: state.form.observacoes || '',
-      endereco_logradouro: data.endereco?.logradouro || '',
-      endereco_numero: data.endereco?.numero || '',
-      endereco_complemento: data.endereco?.complemento || '',
-      endereco_bairro: data.endereco?.bairro || '',
-      endereco_cidade: data.endereco?.cidade || '',
-      endereco_uf: data.endereco?.uf || '',
-      endereco_cep: data.endereco?.cep || '',
+      logradouro: data.logradouro || endereco.logradouro || state.form.logradouro || '',
+      numero: data.numero || endereco.numero || state.form.numero || '',
+      complemento: data.complemento || endereco.complemento || state.form.complemento || '',
+      bairro: data.bairro || endereco.bairro || state.form.bairro || '',
+      cidade: data.cidade || endereco.cidade || state.form.cidade || '',
+      uf: data.uf || endereco.uf || state.form.uf || '',
+      cep: data.cep || endereco.cep || state.form.cep || '',
+      endereco_completo: data.endereco_completo || composeEnderecoCompleto({
+        logradouro: data.logradouro || endereco.logradouro || state.form.logradouro || '',
+        numero: data.numero || endereco.numero || state.form.numero || '',
+        complemento: data.complemento || endereco.complemento || state.form.complemento || '',
+        bairro: data.bairro || endereco.bairro || state.form.bairro || '',
+        cidade: data.cidade || endereco.cidade || state.form.cidade || '',
+        uf: data.uf || endereco.uf || state.form.uf || '',
+        cep: data.cep || endereco.cep || state.form.cep || ''
+      }),
       atividade_principal: data.atividade_principal || ''
     };
     state.cnpjValidated = true;
@@ -327,7 +356,6 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       state.form.logo_file_name = file.name;
       const preview = window.URL && typeof window.URL.createObjectURL === 'function' ? window.URL.createObjectURL(file) : '';
       state.form.logo_preview = preview;
-      state.form.logo_url = preview || `local://${encodeURIComponent(file.name)}`;
       render();
     });
     root.querySelector('#nhf-save')?.addEventListener('click', async () => {
@@ -346,6 +374,18 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
           nome: state.form.nome || state.form.nome_fantasia || state.form.razao_social || '',
           cnpj: onlyDigits(state.form.cnpj),
           razao_social: state.form.razao_social || null,
+          site: state.form.site || null,
+          email_comercial: state.form.email_comercial || null,
+          telefone: state.form.telefone || null,
+          regiao_atendida: state.form.regiao_atendida || null,
+          logradouro: state.form.logradouro || null,
+          numero: state.form.numero || null,
+          complemento: state.form.complemento || null,
+          bairro: state.form.bairro || null,
+          cidade: state.form.cidade || null,
+          uf: state.form.uf || null,
+          cep: state.form.cep || null,
+          endereco_completo: state.form.endereco_completo || composeEnderecoCompleto(state.form) || null,
           logo_url: state.form.logo_url || null,
           pedido_minimo: Number(String(state.form.pedido_minimo || 0).replace(/[^\d.-]/g, '')) || 0,
           boleto_minimo: Number(state.form.boleto_minimo || 0),
@@ -412,7 +452,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     const locked = isLocked();
     const lookupReady = isCnpjValid();
     const toneClass = state.cnpjMessageTone === 'success' ? 'nhf-lookup-success' : state.cnpjMessageTone === 'partial' ? 'nhf-lookup-partial' : state.cnpjMessageTone === 'error' ? 'nhf-lookup-error' : 'nhf-muted';
-    return `<div class="nhf-form-grid"><div class="nhf-field nhf-field-full"><div class="nhf-inline"><label class="nhf-field">CNPJ<input id="nhf-cnpj" value="${formatCnpj(state.form.cnpj || '')}" placeholder="00.000.000/0000-00" maxlength="18" inputmode="numeric"></label><button id="nhf-buscar-cnpj" class="nhf-btn" ${lookupReady ? '' : 'disabled'}>${state.cnpjLookupStatus === 'loading' ? 'Buscando...' : 'Buscar CNPJ'}</button></div><div class="nhf-muted">O campo CNPJ precisa ter 14 digitos para habilitar a consulta.</div>${state.cnpjMessage ? `<div class="${toneClass} nhf-muted">${state.cnpjMessage}</div>` : ''}</div><label class="nhf-field"><span>Nome fantasia</span><input data-form-field="nome_fantasia" value="${state.form.nome_fantasia || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Razão social</span><input data-form-field="razao_social" value="${state.form.razao_social || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>E-mail comercial</span><input data-form-field="email_comercial" value="${state.form.email_comercial || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Telefone</span><input data-form-field="telefone" value="${state.form.telefone || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Site</span><input data-form-field="site" value="${state.form.site || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Logo</span><input data-form-field="logo_upload" type="file" accept="image/png,image/jpeg,image/webp" ${locked ? 'disabled' : ''}></label><div class="nhf-field"><span>Preview</span><div class="nhf-logo-box">${state.form.logo_preview ? `<img class="nhf-logo-preview" src="${state.form.logo_preview}" alt="Preview do logo">` : '<div class="nhf-muted">Nenhum logo selecionado</div>'}<div class="nhf-logo-meta"><strong>${state.form.logo_file_name || 'Arquivo local'}</strong><span class="nhf-muted">PNG, JPG ou WebP</span></div></div></div><label class="nhf-field"><span>Responsável comercial</span><input data-form-field="responsavel_comercial" value="${state.form.responsavel_comercial || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Região atendida</span><input data-form-field="regiao_atendida" value="${state.form.regiao_atendida || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field nhf-field-full"><span>Observações</span><textarea data-form-field="observacoes" ${locked ? 'disabled' : ''}>${state.form.observacoes || ''}</textarea></label><div class="nhf-field nhf-field-full"><button id="nhf-unlock-manual" class="nhf-btn" type="button" ${state.cnpjValidated ? 'disabled' : ''}>Liberar preenchimento manual</button></div></div>`;
+    return `<div class="nhf-form-grid"><div class="nhf-field nhf-field-full"><div class="nhf-inline"><label class="nhf-field">CNPJ<input id="nhf-cnpj" value="${formatCnpj(state.form.cnpj || '')}" placeholder="00.000.000/0000-00" maxlength="18" inputmode="numeric"></label><button id="nhf-buscar-cnpj" class="nhf-btn" ${lookupReady ? '' : 'disabled'}>${state.cnpjLookupStatus === 'loading' ? 'Buscando...' : 'Buscar CNPJ'}</button></div><div class="nhf-muted">O campo CNPJ precisa ter 14 digitos para habilitar a consulta.</div>${state.cnpjMessage ? `<div class="${toneClass} nhf-muted">${state.cnpjMessage}</div>` : ''}</div><label class="nhf-field"><span>Nome fantasia</span><input data-form-field="nome_fantasia" value="${state.form.nome_fantasia || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Razão social</span><input data-form-field="razao_social" value="${state.form.razao_social || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>E-mail comercial</span><input data-form-field="email_comercial" value="${state.form.email_comercial || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Telefone</span><input data-form-field="telefone" value="${state.form.telefone || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Site</span><input data-form-field="site" value="${state.form.site || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Logo</span><input data-form-field="logo_upload" type="file" accept="image/png,image/jpeg,image/webp" ${locked ? 'disabled' : ''}></label><div class="nhf-field"><span>Preview</span><div class="nhf-logo-box">${state.form.logo_preview ? `<img class="nhf-logo-preview" src="${state.form.logo_preview}" alt="Preview do logo">` : '<div class="nhf-muted">Nenhum logo selecionado</div>'}<div class="nhf-logo-meta"><strong>${state.form.logo_file_name || 'Arquivo local'}</strong><span class="nhf-muted">PNG, JPG ou WebP</span></div></div></div><label class="nhf-field"><span>Responsável comercial</span><input data-form-field="responsavel_comercial" value="${state.form.responsavel_comercial || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Região atendida</span><input data-form-field="regiao_atendida" value="${state.form.regiao_atendida || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Logradouro</span><input data-form-field="logradouro" value="${state.form.logradouro || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Número</span><input data-form-field="numero" value="${state.form.numero || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Complemento</span><input data-form-field="complemento" value="${state.form.complemento || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Bairro</span><input data-form-field="bairro" value="${state.form.bairro || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Cidade</span><input data-form-field="cidade" value="${state.form.cidade || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>UF</span><input data-form-field="uf" value="${state.form.uf || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>CEP</span><input data-form-field="cep" value="${state.form.cep || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field nhf-field-full"><span>Endereço completo</span><textarea data-form-field="endereco_completo" ${locked ? 'disabled' : ''}>${state.form.endereco_completo || composeEnderecoCompleto(state.form)}</textarea></label><label class="nhf-field nhf-field-full"><span>Observações</span><textarea data-form-field="observacoes" ${locked ? 'disabled' : ''}>${state.form.observacoes || ''}</textarea></label><div class="nhf-field nhf-field-full"><button id="nhf-unlock-manual" class="nhf-btn" type="button" ${state.cnpjValidated ? 'disabled' : ''}>Liberar preenchimento manual</button></div></div>`;
   }
 
   function updateCondicaoRow(rowId, field, value) {
@@ -460,8 +500,13 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       semLogo: state.items.filter((i) => !i.logo_url).length,
       semPedido: state.items.filter((i) => Number(i.pedido_minimo || 0) <= 0).length
     };
-    const rows = state.items.map((item) => `<tr class="nhf-row" data-id="${item.id}"><td>${item.logo_url ? 'Logo' : '-'}</td><td>${item.nomeExibicao}</td><td>${item.cnpjExibicao}</td><td><span class="nhf-pill">${item.statusExibicao === 'inativo' ? 'Inativa' : 'Ativa'}</span></td><td>${brl(item.pedidoMinimoExibicao)}</td><td>${brl(item.boletoMinimoExibicao)}</td><td>${item.comissaoExibicao}%</td><td><button class="nhf-btn" type="button" data-edit-id="${item.id}">Editar</button> <button class="nhf-btn" type="button" data-toggle-id="${item.id}">${item.statusExibicao === 'ativo' ? 'Inativar' : 'Ativar'}</button></td></tr>`).join('');
-    root.innerHTML = `<div class="nhf-wrap"><div class="nhf-head"><div><div class="nhf-title">Fábricas</div><div class="nhf-sub">Cadastro de fabricantes e regras comerciais</div></div><div class="nhf-tools"><input id="nhf-search" class="nhf-input" placeholder="Pesquisar" value="${state.search}"/><select id="nhf-status" class="nhf-input"><option value="">Todos</option><option value="ativo" ${state.status === 'ativo' ? 'selected' : ''}>Ativos</option><option value="inativo" ${state.status === 'inativo' ? 'selected' : ''}>Inativos</option></select><button id="nhf-new" class="nhf-btn">Nova fábrica</button></div></div><div class="nhf-panel nhf-kpis"><div><strong>${k.total}</strong>Total fábricas</div><div><strong>${k.ativos}</strong>Ativas</div><div><strong>${k.inativos}</strong>Inativas</div><div><strong>${k.semLogo}</strong>Sem logo</div><div><strong>${k.semPedido}</strong>Sem pedido mínimo</div></div><div class="nhf-grid"><section class="nhf-panel"><table class="nhf-table"><tr><th>Logo</th><th>Nome</th><th>CNPJ</th><th>Status</th><th>Pedido mínimo</th><th>Boleto mínimo</th><th>Comissão</th><th>Ações</th></tr>${rows || '<tr><td colspan="8" class="nhf-state">Nenhuma fábrica cadastrada.</td></tr>'}</table></section></div></div>${state.modalOpen ? renderModal() : ''}`;
+    const rows = state.items.map((item) => {
+      const logoCell = item.logo_url
+        ? `<img class="nhf-logo-preview" src="${item.logo_url}" alt="Logo de ${item.nomeExibicao || 'fábrica'}" style="width:48px;height:40px;max-width:48px;max-height:40px">`
+        : '<span class="nhf-muted">Sem logo</span>';
+      return `<tr class="nhf-row" data-id="${item.id}"><td>${logoCell}</td><td>${item.nomeExibicao}</td><td>${item.cnpjExibicao}</td><td><span class="nhf-pill">${item.statusExibicao === 'inativo' ? 'Inativa' : 'Ativa'}</span></td><td>${brl(item.pedidoMinimoExibicao)}</td><td>${brl(item.boletoMinimoExibicao)}</td><td>${item.comissaoExibicao}%</td><td><button class="nhf-btn" type="button" data-edit-id="${item.id}">Editar</button> <button class="nhf-btn" type="button" data-toggle-id="${item.id}">${item.statusExibicao === 'ativo' ? 'Inativar' : 'Ativar'}</button></td></tr>`;
+    }).join('');
+    root.innerHTML = `<div class="nhf-wrap"><div class="nhf-head"><div><div class="nhf-title">Fábricas</div><div class="nhf-sub">Cadastro de fabricantes e regras comerciais</div></div><div class="nhf-tools"><input id="nhf-search" class="nhf-input" placeholder="Pesquisar" value="${state.search}"/><select id="nhf-status" class="nhf-input"><option value="">Todos</option><option value="ativo" ${state.status === 'ativo' ? 'selected' : ''}>Ativos</option><option value="inativo" ${state.status === 'inativo' ? 'selected' : ''}>Inativos</option></select><button id="nhf-new" class="nhf-btn">Nova fábrica</button></div></div><div class="nhf-panel nhf-kpis"><div><strong>${k.total}</strong>Total fábricas</div><div><strong>${k.ativos}</strong>Ativas</div><div><strong>${k.inativos}</strong>Inativas</div><div><strong>${k.semLogo}</strong>Sem logo</div><div><strong>${k.semPedido}</strong>Sem pedido mínimo</div></div><div class="nhf-grid"><section class="nhf-panel"><table class="nhf-table"><tr><th>Miniatura</th><th>Nome</th><th>CNPJ</th><th>Status</th><th>Pedido mínimo</th><th>Boleto mínimo</th><th>Comissão</th><th>Ações</th></tr>${rows || '<tr><td colspan="8" class="nhf-state">Nenhuma fábrica cadastrada.</td></tr>'}</table></section></div></div>${state.modalOpen ? renderModal() : ''}`;
     bindEvents();
   }
 

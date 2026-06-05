@@ -56,9 +56,27 @@ export function getFabricantesTenantTests() {
       name: 'POST /fabricantes com tenant cria item no account correto',
       run: async () => {
         const app = createApiApp();
-        const { res, body } = await call(app, { method: 'POST', url: '/fabricantes', role: 'owner', accountId: 'acc-fab-write', body: { nome: 'Fab Real' } });
+        const { res, body } = await call(app, { method: 'POST', url: '/fabricantes', role: 'owner', accountId: 'acc-fab-write', body: { nome: 'Fab Real', site: 'https://fabreal.com', email_comercial: 'contato@fabreal.com', telefone: '11999990000', regiao_atendida: 'BR', logradouro: 'Rua C', numero: '30', complemento: 'Sala 2', bairro: 'Centro', cidade: 'Sao Paulo', uf: 'SP', cep: '03000000' } });
         assertEqual(res.statusCode, 200);
         assertEqual(body.account_id, 'acc-fab-write');
+        assertEqual(body.site, 'https://fabreal.com');
+        assertEqual(body.email_comercial, 'contato@fabreal.com');
+        assertEqual(body.telefone, '11999990000');
+        assertEqual(body.regiao_atendida, 'BR');
+        assertEqual(body.logradouro, 'Rua C');
+      }
+    },
+    {
+      name: 'PATCH /fabricantes persiste site e contato',
+      run: async () => {
+        const app = createApiApp();
+        const created = await call(app, { method: 'POST', url: '/fabricantes', role: 'owner', accountId: 'acc-fab-write-2', body: { nome: 'Fab Edit' } });
+        const { body } = await call(app, { method: 'PATCH', url: `/fabricantes/${created.body.id}`, role: 'owner', accountId: 'acc-fab-write-2', body: { site: 'https://edit.com', email_comercial: 'edit@fab.com', telefone: '11911112222', regiao_atendida: 'SP', logradouro: 'Rua D', numero: '40', bairro: 'Centro', cidade: 'Sao Paulo', uf: 'SP', cep: '04000000' } });
+        assertEqual(body.site, 'https://edit.com');
+        assertEqual(body.email_comercial, 'edit@fab.com');
+        assertEqual(body.telefone, '11911112222');
+        assertEqual(body.regiao_atendida, 'SP');
+        assertEqual(body.logradouro, 'Rua D');
       }
     },
     {

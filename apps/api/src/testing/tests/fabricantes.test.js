@@ -23,8 +23,22 @@ export function getFabricantesTests() {
     { name: 'edita fabricante', run: async () => {
       __resetMemoryFabricantesForTests();
       const created = await createFabricante({ nome: 'Fabrica C' }, { accountId: 'acc-1' });
-      const updated = await updateFabricante(created.id, { nome: 'Fabrica D' }, { accountId: 'acc-1' });
+      const updated = await updateFabricante(created.id, { nome: 'Fabrica D', site: 'https://fab.com', email_comercial: 'contato@fab.com', telefone: '11999990000', regiao_atendida: 'SP', logradouro: 'Rua A', numero: '10', bairro: 'Centro', cidade: 'São Paulo', uf: 'SP', cep: '01000-000' }, { accountId: 'acc-1' });
       assert.equal(updated.nome, 'Fabrica D');
+      assert.equal(updated.site, 'https://fab.com');
+      assert.equal(updated.email_comercial, 'contato@fab.com');
+      assert.equal(updated.telefone, '11999990000');
+      assert.equal(updated.regiao_atendida, 'SP');
+      assert.equal(updated.logradouro, 'Rua A');
+    } },
+    { name: 'cria fabricante com contato e site', run: async () => {
+      __resetMemoryFabricantesForTests();
+      const created = await createFabricante({ nome: 'Fabrica C2', site: 'https://site.com', email_comercial: 'c2@site.com', telefone: '1133334444', regiao_atendida: 'BR', logradouro: 'Rua B', numero: '20', complemento: 'Apto 1', bairro: 'Centro', cidade: 'São Paulo', uf: 'SP', cep: '02000-000' }, { accountId: 'acc-1' });
+      assert.equal(created.site, 'https://site.com');
+      assert.equal(created.email_comercial, 'c2@site.com');
+      assert.equal(created.telefone, '1133334444');
+      assert.equal(created.regiao_atendida, 'BR');
+      assert.equal(created.endereco_completo.includes('Rua B'), true);
     } },
     { name: 'valida nome obrigatório', run: async () => {
       __resetMemoryFabricantesForTests();

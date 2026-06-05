@@ -34,6 +34,21 @@ function firstMeaningful(...values) {
   return values.find((value) => String(value || '').trim()) || '';
 }
 
+function composeStreetName(prefix, street) {
+  return [prefix, street].map((part) => String(part || '').trim()).filter(Boolean).join(' ');
+}
+
+function buildEnderecoCompleto(endereco = {}) {
+  const parts = [
+    [endereco?.logradouro, endereco?.numero].filter(Boolean).join(', ').trim(),
+    endereco?.complemento,
+    [endereco?.bairro, endereco?.cidade, endereco?.uf].filter(Boolean).join(' - ').trim(),
+    endereco?.cep,
+    endereco?.pais
+  ].filter((part) => String(part || '').trim());
+  return parts.join(' | ');
+}
+
 async function fetchJsonWithTimeout(url, { timeoutMs = 8000 } = {}) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(new Error('CNPJ lookup timeout')), timeoutMs);
@@ -66,6 +81,21 @@ function shouldFallback(status, error) {
   return [403, 429].includes(status) || (status >= 500 && status < 600);
 }
 
+function isSparseBrasilApiResponse(body = {}) {
+  const meaningfulFields = [
+    body?.nome_fantasia,
+    body?.logradouro,
+    body?.numero,
+    body?.bairro,
+    body?.municipio,
+    body?.uf,
+    body?.cep,
+    body?.email,
+    body?.ddd_telefone_1
+  ].filter((value) => String(value || '').trim());
+  return meaningfulFields.length === 0;
+}
+
 function buildProviderData(provider, cnpj, body) {
   if (provider === 'brasilapi') {
     return {
@@ -84,8 +114,26 @@ function buildProviderData(provider, cnpj, body) {
         bairro: body?.bairro || '',
         cidade: body?.municipio || '',
         uf: body?.uf || '',
-        cep: body?.cep || ''
+        cep: body?.cep || '',
+        pais: body?.pais || ''
       },
+      logradouro: body?.logradouro || '',
+      numero: body?.numero || '',
+      complemento: body?.complemento || '',
+      bairro: body?.bairro || '',
+      cidade: body?.municipio || '',
+      uf: body?.uf || '',
+      cep: body?.cep || '',
+      endereco_completo: buildEnderecoCompleto({
+        logradouro: body?.logradouro || '',
+        numero: body?.numero || '',
+        complemento: body?.complemento || '',
+        bairro: body?.bairro || '',
+        cidade: body?.municipio || '',
+        uf: body?.uf || '',
+        cep: body?.cep || '',
+        pais: body?.pais || ''
+      }),
       atividade_principal: body?.cnae_fiscal_descricao || ''
     };
   }
@@ -97,17 +145,41 @@ function buildProviderData(provider, cnpj, body) {
     nome_fantasia: firstMeaningful(body?.nome_fantasia, body?.nome, body?.razao_social, body?.razaoSocial),
     situacao: body?.situacao_cadastral || body?.situacao || '',
     email: firstMeaningful(body?.email, body?.emails?.[0]?.email),
-    telefone: firstMeaningful(body?.telefone, body?.telefones?.[0]?.ddd && body?.telefones?.[0]?.numero ? `${body.telefones[0].ddd}${body.telefones[0].numero}` : '', body?.telefones?.[0]?.numero),
+    telefone: firstMeaningful(
+      body?.telefone,
+      body?.telefones?.[0]?.ddd && body?.telefones?.[0]?.numero ? `${body.telefones[0].ddd}${body.telefones[0].numero}` : '',
+      body?.telefones?.[0]?.numero,
+      body?.telefones?.[1]?.ddd && body?.telefones?.[1]?.numero ? `${body.telefones[1].ddd}${body.telefones[1].numero}` : '',
+      body?.telefones?.[1]?.numero
+    ),
     site: firstMeaningful(body?.site, body?.website),
     endereco: {
-      logradouro: body?.logradouro || body?.endereco?.logradouro || '',
-      numero: body?.numero || body?.endereco?.numero || '',
-      complemento: body?.complemento || body?.endereco?.complemento || '',
-      bairro: body?.bairro || body?.endereco?.bairro || '',
-      cidade: body?.municipio || body?.cidade || body?.endereco?.cidade || '',
-      uf: body?.uf || body?.endereco?.uf || '',
-      cep: body?.cep || body?.endereco?.cep || ''
+      logradouro: composeStreetName(body?.estabelecimento?.tipo_logradouro, body?.estabelecimento?.logradouro || body?.logradouro || body?.endereco?.logradouro || ''),
+      numero: body?.estabelecimento?.numero || body?.numero || body?.endereco?.numero || '',
+      complemento: body?.estabelecimento?.complemento || body?.complemento || body?.endereco?.complemento || '',
+      bairro: body?.estabelecimento?.bairro || body?.bairro || body?.endereco?.bairro || '',
+      cidade: body?.estabelecimento?.cidade?.nome || body?.municipio || body?.cidade || body?.endereco?.cidade || '',
+      uf: body?.estabelecimento?.estado?.sigla || body?.uf || body?.endereco?.uf || '',
+      cep: body?.estabelecimento?.cep || body?.cep || body?.endereco?.cep || '',
+      pais: body?.pais || body?.endereco?.pais || ''
     },
+    logradouro: composeStreetName(body?.estabelecimento?.tipo_logradouro, body?.estabelecimento?.logradouro || body?.logradouro || body?.endereco?.logradouro || ''),
+    numero: body?.estabelecimento?.numero || body?.numero || body?.endereco?.numero || '',
+    complemento: body?.estabelecimento?.complemento || body?.complemento || body?.endereco?.complemento || '',
+    bairro: body?.estabelecimento?.bairro || body?.bairro || body?.endereco?.bairro || '',
+    cidade: body?.estabelecimento?.cidade?.nome || body?.municipio || body?.cidade || body?.endereco?.cidade || '',
+    uf: body?.estabelecimento?.estado?.sigla || body?.uf || body?.endereco?.uf || '',
+    cep: body?.estabelecimento?.cep || body?.cep || body?.endereco?.cep || '',
+    endereco_completo: buildEnderecoCompleto({
+      logradouro: composeStreetName(body?.estabelecimento?.tipo_logradouro, body?.estabelecimento?.logradouro || body?.logradouro || body?.endereco?.logradouro || ''),
+      numero: body?.estabelecimento?.numero || body?.numero || body?.endereco?.numero || '',
+      complemento: body?.estabelecimento?.complemento || body?.complemento || body?.endereco?.complemento || '',
+      bairro: body?.estabelecimento?.bairro || body?.bairro || body?.endereco?.bairro || '',
+      cidade: body?.estabelecimento?.cidade?.nome || body?.municipio || body?.cidade || body?.endereco?.cidade || '',
+      uf: body?.estabelecimento?.estado?.sigla || body?.uf || body?.endereco?.uf || '',
+      cep: body?.estabelecimento?.cep || body?.cep || body?.endereco?.cep || '',
+      pais: body?.pais || body?.endereco?.pais || ''
+    }),
     atividade_principal: body?.atividade_principal || body?.atividade || body?.atividade_principal?.descricao || ''
   };
 }
@@ -133,6 +205,7 @@ async function lookupPublicCnpj(cnpj, context = {}) {
       });
       if (!response.ok && shouldFallback(response.status)) continue;
       if (!response.ok) continue;
+      if (provider.name === 'brasilapi' && isSparseBrasilApiResponse(body)) continue;
       return { ok: true, found: true, data: buildProviderData(provider.name, cnpj, body) };
     } catch (error) {
       logger.error('Falha ao consultar CNPJ externamente', {
@@ -178,8 +251,26 @@ function normalizeLookupResponse(source, cnpj) {
         bairro: endereco?.bairro || source?.bairro || '',
         cidade: endereco?.municipio || endereco?.cidade || source?.municipio || source?.cidade || '',
         uf: endereco?.uf || source?.uf || '',
-        cep: endereco?.cep || source?.cep || ''
+        cep: endereco?.cep || source?.cep || '',
+        pais: endereco?.pais || source?.pais || ''
       },
+      logradouro: endereco?.logradouro || source?.logradouro || '',
+      numero: endereco?.numero || source?.numero || '',
+      complemento: endereco?.complemento || source?.complemento || '',
+      bairro: endereco?.bairro || source?.bairro || '',
+      cidade: endereco?.municipio || endereco?.cidade || source?.municipio || source?.cidade || '',
+      uf: endereco?.uf || source?.uf || '',
+      cep: endereco?.cep || source?.cep || '',
+      endereco_completo: buildEnderecoCompleto({
+        logradouro: endereco?.logradouro || source?.logradouro || '',
+        numero: endereco?.numero || source?.numero || '',
+        complemento: endereco?.complemento || source?.complemento || '',
+        bairro: endereco?.bairro || source?.bairro || '',
+        cidade: endereco?.municipio || endereco?.cidade || source?.municipio || source?.cidade || '',
+        uf: endereco?.uf || source?.uf || '',
+        cep: endereco?.cep || source?.cep || '',
+        pais: endereco?.pais || source?.pais || ''
+      }),
       atividade_principal: atividade || source?.cnae_fiscal_descricao || source?.atividade_principal || ''
     }
   };
