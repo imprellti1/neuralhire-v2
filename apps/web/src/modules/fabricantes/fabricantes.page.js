@@ -6,11 +6,18 @@ function brl(value) {
   return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-function formatCurrencyInput(value) {
-  const raw = String(value || '').replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
-  const num = Number(raw);
-  if (!Number.isFinite(num)) return '';
-  return brl(num);
+function parseBrlInput(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const normalized = raw.replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
+  if (!normalized) return null;
+  const num = Number(normalized);
+  return Number.isFinite(num) ? num : null;
+}
+
+function formatCurrencyFromNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? brl(num) : '';
 }
 
 function onlyDigits(value) {
@@ -145,7 +152,7 @@ function injectStyles() {
   if (document.getElementById('nh-fab-style')) return;
   const style = document.createElement('style');
   style.id = 'nh-fab-style';
-  style.textContent = `.nhf-wrap{max-width:1400px;margin:0 auto}.nhf-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}.nhf-title{font-size:30px;font-weight:700}.nhf-sub{color:#61708f}.nhf-section-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#1f56dc;padding-top:4px}.nhf-panel{background:#fff;border:1px solid #dbe4f2;border-radius:16px;padding:18px;box-shadow:0 8px 24px rgba(16,34,68,.06);margin-bottom:14px}.nhf-tools{display:grid;grid-template-columns:minmax(280px,1fr) 150px 120px;gap:10px}.nhf-input,.nhf-btn,.nhf-tab{height:38px;border:1px solid #d4deee;border-radius:10px;padding:0 10px}.nhf-btn{background:#1f56dc;color:#fff;border-color:#1f56dc;cursor:pointer}.nhf-btn[disabled]{opacity:.55;cursor:not-allowed}.nhf-grid{display:grid;grid-template-columns:1fr;gap:14px}.nhf-table{width:100%;border-collapse:collapse;font-size:13px}.nhf-table td,.nhf-table th{padding:10px;border-bottom:1px solid #ebf0f8;text-align:left;white-space:nowrap}.nhf-row{cursor:pointer}.nhf-row:hover td{background:#f7faff}.nhf-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.nhf-kpis div{padding:10px;border:1px solid #e5ecf8;border-radius:12px}.nhf-kpis strong{display:block;font-size:18px}.nhf-modal-backdrop{position:fixed;inset:0;background:rgba(9,16,32,.46);display:flex;align-items:center;justify-content:center;padding:20px;z-index:90}.nhf-modal{width:min(1040px,100%);max-height:92vh;overflow:auto;background:#f7f9fe;border:1px solid #dce6f5;border-radius:20px;box-shadow:0 30px 80px rgba(5,15,30,.32)}.nhf-modal-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;padding:18px 22px;border-bottom:1px solid #e6edf8;background:linear-gradient(180deg,#fff,#f8fbff)}.nhf-modal-tabs{display:flex;gap:8px;padding:14px 22px 0}.nhf-tab{background:#eef4ff;color:#1f56dc;cursor:pointer}.nhf-tab[aria-selected="true"]{background:#1f56dc;color:#fff}.nhf-tab[aria-selected="false"]{opacity:.88}.nhf-modal-body{padding:18px 22px 22px}.nhf-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.nhf-field{display:grid;gap:6px}.nhf-field input,.nhf-field textarea,.nhf-field select{height:38px;border:1px solid #d4deee;border-radius:10px;padding:0 10px;background:#fff}.nhf-field textarea{height:80px;padding:10px;resize:vertical}.nhf-field input:disabled,.nhf-field textarea:disabled,.nhf-field select:disabled{background:#edf2f7;color:#6c7a92}.nhf-field-full{grid-column:1/-1}.nhf-muted{color:#61708f;font-size:13px}.nhf-state{padding:24px;text-align:center;color:#61708f}.nhf-inline{display:flex;gap:10px;align-items:end}.nhf-inline > .nhf-field{flex:1}.nhf-pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef4ff;color:#1f56dc;font-size:12px;font-weight:600}.nhf-error{color:#9f1239}.nhf-success{color:#166534}.nhf-info{color:#1d4ed8}.nhf-warn{color:#b45309}.nhf-inline-error{font-size:12px;color:#9f1239;margin-top:2px}.nhf-logo-preview{max-width:96px;max-height:64px;border-radius:10px;border:1px solid #d4deee;object-fit:cover;background:#fff}.nhf-logo-box{display:flex;gap:12px;align-items:center}.nhf-logo-meta{display:grid;gap:4px}.nhf-lookup-success{color:#166534}.nhf-lookup-partial{color:#1d4ed8}.nhf-lookup-error{color:#9f1239}@media (max-width:1024px){.nhf-grid,.nhf-tools,.nhf-kpis,.nhf-form-grid{grid-template-columns:1fr}.nhf-title{font-size:24px}.nhf-modal{width:100%}.nhf-inline{flex-direction:column;align-items:stretch}}`;
+  style.textContent = `.nhf-wrap{max-width:1400px;margin:0 auto}.nhf-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}.nhf-title{font-size:30px;font-weight:700}.nhf-sub{color:#61708f}.nhf-section-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#1f56dc;padding-top:4px}.nhf-panel{background:#fff;border:1px solid #dbe4f2;border-radius:16px;padding:18px;box-shadow:0 8px 24px rgba(16,34,68,.06);margin-bottom:14px}.nhf-tools{display:grid;grid-template-columns:minmax(280px,1fr) 150px 120px;gap:10px}.nhf-input,.nhf-btn,.nhf-tab{height:38px;border:1px solid #d4deee;border-radius:10px;padding:0 10px}.nhf-btn{background:#1f56dc;color:#fff;border-color:#1f56dc;cursor:pointer}.nhf-btn[disabled]{opacity:.55;cursor:not-allowed}.nhf-grid{display:grid;grid-template-columns:1fr;gap:14px}.nhf-table{width:100%;border-collapse:collapse;font-size:13px}.nhf-table td,.nhf-table th{padding:10px;border-bottom:1px solid #ebf0f8;text-align:left;white-space:nowrap}.nhf-row{cursor:pointer}.nhf-row:hover td{background:#f7faff}.nhf-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.nhf-kpis div{padding:10px;border:1px solid #e5ecf8;border-radius:12px}.nhf-kpis strong{display:block;font-size:18px}.nhf-modal-backdrop{position:fixed;inset:0;background:rgba(9,16,32,.46);display:flex;align-items:center;justify-content:center;padding:20px;z-index:90}.nhf-modal{width:min(1040px,100%);max-height:92vh;overflow:auto;background:#f7f9fe;border:1px solid #dce6f5;border-radius:20px;box-shadow:0 30px 80px rgba(5,15,30,.32)}.nhf-modal-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;padding:18px 22px;border-bottom:1px solid #e6edf8;background:linear-gradient(180deg,#fff,#f8fbff)}.nhf-modal-tabs{display:flex;gap:8px;padding:14px 22px 0}.nhf-tab{background:#eef4ff;color:#1f56dc;cursor:pointer}.nhf-tab[aria-selected="true"]{background:#1f56dc;color:#fff}.nhf-tab[aria-selected="false"]{opacity:.88}.nhf-modal-body{padding:18px 22px 22px}.nhf-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.nhf-field{display:grid;gap:6px}.nhf-field input,.nhf-field textarea,.nhf-field select{height:38px;border:1px solid #d4deee;border-radius:10px;padding:0 10px;background:#fff}.nhf-field textarea{height:80px;padding:10px;resize:vertical}.nhf-field input:disabled,.nhf-field textarea:disabled,.nhf-field select:disabled{background:#edf2f7;color:#6c7a92}.nhf-field-full{grid-column:1/-1}.nhf-muted{color:#61708f;font-size:13px}.nhf-state{padding:24px;text-align:center;color:#61708f}.nhf-inline{display:flex;gap:10px;align-items:end}.nhf-inline > .nhf-field{flex:1}.nhf-pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef4ff;color:#1f56dc;font-size:12px;font-weight:600}.nhf-error{color:#9f1239}.nhf-success{color:#166534}.nhf-info{color:#1d4ed8}.nhf-warn{color:#b45309}.nhf-inline-error{font-size:12px;color:#9f1239;margin-top:2px}.nhf-logo-miniature{width:64px;height:48px;border-radius:10px;background:#fff;border:1px solid #dbe4f0;display:flex;align-items:center;justify-content:center;overflow:hidden}.nhf-logo-miniature img{max-width:100%;max-height:100%;object-fit:contain;display:block}.nhf-logo-box{display:flex;gap:12px;align-items:center}.nhf-logo-meta{display:grid;gap:4px}.nhf-lookup-success{color:#166534}.nhf-lookup-partial{color:#1d4ed8}.nhf-lookup-error{color:#9f1239}@media (max-width:1024px){.nhf-grid,.nhf-tools,.nhf-kpis,.nhf-form-grid{grid-template-columns:1fr}.nhf-title{font-size:24px}.nhf-modal{width:100%}.nhf-inline{flex-direction:column;align-items:stretch}}`;
   document.head.appendChild(style);
 }
 
@@ -205,6 +212,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     state.form = selected ? { ...emptyForm(), ...selected, cnpj: selected.cnpj || '' } : emptyForm();
     state.form.nome_fantasia = selected?.nome || selected?.nome_fantasia || state.form.nome_fantasia || '';
     state.form.pedido_minimo = selected?.pedido_minimo ?? 0;
+    state.form.pedido_minimo_display = selected?.pedido_minimo !== undefined && selected?.pedido_minimo !== null ? formatCurrencyFromNumber(selected.pedido_minimo) : '';
     state.form.comissao_padrao_percentual = selected?.comissao_padrao_percentual ?? 0;
     state.form.condicoes_pagamento = [];
     state.form.logo_file_name = '';
@@ -226,6 +234,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       const detail = await fetchFabricanteData(apiClient, selected.id);
       state.selected = detail;
       state.form = { ...state.form, ...detail, nome_fantasia: detail.nome || detail.nome_fantasia || state.form.nome_fantasia || '', cnpj: detail.cnpj || '' };
+      state.form.pedido_minimo_display = formatCurrencyFromNumber(detail.pedido_minimo);
       state.form.logo_preview = isPersistableLogoUrl(detail.logo_url) ? detail.logo_url : state.form.logo_preview || '';
       const condicoes = await fetchCondicoesPagamento(apiClient, selected.id);
       state.condicoes = (condicoes.items || []).map((row) => normalizeCondicaoRow({ ...row, juros: row.percentual_acrescimo, savedId: row.id }));
@@ -371,10 +380,15 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       render();
     });
     root.querySelector('[data-form-field="pedido_minimo"]')?.addEventListener('input', (e) => {
-      const raw = String(e.target.value || '').replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
-      const num = Number(raw);
-      state.form.pedido_minimo = Number.isFinite(num) ? String(num) : '';
-      e.target.value = Number.isFinite(num) ? formatCurrencyInput(num) : '';
+      state.form.pedido_minimo_display = String(e.target.value || '');
+      const parsed = parseBrlInput(state.form.pedido_minimo_display);
+      state.form.pedido_minimo = parsed ?? 0;
+    });
+    root.querySelector('[data-form-field="pedido_minimo"]')?.addEventListener('blur', (e) => {
+      const parsed = parseBrlInput(e.target.value);
+      state.form.pedido_minimo = parsed ?? 0;
+      state.form.pedido_minimo_display = parsed === null ? '' : brl(parsed);
+      e.target.value = state.form.pedido_minimo_display;
     });
     root.querySelector('[data-form-field="logo_upload"]')?.addEventListener('change', async (e) => {
       const file = e.target.files?.[0] || null;
@@ -425,7 +439,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
           uf: state.form.uf || null,
           cep: state.form.cep || null,
           endereco_completo: state.form.endereco_completo || composeEnderecoCompleto(state.form) || null,
-          pedido_minimo: Number(String(state.form.pedido_minimo || 0).replace(/[^\d.-]/g, '')) || 0,
+          pedido_minimo: Number.isFinite(Number(state.form.pedido_minimo)) ? Number(state.form.pedido_minimo) : (parseBrlInput(state.form.pedido_minimo_display) ?? 0),
           boleto_minimo: Number(state.form.boleto_minimo || 0),
           comissao_padrao_percentual: Number(state.form.comissao_padrao_percentual || 0),
           observacoes: state.form.observacoes || null,
@@ -474,6 +488,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     });
     root.querySelectorAll('[data-form-field]').forEach((el) => {
       const key = el.getAttribute('data-form-field');
+      if (key === 'pedido_minimo') return;
       el.addEventListener('input', (e) => { state.form[key] = e.target.value; });
       el.addEventListener('change', (e) => { state.form[key] = e.target.value; });
     });
@@ -535,7 +550,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
   function renderRulesTab() {
     const locked = isLocked();
     const total = state.form.condicoes_pagamento?.length || 0;
-    const pedido = `<label class="nhf-field"><span>Pedido mínimo</span><input data-form-field="pedido_minimo" value="${formatCurrencyInput(state.form.pedido_minimo ?? 0)}" ${locked ? 'disabled' : ''} inputmode="decimal"></label>`;
+    const pedido = `<label class="nhf-field"><span>Pedido mínimo</span><input data-form-field="pedido_minimo" value="${state.form.pedido_minimo_display || formatCurrencyFromNumber(state.form.pedido_minimo ?? 0)}" ${locked ? 'disabled' : ''} inputmode="decimal"></label>`;
     const rows = (state.form.condicoes_pagamento || []).map((row) => renderCondicaoRow(row, locked)).join('');
     return `<div class="nhf-form-grid">${pedido}<div class="nhf-field nhf-field-full"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px"><div><strong>Condições de pagamento</strong><div class="nhf-muted">Adicione quantas linhas precisar. O sistema calcula parcelas e prazo médio automaticamente.</div></div><button class="nhf-btn" type="button" data-condicao-add ${locked ? 'disabled' : ''}>Adicionar linha</button></div><div class="nhf-table-wrap"><table class="nhf-table"><tr><th>Condição de pagamento</th><th>Quantidade de parcelas</th><th>Prazo médio</th><th>Juros</th><th>Ações</th></tr>${rows || '<tr><td colspan="5" class="nhf-state">Nenhuma condição cadastrada.</td></tr>'}</table></div><div class="nhf-muted" style="margin-top:8px">Total de linhas: ${total}</div></div></div>`;
   }
@@ -555,7 +570,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     };
     const rows = state.items.map((item) => {
       const logoCell = item.logo_url
-        ? `<img class="nhf-logo-preview" src="${item.logo_url}" alt="Logo de ${item.nomeExibicao || 'fábrica'}" style="width:48px;height:40px;max-width:48px;max-height:40px">`
+        ? `<div class="nhf-logo-miniature"><img src="${item.logo_url}" alt="Logo de ${item.nomeExibicao || 'fábrica'}"></div>`
         : '<span class="nhf-muted">Sem logo</span>';
       return `<tr class="nhf-row" data-id="${item.id}"><td>${logoCell}</td><td>${item.nomeExibicao}</td><td>${item.cnpjExibicao}</td><td><span class="nhf-pill">${item.statusExibicao === 'inativo' ? 'Inativa' : 'Ativa'}</span></td><td>${brl(item.pedidoMinimoExibicao)}</td><td>${brl(item.boletoMinimoExibicao)}</td><td>${item.comissaoExibicao}%</td><td><button class="nhf-btn" type="button" data-edit-id="${item.id}">Editar</button> <button class="nhf-btn" type="button" data-toggle-id="${item.id}">${item.statusExibicao === 'ativo' ? 'Inativar' : 'Ativar'}</button></td></tr>`;
     }).join('');

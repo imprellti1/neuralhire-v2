@@ -40,6 +40,7 @@ export function createFabricantesState() {
       regiao_atendida: '',
       observacoes: '',
       pedido_minimo: 0,
+      pedido_minimo_display: '',
       boleto_minimo: 0,
       comissao_padrao_percentual: 0,
       condicao_pagamento: '',
