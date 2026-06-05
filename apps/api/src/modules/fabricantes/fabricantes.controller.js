@@ -1,4 +1,5 @@
 import {
+  deleteCondicaoPagamento,
   createCondicaoPagamento,
   createFabricante,
   getFabricanteById,
@@ -21,72 +22,135 @@ function assertCnpj(value) {
   return cnpj;
 }
 
-async function lookupPublicCnpj(cnpj, context = {}) {
-  const url = `https://brasilapi.com.br/api/cnpj/v1/${cnpj}`;
-  const requestId = context?.requestId || context?.request_id || null;
-  const controller = new AbortController();
-  const timeoutMs = 8000;
-  const timeoutId = setTimeout(() => controller.abort(new Error('CNPJ lookup timeout')), timeoutMs);
+const FALLBACK_CNPJ_MESSAGE = 'Nao foi possivel consultar o CNPJ agora. Voce pode continuar com preenchimento manual.';
 
+function truncateBody(body) {
+  if (body == null) return null;
+  const text = typeof body === 'string' ? body : JSON.stringify(body);
+  return text.length > 1000 ? `${text.slice(0, 1000)}...` : text;
+}
+
+async function fetchJsonWithTimeout(url, { timeoutMs = 8000 } = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(new Error('CNPJ lookup timeout')), timeoutMs);
   try {
     const response = await fetch(url, { headers: { accept: 'application/json' }, signal: controller.signal });
     let responseText = '';
-    let responseBody = null;
+    let body = null;
     if (typeof response.text === 'function') {
       responseText = await response.text();
       try {
-        responseBody = responseText ? JSON.parse(responseText) : null;
+        body = responseText ? JSON.parse(responseText) : null;
       } catch {
-        responseBody = responseText;
+        body = responseText;
       }
     } else if (typeof response.json === 'function') {
-      responseBody = await response.json();
-      responseText = typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody || {});
+      body = await response.json();
+      responseText = typeof body === 'string' ? body : JSON.stringify(body || {});
     }
-
-    if (!response.ok) {
-      logger.error('Falha ao consultar CNPJ externamente', {
-        domain: 'fabricantes',
-        url,
-        requestId,
-        status: response.status,
-        body: typeof responseText === 'string' ? responseText.slice(0, 1000) : responseBody,
-        errorMessage: null,
-        errorStack: null
-      });
-      return {
-        ok: true,
-        found: false,
-        message: 'Nao foi possivel consultar o CNPJ agora. Voce pode continuar com preenchimento manual.',
-        data: null
-      };
-    }
-
-    return responseBody || {};
-  } catch (error) {
-    const message = String(error?.message || '');
-    const isTimeout = message.toLowerCase().includes('timeout') || error?.name === 'AbortError';
-    logger.error('Falha ao consultar CNPJ externamente', {
-      domain: 'fabricantes',
-      url,
-      requestId,
-      status: error?.status || null,
-      body: null,
-      errorMessage: error?.message || null,
-      errorStack: error?.stack || null
-    });
-    return {
-      ok: true,
-      found: false,
-      message: 'Nao foi possivel consultar o CNPJ agora. Voce pode continuar com preenchimento manual.',
-      data: null,
-      error: {
-        timeout: isTimeout || undefined
-      }
-    };
+    return { response, body, bodyText: responseText };
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+function shouldFallback(status, error) {
+  if (error) {
+    const message = String(error?.message || '').toLowerCase();
+    return error?.name === 'AbortError' || message.includes('timeout') || message.includes('fetch');
+  }
+  return [403, 429].includes(status) || (status >= 500 && status < 600);
+}
+
+function buildProviderData(provider, cnpj, body) {
+  if (provider === 'brasilapi') {
+    return {
+      cnpj,
+      razao_social: body?.razao_social || '',
+      nome: body?.nome || body?.nome_fantasia || '',
+      nome_fantasia: body?.nome_fantasia || body?.nome || '',
+      situacao: body?.descricao_situacao_cadastral || '',
+      email: body?.email || '',
+      telefone: body?.ddd_telefone_1 || '',
+      site: body?.website || '',
+      endereco: {
+        logradouro: body?.logradouro || '',
+        numero: body?.numero || '',
+        complemento: body?.complemento || '',
+        bairro: body?.bairro || '',
+        cidade: body?.municipio || '',
+        uf: body?.uf || '',
+        cep: body?.cep || ''
+      },
+      atividade_principal: body?.cnae_fiscal_descricao || ''
+    };
+  }
+
+  return {
+    cnpj,
+    razao_social: body?.razao_social || body?.nome || '',
+    nome: body?.nome_fantasia || body?.nome || '',
+    nome_fantasia: body?.nome_fantasia || body?.nome || '',
+    situacao: body?.situacao_cadastral || body?.situacao || '',
+    email: body?.email || '',
+    telefone: body?.telefone || '',
+    site: body?.site || '',
+    endereco: {
+      logradouro: body?.logradouro || body?.endereco?.logradouro || '',
+      numero: body?.numero || body?.endereco?.numero || '',
+      complemento: body?.complemento || body?.endereco?.complemento || '',
+      bairro: body?.bairro || body?.endereco?.bairro || '',
+      cidade: body?.municipio || body?.cidade || body?.endereco?.cidade || '',
+      uf: body?.uf || body?.endereco?.uf || '',
+      cep: body?.cep || body?.endereco?.cep || ''
+    },
+    atividade_principal: body?.atividade_principal || body?.atividade || ''
+  };
+}
+
+async function lookupPublicCnpj(cnpj, context = {}) {
+  const requestId = context?.requestId || context?.request_id || null;
+  const providers = [
+    { name: 'brasilapi', url: `https://brasilapi.com.br/api/cnpj/v1/${cnpj}` },
+    { name: 'cnpjws', url: `https://publica.cnpj.ws/cnpj/${cnpj}` }
+  ];
+
+  for (const provider of providers) {
+    try {
+      const { response, body, bodyText } = await fetchJsonWithTimeout(provider.url);
+      logger.info('Consulta de CNPJ externa concluida', {
+        domain: 'fabricantes',
+        provider: provider.name,
+        url: provider.url,
+        requestId,
+        status: response.status,
+        body: truncateBody(body),
+        errorMessage: null
+      });
+      if (!response.ok && shouldFallback(response.status)) continue;
+      if (!response.ok) continue;
+      return { ok: true, found: true, data: buildProviderData(provider.name, cnpj, body) };
+    } catch (error) {
+      logger.error('Falha ao consultar CNPJ externamente', {
+        domain: 'fabricantes',
+        provider: provider.name,
+        url: provider.url,
+        requestId,
+        status: error?.status || null,
+        body: truncateBody(error?.body || null),
+        errorMessage: error?.message || null,
+        errorStack: error?.stack || null
+      });
+      if (shouldFallback(null, error)) continue;
+    }
+  }
+
+  return {
+    ok: true,
+    found: false,
+    message: FALLBACK_CNPJ_MESSAGE,
+    data: null
+  };
 }
 
 function normalizeLookupResponse(source, cnpj) {
@@ -154,6 +218,11 @@ export async function updateCondicaoPagamentoHandler(context) {
   return updateCondicaoPagamento(context.params.id, context.params.condicaoId, context.body || {}, { accountId });
 }
 
+export async function deleteCondicaoPagamentoHandler(context) {
+  const accountId = getAccountIdFromContext(context);
+  return deleteCondicaoPagamento(context.params.id, context.params.condicaoId, { accountId });
+}
+
 export async function lookupCnpjHandler(context) {
   const accountId = getAccountIdFromContext(context);
   if (!accountId) {
@@ -164,5 +233,5 @@ export async function lookupCnpjHandler(context) {
   if (source && source.ok === true && source.found === false) {
     return source;
   }
-  return normalizeLookupResponse(source, cnpj);
+  return source?.data ? { ok: true, data: normalizeLookupResponse(source.data, cnpj).data } : normalizeLookupResponse(source, cnpj);
 }

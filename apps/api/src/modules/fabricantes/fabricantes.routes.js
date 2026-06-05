@@ -4,6 +4,7 @@ import { requirePermission } from '../../core/rbac.middleware.js';
 import { requireTenant } from '../../core/tenant.middleware.js';
 import {
   createCondicaoPagamentoHandler,
+  deleteCondicaoPagamentoHandler,
   createFabricanteHandler,
   getCondicoesPagamento,
   getFabricante,
@@ -30,5 +31,6 @@ export function registerFabricantesRoutes(router) {
   router.registerRoute({ method: 'GET', path: '/fabricantes/:id/condicoes-pagamento', domain: 'fabricantes', middlewares: readMiddlewares, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await getCondicoesPagamento(context))) });
   router.registerRoute({ method: 'POST', path: '/fabricantes/:id/condicoes-pagamento', domain: 'fabricantes', middlewares: writeMiddlewares, schema: createCondicaoPagamentoSchema, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await createCondicaoPagamentoHandler(context))) });
   router.registerRoute({ method: 'PATCH', path: '/fabricantes/:id/condicoes-pagamento/:condicaoId', domain: 'fabricantes', middlewares: writeMiddlewares, schema: updateCondicaoPagamentoSchema, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await updateCondicaoPagamentoHandler(context))) });
+  router.registerRoute({ method: 'DELETE', path: '/fabricantes/:id/condicoes-pagamento/:condicaoId', domain: 'fabricantes', middlewares: writeMiddlewares, schema: null, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await deleteCondicaoPagamentoHandler(context))) });
   router.registerRoute({ method: 'GET', path: '/cnpj/:cnpj', domain: 'fabricantes', middlewares: [requirePermission('fabricantes:read'), requireTenant({ domain: 'fabricantes' })], schema: null, handler: asyncHandler(async (req, res, context) => sendSuccess(res, await lookupCnpjHandler(context))) });
 }

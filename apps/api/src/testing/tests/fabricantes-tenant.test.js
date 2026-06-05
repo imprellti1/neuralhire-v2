@@ -118,6 +118,52 @@ export function getFabricantesTenantTests() {
       }
     },
     {
+      name: 'GET /cnpj/:cnpj faz fallback quando BrasilAPI falha',
+      run: async () => {
+        const originalFetch = global.fetch;
+        global.fetch = async (url) => {
+          if (String(url).includes('brasilapi.com.br')) {
+            return { ok: false, status: 403, text: async () => '{"message":"forbidden"}' };
+          }
+          return {
+            ok: true,
+            status: 200,
+            text: async () => JSON.stringify({
+              razao_social: 'Fallback LTDA',
+              nome_fantasia: 'Fallback',
+              situacao_cadastral: 'ATIVA',
+              endereco: { logradouro: 'Rua F', numero: '1', bairro: 'Centro', cidade: 'Sao Paulo', uf: 'SP', cep: '01000000' }
+            })
+          };
+        };
+        try {
+          const app = createApiApp();
+          const { res, body } = await call(app, { method: 'GET', url: '/cnpj/12345678000190', role: 'owner', accountId: 'acc-fab-cnpj' });
+          assertEqual(res.statusCode, 200);
+          assertEqual(body.ok, true);
+          assertEqual(body.data.razao_social, 'Fallback LTDA');
+        } finally {
+          global.fetch = originalFetch;
+        }
+      }
+    },
+    {
+      name: 'GET /cnpj/:cnpj retorna fallback amigavel quando todos providers falham',
+      run: async () => {
+        const originalFetch = global.fetch;
+        global.fetch = async () => ({ ok: false, status: 503, text: async () => 'down' });
+        try {
+          const app = createApiApp();
+          const { res, body } = await call(app, { method: 'GET', url: '/cnpj/12345678000190', role: 'owner', accountId: 'acc-fab-cnpj' });
+          assertEqual(res.statusCode, 200);
+          assertEqual(body.ok, true);
+          assertEqual(body.found, false);
+        } finally {
+          global.fetch = originalFetch;
+        }
+      }
+    },
+    {
       name: 'isolation de fabricantes por account_id',
       run: async () => {
         const app = createApiApp();

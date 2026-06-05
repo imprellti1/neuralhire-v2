@@ -1,5 +1,5 @@
 import { createFabricantesState } from './fabricantes.state.js';
-import { fetchCondicoesPagamento, fetchFabricanteData, fetchFabricantesData, lookupCnpj, saveCondicaoPagamento, saveFabricante } from './fabricantes.service.js';
+import { deleteCondicaoPagamento, fetchCondicoesPagamento, fetchFabricanteData, fetchFabricantesData, lookupCnpj, saveCondicaoPagamento, saveFabricante } from './fabricantes.service.js';
 import { mapFabricantesData } from './fabricantes.mapper.js';
 
 function brl(value) {
@@ -38,6 +38,58 @@ function parsePaymentCondition(value) {
   return { valid: true, parcelas, prazoMedio, normalized: parts.join('/') };
 }
 
+function formatPercentInput(value) {
+  const raw = String(value || '').replace(/[^\d,.-]/g, '').replace(',', '.');
+  if (raw === '') return '';
+  return raw;
+}
+
+function formatPercentDisplay(value) {
+  return value ? `${value}%` : '';
+}
+
+function avg(values) {
+  if (!values.length) return 0;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function parseCondicoes(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function normalizeCondicaoRow(row = {}) {
+  const parsed = parsePaymentCondition(row.condicao_pagamento || row.nome || '');
+  return {
+    id: row.id || `tmp-${Math.random().toString(36).slice(2)}`,
+    condicao_pagamento: parsed.valid ? parsed.normalized : String(row.condicao_pagamento || row.nome || ''),
+    juros: String(row.juros ?? row.percentual_acrescimo ?? ''),
+    parcelas: parsed.valid ? parsed.parcelas : Number(row.parcelas ?? 0) || 0,
+    prazo_medio: parsed.valid ? Math.round(parsed.prazoMedio) : Number(row.prazo_medio ?? row.prazo_medio_dias ?? 0) || 0,
+    savedId: row.savedId || row.id || null
+  };
+}
+
+function buildCondicaoPayload(row) {
+  const parsed = parsePaymentCondition(row.condicao_pagamento);
+  return {
+    nome: parsed.valid ? parsed.normalized : String(row.condicao_pagamento || '').trim(),
+    parcelas: parsed.valid ? parsed.parcelas : Number(row.parcelas || 0) || 0,
+    prazo_medio_dias: parsed.valid ? parsed.prazoMedio : Number(row.prazo_medio || 0) || 0,
+    valor_minimo: 0,
+    percentual_acrescimo: Number(formatPercentInput(row.juros || 0)) || 0,
+    observacoes: null
+  };
+}
+
 function injectStyles() {
   if (document.getElementById('nh-fab-style')) return;
   const style = document.createElement('style');
@@ -66,7 +118,7 @@ function emptyForm() {
     parcelas_pagamento: '',
     prazo_medio_pagamento: '',
     juros_pagamento: '',
-    condicoes_pagamento: ''
+    condicoes_pagamento: []
   };
 }
 
@@ -93,10 +145,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     state.form = selected ? { ...emptyForm(), ...selected, cnpj: selected.cnpj || '' } : emptyForm();
     state.form.pedido_minimo = selected?.pedido_minimo ?? 0;
     state.form.comissao_padrao_percentual = selected?.comissao_padrao_percentual ?? 0;
-    state.form.condicao_pagamento = '';
-    state.form.parcelas_pagamento = '';
-    state.form.prazo_medio_pagamento = '';
-    state.form.juros_pagamento = '';
+    state.form.condicoes_pagamento = [];
     state.cnpjValidated = Boolean(selected?.cnpj);
     state.cnpjManualUnlock = false;
     state.cnpjMessage = '';
@@ -112,13 +161,8 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       state.selected = detail;
       state.form = { ...state.form, ...detail, cnpj: detail.cnpj || '' };
       const condicoes = await fetchCondicoesPagamento(apiClient, selected.id);
-      state.condicoes = condicoes.items || [];
-      const condicao = state.condicoes[0] || null;
-      state.condicaoId = condicao?.id || null;
-      state.form.condicao_pagamento = condicao?.nome || '';
-      state.form.parcelas_pagamento = condicao?.parcelas ?? '';
-      state.form.prazo_medio_pagamento = condicao?.prazo_medio_dias ?? '';
-      state.form.juros_pagamento = condicao?.percentual_acrescimo ?? '';
+      state.condicoes = (condicoes.items || []).map((row) => normalizeCondicaoRow({ ...row, juros: row.percentual_acrescimo, savedId: row.id }));
+      state.form.condicoes_pagamento = state.condicoes.map((row) => ({ ...row }));
       render();
     } catch {
       state.error = true;
@@ -240,31 +284,13 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       state.form.pedido_minimo = Number.isFinite(num) ? String(num) : '';
       e.target.value = Number.isFinite(num) ? formatCurrencyInput(num) : '';
     });
-    root.querySelector('[data-form-field="condicao_pagamento"]')?.addEventListener('input', (e) => {
-      const raw = String(e.target.value || '').replace(/\s+/g, '').replace(/[^0-9/]/g, '').replace(/\/+/g, '/').replace(/^\/|\/$/g, '');
-      const parsed = parsePaymentCondition(raw);
-      state.form.condicao_pagamento = raw;
-      state.form.parcelas_pagamento = parsed.valid ? String(parsed.parcelas) : '';
-      state.form.prazo_medio_pagamento = parsed.valid ? String(parsed.prazoMedio).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1') : '';
-      e.target.value = raw;
-      const parcelasInput = root.querySelector('[data-form-field="parcelas_pagamento"]');
-      const prazoInput = root.querySelector('[data-form-field="prazo_medio_pagamento"]');
-      if (parcelasInput) parcelasInput.value = state.form.parcelas_pagamento;
-      if (prazoInput) prazoInput.value = state.form.prazo_medio_pagamento;
-    });
-    root.querySelector('[data-form-field="juros_pagamento"]')?.addEventListener('input', (e) => {
-      const raw = String(e.target.value || '').replace(/[^\d,.-]/g, '').replace(',', '.');
-      state.form.juros_pagamento = raw;
-      e.target.value = raw ? `${raw}%` : '';
-      if (e.target.value.endsWith('%%')) e.target.value = e.target.value.replace(/%+$/, '%');
-    });
     root.querySelector('#nhf-save')?.addEventListener('click', async () => {
       if (!isCnpjValid()) return;
       state.saving = true;
       render();
       try {
-        const parsedCondition = parsePaymentCondition(state.form.condicao_pagamento);
-        if (state.form.condicao_pagamento && !parsedCondition.valid) {
+        const condicoes = (state.form.condicoes_pagamento || []).map((row) => normalizeCondicaoRow(row)).filter((row) => row.condicao_pagamento);
+        if (condicoes.some((row) => !parsePaymentCondition(row.condicao_pagamento).valid)) {
           state.error = true;
           state.saving = false;
           render();
@@ -282,17 +308,21 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
           status: state.selected?.status === 'inativo' ? 'inativo' : 'ativo'
         };
         const saved = await saveFabricante(apiClient, fabricantePayload, state.selected?.id || null);
-        const hasCondicao = state.form.condicao_pagamento || state.form.juros_pagamento;
-        if (hasCondicao) {
-          const condicaoPayload = {
-            nome: parsedCondition.valid ? parsedCondition.normalized : (state.form.condicao_pagamento || 'Condição padrão'),
-            parcelas: parsedCondition.valid ? parsedCondition.parcelas : Number(state.form.parcelas_pagamento || 0) || 0,
-            prazo_medio_dias: parsedCondition.valid ? parsedCondition.prazoMedio : Number(state.form.prazo_medio_pagamento || 0) || 0,
-            valor_minimo: Number(state.form.pedido_minimo || 0),
-            percentual_acrescimo: Number(state.form.juros_pagamento || 0) || 0,
-            observacoes: null
-          };
-          await saveCondicaoPagamento(apiClient, saved.id || state.selected?.id || null, condicaoPayload, state.condicaoId);
+        const fabricanteId = saved.id || state.selected?.id || null;
+        const existing = new Map((state.condicoes || []).map((row) => [String(row.id), row]));
+        const desired = condicoes.map((row) => ({ ...row, savedId: row.savedId || null }));
+        for (const row of desired) {
+          const payload = buildCondicaoPayload(row);
+          if (row.savedId && existing.has(String(row.savedId))) {
+            await saveCondicaoPagamento(apiClient, fabricanteId, payload, row.savedId);
+            existing.delete(String(row.savedId));
+          } else {
+            const created = await saveCondicaoPagamento(apiClient, fabricanteId, payload, null);
+            row.savedId = created?.id || null;
+          }
+        }
+        for (const row of existing.values()) {
+          await deleteCondicaoPagamento(apiClient, fabricanteId, row.id);
         }
         closeModal();
         await load();
@@ -308,6 +338,30 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       el.addEventListener('input', (e) => { state.form[key] = e.target.value; });
       el.addEventListener('change', (e) => { state.form[key] = e.target.value; });
     });
+    root.querySelector('[data-condicao-add]')?.addEventListener('click', () => {
+      const rows = [...(state.form.condicoes_pagamento || [])];
+      rows.push(normalizeCondicaoRow({ condicao_pagamento: '', juros: '' }));
+      state.form.condicoes_pagamento = rows;
+      render();
+    });
+    root.querySelectorAll('[data-condicao-field]').forEach((el) => {
+      el.addEventListener('input', (e) => {
+        const index = Number(el.getAttribute('data-condicao-index'));
+        const field = el.getAttribute('data-condicao-field');
+        const raw = String(e.target.value || '');
+        updateCondicaoRow(index, field, field === 'juros' ? formatPercentInput(raw) : raw.replace(/\s+/g, '').replace(/[^0-9/]/g, '').replace(/\/+/g, '/').replace(/^\/|\/$/g, ''));
+        render();
+      });
+    });
+    root.querySelectorAll('[data-condicao-remove]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const index = Number(btn.getAttribute('data-condicao-remove'));
+        const rows = [...(state.form.condicoes_pagamento || [])];
+        rows.splice(index, 1);
+        state.form.condicoes_pagamento = rows;
+        render();
+      });
+    });
   }
 
   function renderFormTab() {
@@ -316,13 +370,38 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     return `<div class="nhf-form-grid"><div class="nhf-field nhf-field-full"><div class="nhf-inline"><label class="nhf-field">CNPJ<input id="nhf-cnpj" value="${formatCnpj(state.form.cnpj || '')}" placeholder="00.000.000/0000-00" maxlength="18" inputmode="numeric"></label><button id="nhf-buscar-cnpj" class="nhf-btn" ${lookupReady ? '' : 'disabled'}>${state.cnpjLookupStatus === 'loading' ? 'Buscando...' : 'Buscar CNPJ'}</button></div><div class="nhf-muted">O campo CNPJ precisa ter 14 digitos para habilitar a consulta.</div>${state.cnpjMessage ? `<div class="${state.cnpjManualUnlock ? 'nhf-success' : 'nhf-error'} nhf-muted">${state.cnpjMessage}</div>` : ''}</div><label class="nhf-field"><span>Nome fantasia</span><input data-form-field="nome_fantasia" value="${state.form.nome_fantasia || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Razão social</span><input data-form-field="razao_social" value="${state.form.razao_social || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>E-mail comercial</span><input data-form-field="email_comercial" value="${state.form.email_comercial || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Telefone</span><input data-form-field="telefone" value="${state.form.telefone || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Site</span><input data-form-field="site" value="${state.form.site || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Logo URL</span><input data-form-field="logo_url" value="${state.form.logo_url || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Responsável comercial</span><input data-form-field="responsavel_comercial" value="${state.form.responsavel_comercial || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Região atendida</span><input data-form-field="regiao_atendida" value="${state.form.regiao_atendida || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field nhf-field-full"><span>Observações</span><textarea data-form-field="observacoes" ${locked ? 'disabled' : ''}>${state.form.observacoes || ''}</textarea></label><div class="nhf-field nhf-field-full"><button id="nhf-unlock-manual" class="nhf-btn" type="button" ${state.cnpjValidated ? 'disabled' : ''}>Liberar preenchimento manual</button></div></div>`;
   }
 
+  function syncCondicoesFromForm() {
+    state.form.condicoes_pagamento = (state.form.condicoes_pagamento || []).map((row) => {
+      const next = normalizeCondicaoRow(row);
+      const parsed = parsePaymentCondition(next.condicao_pagamento);
+      return {
+        ...next,
+        parcelas: parsed.valid ? parsed.parcelas : 0,
+        prazo_medio: parsed.valid ? Math.round(parsed.prazoMedio) : 0
+      };
+    });
+  }
+
+  function updateCondicaoRow(index, field, value) {
+    const rows = [...(state.form.condicoes_pagamento || [])];
+    rows[index] = { ...(rows[index] || {}), [field]: value };
+    state.form.condicoes_pagamento = rows.map((row) => normalizeCondicaoRow(row));
+  }
+
+  function renderCondicaoRow(row, index, locked = false) {
+    const parsed = parsePaymentCondition(row.condicao_pagamento);
+    const parcelas = parsed.valid ? parsed.parcelas : row.parcelas;
+    const prazo = parsed.valid ? Math.round(parsed.prazoMedio) : row.prazo_medio;
+    return `<tr data-condicao-index="${index}"><td><input class="nhf-input" data-condicao-field="condicao_pagamento" data-condicao-index="${index}" value="${row.condicao_pagamento || ''}" placeholder="30/60/90" ${locked ? 'disabled' : ''}></td><td><input class="nhf-input" value="${parcelas || ''}" readonly></td><td><input class="nhf-input" value="${prazo || ''}" readonly></td><td><input class="nhf-input" data-condicao-field="juros" data-condicao-index="${index}" value="${row.juros || ''}" placeholder="1%" ${locked ? 'disabled' : ''}></td><td><button class="nhf-btn" type="button" data-condicao-remove="${index}" ${locked ? 'disabled' : ''}>Remover</button></td></tr>`;
+  }
+
   function renderRulesTab() {
     const locked = isLocked();
-    const payment = parsePaymentCondition(state.form.condicao_pagamento);
-    const parcelasValue = payment.valid ? String(payment.parcelas) : String(state.form.parcelas_pagamento || '');
-    const prazoValue = payment.valid ? String(payment.prazoMedio).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1') : String(state.form.prazo_medio_pagamento || '');
-    const error = state.form.condicao_pagamento && !payment.valid ? '<div class="nhf-inline-error">Use apenas prazos numéricos separados por "/"</div>' : '';
-    return `<div class="nhf-form-grid"><label class="nhf-field"><span>Pedido mínimo</span><input data-form-field="pedido_minimo" value="${formatCurrencyInput(state.form.pedido_minimo ?? 0)}" ${locked ? 'disabled' : ''} inputmode="decimal"></label><label class="nhf-field"><span>Condição de pagamento</span><input data-form-field="condicao_pagamento" value="${state.form.condicao_pagamento || ''}" ${locked ? 'disabled' : ''} placeholder="30/60/90"></label><label class="nhf-field"><span>Quantidade de parcelas</span><input data-form-field="parcelas_pagamento" value="${parcelasValue}" ${locked ? 'disabled' : ''} placeholder="3" readonly></label><label class="nhf-field"><span>Prazo médio</span><input data-form-field="prazo_medio_pagamento" value="${prazoValue}" ${locked ? 'disabled' : ''} placeholder="60" readonly></label><label class="nhf-field"><span>Juros</span><input data-form-field="juros_pagamento" value="${state.form.juros_pagamento ? `${state.form.juros_pagamento}%` : ''}" ${locked ? 'disabled' : ''} placeholder="1%" inputmode="decimal"></label><div class="nhf-field nhf-field-full">${error}</div></div>`;
+    syncCondicoesFromForm();
+    const total = state.form.condicoes_pagamento?.length || 0;
+    const pedido = `<label class="nhf-field"><span>Pedido mínimo</span><input data-form-field="pedido_minimo" value="${formatCurrencyInput(state.form.pedido_minimo ?? 0)}" ${locked ? 'disabled' : ''} inputmode="decimal"></label>`;
+    const rows = (state.form.condicoes_pagamento || []).map((row, index) => renderCondicaoRow(row, index, locked)).join('');
+    return `<div class="nhf-form-grid">${pedido}<div class="nhf-field nhf-field-full"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px"><div><strong>Condições de pagamento</strong><div class="nhf-muted">Adicione quantas linhas precisar. O sistema calcula parcelas e prazo médio automaticamente.</div></div><button class="nhf-btn" type="button" data-condicao-add ${locked ? 'disabled' : ''}>Adicionar linha</button></div><div class="nhf-table-wrap"><table class="nhf-table"><tr><th>Condição de pagamento</th><th>Quantidade de parcelas</th><th>Prazo médio</th><th>Juros</th><th>Ações</th></tr>${rows || '<tr><td colspan="5" class="nhf-state">Nenhuma condição cadastrada.</td></tr>'}</table></div><div class="nhf-muted" style="margin-top:8px">Total de linhas: ${total}</div></div></div>`;
   }
 
   function renderModal() {
@@ -349,7 +428,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       state.items = mapFabricantesData(response).items;
       if (state.selected?.id) {
         state.selected = await fetchFabricanteData(apiClient, state.selected.id);
-        state.condicoes = (await fetchCondicoesPagamento(apiClient, state.selected.id)).items || [];
+        state.condicoes = ((await fetchCondicoesPagamento(apiClient, state.selected.id)).items || []).map((row) => normalizeCondicaoRow({ ...row, juros: row.percentual_acrescimo, savedId: row.id }));
       }
     } catch {
       state.error = true;

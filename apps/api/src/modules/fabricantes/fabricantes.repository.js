@@ -297,6 +297,29 @@ export async function updateCondicaoPagamento(fabricanteId, condicaoId, data, op
   return payload;
 }
 
+export async function deleteCondicaoPagamento(fabricanteId, condicaoId, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+
+  if (isSupabaseMode()) {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { error } = await supabase
+      .from('fabricante_condicoes_pagamento')
+      .delete()
+      .eq('id', condicaoId)
+      .eq('account_id', accountId)
+      .eq('fabricante_id', fabricanteId);
+    if (error) throw new DatabaseError('Falha ao excluir condicao de pagamento', { details: error });
+    return { ok: true };
+  }
+
+  const idx = memoryCondicoes.findIndex((row) => row.id === condicaoId && row.account_id === accountId && row.fabricante_id === fabricanteId);
+  if (idx < 0) throw new NotFoundError('Condicao nao encontrada', { domain: 'fabricantes', code: 'CONDICAO_NOT_FOUND' });
+  memoryCondicoes.splice(idx, 1);
+  return { ok: true };
+}
+
 export function __resetMemoryFabricantesForTests() {
   memoryFabricantes.length = 0;
   memoryCondicoes.length = 0;

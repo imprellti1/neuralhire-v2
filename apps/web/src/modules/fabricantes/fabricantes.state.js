@@ -37,7 +37,7 @@ export function createFabricantesState() {
       parcelas_pagamento: '',
       prazo_medio_pagamento: '',
       juros_pagamento: '',
-      condicoes_pagamento: ''
+      condicoes_pagamento: []
     },
     saveBlocked: true
   };

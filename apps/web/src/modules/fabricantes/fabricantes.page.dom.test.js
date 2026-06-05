@@ -76,9 +76,41 @@ test('fabricantes: regras comerciais em aba separada e lista sem prazo maximo', 
   assert.doesNotMatch(document.body.textContent, /Prazo máximo/);
   document.querySelector('#nhf-new').click();
   await flush();
-  document.querySelector('[data-tab="regras"]').click();
+  const regraTab = document.querySelector('[data-tab="regras"]');
+  regraTab.click();
   await flush();
   assert.match(document.body.textContent, /Regras comerciais/);
+  teardownFrontendDom(dom);
+});
+
+test('fabricantes: condicao 30/60/90 calcula parcelas e prazo medio', async () => {
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
+  installFetchMock({ 'GET /fabricantes': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }) });
+  bootstrapWebApp();
+  await flush(); await flush();
+  document.querySelector('#nhf-new').click();
+  await flush();
+  document.querySelector('#nhf-unlock-manual').click();
+  await flush();
+  document.querySelector('[data-tab="regras"]').click();
+  await flush();
+  assert.equal(document.querySelectorAll('tr[data-condicao-index]').length, 0);
+  document.querySelector('[data-condicao-add]').click();
+  await flush();
+  const condicaoRow = document.querySelector('[data-condicao-field="condicao_pagamento"]');
+  condicaoRow.focus();
+  dispatchInput(condicaoRow, '30/60/90');
+  await flush();
+  assert.equal(document.querySelectorAll('tr[data-condicao-index]').length, 1);
+  const rowInputs = document.querySelectorAll('tr[data-condicao-index="0"] input');
+  assert.equal(rowInputs[1].value, '3');
+  assert.equal(rowInputs[2].value, '60');
+  const juros = document.querySelector('[data-condicao-field="juros"]');
+  dispatchInput(juros, '1');
+  await flush();
+  assert.equal(juros.value, '1');
+  assert.match(document.querySelector('[data-form-field="pedido_minimo"]').value, /^R\$/);
   teardownFrontendDom(dom);
 });
 

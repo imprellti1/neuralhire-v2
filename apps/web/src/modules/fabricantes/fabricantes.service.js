@@ -20,6 +20,10 @@ export async function saveCondicaoPagamento(apiClient, fabricanteId, payload, co
     : apiClient.post(`/fabricantes/${fabricanteId}/condicoes-pagamento`, payload);
 }
 
+export async function deleteCondicaoPagamento(apiClient, fabricanteId, condicaoId) {
+  return apiClient.delete(`/fabricantes/${fabricanteId}/condicoes-pagamento/${condicaoId}`);
+}
+
 export async function lookupCnpj(apiClient, cnpj) {
   return apiClient.get(`/cnpj/${cnpj}`);
 }
