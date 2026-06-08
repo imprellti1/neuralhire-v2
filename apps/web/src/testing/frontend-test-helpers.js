@@ -6,6 +6,9 @@ export function flush() {
 
 export function setupFrontendDom(hash = '#/', hostname = 'localhost') {
   const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', { url: `http://${hostname}/${hash}` });
+  const previousBlob = global.Blob;
+  const previousFile = global.File;
+  const previousFormData = global.FormData;
   global.window = dom.window;
   global.document = dom.window.document;
   window.__NEURALHIRE_CONFIG__ = {
@@ -26,11 +29,14 @@ export function setupFrontendDom(hash = '#/', hostname = 'localhost') {
     writable: true
   });
   global.Blob = dom.window.Blob;
+  global.File = dom.window.File;
+  global.FormData = dom.window.FormData;
   global.URL = dom.window.URL;
   global.Event = dom.window.Event;
   global.KeyboardEvent = dom.window.KeyboardEvent;
   window.requestAnimationFrame = (callback) => setTimeout(callback, 16);
   window.cancelAnimationFrame = clearTimeout;
+  dom.__previousGlobals = { previousBlob, previousFile, previousFormData };
   return dom;
 }
 
@@ -66,10 +72,18 @@ export function teardownFrontendDom(dom) {
   delete global.document;
   delete global.navigator;
   delete global.Blob;
+  delete global.File;
+  delete global.FormData;
   delete global.URL;
   delete global.Event;
   delete global.KeyboardEvent;
   delete global.fetch;
+
+  const previousGlobals = dom.__previousGlobals || {};
+  if (typeof previousGlobals.previousBlob !== 'undefined') global.Blob = previousGlobals.previousBlob;
+  if (typeof previousGlobals.previousFile !== 'undefined') global.File = previousGlobals.previousFile;
+  if (typeof previousGlobals.previousFormData !== 'undefined') global.FormData = previousGlobals.previousFormData;
+  delete dom.__previousGlobals;
 }
 
 export function setHash(hash) {
