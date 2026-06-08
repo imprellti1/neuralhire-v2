@@ -130,6 +130,11 @@ function calculatePaymentRow(prazo) {
   return { valid: true, prazo: parts.join('/'), parcelas, prazo_medio_dias };
 }
 
+function describePaymentRow(prazo) {
+  const calc = calculatePaymentRow(prazo);
+  return calc.valid ? `${calc.parcelas} parcelas · prazo médio ${calc.prazo_medio_dias} dias` : 'Digite um prazo valido';
+}
+
 function normalizePaymentInputValue(value) {
   return String(value || '').replace(/[^\d/\s]/g, '');
 }
@@ -569,8 +574,12 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     root.querySelectorAll('[data-payment-prazo]').forEach((input) => {
       input.addEventListener('input', (e) => {
         const rowId = input.getAttribute('data-payment-prazo');
-        state.form.condicoes_pagamento = (state.form.condicoes_pagamento || []).map((row) => String(row.id) === String(rowId) ? { ...row, prazo: normalizePaymentInputValue(e.target.value) } : row);
-        render();
+        const rawValue = String(e.target.value || '');
+        state.form.condicoes_pagamento = (state.form.condicoes_pagamento || []).map((row) => String(row.id) === String(rowId) ? { ...row, prazo: rawValue } : row);
+        const summary = root.querySelector(`[data-payment-summary="${rowId}"]`);
+        const inlineError = root.querySelector(`[data-payment-error="${rowId}"]`);
+        if (summary) summary.textContent = describePaymentRow(rawValue);
+        if (inlineError) inlineError.textContent = '';
       });
       input.addEventListener('blur', (e) => {
         const rowId = input.getAttribute('data-payment-prazo');
@@ -606,7 +615,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     const errors = state.form.formErrors || {};
     const rows = (state.form.condicoes_pagamento || []).map((row) => {
       const calc = calculatePaymentRow(row.prazo);
-      return `<div class="nhf-panel" data-payment-row="${row.id}" style="padding:12px"><div class="nhf-inline"><label class="nhf-field"><span>Prazo</span><input data-payment-prazo="${row.id}" value="${row.prazo || ''}" placeholder="30/60/90" ${locked ? 'disabled' : ''}></label><div class="nhf-muted" style="align-self:center">${calc.valid ? `${calc.parcelas} parcelas · prazo médio ${calc.prazo_medio_dias} dias` : 'Digite um prazo valido'}</div><button class="nhf-btn" type="button" data-payment-remove="${row.id}" ${locked ? 'disabled' : ''}>Remover</button></div><div class="nhf-inline-error">${!calc.valid && row.prazo ? 'Formato invalido' : ''}</div></div>`;
+      return `<div class="nhf-panel" data-payment-row="${row.id}" style="padding:12px"><div class="nhf-inline"><label class="nhf-field"><span>Prazo</span><input data-payment-prazo="${row.id}" value="${row.prazo || ''}" placeholder="30/60/90" ${locked ? 'disabled' : ''}></label><div class="nhf-muted" data-payment-summary="${row.id}" style="align-self:center">${calc.valid ? `${calc.parcelas} parcelas · prazo médio ${calc.prazo_medio_dias} dias` : 'Digite um prazo valido'}</div><button class="nhf-btn" type="button" data-payment-remove="${row.id}" ${locked ? 'disabled' : ''}>Remover</button></div><div class="nhf-inline-error" data-payment-error="${row.id}">${!calc.valid && row.prazo ? 'Formato invalido' : ''}</div></div>`;
     }).join('');
     return `<div class="nhf-form-grid"><label class="nhf-field"><span>Valor mínimo do pedido</span><input data-form-field="pedido_minimo_valor" value="${state.form.pedido_minimo_valor_display || formatCurrencyFromNumber(state.form.pedido_minimo_valor ?? 0)}" ${locked ? 'disabled' : ''} inputmode="decimal"><div class="nhf-inline-error">${errors.pedido_minimo_valor || ''}</div></label><label class="nhf-field"><span>Valor mínimo por duplicata</span><input data-form-field="pedido_minimo" value="${state.form.pedido_minimo_display || formatCurrencyFromNumber(state.form.valor_minimo_duplicata ?? 0)}" ${locked ? 'disabled' : ''} inputmode="decimal"><div class="nhf-inline-error">${errors.valor_minimo_duplicata || ''}</div></label><label class="nhf-field"><span>Quantidade mínima de itens</span><input data-form-field="pedido_minimo_itens" type="number" min="0" value="${state.form.pedido_minimo_itens ?? 0}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.pedido_minimo_itens || ''}</div></label><label class="nhf-field"><span>Prazo médio de entrega em dias</span><input data-form-field="prazo_entrega_dias" type="number" min="0" value="${state.form.prazo_entrega_dias ?? 0}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.prazo_entrega_dias || ''}</div></label><label class="nhf-field"><span>Comissão padrão %</span><input data-form-field="comissao_padrao_percentual" type="number" min="0" max="100" value="${state.form.comissao_padrao_percentual ?? 0}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.comissao_padrao_percentual || ''}</div></label><label class="nhf-field"><span>Aceita bonificação?</span><select data-form-field="aceita_bonificacao" ${locked ? 'disabled' : ''}><option value="">Selecione</option><option value="true" ${state.form.aceita_bonificacao === 'true' ? 'selected' : ''}>Sim</option><option value="false" ${state.form.aceita_bonificacao === 'false' ? 'selected' : ''}>Não</option></select></label><label class="nhf-field"><span>Aceita consignação?</span><select data-form-field="aceita_consignacao" ${locked ? 'disabled' : ''}><option value="">Selecione</option><option value="true" ${state.form.aceita_consignacao === 'true' ? 'selected' : ''}>Sim</option><option value="false" ${state.form.aceita_consignacao === 'false' ? 'selected' : ''}>Não</option></select></label><label class="nhf-field nhf-field-full"><span>Política de troca</span><textarea data-form-field="politica_troca" ${locked ? 'disabled' : ''}>${state.form.politica_troca || ''}</textarea></label><div class="nhf-field nhf-field-full"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><span>Condições de pagamento</span><div class="nhf-muted">Adicione linhas com prazos separados por /.</div></div><button class="nhf-btn" type="button" data-payment-add ${locked ? 'disabled' : ''}>+ Adicionar condição</button></div><div style="display:grid;gap:10px;margin-top:10px">${rows || '<div class="nhf-state">Nenhuma condição cadastrada.</div>'}</div><div class="nhf-inline-error">${errors.condicoes_pagamento || ''}</div></div><label class="nhf-field"><span>URL da tabela de preços</span><input data-form-field="tabela_precos_url" value="${state.form.tabela_precos_url || ''}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.tabela_precos_url || ''}</div></label><label class="nhf-field nhf-field-full"><span>Observações comerciais</span><textarea data-form-field="observacoes_comerciais" ${locked ? 'disabled' : ''}>${state.form.observacoes_comerciais || ''}</textarea></label></div>`;
   }
