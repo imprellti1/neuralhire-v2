@@ -86,6 +86,72 @@ test('fabricantes: logo aceita upload local e mostra preview', async () => {
   teardownFrontendDom(dom);
 });
 
+test('fabricantes: upload real envia logo depois de salvar e recarrega url persistida', async () => {
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
+  let uploadCalled = false;
+  const items = [];
+  installFetchMock({
+    'GET /fabricantes': () => ({ items, pagination: { page: 1, totalPages: 1, total: items.length, limit: 20 } }),
+    'GET /vendedores': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }),
+    'GET /cnpj/12345678000190': () => ({ ok: true, data: { cnpj: '12345678000190', razao_social: 'Fab Nova LTDA' } }),
+    'POST /fabricantes': ({ body }) => { const row = { id: 'fab-upload', ...body }; items.splice(0, items.length, row); return row; },
+    'POST /fabricantes/fab-upload/logo': () => { uploadCalled = true; return { logo_url: 'https://cdn.local/fab-upload/logo.png' }; },
+    'GET /fabricantes/fab-upload': () => ({ id: 'fab-upload', nome: 'Fab Nova LTDA', cnpj: '12345678000190', logo_url: 'https://cdn.local/fab-upload/logo.png' }),
+    'GET /fabricantes/fab-upload/condicoes-pagamento': () => ({ items: [], total: 0 })
+  });
+  bootstrapWebApp();
+  await flush(); await flush();
+  document.querySelector('#nhf-new').click();
+  await flush();
+  dispatchInput(document.querySelector('#nhf-cnpj'), '12345678000190');
+  await flush();
+  document.querySelector('#nhf-buscar-cnpj').click();
+  await flush(); await flush();
+  const fileInput = document.querySelector('[data-form-field="logo_upload"]');
+  const file = new File(['fake-image'], 'logo.png', { type: 'image/png' });
+  Object.defineProperty(fileInput, 'files', { value: [file], configurable: true });
+  fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush(); await flush();
+  document.querySelector('#nhf-save').click();
+  await flush(); await flush();
+  assert.equal(uploadCalled, true);
+  document.querySelector('[data-edit-id="fab-upload"]').click();
+  await flush(); await flush();
+  assert.equal(document.querySelector('.nhf-logo-preview').src, 'https://cdn.local/fab-upload/logo.png');
+  teardownFrontendDom(dom);
+});
+
+test('fabricantes: upload falho mostra erro inline e nao simula sucesso', async () => {
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
+  installFetchMock({
+    'GET /fabricantes': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }),
+    'GET /vendedores': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }),
+    'GET /cnpj/12345678000190': () => ({ ok: true, data: { cnpj: '12345678000190', razao_social: 'Fab Nova LTDA' } }),
+    'POST /fabricantes': ({ body }) => ({ id: 'fab-upload-err', ...body }),
+    'POST /fabricantes/fab-upload-err/logo': () => { throw new Error('upload failed'); }
+  });
+  bootstrapWebApp();
+  await flush(); await flush();
+  document.querySelector('#nhf-new').click();
+  await flush();
+  dispatchInput(document.querySelector('#nhf-cnpj'), '12345678000190');
+  await flush();
+  document.querySelector('#nhf-buscar-cnpj').click();
+  await flush(); await flush();
+  const fileInput = document.querySelector('[data-form-field="logo_upload"]');
+  const file = new File(['fake-image'], 'logo.png', { type: 'image/png' });
+  Object.defineProperty(fileInput, 'files', { value: [file], configurable: true });
+  fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush(); await flush();
+  document.querySelector('#nhf-save').click();
+  await flush(); await flush();
+  assert.match(document.body.textContent, /upload failed|Falha ao enviar a logo|Falha ao enviar logo/i);
+  assert.ok(document.querySelector('#nhf-modal-backdrop'));
+  teardownFrontendDom(dom);
+});
+
 test('fabricantes: falha de consulta libera preenchimento manual', async () => {
   const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
   mockAuthenticatedSession();

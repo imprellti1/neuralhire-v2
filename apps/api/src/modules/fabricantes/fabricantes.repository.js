@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Buffer } from 'node:buffer';
+import path from 'node:path';
 import { env } from '../../config/env.js';
 import { BadRequestError, ConflictError, DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
@@ -100,16 +101,24 @@ function sanitizeLogoUrl(value) {
 }
 
 const FABRICANTES_LOGO_BUCKET = 'fabricantes-logos';
-const ALLOWED_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp']);
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+const ALLOWED_LOGO_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const ALLOWED_LOGO_EXTENSIONS = new Map([
+  ['image/png', 'png'],
+  ['image/jpeg', 'jpg'],
+  ['image/webp', 'webp']
+]);
 
 function normalizeLogoUpload(upload) {
   if (!upload || typeof upload !== 'object') return null;
   const fileName = String(upload.fileName || upload.filename || '').trim();
   const mimeType = String(upload.mimeType || upload.contentType || '').trim().toLowerCase();
   const base64 = String(upload.base64 || upload.data || '').trim();
+  const size = Number(upload.size || 0);
   if (!fileName || !base64 || !mimeType) return null;
   if (!ALLOWED_LOGO_MIME_TYPES.has(mimeType)) return null;
-  return { fileName, mimeType, base64 };
+  if (!Number.isFinite(size) || size <= 0 || size > MAX_LOGO_BYTES) return null;
+  return { fileName, mimeType, base64, size };
 }
 
 async function ensureLogoBucket(supabase) {
@@ -133,18 +142,21 @@ async function uploadFabricanteLogo({ supabase, accountId, fabricanteId, upload 
   if (!supabase || !accountId || !fabricanteId || !normalized) return null;
   try {
     await ensureLogoBucket(supabase);
-    const ext = normalized.mimeType === 'image/png' ? 'png' : normalized.mimeType === 'image/webp' ? 'webp' : 'jpg';
-    const path = `fabricantes/${accountId}/${fabricanteId}/logo-${Date.now()}.${ext}`;
+    const ext = ALLOWED_LOGO_EXTENSIONS.get(normalized.mimeType);
+    if (!ext) return null;
+    const safeBaseName = path.basename(normalized.fileName, path.extname(normalized.fileName)).replace(/[^a-z0-9_-]+/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'logo';
+    const objectPath = `${accountId}/${fabricanteId}/${Date.now()}-${safeBaseName}.${ext}`;
     const bytes = Buffer.from(normalized.base64.replace(/^data:[^;]+;base64,/, ''), 'base64');
-    const { error } = await supabase.storage.from(FABRICANTES_LOGO_BUCKET).upload(path, bytes, {
+    if (bytes.length > MAX_LOGO_BYTES) return null;
+    const { error } = await supabase.storage.from(FABRICANTES_LOGO_BUCKET).upload(objectPath, bytes, {
       upsert: true,
       contentType: normalized.mimeType
     });
     if (error) {
-      logSupabaseFailure('uploadFabricanteLogo', error, { account_id: accountId, fabricante_id: fabricanteId, path, mimeType: normalized.mimeType });
+      logSupabaseFailure('uploadFabricanteLogo', error, { account_id: accountId, fabricante_id: fabricanteId, path: objectPath, mimeType: normalized.mimeType });
       return null;
     }
-    const { data } = supabase.storage.from(FABRICANTES_LOGO_BUCKET).getPublicUrl(path);
+    const { data } = supabase.storage.from(FABRICANTES_LOGO_BUCKET).getPublicUrl(objectPath);
     const publicUrl = data?.publicUrl || null;
     return sanitizeLogoUrl(publicUrl);
   } catch (error) {
@@ -161,6 +173,8 @@ export async function updateFabricanteLogo(id, upload, options = {}) {
   const current = await getFabricanteById(id, { accountId });
   const normalized = normalizeLogoUpload(upload);
   if (!normalized) throw new BadRequestError('Logo invalida', { domain: 'fabricantes' });
+  if (!ALLOWED_LOGO_MIME_TYPES.has(normalized.mimeType)) throw new BadRequestError('Formato de logo invalido', { domain: 'fabricantes', code: 'INVALID_FILE_TYPE' });
+  if (normalized.size > MAX_LOGO_BYTES) throw new BadRequestError('Arquivo excede o limite permitido', { domain: 'fabricantes', code: 'PAYLOAD_TOO_LARGE' });
   const logoUrl = await uploadFabricanteLogo({ supabase, accountId, fabricanteId: id, upload: normalized });
   if (!logoUrl) throw new DatabaseError('Falha ao enviar logo', { domain: 'fabricantes' });
   const { data: updated, error } = await supabase.from('fabricantes').update({ logo_url: logoUrl, updated_at: new Date().toISOString() }).eq('id', id).eq('account_id', accountId).select('*').single();

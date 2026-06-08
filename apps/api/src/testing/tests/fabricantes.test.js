@@ -1,5 +1,86 @@
 import assert from 'node:assert/strict';
-import { createCondicaoPagamento, createFabricante, getFabricanteById, listFabricantes, updateCondicaoPagamento, updateFabricante, __resetMemoryFabricantesForTests } from '../../modules/fabricantes/fabricantes.repository.js';
+import { Buffer } from 'node:buffer';
+import { createCondicaoPagamento, createFabricante, getFabricanteById, listFabricantes, updateCondicaoPagamento, updateFabricante, updateFabricanteLogo, __resetMemoryFabricantesForTests } from '../../modules/fabricantes/fabricantes.repository.js';
+import { env } from '../../config/env.js';
+
+function createSupabaseMock() {
+  const rows = new Map();
+  const uploads = [];
+  return {
+    rows,
+    uploads,
+    storage: {
+      listBuckets: async () => ({ data: [{ name: 'fabricantes-logos' }], error: null }),
+      createBucket: async () => ({ data: null, error: null }),
+      from: (bucket) => ({
+        upload: async (objectPath, bytes, options) => {
+          uploads.push({ bucket, objectPath, size: bytes.length, contentType: options?.contentType });
+          return { data: { path: objectPath }, error: null };
+        },
+        getPublicUrl: (objectPath) => ({ data: { publicUrl: `https://supabase.local/storage/v1/object/public/${bucket}/${objectPath}` } })
+      })
+    },
+    from: (table) => {
+      if (table !== 'fabricantes') throw new Error(`Tabela nao suportada: ${table}`);
+      const state = { filters: {} };
+      return {
+        insert: (payload) => ({
+          select: () => ({
+            single: async () => {
+              const row = { id: `fab-${rows.size + 1}`, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...payload };
+              rows.set(row.id, row);
+              return { data: row, error: null };
+            }
+          })
+        }),
+        update: (payload) => ({
+          eq: (field, value) => {
+            state.filters[field] = value;
+            return {
+              eq: (field2, value2) => {
+                state.filters[field2] = value2;
+                return {
+                  select: () => ({
+                    single: async () => {
+                      const row = rows.get(state.filters.id);
+                      if (!row) return { data: null, error: { message: 'not found' } };
+                      const next = { ...row, ...payload };
+                      rows.set(row.id, next);
+                      return { data: next, error: null };
+                    }
+                  })
+                };
+              },
+              select: () => ({
+                single: async () => {
+                  const row = rows.get(state.filters.id);
+                  if (!row) return { data: null, error: { message: 'not found' } };
+                  const next = { ...row, ...payload };
+                  rows.set(row.id, next);
+                  return { data: next, error: null };
+                }
+              })
+            };
+          }
+        }),
+        select: () => ({
+          eq: (field, value) => {
+            state.filters[field] = value;
+            return {
+              eq: (field2, value2) => {
+                state.filters[field2] = value2;
+                return {
+                  maybeSingle: async () => ({ data: rows.get(state.filters.id) || null, error: null })
+                };
+              },
+              maybeSingle: async () => ({ data: rows.get(state.filters.id) || null, error: null })
+            };
+          }
+        })
+      };
+    }
+  };
+}
 
 export function getFabricantesTests() {
   return [
@@ -97,6 +178,28 @@ export function getFabricantesTests() {
       __resetMemoryFabricantesForTests();
       const created = await createFabricante({ nome: 'Fabrica J', account_id: 'bad' }, { accountId: 'acc-1' });
       assert.equal(created.account_id, 'acc-1');
+    } },
+    { name: 'upload de logo atualiza logo_url com storage real', run: async () => {
+      const original = { ...env };
+      const mock = createSupabaseMock();
+      globalThis.__NEURALHIRE_SUPABASE_MOCK__ = mock;
+      env.SUPABASE_URL = 'https://supabase.local';
+      env.SUPABASE_SERVICE_ROLE_KEY = 'service-role';
+      try {
+        const created = await createFabricante({ nome: 'Fabrica Logo' }, { accountId: 'acc-logo' });
+        const updated = await updateFabricanteLogo(created.id, { fileName: 'logo.png', mimeType: 'image/png', base64: Buffer.from('fakepng').toString('base64'), size: 7 }, { accountId: 'acc-logo' });
+        assert.match(updated.logo_url, /fabricantes-logos\/acc-logo\//);
+        assert.equal(mock.uploads[0].contentType, 'image/png');
+      } finally {
+        Object.assign(env, original);
+        delete globalThis.__NEURALHIRE_SUPABASE_MOCK__;
+      }
+    } },
+    { name: 'rejeita logo grande ou tipo invalido', run: async () => {
+      __resetMemoryFabricantesForTests();
+      const base = await createFabricante({ nome: 'Fabrica Base' }, { accountId: 'acc-1' });
+      await assert.rejects(() => updateFabricanteLogo(base.id, { fileName: 'bad.gif', mimeType: 'image/gif', base64: 'AA==', size: 1 }, { accountId: 'acc-1' }));
+      await assert.rejects(() => updateFabricanteLogo(base.id, { fileName: 'big.png', mimeType: 'image/png', base64: 'AA==', size: 3 * 1024 * 1024 }, { accountId: 'acc-1' }));
     } },
     { name: 'deduplicação', run: async () => {
       __resetMemoryFabricantesForTests();

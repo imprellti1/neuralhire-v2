@@ -1,7 +1,8 @@
-﻿import { Readable } from 'node:stream';
+import { Buffer } from 'node:buffer';
+import { Readable } from 'node:stream';
 
 export function createTestRequest({ method = 'GET', url = '/', headers = {}, body = null }) {
-  const payload = body === null || body === undefined ? '' : String(body);
+  const payload = body === null || body === undefined ? '' : (Buffer.isBuffer(body) ? body : String(body));
   const stream = new Readable({ read() {} });
   if (payload) stream.push(payload);
   stream.push(null);

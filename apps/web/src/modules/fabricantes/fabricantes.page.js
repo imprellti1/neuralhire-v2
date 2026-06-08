@@ -80,27 +80,6 @@ function isPersistableLogoUrl(value) {
   return Boolean(raw) && !raw.startsWith('blob:');
 }
 
-async function fileToBase64(file) {
-  if (file && typeof file.arrayBuffer === 'function') {
-    const buffer = await file.arrayBuffer();
-    return btoa(String.fromCharCode(...new Uint8Array(buffer)));
-  }
-  return await new Promise((resolve, reject) => {
-    if (typeof FileReader === 'undefined') {
-      reject(new Error('Leitura de arquivo indisponivel'));
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result || '');
-      const [, base64] = result.split(',', 2);
-      resolve(base64 || '');
-    };
-    reader.onerror = () => reject(reader.error || new Error('Falha ao ler arquivo'));
-    reader.readAsDataURL(file);
-  });
-}
-
 function generateRowId() {
   return `row-${Math.random().toString(36).slice(2)}-${Date.now()}`;
 }
@@ -237,6 +216,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     state.form.logo_file_name = '';
     state.form.logo_file = null;
     state.form.logo_upload = null;
+    state.form.logo_upload_error = '';
     state.form.logo_preview = isPersistableLogoUrl(selected?.logo_url) ? selected.logo_url : '';
     state.form.responsavel_vendedor_id = selected?.responsavel_vendedor_id || '';
     state.cnpjValidated = Boolean(selected?.cnpj);
@@ -269,6 +249,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       state.form.aceita_bonificacao = typeof detail?.aceita_bonificacao === 'boolean' ? String(detail.aceita_bonificacao) : state.form.aceita_bonificacao || '';
       state.form.aceita_consignacao = typeof detail?.aceita_consignacao === 'boolean' ? String(detail.aceita_consignacao) : state.form.aceita_consignacao || '';
       state.form.logo_preview = isPersistableLogoUrl(detail.logo_url) ? detail.logo_url : state.form.logo_preview || '';
+      state.form.logo_upload_error = '';
       state.form.responsavel_vendedor_id = detail.responsavel_vendedor_id || '';
       const condicoes = await fetchCondicoesPagamento(apiClient, selected.id);
       state.form.condicoes_pagamento = normalizePaymentRows(detail.condicoes_pagamento || []);
@@ -460,19 +441,24 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       const file = e.target.files?.[0] || null;
       if (!file) return;
       if (!/image\/(png|jpeg|jpg|webp)/i.test(file.type)) {
-        state.error = true;
+        state.form.logo_upload_error = 'Formato de arquivo invalido. Use PNG, JPG/JPEG ou WebP.';
+        render();
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        state.form.logo_upload_error = 'A logo deve ter no maximo 2MB.';
         render();
         return;
       }
       state.form.logo_file_name = file.name;
       state.form.logo_file = file;
+      state.form.logo_upload_error = '';
       state.form.logo_url = '';
-      state.form.logo_upload = {
-        fileName: file.name,
-        mimeType: file.type,
-        base64: await fileToBase64(file)
-      };
+      state.form.logo_upload = file;
       const preview = window.URL && typeof window.URL.createObjectURL === 'function' ? window.URL.createObjectURL(file) : '';
+      if (state.form.logo_preview && state.form.logo_preview.startsWith('blob:') && window.URL?.revokeObjectURL) {
+        window.URL.revokeObjectURL(state.form.logo_preview);
+      }
       state.form.logo_preview = preview;
       render();
     });
@@ -537,7 +523,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
         };
         const saved = await saveFabricante(apiClient, fabricantePayload, state.selected?.id || null);
         const fabricanteId = saved.id || state.selected?.id || null;
-        let logoUploadError = false;
+        let logoUploadError = '';
         if (state.form.logo_file && fabricanteId) {
           try {
             const logoResult = await uploadFabricanteLogo(apiClient, fabricanteId, state.form.logo_file);
@@ -546,14 +532,23 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
               saved.logo_url = logoUrl;
               state.form.logo_url = logoUrl;
               state.form.logo_preview = logoUrl;
+              state.form.logo_file = null;
+              state.form.logo_upload = null;
+              state.form.logo_file_name = '';
             }
-          } catch {
-            logoUploadError = true;
+          } catch (error) {
+            logoUploadError = error?.body?.error?.message || error?.message || 'Falha ao enviar a logo.';
           }
+        }
+        if (logoUploadError) {
+          state.form.logo_upload_error = logoUploadError;
+          state.error = true;
+          state.saving = false;
+          render();
+          return;
         }
         closeModal();
         await load();
-        if (logoUploadError) state.error = true;
       } catch {
         state.error = true;
       } finally {
@@ -563,7 +558,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     });
     root.querySelectorAll('[data-form-field]').forEach((el) => {
       const key = el.getAttribute('data-form-field');
-      if (key === 'pedido_minimo' || key === 'pedido_minimo_valor') return;
+      if (key === 'pedido_minimo' || key === 'pedido_minimo_valor' || key === 'logo_upload') return;
       el.addEventListener('input', (e) => { state.form[key] = e.target.value; });
       el.addEventListener('change', (e) => { state.form[key] = e.target.value; });
     });
@@ -607,7 +602,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     const vendorOptions = ['<option value="">Sem responsável definido</option>'].concat((state.vendedores || []).map((vendedor) => `<option value="${vendedor.id}" ${String(vendedor.id) === String(state.form.responsavel_vendedor_id || '') ? 'selected' : ''}>${vendedor.nome || '-'}${vendedor.email ? ` - ${vendedor.email}` : ''}</option>`)).join('');
     const vendorHelp = state.vendedoresLoading ? '<div class="nhf-muted">Carregando vendedores...</div>' : state.vendedoresError ? `<div class="nhf-warn">${state.vendedoresError}</div>` : '<div class="nhf-muted">Selecione um vendedor ativo da conta ou deixe sem responsável.</div>';
     const vendorDisabled = locked || state.vendedoresLoading;
-    return `<div class="nhf-form-grid"><div class="nhf-field nhf-field-full"><div class="nhf-inline"><label class="nhf-field">CNPJ<input id="nhf-cnpj" value="${formatCnpj(state.form.cnpj || '')}" placeholder="00.000.000/0000-00" maxlength="18" inputmode="numeric"></label><button id="nhf-buscar-cnpj" class="nhf-btn" ${lookupReady ? '' : 'disabled'}>${state.cnpjLookupStatus === 'loading' ? 'Buscando...' : 'Buscar CNPJ'}</button></div><div class="nhf-muted">${cnpjHelp}</div>${state.cnpjMessage ? `<div class="${toneClass} nhf-muted">${state.cnpjMessage}</div>` : ''}</div><div class="nhf-field nhf-field-full"><div class="nhf-section-title">Endereço</div></div><label class="nhf-field"><span>CEP</span><input data-form-field="cep" value="${state.form.cep || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Logradouro</span><input data-form-field="logradouro" value="${state.form.logradouro || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Número</span><input data-form-field="numero" value="${state.form.numero || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Complemento</span><input data-form-field="complemento" value="${state.form.complemento || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Bairro</span><input data-form-field="bairro" value="${state.form.bairro || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Cidade</span><input data-form-field="cidade" value="${state.form.cidade || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>UF</span><input data-form-field="uf" value="${state.form.uf || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field nhf-field-full"><span>Endereço completo</span><textarea data-form-field="endereco_completo" ${locked ? 'disabled' : ''}>${state.form.endereco_completo || composeEnderecoCompleto(state.form)}</textarea></label><label class="nhf-field"><span>Nome fantasia</span><input data-form-field="nome_fantasia" value="${state.form.nome_fantasia || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Razão social</span><input data-form-field="razao_social" value="${state.form.razao_social || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>E-mail comercial</span><input data-form-field="email_comercial" value="${state.form.email_comercial || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Telefone</span><input data-form-field="telefone" value="${state.form.telefone || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Site</span><input data-form-field="site" value="${state.form.site || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Logo</span><input data-form-field="logo_upload" type="file" accept="image/png,image/jpeg,image/webp" ${locked ? 'disabled' : ''}></label><div class="nhf-field"><span>Preview</span><div class="nhf-logo-box">${state.form.logo_preview ? `<img class="nhf-logo-preview" src="${state.form.logo_preview}" alt="Preview do logo">` : '<div class="nhf-muted">Sem logo</div>'}<div class="nhf-logo-meta"><strong>${state.form.logo_file_name || 'Arquivo local'}</strong><span class="nhf-muted">PNG, JPG ou WebP</span></div></div></div><label class="nhf-field"><span>Responsável comercial</span><select data-form-field="responsavel_vendedor_id" ${vendorDisabled ? 'disabled' : ''}>${vendorOptions}</select>${vendorHelp}</label><label class="nhf-field"><span>Região atendida</span><input data-form-field="regiao_atendida" value="${state.form.regiao_atendida || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field nhf-field-full"><span>Observações</span><textarea data-form-field="observacoes" ${locked ? 'disabled' : ''}>${state.form.observacoes || ''}</textarea></label><div class="nhf-field nhf-field-full"><button id="nhf-unlock-manual" class="nhf-btn" type="button" ${manualUnlockDisabled ? 'disabled' : ''}>Liberar preenchimento manual</button></div></div>`;
+    return `<div class="nhf-form-grid"><div class="nhf-field nhf-field-full"><div class="nhf-inline"><label class="nhf-field">CNPJ<input id="nhf-cnpj" value="${formatCnpj(state.form.cnpj || '')}" placeholder="00.000.000/0000-00" maxlength="18" inputmode="numeric"></label><button id="nhf-buscar-cnpj" class="nhf-btn" ${lookupReady ? '' : 'disabled'}>${state.cnpjLookupStatus === 'loading' ? 'Buscando...' : 'Buscar CNPJ'}</button></div><div class="nhf-muted">${cnpjHelp}</div>${state.cnpjMessage ? `<div class="${toneClass} nhf-muted">${state.cnpjMessage}</div>` : ''}</div><div class="nhf-field nhf-field-full"><div class="nhf-section-title">Endereço</div></div><label class="nhf-field"><span>CEP</span><input data-form-field="cep" value="${state.form.cep || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Logradouro</span><input data-form-field="logradouro" value="${state.form.logradouro || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Número</span><input data-form-field="numero" value="${state.form.numero || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Complemento</span><input data-form-field="complemento" value="${state.form.complemento || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Bairro</span><input data-form-field="bairro" value="${state.form.bairro || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Cidade</span><input data-form-field="cidade" value="${state.form.cidade || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>UF</span><input data-form-field="uf" value="${state.form.uf || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field nhf-field-full"><span>Endereço completo</span><textarea data-form-field="endereco_completo" ${locked ? 'disabled' : ''}>${state.form.endereco_completo || composeEnderecoCompleto(state.form)}</textarea></label><label class="nhf-field"><span>Nome fantasia</span><input data-form-field="nome_fantasia" value="${state.form.nome_fantasia || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Razão social</span><input data-form-field="razao_social" value="${state.form.razao_social || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>E-mail comercial</span><input data-form-field="email_comercial" value="${state.form.email_comercial || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Telefone</span><input data-form-field="telefone" value="${state.form.telefone || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Site</span><input data-form-field="site" value="${state.form.site || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Logo</span><input data-form-field="logo_upload" type="file" accept="image/png,image/jpeg,image/webp" ${locked ? 'disabled' : ''}></label><div class="nhf-field"><span>Preview</span><div class="nhf-logo-box">${state.form.logo_preview ? `<img class="nhf-logo-preview" src="${state.form.logo_preview}" alt="Preview do logo">` : '<div class="nhf-muted">Sem logo</div>'}<div class="nhf-logo-meta"><strong>${state.form.logo_file_name || 'Logo persistida'}</strong><span class="nhf-muted">PNG, JPG/JPEG ou WebP</span></div></div>${state.form.logo_upload_error ? `<div class="nhf-inline-error">${state.form.logo_upload_error}</div>` : ''}</div><label class="nhf-field"><span>Responsável comercial</span><select data-form-field="responsavel_vendedor_id" ${vendorDisabled ? 'disabled' : ''}>${vendorOptions}</select>${vendorHelp}</label><label class="nhf-field"><span>Região atendida</span><input data-form-field="regiao_atendida" value="${state.form.regiao_atendida || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field nhf-field-full"><span>Observações</span><textarea data-form-field="observacoes" ${locked ? 'disabled' : ''}>${state.form.observacoes || ''}</textarea></label><div class="nhf-field nhf-field-full"><button id="nhf-unlock-manual" class="nhf-btn" type="button" ${manualUnlockDisabled ? 'disabled' : ''}>Liberar preenchimento manual</button></div></div>`;
   }
 
   function renderRulesTab() {

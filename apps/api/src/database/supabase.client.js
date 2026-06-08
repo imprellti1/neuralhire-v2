@@ -94,6 +94,7 @@ export async function resolveAccountMembership(supabase, userId, email = null) {
 }
 
 export function getSupabaseClient() {
+  if (globalThis.__NEURALHIRE_SUPABASE_MOCK__) return globalThis.__NEURALHIRE_SUPABASE_MOCK__;
   if (supabaseSingleton) return supabaseSingleton;
   supabaseSingleton = createSupabaseClient();
   return supabaseSingleton;
