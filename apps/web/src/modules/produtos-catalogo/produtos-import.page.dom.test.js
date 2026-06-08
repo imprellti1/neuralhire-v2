@@ -8,7 +8,7 @@ test('produtos import page renders preview and execution states', async () => {
   const calls = [];
   const apiClient = {
     get: async (path) => {
-      if (path === '/fabricantes') return { items: [{ id: 'fab-1', nome: 'Fab 1' }, { id: 'fab-2', nome: 'Fab 2' }] };
+      if (path === '/fabricantes') return { items: [{ id: '550e8400-e29b-41d4-a716-446655440001', nome: 'Fab 1' }, { id: '550e8400-e29b-41d4-a716-446655440002', nome: 'Fab 2' }] };
       return { items: [] };
     },
     post: async (path, body) => {
@@ -22,7 +22,7 @@ test('produtos import page renders preview and execution states', async () => {
   assert.match(document.body.textContent, /Importação de Produtos/);
   assert.match(document.body.textContent, /Selecione um arquivo XLSX antes de continuar\./);
   const fab = document.querySelector('#npi-fab');
-  assert.equal(fab.value, 'fab-1');
+  assert.equal(fab.value, '550e8400-e29b-41d4-a716-446655440001');
   const file = new window.File(['fake'], 'Estoque_288.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const input = document.querySelector('#npi-file');
   Object.defineProperty(input, 'files', { value: [file] });
@@ -35,7 +35,7 @@ test('produtos import page renders preview and execution states', async () => {
   assert.match(document.body.textContent, /Divergências/);
   const previewCall = calls.find((call) => call.path === '/produtos/importar-estoque/preview');
   assert.ok(previewCall?.body instanceof FormData);
-  assert.equal(previewCall.body.get('fabricante_id'), 'fab-1');
+  assert.equal(previewCall.body.get('fabricante_id'), '550e8400-e29b-41d4-a716-446655440001');
   assert.ok(previewCall.body.get('file') instanceof File);
   assert.equal(previewCall.body.get('file').name, 'Estoque_288.xlsx');
   document.querySelector('#npi-run').click();
@@ -70,5 +70,28 @@ test('produtos import page does not call preview without fabricante selecionado'
   document.querySelector('#npi-preview').click();
   await flush();
   assert.equal(calls.length, 0);
+  teardownFrontendDom(dom);
+});
+
+test('produtos import page keeps fabricanteId in sync with selected option', async () => {
+  const dom = setupFrontendDom('#/produtos/importacao-sync');
+  const apiClient = {
+    get: async (path) => {
+      if (path === '/fabricantes') return { items: [{ id: '550e8400-e29b-41d4-a716-446655440099', nome: 'Fab Sync' }] };
+      return { items: [] };
+    },
+    post: async () => ({ ok: true })
+  };
+  await renderProdutosImportPage(document.body, { apiClient });
+  await flush();
+  const select = document.querySelector('#npi-fab');
+  assert.equal(select.value, '550e8400-e29b-41d4-a716-446655440099');
+  const file = new window.File(['fake'], 'Estoque_290.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const input = document.querySelector('#npi-file');
+  Object.defineProperty(input, 'files', { value: [file] });
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+  const previewBtn = document.querySelector('#npi-preview');
+  assert.equal(previewBtn.disabled, false);
   teardownFrontendDom(dom);
 });

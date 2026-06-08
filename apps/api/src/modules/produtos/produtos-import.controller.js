@@ -4,6 +4,7 @@ import { BadRequestError, ForbiddenError } from '../../core/errors.js';
 import { createProduto, listProdutos, updateProduto } from './produtos.repository.js';
 import { createVariation, listVariations, registerImportStockMovement, updateVariation } from '../product-editor/product-editor.repository.js';
 import { getFabricanteById } from '../fabricantes/fabricantes.repository.js';
+import { env } from '../../config/env.js';
 import { normalizeImportRows, parseXlsxAgGridBuffer, previewImportXlsx, splitDescricaoProduto, upsertProdutoImportBatch, upsertProdutoVariacaoEstoque } from './produtos-import.repository.js';
 
 const GRADES = ['P', 'M', 'G', 'GG', '35-36', '37-38', '39-40', '41-42', '43-44', 'UNI'];
@@ -23,6 +24,35 @@ function cleanBody(body = {}) {
 function parseBase64File(file) {
   if (!file?.base64) return null;
   return Buffer.from(String(file.base64).replace(/^data:[^;]+;base64,/, ''), 'base64');
+}
+
+function shouldLogImportPreview() {
+  return ['development', 'homologation', 'homolog', 'test'].includes(String(env?.NODE_ENV || env?.APP_ENV || '').toLowerCase());
+}
+
+function resolveImportPayload(context = {}) {
+  const body = cleanBody(context.body || {});
+  const fields = cleanBody(context.fields || {});
+  const formData = cleanBody(context.formData || {});
+  const payload = {
+    ...fields,
+    ...formData,
+    ...body,
+    ...(body?.fields && typeof body.fields === 'object' ? body.fields : {}),
+    ...(body?.formData && typeof body.formData === 'object' ? body.formData : {})
+  };
+  const file = payload.arquivo || payload.file || payload.xlsx || fields.arquivo || fields.file || fields.xlsx || formData.arquivo || formData.file || formData.xlsx || null;
+  const fabricanteId =
+    payload.fabricante_id ||
+    fields.fabricante_id ||
+    formData.fabricante_id ||
+    body.fabricante_id ||
+    payload.fabricanteId ||
+    fields.fabricanteId ||
+    formData.fabricanteId ||
+    body.fabricanteId ||
+    null;
+  return { body: payload, fields, formData, file, fabricanteId };
 }
 
 async function ensureFabricante(accountId, fabricanteId) {
@@ -71,9 +101,15 @@ function computeGradeTotals(row) {
 
 export async function previewProdutosImportHandler(context = {}) {
   const accountId = assertContextAccount(context);
-  const body = cleanBody(context.body || {});
-  const file = body.arquivo || body.file || body.xlsx || null;
-  const fabricanteId = body.fabricante_id || body.fabricanteId;
+  const { body, fields, file, fabricanteId } = resolveImportPayload(context);
+  if (shouldLogImportPreview()) {
+    console.log('[produtos-import] preview received', {
+      fabricanteId,
+      bodyKeys: Object.keys(body || {}),
+      fieldKeys: Object.keys(fields || {}),
+      hasFile: Boolean(file)
+    });
+  }
   if (!fabricanteId) throw new BadRequestError('fabricante_id obrigatorio', { domain: 'produtos-import' });
   const buffer = parseBase64File(file);
   if (!buffer) throw new BadRequestError('Arquivo XLSX obrigatorio', { domain: 'produtos-import' });
@@ -83,9 +119,7 @@ export async function previewProdutosImportHandler(context = {}) {
 
 export async function executeProdutosImportHandler(context = {}) {
   const accountId = assertContextAccount(context);
-  const body = cleanBody(context.body || {});
-  const file = body.arquivo || body.file || body.xlsx || null;
-  const fabricanteId = body.fabricante_id || body.fabricanteId;
+  const { file, fabricanteId } = resolveImportPayload(context);
   if (!fabricanteId) throw new BadRequestError('fabricante_id obrigatorio', { domain: 'produtos-import' });
   const buffer = parseBase64File(file);
   if (!buffer) throw new BadRequestError('Arquivo XLSX obrigatorio', { domain: 'produtos-import' });

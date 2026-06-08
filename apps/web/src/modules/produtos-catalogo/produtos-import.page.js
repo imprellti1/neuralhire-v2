@@ -31,7 +31,7 @@ async function fileToFormData(file, fabricanteId) {
   }
 
   fd.append('file', file, fallbackName);
-  fd.append('fabricante_id', fabricanteId);
+  fd.append('fabricante_id', String(fabricanteId));
   return fd;
 }
 
@@ -65,8 +65,12 @@ export function renderProdutosImportPage(root, { apiClient }) {
   function render() {
     const selectedValue = String(state.fabricanteId || '');
     root.innerHTML = `<section class="npi"><div class="npi-card"><div class="npi-title">Importação de Produtos</div><div class="npi-sub">Upload de XLSX com produto pai, variações e estoque por grade.</div></div><div class="npi-grid"><div class="npi-card"><div class="npi-field"><label>Fábrica</label><select id="npi-fab"><option value="">Selecione</option>${fabricantes.map((f) => `<option value="${String(f.id)}" ${selectedValue === String(f.id) ? 'selected' : ''}>${f.nome}</option>`).join('')}</select></div><div class="npi-field"><label>Arquivo XLSX</label><input id="npi-file" type="file" accept=".xlsx"><div class="npi-sub">${state.fileName ? `Arquivo selecionado: ${state.fileName}` : 'Nenhum arquivo escolhido'}</div></div>${state.fileError ? `<div class="npi-state" role="alert">${state.fileError}</div>` : ''}<div class="npi-actions"><button id="npi-preview" class="npi-btn secondary" ${state.loading || !state.file || !state.fabricanteId ? 'disabled' : ''}>Preview</button><button id="npi-run" class="npi-btn" ${state.loading || !state.preview || !state.file || !state.fabricanteId ? 'disabled' : ''}>Importar</button></div>${state.error ? `<div class="npi-state" role="alert">${state.error}</div>` : ''}${state.result ? `<div class="npi-state">${JSON.stringify(state.result.summary || state.result, null, 2)}</div>` : ''}</div><div class="npi-card">${state.preview ? `<div class="npi-kpi"><div><strong>${state.preview.totalRows || 0}</strong><div>Linhas</div></div><div><strong>${state.preview.divergences || 0}</strong><div>Divergências</div></div><div><strong>${(state.preview.sampleRows || []).length}</strong><div>Amostra</div></div><div><strong>${(state.preview.headers || []).length}</strong><div>Colunas</div></div></div><h4>Primeiras linhas</h4><table class="npi-table">${(state.preview.sampleRows || []).map((row) => `<tr><td>${row.codigo_erp}</td><td>${row.nome_produto}</td><td>${row.variacao_nome || '-'}</td><td>${row.variationsCount || 0}</td></tr>`).join('')}</table>` : '<div class="npi-state">Faça o preview para validar a planilha.</div>'}</div></div></section>`;
-    root.querySelector('#npi-fab').onchange = (e) => {
-      state.fabricanteId = e.target.value;
+    const fabricanteSelect = root.querySelector('#npi-fab');
+    if (fabricanteSelect && String(fabricanteSelect.value || '') !== selectedValue) {
+      fabricanteSelect.value = selectedValue;
+    }
+    fabricanteSelect.onchange = (e) => {
+      state.fabricanteId = String(e.target.value || '');
       state.error = '';
       render();
     };
@@ -79,7 +83,8 @@ export function renderProdutosImportPage(root, { apiClient }) {
       render();
     };
     function requireValidInput() {
-      if (!state.fabricanteId) {
+      const fabricanteId = String(state.fabricanteId || '').trim();
+      if (!fabricanteId || fabricanteId === 'undefined' || fabricanteId === 'null') {
         state.error = 'Selecione uma fábrica antes de continuar.';
         state.fileError = '';
         return false;
@@ -98,6 +103,7 @@ export function renderProdutosImportPage(root, { apiClient }) {
         return false;
       }
       state.fileError = '';
+      state.fabricanteId = fabricanteId;
       return true;
     }
     root.querySelector('#npi-preview').onclick = async () => {
@@ -108,9 +114,12 @@ export function renderProdutosImportPage(root, { apiClient }) {
       state.loading = true; render();
       state.error = '';
       try {
-        const fd = new FormData();
-        fd.append('file', state.file, state.file.name);
-        fd.append('fabricante_id', state.fabricanteId);
+        console.log('[produtos-import] preview payload', {
+          fabricanteId: state.fabricanteId,
+          fileName: state.file?.name,
+          hasFile: Boolean(state.file)
+        });
+        const fd = await fileToFormData(state.file, state.fabricanteId);
         state.preview = await apiClient.post('/produtos/importar-estoque/preview', fd);
       } catch (err) {
         state.error = err?.message || 'Arquivo XLSX invalido. Selecione um arquivo compatível e tente novamente.';
@@ -127,9 +136,7 @@ export function renderProdutosImportPage(root, { apiClient }) {
       state.loading = true; render();
       state.error = '';
       try {
-        const fd = new FormData();
-        fd.append('file', state.file, state.file.name);
-        fd.append('fabricante_id', state.fabricanteId);
+        const fd = await fileToFormData(state.file, state.fabricanteId);
         state.result = await apiClient.post('/produtos/importar-estoque', fd);
       } catch (err) {
         state.error = err?.message || 'Não foi possível importar o arquivo.';

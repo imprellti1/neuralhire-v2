@@ -26,6 +26,25 @@ function call(app, { method, url, role, accountId, body }) {
   return app(req, res).then(() => ({ res, body: parseBody(res) }));
 }
 
+function createMultipartBody({ fields = {}, file = null, boundary = '----neuralhire-boundary' } = {}) {
+  const chunks = [];
+  const push = (value) => chunks.push(Buffer.from(String(value)));
+  for (const [key, value] of Object.entries(fields)) {
+    push(`--${boundary}\r\n`);
+    push(`Content-Disposition: form-data; name="${key}"\r\n\r\n`);
+    push(`${value}\r\n`);
+  }
+  if (file) {
+    push(`--${boundary}\r\n`);
+    push(`Content-Disposition: form-data; name="${file.fieldName || 'file'}"; filename="${file.fileName}"\r\n`);
+    push(`Content-Type: ${file.mimeType || 'application/octet-stream'}\r\n\r\n`);
+    chunks.push(Buffer.isBuffer(file.content) ? file.content : Buffer.from(String(file.content || '')));
+    push(`\r\n`);
+  }
+  push(`--${boundary}--\r\n`);
+  return { body: Buffer.concat(chunks), boundary };
+}
+
 export function getProdutosImportTests() {
   return [
     {
@@ -40,6 +59,40 @@ export function getProdutosImportTests() {
         assert.equal(out.res.statusCode, 200);
         assert.equal(out.body.ok, true);
         assert.equal(out.body.totalRows >= 0, true);
+      }
+    },
+    {
+      name: 'preview multipart com fabricante_id retorna sucesso',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryProductEditorForTests();
+        const app = createApiApp();
+        const fabricante = await createFabricante({ nome: 'Fab Multipart', cnpj: '92345678000198' }, { accountId: 'acc-multipart' });
+        const base64 = createXlsxBase64([{ 'Descrição': '750100001 - TOALHA BANHÃO 90cm X 1,60m MASTER - BRANCO', P: '1', M: '0', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Total: '1' }]);
+        const xlsxBuffer = Buffer.from(base64, 'base64');
+        const multipart = createMultipartBody({
+          fields: { fabricante_id: fabricante.id },
+          file: {
+            fileName: 'Estoque_288.xlsx',
+            mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            content: xlsxBuffer
+          }
+        });
+        const req = createTestRequest({
+          method: 'POST',
+          url: '/produtos/importar-estoque/preview',
+          headers: {
+            'x-test-role': 'admin',
+            'x-test-account-id': 'acc-multipart',
+            'content-type': `multipart/form-data; boundary=${multipart.boundary}`
+          },
+          body: multipart.body
+        });
+        const res = createTestResponse();
+        await app(req, res);
+        const out = parseBody(res);
+        assert.equal(res.statusCode, 200);
+        assert.equal(out.ok, true);
       }
     },
     {
@@ -78,13 +131,31 @@ export function getProdutosImportTests() {
       }
     },
     {
-      name: 'bloqueio sem fabricante_id e sem arquivo',
+      name: 'bloqueio sem fabricante_id',
       run: async () => {
         const app = createApiApp();
-        const out1 = await call(app, { method: 'POST', url: '/produtos/importar-estoque/preview', role: 'admin', accountId: 'acc-bad', body: {} });
-        assert.equal(out1.res.statusCode, 400);
-        const out2 = await call(app, { method: 'POST', url: '/produtos/importar-estoque', role: 'admin', accountId: 'acc-bad', body: { fabricante_id: 'fab-x' } });
-        assert.equal(out2.res.statusCode, 400);
+        const multipart = createMultipartBody({
+          file: {
+            fileName: 'Estoque_288.xlsx',
+            mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            content: Buffer.from(createXlsxBase64([{ 'Descrição': '750100003 - TOALHA - AZUL', P: '1', M: '0', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Total: '1' }]), 'base64')
+          }
+        });
+        const req = createTestRequest({
+          method: 'POST',
+          url: '/produtos/importar-estoque/preview',
+          headers: {
+            'x-test-role': 'admin',
+            'x-test-account-id': 'acc-bad',
+            'content-type': `multipart/form-data; boundary=${multipart.boundary}`
+          },
+          body: multipart.body
+        });
+        const res = createTestResponse();
+        await app(req, res);
+        const out = parseBody(res);
+        assert.equal(res.statusCode, 400);
+        assert.match(out?.error?.message || '', /fabricante_id obrigatorio/);
       }
     },
     {
