@@ -94,6 +94,17 @@ function parseMultipartBody(buffer, boundary) {
     payload[fieldName] = Buffer.from(rawValue, 'binary').toString('utf8').replace(/\r\n$/, '');
   }
 
+  console.log('[multipart-debug]', {
+    keys: Object.keys(payload || {}),
+    file: payload?.file
+      ? {
+          fileName: payload.file.fileName,
+          mimeType: payload.file.mimeType,
+          size: payload.file.size
+        }
+      : null
+  });
+
   return payload;
 }
 

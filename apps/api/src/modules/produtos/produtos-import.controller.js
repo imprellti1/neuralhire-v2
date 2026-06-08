@@ -115,6 +115,10 @@ export async function previewProdutosImportHandler(context = {}) {
       fileKeys: file && typeof file === 'object' ? Object.keys(file) : []
     });
   }
+  console.log('[import-debug] body keys', Object.keys(context.body || {}));
+  console.log('[import-debug] file', context.body?.file);
+  console.log('[import-debug] arquivo', context.body?.arquivo);
+  console.log('[import-debug] xlsx', context.body?.xlsx);
   if (!fabricanteId) throw new BadRequestError('fabricante_id obrigatorio', { domain: 'produtos-import' });
   const buffer = parseBase64File(file);
   if (!buffer) throw new BadRequestError('Arquivo XLSX obrigatorio', { domain: 'produtos-import' });
@@ -126,6 +130,10 @@ export async function executeProdutosImportHandler(context = {}) {
   const accountId = assertContextAccount(context);
   const fabricanteId = resolveFabricanteId(context);
   const file = resolveImportFile(context);
+  console.log('[import-debug] body keys', Object.keys(context.body || {}));
+  console.log('[import-debug] file', context.body?.file);
+  console.log('[import-debug] arquivo', context.body?.arquivo);
+  console.log('[import-debug] xlsx', context.body?.xlsx);
   if (!fabricanteId) throw new BadRequestError('fabricante_id obrigatorio', { domain: 'produtos-import' });
   const buffer = parseBase64File(file);
   if (!buffer) throw new BadRequestError('Arquivo XLSX obrigatorio', { domain: 'produtos-import' });

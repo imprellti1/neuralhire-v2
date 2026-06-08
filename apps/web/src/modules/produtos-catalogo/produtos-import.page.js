@@ -127,11 +127,6 @@ export function renderProdutosImportPage(root, { apiClient }) {
       state.loading = true; render();
       state.error = '';
       try {
-        console.log('[produtos-import] preview payload', {
-          fabricanteId: state.fabricanteId,
-          fileName: state.file?.name,
-          hasFile: Boolean(state.file)
-        });
         const fd = await fileToFormData(state.file, state.fabricanteId);
         state.preview = await apiClient.post('/produtos/importar-estoque/preview', fd);
       } catch (err) {
