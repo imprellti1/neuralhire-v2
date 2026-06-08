@@ -1,6 +1,7 @@
 import { ValidationError } from './errors.js';
 
 const METHODS_WITH_BODY = new Set(['POST', 'PUT', 'PATCH']);
+const MULTIPART_LIMIT_BYTES = 25 * 1024 * 1024;
 
 function parseContentType(contentTypeRaw = '') {
   const [type = '', ...params] = String(contentTypeRaw).split(';').map((part) => part.trim()).filter(Boolean);
@@ -80,14 +81,6 @@ function parseMultipartBody(buffer, boundary) {
     const fieldName = nameMatch[1];
     const fileNameMatch = disposition.match(/filename="([^"]*)"/i);
     const contentType = String(headers['content-type'] || '').toLowerCase();
-    console.log('[multipart-debug]', {
-      disposition,
-      fieldName,
-      hasFilename: Boolean(fileNameMatch),
-      contentType,
-      rawValueLength: rawValue.length,
-      rawValuePreview: String(rawValue).slice(0, 120)
-    });
     if (fileNameMatch) {
       const fileBuffer = Buffer.from(rawValue, 'binary');
       payload[fieldName] = {
@@ -101,7 +94,6 @@ function parseMultipartBody(buffer, boundary) {
     payload[fieldName] = Buffer.from(rawValue, 'binary').toString('utf8').replace(/\r\n$/, '');
   }
 
-  console.log('[multipart-debug-payload]', Object.keys(payload));
   return payload;
 }
 
@@ -111,7 +103,9 @@ export async function parseJsonBody(req, { limitBytes = 1024 * 1024 } = {}) {
 
   const contentTypeRaw = String(req.headers?.['content-type'] || '').toLowerCase();
   const { type, boundary } = parseContentType(contentTypeRaw);
-  const effectiveLimitBytes = type.includes('multipart/form-data') ? 2 * 1024 * 1024 : limitBytes;
+  const effectiveLimitBytes = type.includes('multipart/form-data')
+    ? MULTIPART_LIMIT_BYTES
+    : limitBytes;
   if (!type) {
     const buffer = await readRequestBuffer(req, effectiveLimitBytes);
     if (!buffer.length) return null;
