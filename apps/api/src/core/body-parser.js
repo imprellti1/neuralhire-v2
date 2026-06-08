@@ -56,11 +56,18 @@ async function readRequestBuffer(req, limitBytes) {
 }
 
 function parseMultipartBody(buffer, boundary) {
-  const text = buffer.toString('binary');
+  const rawBody = buffer.toString('binary');
+  console.log('[multipart-boundary]', boundary);
+  console.log('[multipart-body-head]', rawBody.slice(0, 1000));
+  const text = rawBody;
   const normalized = text.startsWith(`--${boundary}`)
     ? text.slice(`--${boundary}`.length)
     : text;
   const parts = normalized.split(`\r\n--${boundary}`);
+  console.log('[multipart-parts-count]', parts.length);
+  console.log('[multipart-part-0]', parts[0]?.slice(0, 300));
+  console.log('[multipart-part-1]', parts[1]?.slice(0, 300));
+  console.log('[multipart-part-2]', parts[2]?.slice(0, 300));
   const payload = {};
 
   for (const part of parts) {
