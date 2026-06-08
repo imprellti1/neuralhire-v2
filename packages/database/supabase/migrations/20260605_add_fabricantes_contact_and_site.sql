@@ -10,4 +10,7 @@ alter table public.fabricantes
   add column if not exists cidade text,
   add column if not exists uf text,
   add column if not exists cep text,
-  add column if not exists endereco_completo text;
+  add column if not exists endereco_completo text,
+  add column if not exists responsavel_vendedor_id uuid null references public.vendedores(id) on delete set null;
+
+create index if not exists idx_fabricantes_responsavel_vendedor_id on public.fabricantes (responsavel_vendedor_id);

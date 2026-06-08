@@ -106,6 +106,75 @@ test('fabricantes: falha de consulta libera preenchimento manual', async () => {
   teardownFrontendDom(dom);
 });
 
+test('fabricantes: modal carrega vendedores reais e exibe loading', async () => {
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
+  installFetchMock({
+    'GET /fabricantes': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }),
+    'GET /vendedores': () => ({ items: [{ id: 'vend-1', nome: 'Ana Vendas', email: 'ana@empresa.com.br', status: 'ativo' }], pagination: { page: 1, totalPages: 1, total: 1, limit: 20 } })
+  });
+  bootstrapWebApp();
+  await flush(); await flush();
+  document.querySelector('#nhf-new').click();
+  assert.match(document.body.textContent, /Carregando vendedores/);
+  await flush(); await flush();
+  const select = document.querySelector('[data-form-field="responsavel_vendedor_id"]');
+  assert.ok(select);
+  assert.match(select.innerHTML, /Sem responsável definido/);
+  assert.match(select.innerHTML, /Ana Vendas/);
+  teardownFrontendDom(dom);
+});
+
+test('fabricantes: edição preserva responsavel comercial vinculado', async () => {
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
+  installFetchMock({
+    'GET /fabricantes': () => ({ items: [{ id: 'f-resp', nome: 'Fab Responsável', cnpj: '12345678000190', status: 'ativo', pedido_minimo: 10, boleto_minimo: 20, comissao_padrao_percentual: 5, responsavel_vendedor_id: 'vend-2', responsavel_comercial_nome: 'Bruno Vendas', responsavel_comercial_email: 'bruno@empresa.com.br' }], pagination: { page: 1, totalPages: 1, total: 1, limit: 20 } }),
+    'GET /fabricantes/f-resp': () => ({ id: 'f-resp', nome: 'Fab Responsável', cnpj: '12345678000190', status: 'ativo', pedido_minimo: 10, boleto_minimo: 20, comissao_padrao_percentual: 5, responsavel_vendedor_id: 'vend-2', responsavel_comercial_nome: 'Bruno Vendas', responsavel_comercial_email: 'bruno@empresa.com.br' }),
+    'GET /fabricantes/f-resp/condicoes-pagamento': () => ({ items: [], total: 0 }),
+    'GET /vendedores': () => ({ items: [{ id: 'vend-2', nome: 'Bruno Vendas', email: 'bruno@empresa.com.br', status: 'ativo' }], pagination: { page: 1, totalPages: 1, total: 1, limit: 20 } })
+  });
+  bootstrapWebApp();
+  await flush(); await flush();
+  document.querySelector('[data-edit-id="f-resp"]').click();
+  await flush(); await flush();
+  const select = document.querySelector('[data-form-field="responsavel_vendedor_id"]');
+  assert.equal(select.value, 'vend-2');
+  teardownFrontendDom(dom);
+});
+
+test('fabricantes: salva responsavel_vendedor_id sem campos sensiveis', async () => {
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
+  installFetchMock({
+    'GET /fabricantes': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }),
+    'GET /vendedores': () => ({ items: [{ id: 'vend-3', nome: 'Carla Vendas', email: 'carla@empresa.com.br', status: 'ativo' }], pagination: { page: 1, totalPages: 1, total: 1, limit: 20 } }),
+    'GET /cnpj/12345678000190': () => ({ ok: true, data: { cnpj: '12345678000190', razao_social: 'Fab Nova LTDA' } }),
+    'POST /fabricantes': ({ body }) => ({ id: 'fab-new', ...body })
+  });
+  bootstrapWebApp();
+  await flush(); await flush();
+  document.querySelector('#nhf-new').click();
+  await flush(); await flush();
+  const cnpjInput = document.querySelector('#nhf-cnpj');
+  dispatchInput(cnpjInput, '12345678000190');
+  await flush();
+  document.querySelector('#nhf-buscar-cnpj').click();
+  await flush(); await flush();
+  document.querySelector('[data-form-field="responsavel_vendedor_id"]').value = 'vend-3';
+  document.querySelector('[data-form-field="responsavel_vendedor_id"]').dispatchEvent(new Event('change', { bubbles: true }));
+  document.querySelector('[data-form-field="nome_fantasia"]').value = 'Nova';
+  document.querySelector('[data-form-field="nome_fantasia"]').dispatchEvent(new Event('input', { bubbles: true }));
+  document.querySelector('#nhf-save').click();
+  await flush(); await flush();
+  const calls = getSanitizedFetchCalls();
+  const post = calls.find((c) => c.method === 'POST' && c.path === '/fabricantes');
+  assert.ok(post);
+  assert.equal(post.body.responsavel_vendedor_id, 'vend-3');
+  assert.doesNotThrow(() => assertNoSensitiveTransportFields());
+  teardownFrontendDom(dom);
+});
+
 test('fabricantes: regras comerciais em aba separada e lista sem prazo maximo', async () => {
   const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
   mockAuthenticatedSession();
@@ -124,7 +193,7 @@ test('fabricantes: regras comerciais em aba separada e lista sem prazo maximo', 
   teardownFrontendDom(dom);
 });
 
-test('fabricantes: condicao 30/60/90 calcula parcelas e prazo medio', async () => {
+test('fabricantes: regras comerciais validam campos basicos', async () => {
   const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
   mockAuthenticatedSession();
   installFetchMock({ 'GET /fabricantes': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }) });
@@ -136,23 +205,19 @@ test('fabricantes: condicao 30/60/90 calcula parcelas e prazo medio', async () =
   await flush();
   document.querySelector('[data-tab="regras"]').click();
   await flush();
-  assert.equal(document.querySelectorAll('tr[data-condicao-index]').length, 0);
-  document.querySelector('[data-condicao-add]').click();
+  const pedido = document.querySelector('[data-form-field="pedido_minimo"]');
+  const itens = document.querySelector('[data-form-field="pedido_minimo_itens"]');
+  const prazo = document.querySelector('[data-form-field="prazo_entrega_dias"]');
+  const comissao = document.querySelector('[data-form-field="comissao_padrao_percentual"]');
+  dispatchInput(pedido, 'R$ 150,00');
+  dispatchInput(itens, '4');
+  dispatchInput(prazo, '7');
+  dispatchInput(comissao, '12');
   await flush();
-  const condicaoRow = document.querySelector('[data-condicao-field="condicao_pagamento"]');
-  condicaoRow.focus();
-  dispatchInput(condicaoRow, '30/60/90');
-  await flush();
-  assert.equal(document.querySelectorAll('tr[data-condicao-id]').length, 1);
-  const rowInputs = document.querySelectorAll('tr[data-condicao-id] input');
-  assert.equal(rowInputs[1].value, '3');
-  assert.equal(rowInputs[2].value, '60');
-  assert.equal(document.activeElement, condicaoRow);
-  const juros = document.querySelector('[data-condicao-field="juros"]');
-  dispatchInput(juros, '1');
-  await flush();
-  assert.equal(juros.value, '1');
-  assert.match(document.querySelector('[data-form-field="pedido_minimo"]').value, /^R\$/);
+  assert.match(pedido.value, /^R\$/);
+  assert.equal(itens.value, '4');
+  assert.equal(prazo.value, '7');
+  assert.equal(comissao.value, '12');
   teardownFrontendDom(dom);
 });
 

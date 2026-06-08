@@ -39,17 +39,20 @@ export function createFabricantesState() {
       responsavel_comercial: '',
       regiao_atendida: '',
       observacoes: '',
-      pedido_minimo: 0,
+      pedido_minimo_valor: 0,
       pedido_minimo_display: '',
-      boleto_minimo: 0,
+      pedido_minimo_itens: 0,
+      prazo_entrega_dias: 0,
       comissao_padrao_percentual: 0,
-      condicao_pagamento: '',
-      parcelas_pagamento: '',
-      prazo_medio_pagamento: '',
-      juros_pagamento: '',
-      condicoes_pagamento: [],
+      politica_troca: '',
+      aceita_bonificacao: '',
+      aceita_consignacao: '',
+      condicoes_pagamento: '',
+      observacoes_comerciais: '',
+      tabela_precos_url: '',
       logo_file_name: '',
-      logo_preview: ''
+      logo_preview: '',
+      formErrors: {}
     },
     saveBlocked: true
   };

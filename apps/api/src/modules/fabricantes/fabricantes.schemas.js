@@ -23,9 +23,17 @@ export const createFabricanteSchema = {
   endereco_completo: { required: false, type: 'string', maxLength: 500 },
   logo_url: { required: false, type: 'string', maxLength: 500 },
   status: { required: false, type: 'string', maxLength: 20 },
-  pedido_minimo: { required: false, type: 'number' },
-  boleto_minimo: { required: false, type: 'number' },
+  pedido_minimo_valor: { required: false, type: 'number' },
+  pedido_minimo_itens: { required: false, type: 'number' },
+  prazo_entrega_dias: { required: false, type: 'number' },
   comissao_padrao_percentual: { required: false, type: 'number' },
+  politica_troca: { required: false, type: 'string', maxLength: 2000 },
+  aceita_bonificacao: { required: false, type: 'boolean' },
+  aceita_consignacao: { required: false, type: 'boolean' },
+  condicoes_pagamento: { required: false, type: 'string', maxLength: 2000 },
+  observacoes_comerciais: { required: false, type: 'string', maxLength: 4000 },
+  tabela_precos_url: { required: false, type: 'string', maxLength: 500 },
+  responsavel_vendedor_id: { required: false, type: 'string', maxLength: 120 },
   observacoes: { required: false, type: 'string', maxLength: 2000 }
 };
 

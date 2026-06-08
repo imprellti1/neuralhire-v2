@@ -80,6 +80,56 @@ export function getFabricantesTenantTests() {
       }
     },
     {
+      name: 'POST /fabricantes com responsavel valido persiste vinculo',
+      run: async () => {
+        const app = createApiApp();
+        const vendedor = await call(app, { method: 'POST', url: '/vendedores', role: 'account_admin', accountId: 'acc-fab-resp', body: { nome: 'Ana Responsavel', email: 'ana@empresa.com.br' } });
+        const { body } = await call(app, { method: 'POST', url: '/fabricantes', role: 'owner', accountId: 'acc-fab-resp', body: { nome: 'Fab Resp', responsavel_vendedor_id: vendedor.body.item.id } });
+        assertEqual(body.responsavel_vendedor_id, vendedor.body.item.id);
+        assertEqual(body.responsavel_comercial_nome, 'Ana Responsavel');
+        assertEqual(body.responsavel_comercial_email, 'ana@empresa.com.br');
+      }
+    },
+    {
+      name: 'PATCH /fabricantes troca responsavel comercial',
+      run: async () => {
+        const app = createApiApp();
+        const vendedorA = await call(app, { method: 'POST', url: '/vendedores', role: 'account_admin', accountId: 'acc-fab-resp-2', body: { nome: 'Ana 1', email: 'ana1@empresa.com.br' } });
+        const vendedorB = await call(app, { method: 'POST', url: '/vendedores', role: 'account_admin', accountId: 'acc-fab-resp-2', body: { nome: 'Ana 2', email: 'ana2@empresa.com.br' } });
+        const created = await call(app, { method: 'POST', url: '/fabricantes', role: 'owner', accountId: 'acc-fab-resp-2', body: { nome: 'Fab Resp 2', responsavel_vendedor_id: vendedorA.body.item.id } });
+        const updated = await call(app, { method: 'PATCH', url: `/fabricantes/${created.body.id}`, role: 'owner', accountId: 'acc-fab-resp-2', body: { responsavel_vendedor_id: vendedorB.body.item.id } });
+        assertEqual(updated.body.responsavel_vendedor_id, vendedorB.body.item.id);
+        assertEqual(updated.body.responsavel_comercial_nome, 'Ana 2');
+      }
+    },
+    {
+      name: 'POST /fabricantes rejeita responsavel de outra conta',
+      run: async () => {
+        const app = createApiApp();
+        const vendedor = await call(app, { method: 'POST', url: '/vendedores', role: 'account_admin', accountId: 'acc-other', body: { nome: 'Vendedor Estranho' } });
+        const { res, body } = await call(app, { method: 'POST', url: '/fabricantes', role: 'owner', accountId: 'acc-fab-resp-3', body: { nome: 'Fab Bloqueada', responsavel_vendedor_id: vendedor.body.item.id } });
+        assertEqual(res.statusCode, 404);
+        assertEqual(body.error.code, 'VENDEDOR_NOT_FOUND');
+      }
+    },
+    {
+      name: 'POST /fabricantes rejeita responsavel inexistente',
+      run: async () => {
+        const app = createApiApp();
+        const { res, body } = await call(app, { method: 'POST', url: '/fabricantes', role: 'owner', accountId: 'acc-fab-resp-4', body: { nome: 'Fab Bloqueada', responsavel_vendedor_id: '00000000-0000-0000-0000-000000000000' } });
+        assertEqual(res.statusCode, 404);
+        assertEqual(body.error.code, 'VENDEDOR_NOT_FOUND');
+      }
+    },
+    {
+      name: 'POST /fabricantes vendedor comum nao gerencia fabricas',
+      run: async () => {
+        const app = createApiApp();
+        const { res } = await call(app, { method: 'POST', url: '/fabricantes', role: 'sales', accountId: 'acc-fab-sales', userId: 'sales-1', body: { nome: 'Fab Bloqueada' } });
+        assertEqual(res.statusCode, 403);
+      }
+    },
+    {
       name: 'GET /cnpj/:cnpj sem auth retorna AUTH_REQUIRED',
       run: async () => {
         const app = createApiApp();

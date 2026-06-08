@@ -10,7 +10,7 @@ import {
   updateFabricante
 } from './fabricantes.repository.js';
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
-import { BadRequestError } from '../../core/errors.js';
+import { BadRequestError, ForbiddenError } from '../../core/errors.js';
 import { logger } from '../../core/logger.js';
 
 const normalizeCnpj = (value) => String(value || '').replace(/\D/g, '') || null;
@@ -24,6 +24,14 @@ function assertCnpj(value) {
 }
 
 const FALLBACK_CNPJ_MESSAGE = 'Nao foi possivel consultar o CNPJ agora. Voce pode continuar com preenchimento manual.';
+const ADMIN_LIKE_ROLES = new Set(['owner', 'admin', 'account_admin', 'super_admin']);
+
+function assertAdminLike(context) {
+  const role = String(context?.auth?.role || '').toLowerCase();
+  if (!ADMIN_LIKE_ROLES.has(role)) {
+    throw new ForbiddenError('Acesso restrito a administracao', { domain: 'fabricantes' });
+  }
+}
 
 function truncateBody(body) {
   if (body == null) return null;
@@ -84,10 +92,18 @@ function normalizeFabricantePayload(body = {}) {
     logo_url: resolvedLogoUrl,
     logo_upload: body?.logo_upload || null,
     status: body?.status,
-    pedido_minimo: body?.pedido_minimo,
-    boleto_minimo: body?.boleto_minimo,
+    pedido_minimo_valor: body?.pedido_minimo_valor,
+    pedido_minimo_itens: body?.pedido_minimo_itens,
+    prazo_entrega_dias: body?.prazo_entrega_dias,
     comissao_padrao_percentual: body?.comissao_padrao_percentual,
-    observacoes: body?.observacoes || null
+    politica_troca: body?.politica_troca || null,
+    aceita_bonificacao: body?.aceita_bonificacao,
+    aceita_consignacao: body?.aceita_consignacao,
+    condicoes_pagamento: body?.condicoes_pagamento || null,
+    observacoes_comerciais: body?.observacoes_comerciais || null,
+    tabela_precos_url: body?.tabela_precos_url || null,
+    observacoes: body?.observacoes || null,
+    responsavel_vendedor_id: body?.responsavel_vendedor_id ?? null
   };
 }
 
@@ -128,10 +144,18 @@ function normalizeFabricantePatchPayload(body = {}) {
   if (body?.logo_url !== undefined) payload.logo_url = String(body.logo_url || '').trim();
   if (body?.logo_upload !== undefined) payload.logo_upload = body.logo_upload;
   if (body?.status !== undefined) payload.status = body.status;
-  if (body?.pedido_minimo !== undefined) payload.pedido_minimo = body.pedido_minimo;
-  if (body?.boleto_minimo !== undefined) payload.boleto_minimo = body.boleto_minimo;
+  if (body?.pedido_minimo_valor !== undefined) payload.pedido_minimo_valor = body.pedido_minimo_valor;
+  if (body?.pedido_minimo_itens !== undefined) payload.pedido_minimo_itens = body.pedido_minimo_itens;
+  if (body?.prazo_entrega_dias !== undefined) payload.prazo_entrega_dias = body.prazo_entrega_dias;
   if (body?.comissao_padrao_percentual !== undefined) payload.comissao_padrao_percentual = body.comissao_padrao_percentual;
+  if (body?.politica_troca !== undefined) payload.politica_troca = body.politica_troca || null;
+  if (body?.aceita_bonificacao !== undefined) payload.aceita_bonificacao = body.aceita_bonificacao;
+  if (body?.aceita_consignacao !== undefined) payload.aceita_consignacao = body.aceita_consignacao;
+  if (body?.condicoes_pagamento !== undefined) payload.condicoes_pagamento = body.condicoes_pagamento || null;
+  if (body?.observacoes_comerciais !== undefined) payload.observacoes_comerciais = body.observacoes_comerciais || null;
+  if (body?.tabela_precos_url !== undefined) payload.tabela_precos_url = body.tabela_precos_url || null;
   if (body?.observacoes !== undefined) payload.observacoes = body.observacoes || null;
+  if (body?.responsavel_vendedor_id !== undefined) payload.responsavel_vendedor_id = body.responsavel_vendedor_id ?? null;
   return payload;
 }
 
@@ -364,28 +388,33 @@ function normalizeLookupResponse(source, cnpj) {
 
 export async function getFabricantes(context) {
   const accountId = getAccountIdFromContext(context);
+  assertAdminLike(context);
   return listFabricantes(context.query || {}, { accountId });
 }
 
 export async function getFabricante(context) {
   const accountId = getAccountIdFromContext(context);
+  assertAdminLike(context);
   return getFabricanteById(context.params.id, { accountId });
 }
 
 export async function createFabricanteHandler(context) {
   const body = context.body || {};
   const accountId = getAccountIdFromContext(context);
+  assertAdminLike(context);
   return createFabricante(normalizeFabricantePayload(body), { accountId });
 }
 
 export async function updateFabricanteHandler(context) {
   const body = context.body || {};
   const accountId = getAccountIdFromContext(context);
+  assertAdminLike(context);
   return updateFabricante(context.params.id, normalizeFabricantePatchPayload(body), { accountId });
 }
 
 export async function updateFabricanteLogoHandler(context) {
   const accountId = getAccountIdFromContext(context);
+  assertAdminLike(context);
   const body = context.body || {};
   const upload = body?.logo || body?.file || body?.logo_upload || null;
   const updated = await updateFabricanteLogo(context.params.id, upload, { accountId });
@@ -394,26 +423,31 @@ export async function updateFabricanteLogoHandler(context) {
 
 export async function getCondicoesPagamento(context) {
   const accountId = getAccountIdFromContext(context);
+  assertAdminLike(context);
   return listCondicoesPagamento(context.params.id, { accountId });
 }
 
 export async function createCondicaoPagamentoHandler(context) {
   const accountId = getAccountIdFromContext(context);
+  assertAdminLike(context);
   return createCondicaoPagamento(context.params.id, context.body || {}, { accountId });
 }
 
 export async function updateCondicaoPagamentoHandler(context) {
   const accountId = getAccountIdFromContext(context);
+  assertAdminLike(context);
   return updateCondicaoPagamento(context.params.id, context.params.condicaoId, context.body || {}, { accountId });
 }
 
 export async function deleteCondicaoPagamentoHandler(context) {
   const accountId = getAccountIdFromContext(context);
+  assertAdminLike(context);
   return deleteCondicaoPagamento(context.params.id, context.params.condicaoId, { accountId });
 }
 
 export async function lookupCnpjHandler(context) {
   const accountId = getAccountIdFromContext(context);
+  assertAdminLike(context);
   if (!accountId) {
     throw new BadRequestError('Tenant invalido', { code: 'TENANT_REQUIRED', domain: 'fabricantes' });
   }

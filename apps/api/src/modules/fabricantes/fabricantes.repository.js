@@ -3,6 +3,7 @@ import { Buffer } from 'node:buffer';
 import { env } from '../../config/env.js';
 import { BadRequestError, ConflictError, DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
+import { getVendedorById } from '../vendedores/vendedores.repository.js';
 
 const memoryFabricantes = [];
 const memoryCondicoes = [];
@@ -23,6 +24,29 @@ function normalizeCnpj(value) {
 function normalizeNumber(value, fallback = 0) {
   const num = Number(value);
   return Number.isFinite(num) ? num : fallback;
+}
+
+function normalizeNonNegativeNumber(value, field) {
+  const num = normalizeNumber(value, 0);
+  if (num < 0) throw new BadRequestError(`Valor invalido para ${field}`, { domain: 'fabricantes', code: 'NEGATIVE_VALUE' });
+  return num;
+}
+
+function normalizePercent(value) {
+  const num = normalizeNonNegativeNumber(value, 'comissao_padrao_percentual');
+  if (num > 100) throw new BadRequestError('Comissao padrao percentual invalida', { domain: 'fabricantes', code: 'PERCENT_OUT_OF_RANGE' });
+  return num;
+}
+
+function normalizeBoolean(value, field) {
+  if (typeof value === 'boolean') return value;
+  if (value === undefined || value === null) return undefined;
+  throw new BadRequestError(`Tipo invalido para ${field}`, { domain: 'fabricantes', code: 'BOOLEAN_INVALID' });
+}
+
+function normalizeNullableUuid(value) {
+  const raw = String(value || '').trim();
+  return raw || null;
 }
 
 function composeEnderecoCompleto(data = {}) {
@@ -133,10 +157,19 @@ function normalizeFabricanteRecord(data = {}, current = null) {
     endereco_completo: data.endereco_completo !== undefined ? (data.endereco_completo || null) : base.endereco_completo || null,
     logo_url: data.logo_url !== undefined ? sanitizeLogoUrl(data.logo_url) : sanitizeLogoUrl(base.logo_url),
     status: data.status !== undefined ? (data.status === 'inativo' ? 'inativo' : 'ativo') : base.status || 'ativo',
-    pedido_minimo: data.pedido_minimo !== undefined ? normalizeNumber(data.pedido_minimo, 0) : normalizeNumber(base.pedido_minimo, 0),
-    boleto_minimo: data.boleto_minimo !== undefined ? normalizeNumber(data.boleto_minimo, 0) : normalizeNumber(base.boleto_minimo, 0),
-    comissao_padrao_percentual: data.comissao_padrao_percentual !== undefined ? normalizeNumber(data.comissao_padrao_percentual, 0) : normalizeNumber(base.comissao_padrao_percentual, 0),
+    pedido_minimo_valor: data.pedido_minimo_valor !== undefined ? normalizeNonNegativeNumber(data.pedido_minimo_valor, 'pedido_minimo_valor') : normalizeNonNegativeNumber(base.pedido_minimo_valor ?? base.pedido_minimo ?? 0, 'pedido_minimo_valor'),
+    pedido_minimo_itens: data.pedido_minimo_itens !== undefined ? Math.floor(normalizeNonNegativeNumber(data.pedido_minimo_itens, 'pedido_minimo_itens')) : Math.floor(normalizeNonNegativeNumber(base.pedido_minimo_itens ?? 0, 'pedido_minimo_itens')),
+    prazo_entrega_dias: data.prazo_entrega_dias !== undefined ? Math.floor(normalizeNonNegativeNumber(data.prazo_entrega_dias, 'prazo_entrega_dias')) : Math.floor(normalizeNonNegativeNumber(base.prazo_entrega_dias ?? 0, 'prazo_entrega_dias')),
+    comissao_padrao_percentual: data.comissao_padrao_percentual !== undefined ? normalizePercent(data.comissao_padrao_percentual) : normalizePercent(base.comissao_padrao_percentual ?? 0),
+    politica_troca: data.politica_troca !== undefined ? (data.politica_troca || null) : base.politica_troca || null,
+    aceita_bonificacao: data.aceita_bonificacao !== undefined ? normalizeBoolean(data.aceita_bonificacao, 'aceita_bonificacao') : (typeof base.aceita_bonificacao === 'boolean' ? base.aceita_bonificacao : false),
+    aceita_consignacao: data.aceita_consignacao !== undefined ? normalizeBoolean(data.aceita_consignacao, 'aceita_consignacao') : (typeof base.aceita_consignacao === 'boolean' ? base.aceita_consignacao : false),
+    condicoes_pagamento: data.condicoes_pagamento !== undefined ? (data.condicoes_pagamento || null) : base.condicoes_pagamento || null,
+    observacoes_comerciais: data.observacoes_comerciais !== undefined ? (data.observacoes_comerciais || null) : base.observacoes_comerciais || null,
+    tabela_precos_url: data.tabela_precos_url !== undefined ? (data.tabela_precos_url || null) : base.tabela_precos_url || null,
     observacoes: data.observacoes !== undefined ? (data.observacoes || null) : base.observacoes || null,
+    pedido_minimo: data.pedido_minimo_valor !== undefined ? normalizeNonNegativeNumber(data.pedido_minimo_valor, 'pedido_minimo') : normalizeNonNegativeNumber(base.pedido_minimo_valor ?? base.pedido_minimo ?? 0, 'pedido_minimo'),
+    boleto_minimo: data.pedido_minimo_itens !== undefined ? Math.floor(normalizeNonNegativeNumber(data.pedido_minimo_itens, 'boleto_minimo')) : Math.floor(normalizeNonNegativeNumber(base.pedido_minimo_itens ?? base.boleto_minimo ?? 0, 'boleto_minimo')),
     updated_at: new Date().toISOString()
   };
   if (!payload.endereco_completo) {
@@ -155,6 +188,55 @@ function sanitizeFabricantePayload(payload = {}) {
   return clean;
 }
 
+function mapResponsibleVendor(vendedor = null) {
+  if (!vendedor) {
+    return {
+      responsavel_vendedor_id: null,
+      responsavel_comercial_nome: null,
+      responsavel_comercial_email: null
+    };
+  }
+
+  return {
+    responsavel_vendedor_id: vendedor.id || null,
+    responsavel_comercial_nome: vendedor.nome || null,
+    responsavel_comercial_email: vendedor.email || null
+  };
+}
+
+async function resolveFabricanteResponsibleVendor(accountId, vendedorId) {
+  const normalizedId = normalizeNullableUuid(vendedorId);
+  if (!normalizedId) return null;
+  const vendor = await getVendedorById(normalizedId, { accountId });
+  if (!vendor) {
+    throw new BadRequestError('Vendedor responsavel invalido para a conta', { domain: 'fabricantes', code: 'VENDEDOR_INVALIDO' });
+  }
+  if (String(vendor.status || '').toLowerCase() === 'inativo') {
+    throw new BadRequestError('Vendedor responsavel inativo', { domain: 'fabricantes', code: 'VENDEDOR_INATIVO' });
+  }
+  return vendor;
+}
+
+async function attachResponsibleVendor(accountId, items = []) {
+  const withResponse = [];
+  const vendorIds = [...new Set((items || []).map((item) => item?.responsavel_vendedor_id).filter(Boolean))];
+  let vendors = [];
+  if (vendorIds.length) {
+    for (const vendorId of vendorIds) {
+      try {
+        vendors.push(await getVendedorById(vendorId, { accountId }));
+      } catch {
+        // Ignore missing vendor references and keep the response graceful.
+      }
+    }
+  }
+  for (const item of items || []) {
+    const vendor = vendors.find((row) => row.id === item.responsavel_vendedor_id) || null;
+    withResponse.push({ ...item, ...mapResponsibleVendor(vendor) });
+  }
+  return withResponse;
+}
+
 function logSupabaseFailure(action, error, payload) {
   console.error(`[fabricantes.repository] ${action} failed`, {
     message: error?.message || null,
@@ -167,6 +249,7 @@ function logSupabaseFailure(action, error, payload) {
 
 function normalizeFabricantePatchData(data = {}) {
   const payload = { ...data };
+  for (const field of ['account_id', 'tenant_id', 'owner_user_id']) delete payload[field];
   if (payload.logo_upload) delete payload.logo_upload;
   return payload;
 }
@@ -198,6 +281,25 @@ function findDuplicateCondicao(accountId, fabricanteId, payload, excludeId = nul
   return memoryCondicoes.find((item) => item.account_id === accountId && item.fabricante_id === fabricanteId && item.id !== excludeId && ((codigo && item.codigo && item.codigo.toLowerCase() === codigo) || normalizeText(item.nome) === nome));
 }
 
+function assertCommercialRules(data = {}) {
+  for (const field of ['pedido_minimo_valor', 'pedido_minimo_itens', 'prazo_entrega_dias', 'comissao_padrao_percentual']) {
+    if (data[field] !== undefined && data[field] !== null) {
+      const num = Number(data[field]);
+      if (!Number.isFinite(num) || num < 0) {
+        throw new BadRequestError('Valores invalidos', { domain: 'fabricantes', code: 'NEGATIVE_VALUE' });
+      }
+    }
+  }
+  if (data.comissao_padrao_percentual !== undefined && Number(data.comissao_padrao_percentual) > 100) {
+    throw new BadRequestError('Comissao padrao percentual invalida', { domain: 'fabricantes', code: 'PERCENT_OUT_OF_RANGE' });
+  }
+  for (const field of ['aceita_bonificacao', 'aceita_consignacao']) {
+    if (data[field] !== undefined && typeof data[field] !== 'boolean') {
+      throw new BadRequestError(`Tipo invalido para ${field}`, { domain: 'fabricantes', code: 'BOOLEAN_INVALID' });
+    }
+  }
+}
+
 export async function listFabricantes(filters = {}, options = {}) {
   const { page, limit } = normalizePagination(filters);
   const accountId = options.accountId || null;
@@ -218,7 +320,7 @@ export async function listFabricantes(filters = {}, options = {}) {
     const { data, error, count } = await query.range(from, to);
     if (error) throw new DatabaseError('Falha ao listar fabricantes', { details: error });
     const total = count || 0;
-    return { items: data || [], total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
+    return { items: await attachResponsibleVendor(accountId, data || []), total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   const items = memoryFabricantes.filter((item) => item.account_id === accountId);
@@ -226,7 +328,7 @@ export async function listFabricantes(filters = {}, options = {}) {
   const filtered = items.filter((item) => (!filters.status || item.status === filters.status) && (!q || [item.nome, item.razao_social, item.cnpj].some((v) => String(v || '').toLowerCase().includes(q))));
   const total = filtered.length;
   const from = (page - 1) * limit;
-  return { items: filtered.slice(from, from + limit), total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
+  return { items: await attachResponsibleVendor(accountId, filtered.slice(from, from + limit)), total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
 }
 
 export async function getFabricanteById(id, options = {}) {
@@ -239,7 +341,7 @@ export async function getFabricanteById(id, options = {}) {
     const { data, error } = await supabase.from('fabricantes').select('*').eq('account_id', accountId).eq('id', id).maybeSingle();
     if (error) throw new DatabaseError('Falha ao buscar fabricante', { details: error });
     if (!data) throw new NotFoundError('Fabricante nao encontrado', { domain: 'fabricantes', code: 'FABRICANTE_NOT_FOUND' });
-    return data;
+    return (await attachResponsibleVendor(accountId, [data]))[0];
   }
 
   const item = memoryFabricantes.find((row) => row.id === id && row.account_id === accountId);
@@ -250,11 +352,8 @@ export async function getFabricanteById(id, options = {}) {
 export async function createFabricante(data, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-  for (const field of ['pedido_minimo', 'boleto_minimo', 'comissao_padrao_percentual']) {
-    if (data[field] !== undefined && data[field] !== null && Number(data[field]) < 0) {
-      throw new BadRequestError('Valores invalidos', { domain: 'fabricantes' });
-    }
-  }
+  const payloadInput = normalizeFabricantePatchData({ ...data });
+  assertCommercialRules(payloadInput);
   const payload = {
     account_id: accountId,
     nome: String(data.nome || '').trim(),
@@ -274,11 +373,22 @@ export async function createFabricante(data, options = {}) {
     endereco_completo: data.endereco_completo || composeEnderecoCompleto(data),
     logo_url: sanitizeLogoUrl(data.logo_url),
     status: data.status === 'inativo' ? 'inativo' : 'ativo',
-    pedido_minimo: normalizeNumber(data.pedido_minimo, 0),
-    boleto_minimo: normalizeNumber(data.boleto_minimo, 0),
-    comissao_padrao_percentual: normalizeNumber(data.comissao_padrao_percentual, 0),
+    pedido_minimo_valor: normalizeNonNegativeNumber(data.pedido_minimo_valor ?? data.pedido_minimo ?? 0, 'pedido_minimo_valor'),
+    pedido_minimo_itens: Math.floor(normalizeNonNegativeNumber(data.pedido_minimo_itens ?? 0, 'pedido_minimo_itens')),
+    prazo_entrega_dias: Math.floor(normalizeNonNegativeNumber(data.prazo_entrega_dias ?? 0, 'prazo_entrega_dias')),
+    comissao_padrao_percentual: normalizePercent(data.comissao_padrao_percentual ?? 0),
+    politica_troca: data.politica_troca || null,
+    aceita_bonificacao: typeof data.aceita_bonificacao === 'boolean' ? data.aceita_bonificacao : false,
+    aceita_consignacao: typeof data.aceita_consignacao === 'boolean' ? data.aceita_consignacao : false,
+    condicoes_pagamento: data.condicoes_pagamento || null,
+    observacoes_comerciais: data.observacoes_comerciais || null,
+    tabela_precos_url: data.tabela_precos_url || null,
+    pedido_minimo: normalizeNonNegativeNumber(data.pedido_minimo_valor ?? data.pedido_minimo ?? 0, 'pedido_minimo'),
+    boleto_minimo: Math.floor(normalizeNonNegativeNumber(data.pedido_minimo_itens ?? data.boleto_minimo ?? 0, 'boleto_minimo')),
     observacoes: data.observacoes || null
   };
+  const responsavelVendedor = await resolveFabricanteResponsibleVendor(accountId, data.responsavel_vendedor_id);
+  payload.responsavel_vendedor_id = responsavelVendedor?.id || null;
   if (!payload.nome) throw new BadRequestError('Nome obrigatorio', { domain: 'fabricantes' });
   if (findDuplicateFabricante(accountId, payload)) throw new ConflictError('Fabricante duplicado', { domain: 'fabricantes', code: 'FABRICANTE_DUPLICADO' });
 
@@ -299,28 +409,29 @@ export async function createFabricante(data, options = {}) {
       }
       return logoUpdated;
     }
-    return inserted;
+    return (await attachResponsibleVendor(accountId, [inserted]))[0];
   }
 
   const item = { id: randomUUID(), ...payload, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
   memoryFabricantes.push(item);
-  return item;
+  return (await attachResponsibleVendor(accountId, [item]))[0];
 }
 
 export async function updateFabricante(id, data, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-  for (const field of ['pedido_minimo', 'boleto_minimo', 'comissao_padrao_percentual']) {
-    if (data[field] !== undefined && data[field] !== null && Number(data[field]) < 0) {
-      throw new BadRequestError('Valores invalidos', { domain: 'fabricantes' });
-    }
-  }
+  const payloadInput = normalizeFabricantePatchData({ ...data });
+  assertCommercialRules(payloadInput);
 
   if (isSupabaseMode()) {
     const current = await getFabricanteById(id, { accountId });
     const normalizedData = normalizeFabricantePatchData(data);
     const payload = sanitizeFabricantePayload(normalizeFabricanteRecord(normalizedData, current));
     const next = { ...current, ...payload };
+    const responsavelVendedor = await resolveFabricanteResponsibleVendor(accountId, data.responsavel_vendedor_id !== undefined ? data.responsavel_vendedor_id : current.responsavel_vendedor_id);
+    if (data.responsavel_vendedor_id !== undefined) {
+      payload.responsavel_vendedor_id = responsavelVendedor?.id || null;
+    }
     if (!next.nome) throw new BadRequestError('Nome obrigatorio', { domain: 'fabricantes' });
     if (findDuplicateFabricante(accountId, next, id)) throw new ConflictError('Fabricante duplicado', { domain: 'fabricantes', code: 'FABRICANTE_DUPLICADO' });
     const supabase = getSupabaseClient();
@@ -339,17 +450,21 @@ export async function updateFabricante(id, data, options = {}) {
       }
       return logoUpdated;
     }
-    return updated;
+    return (await attachResponsibleVendor(accountId, [updated]))[0];
   }
 
   const idx = memoryFabricantes.findIndex((row) => row.id === id && row.account_id === accountId);
   if (idx < 0) throw new NotFoundError('Fabricante nao encontrado', { domain: 'fabricantes', code: 'FABRICANTE_NOT_FOUND' });
   const current = memoryFabricantes[idx];
   const payload = normalizeFabricanteRecord(normalizeFabricantePatchData(data), current);
+  if (data.responsavel_vendedor_id !== undefined) {
+    const responsavelVendedor = await resolveFabricanteResponsibleVendor(accountId, data.responsavel_vendedor_id);
+    payload.responsavel_vendedor_id = responsavelVendedor?.id || null;
+  }
   if (!payload.nome) throw new BadRequestError('Nome obrigatorio', { domain: 'fabricantes' });
   if (findDuplicateFabricante(accountId, payload, id)) throw new ConflictError('Fabricante duplicado', { domain: 'fabricantes', code: 'FABRICANTE_DUPLICADO' });
   memoryFabricantes[idx] = payload;
-  return payload;
+  return (await attachResponsibleVendor(accountId, [payload]))[0];
 }
 
 export async function listCondicoesPagamento(fabricanteId, options = {}) {

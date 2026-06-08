@@ -11,8 +11,9 @@ export function mapFabricantesData(response = {}) {
       nomeExibicao: item?.nome || '-',
       cnpjExibicao: item?.cnpj || '-',
       statusExibicao: item?.status || '-',
-      pedidoMinimoExibicao: Number(item?.pedido_minimo || 0),
-      boletoMinimoExibicao: Number(item?.boleto_minimo || 0),
+      pedidoMinimoExibicao: Number((item?.pedido_minimo_valor ?? item?.pedido_minimo) || 0),
+      pedidoMinimoItensExibicao: Number(item?.pedido_minimo_itens || 0),
+      prazoEntregaDiasExibicao: Number(item?.prazo_entrega_dias || 0),
       comissaoExibicao: Number(item?.comissao_padrao_percentual || 0),
       semLogo: !item?.logo_url,
       createdAtDate: asDate(item?.created_at || item?.createdAt)
