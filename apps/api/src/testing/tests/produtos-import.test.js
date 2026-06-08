@@ -109,6 +109,8 @@ export function getProdutosImportTests() {
         const out = parseBody(res);
         assert.equal(res.statusCode, 200);
         assert.equal(out.ok, true);
+        assert.ok(out.totalRows >= 0);
+        assert.equal(typeof out.batchId, 'string');
       }
     },
     {
@@ -130,6 +132,8 @@ export function getProdutosImportTests() {
         assert.equal(parsed.file.fileName, 'Estoque_288.xlsx');
         assert.ok(parsed.file.base64);
         assert.equal(typeof parsed.file.base64, 'string');
+        const mimeType = parsed.file.mimeType || '';
+        assert.equal(mimeType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') || mimeType === 'application/octet-stream', true);
         assert.equal(multipart.boundary.startsWith('----neuralhire-boundary'), true);
       }
     },

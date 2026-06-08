@@ -79,18 +79,18 @@ function parseMultipartBody(buffer, boundary) {
     if (!nameMatch) continue;
     const fieldName = nameMatch[1];
     const fileNameMatch = disposition.match(/filename="([^"]*)"/i);
-    const contentType = headers['content-type'] || 'application/octet-stream';
+    const contentType = String(headers['content-type'] || '').toLowerCase();
     if (fileNameMatch) {
       const fileBuffer = Buffer.from(rawValue, 'binary');
       payload[fieldName] = {
         fileName: fileNameMatch[1],
-        mimeType: contentType,
+        mimeType: contentType || 'application/octet-stream',
         size: fileBuffer.length,
         base64: fileBuffer.toString('base64')
       };
       continue;
     }
-    payload[fieldName] = rawValue;
+    payload[fieldName] = Buffer.from(rawValue, 'binary').toString('utf8').replace(/\r\n$/, '');
   }
 
   return payload;
