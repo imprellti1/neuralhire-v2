@@ -110,7 +110,7 @@ export async function parseJsonBody(req, { limitBytes = 1024 * 1024 } = {}) {
   const method = (req.method || 'GET').toUpperCase();
   if (!METHODS_WITH_BODY.has(method)) return null;
 
-  const contentTypeRaw = String(req.headers?.['content-type'] || '').toLowerCase();
+  const contentTypeRaw = String(req.headers?.['content-type'] || '');
   const { type, boundary } = parseContentType(contentTypeRaw);
   const effectiveLimitBytes = type.includes('multipart/form-data')
     ? MULTIPART_LIMIT_BYTES
