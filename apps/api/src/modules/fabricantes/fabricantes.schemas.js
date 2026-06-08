@@ -23,6 +23,7 @@ export const createFabricanteSchema = {
   endereco_completo: { required: false, type: 'string', maxLength: 500 },
   logo_url: { required: false, type: 'string', maxLength: 500 },
   status: { required: false, type: 'string', maxLength: 20 },
+  valor_minimo_duplicata: { required: false, type: 'number' },
   pedido_minimo_valor: { required: false, type: 'number' },
   pedido_minimo_itens: { required: false, type: 'number' },
   prazo_entrega_dias: { required: false, type: 'number' },
@@ -30,7 +31,7 @@ export const createFabricanteSchema = {
   politica_troca: { required: false, type: 'string', maxLength: 2000 },
   aceita_bonificacao: { required: false, type: 'boolean' },
   aceita_consignacao: { required: false, type: 'boolean' },
-  condicoes_pagamento: { required: false, type: 'string', maxLength: 2000 },
+  condicoes_pagamento: { required: false, type: 'array' },
   observacoes_comerciais: { required: false, type: 'string', maxLength: 4000 },
   tabela_precos_url: { required: false, type: 'string', maxLength: 500 },
   responsavel_vendedor_id: { required: false, type: 'string', maxLength: 120 },
@@ -39,16 +40,7 @@ export const createFabricanteSchema = {
 
 export const updateFabricanteSchema = createFabricanteSchema;
 
-export const createCondicaoPagamentoSchema = {
-  nome: { required: true, type: 'string', minLength: 2, maxLength: 180 },
-  codigo: { required: false, type: 'string', maxLength: 60 },
-  parcelas: { required: false, type: 'number' },
-  prazo_medio_dias: { required: false, type: 'number' },
-  valor_minimo: { required: false, type: 'number' },
-  percentual_acrescimo: { required: false, type: 'number' },
-  ativo: { required: false, type: 'boolean' },
-  observacoes: { required: false, type: 'string', maxLength: 2000 }
-};
+export const createCondicaoPagamentoSchema = null;
 
 export const updateCondicaoPagamentoSchema = createCondicaoPagamentoSchema;
 

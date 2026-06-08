@@ -175,6 +175,33 @@ test('fabricantes: salva responsavel_vendedor_id sem campos sensiveis', async ()
   teardownFrontendDom(dom);
 });
 
+test('fabricantes: envia e recarrega regras comerciais', async () => {
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
+  let savedBody = null;
+  installFetchMock({
+    'GET /fabricantes': () => ({ items: [{ id: 'fab-rr', nome: 'Regra Teste', cnpj: '12345678000190', status: 'ativo', valor_minimo_duplicata: 0, aceita_bonificacao: false, aceita_consignacao: false }], pagination: { page: 1, totalPages: 1, total: 1, limit: 20 } }),
+    'GET /fabricantes/fab-rr': () => ({ id: 'fab-rr', nome: 'Regra Teste', cnpj: '12345678000190', valor_minimo_duplicata: 1000, aceita_bonificacao: true, aceita_consignacao: true }),
+    'GET /fabricantes/fab-rr/condicoes-pagamento': () => ({ items: [], total: 0 }),
+    'PATCH /fabricantes/fab-rr': ({ body }) => { savedBody = body; return { id: 'fab-rr', ...body }; }
+  });
+  bootstrapWebApp();
+  await flush(); await flush();
+  document.querySelector('[data-edit-id="fab-rr"]').click();
+  await flush(); await flush();
+  document.querySelector('[data-tab="regras"]').click();
+  await flush();
+  assert.equal(document.querySelector('[data-form-field="pedido_minimo"]').value.includes('R$'), true);
+  assert.equal(document.querySelector('[data-form-field="aceita_bonificacao"]').value, 'true');
+  assert.equal(document.querySelector('[data-form-field="aceita_consignacao"]').value, 'true');
+  document.querySelector('#nhf-save').click();
+  await flush(); await flush();
+  assert.equal(savedBody.valor_minimo_duplicata, 1000);
+  assert.equal(savedBody.aceita_bonificacao, true);
+  assert.equal(savedBody.aceita_consignacao, true);
+  teardownFrontendDom(dom);
+});
+
 test('fabricantes: regras comerciais em aba separada e lista sem prazo maximo', async () => {
   const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
   mockAuthenticatedSession();
@@ -205,6 +232,21 @@ test('fabricantes: regras comerciais validam campos basicos', async () => {
   await flush();
   document.querySelector('[data-tab="regras"]').click();
   await flush();
+  document.querySelector('[data-payment-add]').click();
+  await flush();
+  const prazoInput = document.querySelector('[data-payment-prazo]');
+  dispatchInput(prazoInput, '30/60/90');
+  await flush();
+  assert.match(document.body.textContent, /3 parcelas · prazo médio 60 dias/);
+  document.querySelector('[data-payment-add]').click();
+  await flush();
+  const pagamentos = document.querySelectorAll('[data-payment-prazo]');
+  dispatchInput(pagamentos[1], '28/35/42/49');
+  await flush();
+  assert.match(document.body.textContent, /4 parcelas · prazo médio 39 dias/);
+  document.querySelector('[data-payment-remove]').click();
+  await flush();
+  assert.equal(document.querySelectorAll('[data-payment-prazo]').length, 1);
   const pedido = document.querySelector('[data-form-field="pedido_minimo"]');
   const itens = document.querySelector('[data-form-field="pedido_minimo_itens"]');
   const prazo = document.querySelector('[data-form-field="prazo_entrega_dias"]');
@@ -218,6 +260,42 @@ test('fabricantes: regras comerciais validam campos basicos', async () => {
   assert.equal(itens.value, '4');
   assert.equal(prazo.value, '7');
   assert.equal(comissao.value, '12');
+  teardownFrontendDom(dom);
+});
+
+test('fabricantes: salva e reabre condicoes estruturadas', async () => {
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
+  let savedBody = null;
+  const items = [];
+  installFetchMock({
+    'GET /fabricantes': () => ({ items, pagination: { page: 1, totalPages: 1, total: items.length, limit: 20 } }),
+    'GET /cnpj/12345678000190': () => ({ ok: true, data: { cnpj: '12345678000190' } }),
+    'POST /fabricantes': ({ body }) => { savedBody = body; items.splice(0, items.length, { id: 'fab-1', nome: body.nome, cnpj: body.cnpj, condicoes_pagamento: body.condicoes_pagamento }); return { id: 'fab-1', ...body }; },
+    'GET /fabricantes/fab-1': () => ({ id: 'fab-1', nome: 'Fab Nova', cnpj: '12345678000190', condicoes_pagamento: savedBody?.condicoes_pagamento || [] })
+  });
+  bootstrapWebApp();
+  await flush(); await flush();
+  document.querySelector('#nhf-new').click();
+  await flush();
+  dispatchInput(document.querySelector('#nhf-cnpj'), '12345678000190');
+  await flush();
+  document.querySelector('#nhf-buscar-cnpj').click();
+  await flush(); await flush();
+  document.querySelector('[data-tab="regras"]').click();
+  await flush();
+  document.querySelector('[data-payment-add]').click();
+  await flush();
+  dispatchInput(document.querySelector('[data-payment-prazo]'), '30/60/90');
+  await flush();
+  document.querySelector('#nhf-save').click();
+  await flush(); await flush();
+  assert.deepEqual(savedBody.condicoes_pagamento, [{ prazo: '30/60/90', parcelas: 3, prazo_medio_dias: 60 }]);
+  document.querySelector('[data-edit-id="fab-1"]').click();
+  await flush(); await flush();
+  document.querySelector('[data-tab="regras"]').click();
+  await flush();
+  assert.equal(document.querySelector('[data-payment-prazo]').value, '30/60/90');
   teardownFrontendDom(dom);
 });
 

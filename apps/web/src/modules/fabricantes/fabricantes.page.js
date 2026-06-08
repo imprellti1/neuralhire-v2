@@ -110,43 +110,28 @@ function isCnpjLookupComplete(data) {
   return primaryFields.filter(hasMeaningfulValue).length >= 3 && hasMeaningfulValue(data?.razao_social);
 }
 
-function parseCondicoes(raw) {
-  if (Array.isArray(raw)) return raw;
-  if (typeof raw === 'string' && raw.trim()) {
-    try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
-}
-
-function normalizeCondicaoRow(row = {}) {
-  const parsed = parsePaymentCondition(row.condicao_pagamento || row.nome || '');
+function normalizePaymentRow(row = {}) {
+  const raw = String(row?.prazo ?? row?.descricao ?? row?.condicao_pagamento ?? row?.nome ?? '').replace(/\s+/g, '');
   return {
-    id: row.id || row.localId || generateRowId(),
-    condicao_pagamento: parsed.valid ? parsed.normalized : String(row.condicao_pagamento || row.nome || ''),
-    juros: String(row.juros ?? row.percentual_acrescimo ?? ''),
-    parcelas: parsed.valid ? parsed.parcelas : Number(row.parcelas ?? 0) || 0,
-    prazo_medio: parsed.valid ? Math.round(parsed.prazoMedio) : Number(row.prazo_medio ?? row.prazo_medio_dias ?? 0) || 0,
-    savedId: row.savedId || row.id || null,
-    fileName: row.fileName || '',
-    preview: row.preview || ''
+    id: row?.id || generateRowId(),
+    prazo: raw,
+    parcelas: Number(row?.parcelas ?? 0) || 0,
+    prazo_medio_dias: Number(row?.prazo_medio_dias ?? row?.prazo_medio ?? 0) || 0
   };
 }
 
-function buildCondicaoPayload(row) {
-  const parsed = parsePaymentCondition(row.condicao_pagamento);
-  return {
-    nome: parsed.valid ? parsed.normalized : String(row.condicao_pagamento || '').trim(),
-    parcelas: parsed.valid ? parsed.parcelas : Number(row.parcelas || 0) || 0,
-    prazo_medio_dias: parsed.valid ? parsed.prazoMedio : Number(row.prazo_medio || 0) || 0,
-    valor_minimo: 0,
-    percentual_acrescimo: Number(formatPercentInput(row.juros || 0)) || 0,
-    observacoes: null
-  };
+function calculatePaymentRow(prazo) {
+  const normalized = String(prazo || '').replace(/\s+/g, '');
+  if (!normalized) return { valid: false, prazo: '', parcelas: '', prazo_medio_dias: '' };
+  const parts = normalized.split('/').filter(Boolean);
+  if (!parts.length || parts.some((part) => !/^[1-9]\d*$/.test(part))) return { valid: false, prazo: normalized, parcelas: '', prazo_medio_dias: '' };
+  const parcelas = parts.length;
+  const prazo_medio_dias = Math.round(parts.reduce((sum, part) => sum + Number(part), 0) / parcelas);
+  return { valid: true, prazo: parts.join('/'), parcelas, prazo_medio_dias };
+}
+
+function normalizePaymentRows(raw) {
+  return Array.isArray(raw) ? raw.map((row) => normalizePaymentRow(row)) : [];
 }
 
 function injectStyles() {
@@ -180,7 +165,7 @@ function emptyForm() {
     regiao_atendida: '',
     observacoes: '',
     pedido_minimo: 0,
-    pedido_minimo_valor: 0,
+    valor_minimo_duplicata: 0,
     pedido_minimo_itens: 0,
     prazo_entrega_dias: 0,
     comissao_padrao_percentual: 0,
@@ -220,15 +205,15 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     state.condicaoId = null;
   state.form = selected ? { ...emptyForm(), ...selected, cnpj: selected.cnpj || '' } : emptyForm();
     state.form.nome_fantasia = selected?.nome || selected?.nome_fantasia || state.form.nome_fantasia || '';
-    state.form.pedido_minimo_valor = selected?.pedido_minimo_valor ?? selected?.pedido_minimo ?? 0;
-    state.form.pedido_minimo_display = selected?.pedido_minimo_valor !== undefined || selected?.pedido_minimo !== undefined ? formatCurrencyFromNumber(selected.pedido_minimo_valor ?? selected.pedido_minimo) : '';
+    state.form.valor_minimo_duplicata = selected?.valor_minimo_duplicata ?? selected?.pedido_minimo_valor ?? selected?.pedido_minimo ?? 0;
+    state.form.pedido_minimo_display = selected?.valor_minimo_duplicata !== undefined || selected?.pedido_minimo_valor !== undefined || selected?.pedido_minimo !== undefined ? formatCurrencyFromNumber(selected.valor_minimo_duplicata ?? selected.pedido_minimo_valor ?? selected.pedido_minimo) : '';
     state.form.pedido_minimo_itens = selected?.pedido_minimo_itens ?? 0;
     state.form.prazo_entrega_dias = selected?.prazo_entrega_dias ?? 0;
     state.form.comissao_padrao_percentual = selected?.comissao_padrao_percentual ?? 0;
     state.form.politica_troca = selected?.politica_troca || '';
     state.form.aceita_bonificacao = typeof selected?.aceita_bonificacao === 'boolean' ? String(selected.aceita_bonificacao) : '';
     state.form.aceita_consignacao = typeof selected?.aceita_consignacao === 'boolean' ? String(selected.aceita_consignacao) : '';
-    state.form.condicoes_pagamento = selected?.condicoes_pagamento || '';
+    state.form.condicoes_pagamento = normalizePaymentRows(selected?.condicoes_pagamento || []);
     state.form.observacoes_comerciais = selected?.observacoes_comerciais || '';
     state.form.tabela_precos_url = selected?.tabela_precos_url || '';
     state.form.formErrors = {};
@@ -257,14 +242,17 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       const detail = await fetchFabricanteData(apiClient, selected.id);
       state.selected = detail;
       state.form = { ...state.form, ...detail, nome_fantasia: detail.nome || detail.nome_fantasia || state.form.nome_fantasia || '', cnpj: detail.cnpj || '' };
-      state.form.pedido_minimo_display = formatCurrencyFromNumber(detail.pedido_minimo_valor ?? detail.pedido_minimo);
-      state.form.pedido_minimo_valor = detail.pedido_minimo_valor ?? detail.pedido_minimo ?? 0;
+      state.form.pedido_minimo_display = formatCurrencyFromNumber(detail.valor_minimo_duplicata ?? detail.pedido_minimo_valor ?? detail.pedido_minimo);
+      state.form.valor_minimo_duplicata = detail.valor_minimo_duplicata ?? detail.pedido_minimo_valor ?? detail.pedido_minimo ?? 0;
       state.form.pedido_minimo_itens = detail.pedido_minimo_itens ?? 0;
       state.form.prazo_entrega_dias = detail.prazo_entrega_dias ?? 0;
+      state.form.condicoes_pagamento = normalizePaymentRows(detail.condicoes_pagamento || []);
+      state.form.aceita_bonificacao = typeof detail?.aceita_bonificacao === 'boolean' ? String(detail.aceita_bonificacao) : state.form.aceita_bonificacao || '';
+      state.form.aceita_consignacao = typeof detail?.aceita_consignacao === 'boolean' ? String(detail.aceita_consignacao) : state.form.aceita_consignacao || '';
       state.form.logo_preview = isPersistableLogoUrl(detail.logo_url) ? detail.logo_url : state.form.logo_preview || '';
       state.form.responsavel_vendedor_id = detail.responsavel_vendedor_id || '';
       const condicoes = await fetchCondicoesPagamento(apiClient, selected.id);
-      state.form.condicoes_pagamento = (condicoes.items || []).map((row) => row.nome).join('\n');
+      state.form.condicoes_pagamento = normalizePaymentRows(detail.condicoes_pagamento || []);
       render();
     } catch {
       state.error = true;
@@ -430,11 +418,11 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     root.querySelector('[data-form-field="pedido_minimo"]')?.addEventListener('input', (e) => {
       state.form.pedido_minimo_display = String(e.target.value || '');
       const parsed = parseBrlInput(state.form.pedido_minimo_display);
-      state.form.pedido_minimo_valor = parsed ?? 0;
+      state.form.valor_minimo_duplicata = parsed ?? 0;
     });
     root.querySelector('[data-form-field="pedido_minimo"]')?.addEventListener('blur', (e) => {
       const parsed = parseBrlInput(e.target.value);
-      state.form.pedido_minimo_valor = parsed ?? 0;
+      state.form.valor_minimo_duplicata = parsed ?? 0;
       state.form.pedido_minimo_display = parsed === null ? '' : brl(parsed);
       e.target.value = state.form.pedido_minimo_display;
     });
@@ -476,7 +464,14 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       state.saving = true;
       render();
       try {
-        const fabricantePayload = {
+      const paymentRows = (state.form.condicoes_pagamento || []).map((row) => calculatePaymentRow(row.prazo)).filter((row) => row.valid).map((row) => ({ prazo: row.prazo, parcelas: row.parcelas, prazo_medio_dias: row.prazo_medio_dias }));
+      if ((state.form.condicoes_pagamento || []).some((row) => !calculatePaymentRow(row.prazo).valid)) {
+        state.form.formErrors = { ...(state.form.formErrors || {}), condicoes_pagamento: 'Revise as condicoes de pagamento.' };
+        state.saving = false;
+        render();
+        return;
+      }
+      const fabricantePayload = {
           nome: state.form.nome_fantasia || state.form.nome || state.form.razao_social || '',
           cnpj: onlyDigits(state.form.cnpj),
           nome_fantasia: state.form.nome_fantasia || state.form.nome || '',
@@ -493,14 +488,14 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
           uf: state.form.uf || null,
           cep: state.form.cep || null,
           endereco_completo: state.form.endereco_completo || composeEnderecoCompleto(state.form) || null,
-          pedido_minimo_valor: Number.isFinite(Number(state.form.pedido_minimo_valor)) ? Number(state.form.pedido_minimo_valor) : (parseBrlInput(state.form.pedido_minimo_display) ?? 0),
+          valor_minimo_duplicata: Number.isFinite(Number(state.form.valor_minimo_duplicata)) ? Number(state.form.valor_minimo_duplicata) : (parseBrlInput(state.form.pedido_minimo_display) ?? 0),
           pedido_minimo_itens: Number(state.form.pedido_minimo_itens || 0),
           prazo_entrega_dias: Number(state.form.prazo_entrega_dias || 0),
           comissao_padrao_percentual: Number(state.form.comissao_padrao_percentual || 0),
           politica_troca: state.form.politica_troca || null,
           aceita_bonificacao: state.form.aceita_bonificacao === '' ? undefined : state.form.aceita_bonificacao === 'true',
           aceita_consignacao: state.form.aceita_consignacao === '' ? undefined : state.form.aceita_consignacao === 'true',
-          condicoes_pagamento: state.form.condicoes_pagamento || null,
+          condicoes_pagamento: paymentRows,
           observacoes_comerciais: state.form.observacoes_comerciais || null,
           tabela_precos_url: state.form.tabela_precos_url || null,
           observacoes: state.form.observacoes || null,
@@ -539,6 +534,24 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       el.addEventListener('input', (e) => { state.form[key] = e.target.value; });
       el.addEventListener('change', (e) => { state.form[key] = e.target.value; });
     });
+    root.querySelector('[data-payment-add]')?.addEventListener('click', () => {
+      state.form.condicoes_pagamento = [...(state.form.condicoes_pagamento || []), { id: generateRowId(), prazo: '' }];
+      render();
+    });
+    root.querySelectorAll('[data-payment-prazo]').forEach((input) => {
+      input.addEventListener('input', (e) => {
+        const rowId = input.getAttribute('data-payment-prazo');
+        state.form.condicoes_pagamento = (state.form.condicoes_pagamento || []).map((row) => String(row.id) === String(rowId) ? { ...row, prazo: String(e.target.value || '').replace(/\s+/g, '') } : row);
+        render();
+      });
+    });
+    root.querySelectorAll('[data-payment-remove]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const rowId = btn.getAttribute('data-payment-remove');
+        state.form.condicoes_pagamento = (state.form.condicoes_pagamento || []).filter((row) => String(row.id) !== String(rowId));
+        render();
+      });
+    });
   }
 
   function renderFormTab() {
@@ -555,28 +568,14 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     return `<div class="nhf-form-grid"><div class="nhf-field nhf-field-full"><div class="nhf-inline"><label class="nhf-field">CNPJ<input id="nhf-cnpj" value="${formatCnpj(state.form.cnpj || '')}" placeholder="00.000.000/0000-00" maxlength="18" inputmode="numeric"></label><button id="nhf-buscar-cnpj" class="nhf-btn" ${lookupReady ? '' : 'disabled'}>${state.cnpjLookupStatus === 'loading' ? 'Buscando...' : 'Buscar CNPJ'}</button></div><div class="nhf-muted">${cnpjHelp}</div>${state.cnpjMessage ? `<div class="${toneClass} nhf-muted">${state.cnpjMessage}</div>` : ''}</div><div class="nhf-field nhf-field-full"><div class="nhf-section-title">Endereço</div></div><label class="nhf-field"><span>CEP</span><input data-form-field="cep" value="${state.form.cep || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Logradouro</span><input data-form-field="logradouro" value="${state.form.logradouro || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Número</span><input data-form-field="numero" value="${state.form.numero || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Complemento</span><input data-form-field="complemento" value="${state.form.complemento || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Bairro</span><input data-form-field="bairro" value="${state.form.bairro || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Cidade</span><input data-form-field="cidade" value="${state.form.cidade || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>UF</span><input data-form-field="uf" value="${state.form.uf || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field nhf-field-full"><span>Endereço completo</span><textarea data-form-field="endereco_completo" ${locked ? 'disabled' : ''}>${state.form.endereco_completo || composeEnderecoCompleto(state.form)}</textarea></label><label class="nhf-field"><span>Nome fantasia</span><input data-form-field="nome_fantasia" value="${state.form.nome_fantasia || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Razão social</span><input data-form-field="razao_social" value="${state.form.razao_social || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>E-mail comercial</span><input data-form-field="email_comercial" value="${state.form.email_comercial || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Telefone</span><input data-form-field="telefone" value="${state.form.telefone || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Site</span><input data-form-field="site" value="${state.form.site || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Logo</span><input data-form-field="logo_upload" type="file" accept="image/png,image/jpeg,image/webp" ${locked ? 'disabled' : ''}></label><div class="nhf-field"><span>Preview</span><div class="nhf-logo-box">${state.form.logo_preview ? `<img class="nhf-logo-preview" src="${state.form.logo_preview}" alt="Preview do logo">` : '<div class="nhf-muted">Sem logo</div>'}<div class="nhf-logo-meta"><strong>${state.form.logo_file_name || 'Arquivo local'}</strong><span class="nhf-muted">PNG, JPG ou WebP</span></div></div></div><label class="nhf-field"><span>Responsável comercial</span><select data-form-field="responsavel_vendedor_id" ${vendorDisabled ? 'disabled' : ''}>${vendorOptions}</select>${vendorHelp}</label><label class="nhf-field"><span>Região atendida</span><input data-form-field="regiao_atendida" value="${state.form.regiao_atendida || ''}" ${locked ? 'disabled' : ''}></label><label class="nhf-field nhf-field-full"><span>Observações</span><textarea data-form-field="observacoes" ${locked ? 'disabled' : ''}>${state.form.observacoes || ''}</textarea></label><div class="nhf-field nhf-field-full"><button id="nhf-unlock-manual" class="nhf-btn" type="button" ${manualUnlockDisabled ? 'disabled' : ''}>Liberar preenchimento manual</button></div></div>`;
   }
 
-  function updateCondicaoRow(rowId, field, value) {
-    const rows = [...(state.form.condicoes_pagamento || [])];
-    const index = rows.findIndex((row) => String(row.id) === String(rowId));
-    if (index < 0) return;
-    const current = rows[index];
-    const next = normalizeCondicaoRow({ ...current, [field]: value, id: current.id, savedId: current.savedId });
-    rows[index] = next;
-    state.form.condicoes_pagamento = rows;
-    const rowEl = root.querySelector(`tr[data-condicao-id="${String(rowId).replace(/"/g, '&quot;')}"]`);
-    if (!rowEl) return;
-    const parsed = parsePaymentCondition(next.condicao_pagamento);
-    const parcelasInput = rowEl.querySelector('[data-condicao-output="parcelas"]');
-    const prazoInput = rowEl.querySelector('[data-condicao-output="prazo"]');
-    if (parcelasInput) parcelasInput.value = parsed.valid ? String(parsed.parcelas) : String(next.parcelas || '');
-    if (prazoInput) prazoInput.value = parsed.valid ? String(Math.round(parsed.prazoMedio)) : String(next.prazo_medio || '');
-  }
-
   function renderRulesTab() {
     const locked = isLocked();
     const errors = state.form.formErrors || {};
-    const boolOptions = (field) => `<option value="">Selecione</option><option value="true" ${state.form[field] === 'true' ? 'selected' : ''}>Sim</option><option value="false" ${state.form[field] === 'false' ? 'selected' : ''}>Não</option>`;
-    return `<div class="nhf-form-grid"><label class="nhf-field"><span>Valor mínimo do pedido</span><input data-form-field="pedido_minimo" value="${state.form.pedido_minimo_display || formatCurrencyFromNumber(state.form.pedido_minimo_valor ?? 0)}" ${locked ? 'disabled' : ''} inputmode="decimal"><div class="nhf-inline-error">${errors.pedido_minimo_valor || ''}</div></label><label class="nhf-field"><span>Quantidade mínima de itens</span><input data-form-field="pedido_minimo_itens" type="number" min="0" value="${state.form.pedido_minimo_itens ?? 0}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.pedido_minimo_itens || ''}</div></label><label class="nhf-field"><span>Prazo médio de entrega em dias</span><input data-form-field="prazo_entrega_dias" type="number" min="0" value="${state.form.prazo_entrega_dias ?? 0}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.prazo_entrega_dias || ''}</div></label><label class="nhf-field"><span>Comissão padrão %</span><input data-form-field="comissao_padrao_percentual" type="number" min="0" max="100" value="${state.form.comissao_padrao_percentual ?? 0}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.comissao_padrao_percentual || ''}</div></label><label class="nhf-field"><span>Aceita bonificação?</span><select data-form-field="aceita_bonificacao" ${locked ? 'disabled' : ''}>${boolOptions('aceita_bonificacao')}</select></label><label class="nhf-field"><span>Aceita consignação?</span><select data-form-field="aceita_consignacao" ${locked ? 'disabled' : ''}>${boolOptions('aceita_consignacao')}</select></label><label class="nhf-field nhf-field-full"><span>Política de troca</span><textarea data-form-field="politica_troca" ${locked ? 'disabled' : ''}>${state.form.politica_troca || ''}</textarea></label><label class="nhf-field nhf-field-full"><span>Condições de pagamento</span><textarea data-form-field="condicoes_pagamento" ${locked ? 'disabled' : ''}>${state.form.condicoes_pagamento || ''}</textarea></label><label class="nhf-field"><span>URL da tabela de preços</span><input data-form-field="tabela_precos_url" value="${state.form.tabela_precos_url || ''}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.tabela_precos_url || ''}</div></label><label class="nhf-field nhf-field-full"><span>Observações comerciais</span><textarea data-form-field="observacoes_comerciais" ${locked ? 'disabled' : ''}>${state.form.observacoes_comerciais || ''}</textarea></label></div>`;
+    const rows = (state.form.condicoes_pagamento || []).map((row) => {
+      const calc = calculatePaymentRow(row.prazo);
+      return `<div class="nhf-panel" data-payment-row="${row.id}" style="padding:12px"><div class="nhf-inline"><label class="nhf-field"><span>Prazo</span><input data-payment-prazo="${row.id}" value="${row.prazo || ''}" placeholder="30/60/90" ${locked ? 'disabled' : ''}></label><div class="nhf-muted" style="align-self:center">${calc.valid ? `${calc.parcelas} parcelas · prazo médio ${calc.prazo_medio_dias} dias` : 'Digite um prazo valido'}</div><button class="nhf-btn" type="button" data-payment-remove="${row.id}" ${locked ? 'disabled' : ''}>Remover</button></div><div class="nhf-inline-error">${!calc.valid && row.prazo ? 'Formato invalido' : ''}</div></div>`;
+    }).join('');
+    return `<div class="nhf-form-grid"><label class="nhf-field"><span>Valor mínimo por duplicata</span><input data-form-field="pedido_minimo" value="${state.form.pedido_minimo_display || formatCurrencyFromNumber(state.form.valor_minimo_duplicata ?? 0)}" ${locked ? 'disabled' : ''} inputmode="decimal"><div class="nhf-inline-error">${errors.valor_minimo_duplicata || errors.pedido_minimo_valor || ''}</div></label><label class="nhf-field"><span>Quantidade mínima de itens</span><input data-form-field="pedido_minimo_itens" type="number" min="0" value="${state.form.pedido_minimo_itens ?? 0}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.pedido_minimo_itens || ''}</div></label><label class="nhf-field"><span>Prazo médio de entrega em dias</span><input data-form-field="prazo_entrega_dias" type="number" min="0" value="${state.form.prazo_entrega_dias ?? 0}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.prazo_entrega_dias || ''}</div></label><label class="nhf-field"><span>Comissão padrão %</span><input data-form-field="comissao_padrao_percentual" type="number" min="0" max="100" value="${state.form.comissao_padrao_percentual ?? 0}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.comissao_padrao_percentual || ''}</div></label><label class="nhf-field"><span>Aceita bonificação?</span><select data-form-field="aceita_bonificacao" ${locked ? 'disabled' : ''}><option value="">Selecione</option><option value="true" ${state.form.aceita_bonificacao === 'true' ? 'selected' : ''}>Sim</option><option value="false" ${state.form.aceita_bonificacao === 'false' ? 'selected' : ''}>Não</option></select></label><label class="nhf-field"><span>Aceita consignação?</span><select data-form-field="aceita_consignacao" ${locked ? 'disabled' : ''}><option value="">Selecione</option><option value="true" ${state.form.aceita_consignacao === 'true' ? 'selected' : ''}>Sim</option><option value="false" ${state.form.aceita_consignacao === 'false' ? 'selected' : ''}>Não</option></select></label><label class="nhf-field nhf-field-full"><span>Política de troca</span><textarea data-form-field="politica_troca" ${locked ? 'disabled' : ''}>${state.form.politica_troca || ''}</textarea></label><div class="nhf-field nhf-field-full"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><span>Condições de pagamento</span><div class="nhf-muted">Adicione linhas com prazos separados por /.</div></div><button class="nhf-btn" type="button" data-payment-add ${locked ? 'disabled' : ''}>+ Adicionar condição</button></div><div style="display:grid;gap:10px;margin-top:10px">${rows || '<div class="nhf-state">Nenhuma condição cadastrada.</div>'}</div><div class="nhf-inline-error">${errors.condicoes_pagamento || ''}</div></div><label class="nhf-field"><span>URL da tabela de preços</span><input data-form-field="tabela_precos_url" value="${state.form.tabela_precos_url || ''}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.tabela_precos_url || ''}</div></label><label class="nhf-field nhf-field-full"><span>Observações comerciais</span><textarea data-form-field="observacoes_comerciais" ${locked ? 'disabled' : ''}>${state.form.observacoes_comerciais || ''}</textarea></label></div>`;
   }
 
   function renderModal() {

@@ -44,6 +44,37 @@ function normalizeBoolean(value, field) {
   throw new BadRequestError(`Tipo invalido para ${field}`, { domain: 'fabricantes', code: 'BOOLEAN_INVALID' });
 }
 
+function sanitizePaymentConditionInput(value) {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === 'object') return [value];
+  return [];
+}
+
+function normalizePaymentConditionEntry(entry, index = 0) {
+  const prazoRaw = String(entry?.prazo ?? entry?.descricao ?? entry?.condicao_pagamento ?? entry?.nome ?? '').trim().replace(/\s+/g, '');
+  if (!prazoRaw) {
+    throw new BadRequestError(`Condicao de pagamento invalida na linha ${index + 1}`, { domain: 'fabricantes', code: 'CONDICAO_INVALIDA' });
+  }
+  const parts = prazoRaw.split('/').filter(Boolean);
+  if (!parts.length || parts.some((part) => !/^[1-9]\d*$/.test(part))) {
+    throw new BadRequestError(`Condicao de pagamento invalida na linha ${index + 1}`, { domain: 'fabricantes', code: 'CONDICAO_INVALIDA' });
+  }
+  const parcelas = parts.length;
+  const prazoNumeros = parts.map((part) => Number(part));
+  const prazoMedio = Math.round(prazoNumeros.reduce((sum, part) => sum + part, 0) / parcelas);
+  return {
+    id: String(entry?.id || randomUUID()),
+    prazo: parts.join('/'),
+    parcelas,
+    prazo_medio_dias: prazoMedio
+  };
+}
+
+function normalizePaymentConditions(value) {
+  const input = sanitizePaymentConditionInput(value);
+  return input.map((entry, index) => normalizePaymentConditionEntry(entry, index));
+}
+
 function normalizeNullableUuid(value) {
   const raw = String(value || '').trim();
   return raw || null;
@@ -139,6 +170,8 @@ export async function updateFabricanteLogo(id, upload, options = {}) {
 
 function normalizeFabricanteRecord(data = {}, current = null) {
   const base = current || {};
+  const valorMinimoDuplicata = data.valor_minimo_duplicata !== undefined ? data.valor_minimo_duplicata : data.pedido_minimo_valor;
+  const baseValorMinimoDuplicata = base.valor_minimo_duplicata ?? base.pedido_minimo_valor ?? base.pedido_minimo ?? 0;
   const payload = {
     nome: data.nome !== undefined ? String(data.nome || '').trim() : base.nome,
     razao_social: data.razao_social !== undefined ? (data.razao_social || null) : base.razao_social || null,
@@ -157,18 +190,19 @@ function normalizeFabricanteRecord(data = {}, current = null) {
     endereco_completo: data.endereco_completo !== undefined ? (data.endereco_completo || null) : base.endereco_completo || null,
     logo_url: data.logo_url !== undefined ? sanitizeLogoUrl(data.logo_url) : sanitizeLogoUrl(base.logo_url),
     status: data.status !== undefined ? (data.status === 'inativo' ? 'inativo' : 'ativo') : base.status || 'ativo',
-    pedido_minimo_valor: data.pedido_minimo_valor !== undefined ? normalizeNonNegativeNumber(data.pedido_minimo_valor, 'pedido_minimo_valor') : normalizeNonNegativeNumber(base.pedido_minimo_valor ?? base.pedido_minimo ?? 0, 'pedido_minimo_valor'),
+    valor_minimo_duplicata: valorMinimoDuplicata !== undefined ? normalizeNonNegativeNumber(valorMinimoDuplicata, 'valor_minimo_duplicata') : normalizeNonNegativeNumber(baseValorMinimoDuplicata, 'valor_minimo_duplicata'),
+    pedido_minimo_valor: valorMinimoDuplicata !== undefined ? normalizeNonNegativeNumber(valorMinimoDuplicata, 'pedido_minimo_valor') : normalizeNonNegativeNumber(baseValorMinimoDuplicata, 'pedido_minimo_valor'),
     pedido_minimo_itens: data.pedido_minimo_itens !== undefined ? Math.floor(normalizeNonNegativeNumber(data.pedido_minimo_itens, 'pedido_minimo_itens')) : Math.floor(normalizeNonNegativeNumber(base.pedido_minimo_itens ?? 0, 'pedido_minimo_itens')),
     prazo_entrega_dias: data.prazo_entrega_dias !== undefined ? Math.floor(normalizeNonNegativeNumber(data.prazo_entrega_dias, 'prazo_entrega_dias')) : Math.floor(normalizeNonNegativeNumber(base.prazo_entrega_dias ?? 0, 'prazo_entrega_dias')),
     comissao_padrao_percentual: data.comissao_padrao_percentual !== undefined ? normalizePercent(data.comissao_padrao_percentual) : normalizePercent(base.comissao_padrao_percentual ?? 0),
     politica_troca: data.politica_troca !== undefined ? (data.politica_troca || null) : base.politica_troca || null,
     aceita_bonificacao: data.aceita_bonificacao !== undefined ? normalizeBoolean(data.aceita_bonificacao, 'aceita_bonificacao') : (typeof base.aceita_bonificacao === 'boolean' ? base.aceita_bonificacao : false),
     aceita_consignacao: data.aceita_consignacao !== undefined ? normalizeBoolean(data.aceita_consignacao, 'aceita_consignacao') : (typeof base.aceita_consignacao === 'boolean' ? base.aceita_consignacao : false),
-    condicoes_pagamento: data.condicoes_pagamento !== undefined ? (data.condicoes_pagamento || null) : base.condicoes_pagamento || null,
+    condicoes_pagamento: data.condicoes_pagamento !== undefined ? normalizePaymentConditions(data.condicoes_pagamento) : normalizePaymentConditions(base.condicoes_pagamento || []),
     observacoes_comerciais: data.observacoes_comerciais !== undefined ? (data.observacoes_comerciais || null) : base.observacoes_comerciais || null,
     tabela_precos_url: data.tabela_precos_url !== undefined ? (data.tabela_precos_url || null) : base.tabela_precos_url || null,
     observacoes: data.observacoes !== undefined ? (data.observacoes || null) : base.observacoes || null,
-    pedido_minimo: data.pedido_minimo_valor !== undefined ? normalizeNonNegativeNumber(data.pedido_minimo_valor, 'pedido_minimo') : normalizeNonNegativeNumber(base.pedido_minimo_valor ?? base.pedido_minimo ?? 0, 'pedido_minimo'),
+    pedido_minimo: valorMinimoDuplicata !== undefined ? normalizeNonNegativeNumber(valorMinimoDuplicata, 'pedido_minimo') : normalizeNonNegativeNumber(baseValorMinimoDuplicata, 'pedido_minimo'),
     boleto_minimo: data.pedido_minimo_itens !== undefined ? Math.floor(normalizeNonNegativeNumber(data.pedido_minimo_itens, 'boleto_minimo')) : Math.floor(normalizeNonNegativeNumber(base.pedido_minimo_itens ?? base.boleto_minimo ?? 0, 'boleto_minimo')),
     updated_at: new Date().toISOString()
   };
@@ -282,7 +316,7 @@ function findDuplicateCondicao(accountId, fabricanteId, payload, excludeId = nul
 }
 
 function assertCommercialRules(data = {}) {
-  for (const field of ['pedido_minimo_valor', 'pedido_minimo_itens', 'prazo_entrega_dias', 'comissao_padrao_percentual']) {
+  for (const field of ['valor_minimo_duplicata', 'pedido_minimo_valor', 'pedido_minimo_itens', 'prazo_entrega_dias', 'comissao_padrao_percentual']) {
     if (data[field] !== undefined && data[field] !== null) {
       const num = Number(data[field]);
       if (!Number.isFinite(num) || num < 0) {
@@ -373,17 +407,18 @@ export async function createFabricante(data, options = {}) {
     endereco_completo: data.endereco_completo || composeEnderecoCompleto(data),
     logo_url: sanitizeLogoUrl(data.logo_url),
     status: data.status === 'inativo' ? 'inativo' : 'ativo',
-    pedido_minimo_valor: normalizeNonNegativeNumber(data.pedido_minimo_valor ?? data.pedido_minimo ?? 0, 'pedido_minimo_valor'),
+    valor_minimo_duplicata: normalizeNonNegativeNumber(data.valor_minimo_duplicata ?? data.pedido_minimo_valor ?? data.pedido_minimo ?? 0, 'valor_minimo_duplicata'),
+    pedido_minimo_valor: normalizeNonNegativeNumber(data.valor_minimo_duplicata ?? data.pedido_minimo_valor ?? data.pedido_minimo ?? 0, 'pedido_minimo_valor'),
     pedido_minimo_itens: Math.floor(normalizeNonNegativeNumber(data.pedido_minimo_itens ?? 0, 'pedido_minimo_itens')),
     prazo_entrega_dias: Math.floor(normalizeNonNegativeNumber(data.prazo_entrega_dias ?? 0, 'prazo_entrega_dias')),
     comissao_padrao_percentual: normalizePercent(data.comissao_padrao_percentual ?? 0),
     politica_troca: data.politica_troca || null,
     aceita_bonificacao: typeof data.aceita_bonificacao === 'boolean' ? data.aceita_bonificacao : false,
     aceita_consignacao: typeof data.aceita_consignacao === 'boolean' ? data.aceita_consignacao : false,
-    condicoes_pagamento: data.condicoes_pagamento || null,
+    condicoes_pagamento: normalizePaymentConditions(data.condicoes_pagamento || []),
     observacoes_comerciais: data.observacoes_comerciais || null,
     tabela_precos_url: data.tabela_precos_url || null,
-    pedido_minimo: normalizeNonNegativeNumber(data.pedido_minimo_valor ?? data.pedido_minimo ?? 0, 'pedido_minimo'),
+    pedido_minimo: normalizeNonNegativeNumber(data.valor_minimo_duplicata ?? data.pedido_minimo_valor ?? data.pedido_minimo ?? 0, 'pedido_minimo'),
     boleto_minimo: Math.floor(normalizeNonNegativeNumber(data.pedido_minimo_itens ?? data.boleto_minimo ?? 0, 'boleto_minimo')),
     observacoes: data.observacoes || null
   };
@@ -463,137 +498,46 @@ export async function updateFabricante(id, data, options = {}) {
   }
   if (!payload.nome) throw new BadRequestError('Nome obrigatorio', { domain: 'fabricantes' });
   if (findDuplicateFabricante(accountId, payload, id)) throw new ConflictError('Fabricante duplicado', { domain: 'fabricantes', code: 'FABRICANTE_DUPLICADO' });
-  memoryFabricantes[idx] = payload;
-  return (await attachResponsibleVendor(accountId, [payload]))[0];
+  memoryFabricantes[idx] = { ...current, ...payload, account_id: accountId, id };
+  return (await attachResponsibleVendor(accountId, [memoryFabricantes[idx]]))[0];
 }
 
 export async function listCondicoesPagamento(fabricanteId, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-
-  if (isSupabaseMode()) {
-    const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data, error } = await supabase.from('fabricante_condicoes_pagamento').select('*').eq('account_id', accountId).eq('fabricante_id', fabricanteId).order('created_at', { ascending: false });
-    if (error) throw new DatabaseError('Falha ao listar condicoes de pagamento', { details: error });
-    return { items: data || [], total: (data || []).length };
-  }
-
-  return { items: memoryCondicoes.filter((item) => item.account_id === accountId && item.fabricante_id === fabricanteId), total: memoryCondicoes.length };
+  const fabricante = await getFabricanteById(fabricanteId, { accountId });
+  return { items: normalizePaymentConditions(fabricante.condicoes_pagamento || []), total: (fabricante.condicoes_pagamento || []).length };
 }
 
 export async function createCondicaoPagamento(fabricanteId, data, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-  await getFabricanteById(fabricanteId, { accountId });
-  for (const field of ['parcelas', 'prazo_medio_dias', 'valor_minimo', 'percentual_acrescimo']) {
-    if (data[field] !== undefined && data[field] !== null && Number(data[field]) < 0) {
-      throw new BadRequestError('Valores invalidos', { domain: 'fabricantes' });
-    }
-  }
-  const payload = {
-    account_id: accountId,
-    fabricante_id: fabricanteId,
-    nome: String(data.nome || '').trim(),
-    codigo: data.codigo || null,
-    parcelas: Math.max(1, Math.floor(normalizeNumber(data.parcelas, 1))),
-    prazo_medio_dias: normalizeNumber(data.prazo_medio_dias, 0),
-    valor_minimo: normalizeNumber(data.valor_minimo, 0),
-    percentual_acrescimo: normalizeNumber(data.percentual_acrescimo, 0),
-    ativo: typeof data.ativo === 'boolean' ? data.ativo : true,
-    observacoes: data.observacoes || null
-  };
-  if (!payload.nome) throw new BadRequestError('Nome obrigatorio', { domain: 'fabricantes' });
-  if (findDuplicateCondicao(accountId, fabricanteId, payload)) throw new ConflictError('Condicao duplicada', { domain: 'fabricantes', code: 'CONDICAO_DUPLICADA' });
-
-  if (isSupabaseMode()) {
-    const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data: inserted, error } = await supabase.from('fabricante_condicoes_pagamento').insert(payload).select('*').single();
-    if (error) throw new DatabaseError('Falha ao criar condicao de pagamento', { details: error });
-    return inserted;
-  }
-
-  const item = { id: randomUUID(), ...payload, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
-  memoryCondicoes.push(item);
-  return item;
+  const current = await getFabricanteById(fabricanteId, { accountId });
+  const normalized = normalizePaymentConditions([data])[0];
+  const payload = [...(current.condicoes_pagamento || []), normalized];
+  return updateFabricante(fabricanteId, { condicoes_pagamento: payload }, { accountId });
 }
 
 export async function updateCondicaoPagamento(fabricanteId, condicaoId, data, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-  for (const field of ['parcelas', 'prazo_medio_dias', 'valor_minimo', 'percentual_acrescimo']) {
-    if (data[field] !== undefined && data[field] !== null && Number(data[field]) < 0) {
-      throw new BadRequestError('Valores invalidos', { domain: 'fabricantes' });
-    }
-  }
-
-  if (isSupabaseMode()) {
-    const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const current = (await listCondicoesPagamento(fabricanteId, { accountId })).items.find((item) => item.id === condicaoId);
-    if (!current) throw new NotFoundError('Condicao nao encontrada', { domain: 'fabricantes', code: 'CONDICAO_NOT_FOUND' });
-    const payload = {
-      ...(data.nome !== undefined ? { nome: String(data.nome || '').trim() } : {}),
-      ...(data.codigo !== undefined ? { codigo: data.codigo || null } : {}),
-      ...(data.parcelas !== undefined ? { parcelas: Math.max(1, Math.floor(normalizeNumber(data.parcelas, 1))) } : {}),
-      ...(data.prazo_medio_dias !== undefined ? { prazo_medio_dias: normalizeNumber(data.prazo_medio_dias, 0) } : {}),
-      ...(data.valor_minimo !== undefined ? { valor_minimo: normalizeNumber(data.valor_minimo, 0) } : {}),
-      ...(data.percentual_acrescimo !== undefined ? { percentual_acrescimo: normalizeNumber(data.percentual_acrescimo, 0) } : {}),
-      ...(data.ativo !== undefined ? { ativo: Boolean(data.ativo) } : {}),
-      ...(data.observacoes !== undefined ? { observacoes: data.observacoes || null } : {}),
-      updated_at: new Date().toISOString()
-    };
-    const next = { ...current, ...payload };
-    if (!next.nome) throw new BadRequestError('Nome obrigatorio', { domain: 'fabricantes' });
-    if (findDuplicateCondicao(accountId, fabricanteId, next, condicaoId)) throw new ConflictError('Condicao duplicada', { domain: 'fabricantes', code: 'CONDICAO_DUPLICADA' });
-    const { data: updated, error } = await supabase.from('fabricante_condicoes_pagamento').update(payload).eq('id', condicaoId).eq('account_id', accountId).eq('fabricante_id', fabricanteId).select('*').single();
-    if (error) throw new DatabaseError('Falha ao atualizar condicao de pagamento', { details: error });
-    return updated;
-  }
-
-  const idx = memoryCondicoes.findIndex((row) => row.id === condicaoId && row.account_id === accountId && row.fabricante_id === fabricanteId);
+  const current = await getFabricanteById(fabricanteId, { accountId });
+  const items = normalizePaymentConditions(current.condicoes_pagamento || []);
+  const idx = items.findIndex((row, rowIndex) => String(row.id || rowIndex) === String(condicaoId));
   if (idx < 0) throw new NotFoundError('Condicao nao encontrada', { domain: 'fabricantes', code: 'CONDICAO_NOT_FOUND' });
-  const current = memoryCondicoes[idx];
-  const payload = {
-    ...current,
-    ...(data.nome !== undefined ? { nome: String(data.nome || '').trim() } : {}),
-    ...(data.codigo !== undefined ? { codigo: data.codigo || null } : {}),
-    ...(data.parcelas !== undefined ? { parcelas: Math.max(1, Math.floor(normalizeNumber(data.parcelas, 1))) } : {}),
-    ...(data.prazo_medio_dias !== undefined ? { prazo_medio_dias: normalizeNumber(data.prazo_medio_dias, 0) } : {}),
-    ...(data.valor_minimo !== undefined ? { valor_minimo: normalizeNumber(data.valor_minimo, 0) } : {}),
-    ...(data.percentual_acrescimo !== undefined ? { percentual_acrescimo: normalizeNumber(data.percentual_acrescimo, 0) } : {}),
-    ...(data.ativo !== undefined ? { ativo: Boolean(data.ativo) } : {}),
-    ...(data.observacoes !== undefined ? { observacoes: data.observacoes || null } : {}),
-    updated_at: new Date().toISOString()
-  };
-  if (!payload.nome) throw new BadRequestError('Nome obrigatorio', { domain: 'fabricantes' });
-  if (findDuplicateCondicao(accountId, fabricanteId, payload, condicaoId)) throw new ConflictError('Condicao duplicada', { domain: 'fabricantes', code: 'CONDICAO_DUPLICADA' });
-  memoryCondicoes[idx] = payload;
-  return payload;
+  const next = normalizePaymentConditionEntry({ ...(items[idx] || {}), ...data }, idx);
+  const updated = [...items];
+  updated[idx] = { ...updated[idx], ...next };
+  return updateFabricante(fabricanteId, { condicoes_pagamento: updated }, { accountId });
 }
 
 export async function deleteCondicaoPagamento(fabricanteId, condicaoId, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-
-  if (isSupabaseMode()) {
-    const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { error } = await supabase
-      .from('fabricante_condicoes_pagamento')
-      .delete()
-      .eq('id', condicaoId)
-      .eq('account_id', accountId)
-      .eq('fabricante_id', fabricanteId);
-    if (error) throw new DatabaseError('Falha ao excluir condicao de pagamento', { details: error });
-    return { ok: true };
-  }
-
-  const idx = memoryCondicoes.findIndex((row) => row.id === condicaoId && row.account_id === accountId && row.fabricante_id === fabricanteId);
-  if (idx < 0) throw new NotFoundError('Condicao nao encontrada', { domain: 'fabricantes', code: 'CONDICAO_NOT_FOUND' });
-  memoryCondicoes.splice(idx, 1);
-  return { ok: true };
+  const current = await getFabricanteById(fabricanteId, { accountId });
+  const items = normalizePaymentConditions(current.condicoes_pagamento || []);
+  const updated = items.filter((row, index) => String(row.id || index) !== String(condicaoId));
+  return updateFabricante(fabricanteId, { condicoes_pagamento: updated }, { accountId });
 }
 
 export function __resetMemoryFabricantesForTests() {

@@ -92,14 +92,15 @@ function normalizeFabricantePayload(body = {}) {
     logo_url: resolvedLogoUrl,
     logo_upload: body?.logo_upload || null,
     status: body?.status,
-    pedido_minimo_valor: body?.pedido_minimo_valor,
+    valor_minimo_duplicata: body?.valor_minimo_duplicata ?? body?.pedido_minimo_valor,
+    pedido_minimo_valor: body?.pedido_minimo_valor ?? body?.valor_minimo_duplicata,
     pedido_minimo_itens: body?.pedido_minimo_itens,
     prazo_entrega_dias: body?.prazo_entrega_dias,
     comissao_padrao_percentual: body?.comissao_padrao_percentual,
     politica_troca: body?.politica_troca || null,
     aceita_bonificacao: body?.aceita_bonificacao,
     aceita_consignacao: body?.aceita_consignacao,
-    condicoes_pagamento: body?.condicoes_pagamento || null,
+    condicoes_pagamento: body?.condicoes_pagamento || [],
     observacoes_comerciais: body?.observacoes_comerciais || null,
     tabela_precos_url: body?.tabela_precos_url || null,
     observacoes: body?.observacoes || null,
@@ -144,14 +145,15 @@ function normalizeFabricantePatchPayload(body = {}) {
   if (body?.logo_url !== undefined) payload.logo_url = String(body.logo_url || '').trim();
   if (body?.logo_upload !== undefined) payload.logo_upload = body.logo_upload;
   if (body?.status !== undefined) payload.status = body.status;
-  if (body?.pedido_minimo_valor !== undefined) payload.pedido_minimo_valor = body.pedido_minimo_valor;
+  if (body?.valor_minimo_duplicata !== undefined || body?.pedido_minimo_valor !== undefined) payload.valor_minimo_duplicata = body?.valor_minimo_duplicata ?? body?.pedido_minimo_valor;
+  if (body?.pedido_minimo_valor !== undefined || body?.valor_minimo_duplicata !== undefined) payload.pedido_minimo_valor = body?.pedido_minimo_valor ?? body?.valor_minimo_duplicata;
   if (body?.pedido_minimo_itens !== undefined) payload.pedido_minimo_itens = body.pedido_minimo_itens;
   if (body?.prazo_entrega_dias !== undefined) payload.prazo_entrega_dias = body.prazo_entrega_dias;
   if (body?.comissao_padrao_percentual !== undefined) payload.comissao_padrao_percentual = body.comissao_padrao_percentual;
   if (body?.politica_troca !== undefined) payload.politica_troca = body.politica_troca || null;
   if (body?.aceita_bonificacao !== undefined) payload.aceita_bonificacao = body.aceita_bonificacao;
   if (body?.aceita_consignacao !== undefined) payload.aceita_consignacao = body.aceita_consignacao;
-  if (body?.condicoes_pagamento !== undefined) payload.condicoes_pagamento = body.condicoes_pagamento || null;
+  if (body?.condicoes_pagamento !== undefined) payload.condicoes_pagamento = body.condicoes_pagamento || [];
   if (body?.observacoes_comerciais !== undefined) payload.observacoes_comerciais = body.observacoes_comerciais || null;
   if (body?.tabela_precos_url !== undefined) payload.tabela_precos_url = body.tabela_precos_url || null;
   if (body?.observacoes !== undefined) payload.observacoes = body.observacoes || null;

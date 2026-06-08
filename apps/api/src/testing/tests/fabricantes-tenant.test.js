@@ -56,7 +56,7 @@ export function getFabricantesTenantTests() {
       name: 'POST /fabricantes com tenant cria item no account correto',
       run: async () => {
         const app = createApiApp();
-        const { res, body } = await call(app, { method: 'POST', url: '/fabricantes', role: 'owner', accountId: 'acc-fab-write', body: { nome: 'Fab Real', site: 'https://fabreal.com', email_comercial: 'contato@fabreal.com', telefone: '11999990000', regiao_atendida: 'BR', logradouro: 'Rua C', numero: '30', complemento: 'Sala 2', bairro: 'Centro', cidade: 'Sao Paulo', uf: 'SP', cep: '03000000' } });
+        const { res, body } = await call(app, { method: 'POST', url: '/fabricantes', role: 'owner', accountId: 'acc-fab-write', body: { nome: 'Fab Real', site: 'https://fabreal.com', email_comercial: 'contato@fabreal.com', telefone: '11999990000', regiao_atendida: 'BR', logradouro: 'Rua C', numero: '30', complemento: 'Sala 2', bairro: 'Centro', cidade: 'Sao Paulo', uf: 'SP', cep: '03000000', account_id: 'malicioso', condicoes_pagamento: [{ prazo: '30/60/90' }] } });
         assertEqual(res.statusCode, 200);
         assertEqual(body.account_id, 'acc-fab-write');
         assertEqual(body.site, 'https://fabreal.com');
@@ -64,6 +64,9 @@ export function getFabricantesTenantTests() {
         assertEqual(body.telefone, '11999990000');
         assertEqual(body.regiao_atendida, 'BR');
         assertEqual(body.logradouro, 'Rua C');
+        assertEqual(Array.isArray(body.condicoes_pagamento), true);
+        assertEqual(body.condicoes_pagamento[0].parcelas, 3);
+        assertEqual(body.condicoes_pagamento[0].prazo_medio_dias, 60);
       }
     },
     {

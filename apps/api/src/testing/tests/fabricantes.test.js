@@ -31,6 +31,17 @@ export function getFabricantesTests() {
       assert.equal(updated.regiao_atendida, 'SP');
       assert.equal(updated.logradouro, 'Rua A');
     } },
+    { name: 'persiste regras comerciais', run: async () => {
+      __resetMemoryFabricantesForTests();
+      const created = await createFabricante({ nome: 'Fabrica Regras', valor_minimo_duplicata: 1000, aceita_bonificacao: true, aceita_consignacao: true }, { accountId: 'acc-1' });
+      assert.equal(created.valor_minimo_duplicata, 1000);
+      assert.equal(created.aceita_bonificacao, true);
+      assert.equal(created.aceita_consignacao, true);
+      const updated = await updateFabricante(created.id, { valor_minimo_duplicata: 1500, aceita_bonificacao: false, aceita_consignacao: false }, { accountId: 'acc-1' });
+      assert.equal(updated.valor_minimo_duplicata, 1500);
+      assert.equal(updated.aceita_bonificacao, false);
+      assert.equal(updated.aceita_consignacao, false);
+    } },
     { name: 'cria fabricante com contato e site', run: async () => {
       __resetMemoryFabricantesForTests();
       const created = await createFabricante({ nome: 'Fabrica C2', site: 'https://site.com', email_comercial: 'c2@site.com', telefone: '1133334444', regiao_atendida: 'BR', logradouro: 'Rua B', numero: '20', complemento: 'Apto 1', bairro: 'Centro', cidade: 'São Paulo', uf: 'SP', cep: '02000-000' }, { accountId: 'acc-1' });
@@ -53,18 +64,26 @@ export function getFabricantesTests() {
       __resetMemoryFabricantesForTests();
       await assert.rejects(() => createFabricante({ nome: 'Fabrica F', pedido_minimo: -1 }, { accountId: 'acc-1' }));
     } },
-    { name: 'cria condição pagamento', run: async () => {
+    { name: 'cria condição pagamento estruturada', run: async () => {
       __resetMemoryFabricantesForTests();
       const fab = await createFabricante({ nome: 'Fabrica G' }, { accountId: 'acc-1' });
-      const cond = await createCondicaoPagamento(fab.id, { nome: '30 dias', parcelas: 3, valor_minimo: 100 }, { accountId: 'acc-1' });
-      assert.equal(cond.parcelas, 3);
+      const cond = await createCondicaoPagamento(fab.id, { prazo: '30/60/90' }, { accountId: 'acc-1' });
+      assert.equal(cond.condicoes_pagamento[0].parcelas, 3);
+      assert.equal(cond.condicoes_pagamento[0].prazo_medio_dias, 60);
     } },
-    { name: 'edita condição pagamento', run: async () => {
+    { name: 'edita condição pagamento estruturada', run: async () => {
       __resetMemoryFabricantesForTests();
       const fab = await createFabricante({ nome: 'Fabrica H' }, { accountId: 'acc-1' });
-      const cond = await createCondicaoPagamento(fab.id, { nome: '30 dias' }, { accountId: 'acc-1' });
-      const updated = await updateCondicaoPagamento(fab.id, cond.id, { ativo: false }, { accountId: 'acc-1' });
-      assert.equal(updated.ativo, false);
+      const created = await createCondicaoPagamento(fab.id, { prazo: '30/60' }, { accountId: 'acc-1' });
+      const condId = created.condicoes_pagamento[0].id;
+      const updated = await updateCondicaoPagamento(fab.id, condId, { prazo: '28/35/42/49' }, { accountId: 'acc-1' });
+      assert.equal(updated.condicoes_pagamento[0].parcelas, 4);
+      assert.equal(updated.condicoes_pagamento[0].prazo_medio_dias, 39);
+    } },
+    { name: 'rejeita prazo invalido', run: async () => {
+      __resetMemoryFabricantesForTests();
+      const fab = await createFabricante({ nome: 'Fabrica H2' }, { accountId: 'acc-1' });
+      await assert.rejects(() => createCondicaoPagamento(fab.id, { prazo: '30/0' }, { accountId: 'acc-1' }));
     } },
     { name: 'tenant isolation', run: async () => {
       __resetMemoryFabricantesForTests();
