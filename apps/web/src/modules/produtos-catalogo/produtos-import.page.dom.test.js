@@ -44,13 +44,14 @@ test('produtos import page renders preview and execution states', async () => {
   const previewCall = calls.find((call) => call.path === '/produtos/importar-estoque/preview');
   assert.ok(previewCall?.body instanceof FormData);
   assert.equal(previewCall.body.get('fabricante_id'), '550e8400-e29b-41d4-a716-446655440001');
-  assert.ok(previewCall.body.get('file'));
-  assert.equal(previewCall.body.get('file').name, 'Estoque_288.xlsx');
-  assert.equal(previewCall.body.get('file').size > 0, true);
+  const previewFile = previewCall.body.get('file');
+  assert.ok(previewFile instanceof Blob || previewFile instanceof File);
+  assert.equal(previewFile.name, 'Estoque_288.xlsx');
+  assert.equal(previewFile.size > 0, true);
   assert.doesNotThrow(() => {
     const fd = new FormData();
-    fd.append('file', fileBlob, fileBlob.name);
     fd.append('fabricante_id', '550e8400-e29b-41d4-a716-446655440001');
+    fd.append('file', fileBlob, fileBlob.name);
   });
   document.querySelector('#npi-run').click();
   await flush();

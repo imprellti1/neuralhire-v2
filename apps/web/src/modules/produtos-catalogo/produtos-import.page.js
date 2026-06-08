@@ -30,8 +30,8 @@ async function fileToFormData(file, fabricanteId) {
     throw new TypeError('Selecione um arquivo XLSX antes de continuar.');
   }
 
+  fd.append('fabricante_id', String(fabricanteId || '').trim());
   fd.append('file', file, fallbackName);
-  fd.append('fabricante_id', String(fabricanteId));
   return fd;
 }
 
