@@ -13,6 +13,22 @@ const USAGE_STEP = 5;
 export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
   const state = createProdutoDetailsState();
 
+  async function loadFabricantes() {
+    state.fabricantesLoading = true;
+    state.fabricantesError = '';
+    render();
+    try {
+      const response = await apiClient.get('/fabricantes', { status: 'ativo', limit: 100, page: 1 });
+      state.fabricantes = Array.isArray(response?.items) ? response.items : [];
+    } catch {
+      state.fabricantes = [];
+      state.fabricantesError = 'Não foi possível carregar as fábricas.';
+    } finally {
+      state.fabricantesLoading = false;
+      render();
+    }
+  }
+
   function injectStyles() {
     if (document.getElementById('nh-produto-details-style')) return;
     const style = document.createElement('style');
@@ -46,6 +62,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
       <label class="nhpd-field">Nome<input id="nhpd-nome" value="${state.form.nome || ''}" ${state.saving ? 'disabled' : ''}/>${state.fieldErrors.nome ? `<span class="nhpd-ferr">${state.fieldErrors.nome}</span>` : ''}</label>
       <label class="nhpd-field">SKU<input id="nhpd-sku" value="${state.form.sku || ''}" ${state.saving ? 'disabled' : ''}/></label>
       <label class="nhpd-field">Categoria<input id="nhpd-categoria" value="${state.form.categoria || ''}" ${state.saving ? 'disabled' : ''}/></label>
+      <label class="nhpd-field">Fábrica<select id="nhpd-fabricante_id" ${state.saving ? 'disabled' : ''}><option value="">Sem fábrica vinculada</option>${(state.fabricantes || []).map((fab) => `<option value="${fab.id}" ${String(state.form.fabricante_id || '') === String(fab.id) ? 'selected' : ''}>${fab.nome || '-'}</option>`).join('')}</select>${state.fabricantesError ? `<span class="nhpd-ferr">${state.fabricantesError}</span>` : ''}</label>
       <label class="nhpd-field">Preço<input id="nhpd-preco" value="${state.form.preco || ''}" ${state.saving ? 'disabled' : ''}/>${state.fieldErrors.preco ? `<span class="nhpd-ferr">${state.fieldErrors.preco}</span>` : ''}</label>
       <label class="nhpd-field">Status<select id="nhpd-status" ${state.saving ? 'disabled' : ''}><option value="ativo" ${state.form.status === 'ativo' ? 'selected' : ''}>ativo</option><option value="inativo" ${state.form.status === 'inativo' ? 'selected' : ''}>inativo</option></select>${state.fieldErrors.status ? `<span class="nhpd-ferr">${state.fieldErrors.status}</span>` : ''}</label>
       <label class="nhpd-field">Descrição<textarea id="nhpd-descricao" ${state.saving ? 'disabled' : ''}>${state.form.descricao || ''}</textarea></label>
@@ -65,6 +82,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
       </div>
       <div class="nhpd-grid">
         ${state.editing ? renderEditForm() : `<article class="nhpd-card"><h3>Resumo do Produto</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Nome</dt><dd class="nhpd-dd">${d.nomeExibicao}</dd><dt class="nhpd-dt">SKU</dt><dd class="nhpd-dd">${d.sku}</dd><dt class="nhpd-dt">Categoria</dt><dd class="nhpd-dd">${d.categoria}</dd><dt class="nhpd-dt">Status</dt><dd class="nhpd-dd">${d.status}</dd><dt class="nhpd-dt">Descrição</dt><dd class="nhpd-dd">${d.descricao}</dd></dl></article>`}
+        <article class="nhpd-card"><h3>Fábrica vinculada</h3>${d.fabricanteId ? `<div style="display:flex;gap:12px;align-items:center;margin-bottom:10px">${d.fabricanteLogoUrl ? `<img src="${d.fabricanteLogoUrl}" alt="Logo da fábrica" style="width:64px;height:48px;object-fit:contain;border:1px solid #e5ecf8;border-radius:10px;padding:4px;background:#fff"/>` : '<div style="width:64px;height:48px;border:1px solid #e5ecf8;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#61708f">Sem logo</div>'}<div><strong>${d.fabricanteNome || 'Sem nome'}</strong><div style="color:#61708f;font-size:13px">${d.regrasComerciaisFabricante?.responsavel_comercial_nome || 'Sem responsável comercial'}</div></div></div><dl class="nhpd-dl"><dt class="nhpd-dt">CNPJ</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante?.cnpj || d.fabricanteCnpj || '-'}</dd><dt class="nhpd-dt">Pedido mínimo</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante ? brl(d.regrasComerciaisFabricante.pedido_minimo) : '-'}</dd><dt class="nhpd-dt">Duplicata mínima</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante ? brl(d.regrasComerciaisFabricante.duplicata_minima) : '-'}</dd><dt class="nhpd-dt">Comissão padrão</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante ? `${Number(d.regrasComerciaisFabricante.comissao_padrao || 0)}%` : '-'}</dd><dt class="nhpd-dt">Condição de pagamento</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante?.condicoes_pagamento?.[0]?.prazo || '-'}</dd><dt class="nhpd-dt">Bonificação</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante ? (d.regrasComerciaisFabricante.aceita_bonificacao ? 'Sim' : 'Não') : '-'}</dd><dt class="nhpd-dt">Consignação</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante ? (d.regrasComerciaisFabricante.aceita_consignacao ? 'Sim' : 'Não') : '-'}</dd></dl>` : '<div class="nhpd-state">Sem fábrica vinculada.</div>'}</article>
         <article class="nhpd-card"><h3>Preço e Comercial</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Preço atual</dt><dd class="nhpd-dd">${d.precoFormatado}</dd><dt class="nhpd-dt">Status comercial</dt><dd class="nhpd-dd">${d.status}</dd><dt class="nhpd-dt">Ativo/Inativo</dt><dd class="nhpd-dd">${d.ativo ? 'Ativo' : 'Inativo'}</dd></dl></article>
         <article class="nhpd-card"><h3>Auditoria</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Criado em</dt><dd class="nhpd-dd">${d.criadoEmFormatado}</dd><dt class="nhpd-dt">Atualizado em</dt><dd class="nhpd-dd">${d.atualizadoEmFormatado}</dd><dt class="nhpd-dt">ID técnico</dt><dd class="nhpd-dd">${d.idTecnicoAbreviado}</dd></dl></article>
         <article class="nhpd-card"><h3>Uso em Pedidos / Histórico comercial</h3>${renderUsageBlock()}</article>
@@ -119,6 +137,8 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     });
     const status = root.querySelector('#nhpd-status');
     if (status) status.onchange = (e) => { state.form.status = e.target.value || 'ativo'; };
+    const fabricante = root.querySelector('#nhpd-fabricante_id');
+    if (fabricante) fabricante.onchange = (e) => { state.form.fabricante_id = e.target.value || ''; };
 
     const cancel = root.querySelector('#nhpd-cancel-edit');
     if (cancel) cancel.onclick = () => { state.editing = false; state.form = createProdutoEditForm(state.data); state.fieldErrors = {}; state.feedbackMessage = ''; render(); };
@@ -227,6 +247,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
       state.form = createProdutoEditForm(state.data);
       if (!state?.data?.id) state.notFound = true;
       if (options.feedbackMessage) state.feedbackMessage = options.feedbackMessage;
+      loadFabricantes();
       loadUsage();
     } catch (error) {
       if (error?.status === 404) state.notFound = true;

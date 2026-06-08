@@ -51,8 +51,7 @@ export async function searchProdutosHandler(context = {}) {
 export async function createProdutoHandler(context = {}) {
   const accountId = getAccountIdFromContext(context);
   const body = { ...(context.body || {}) };
-  delete body.account_id;
-  delete body.accountId;
+  delete body.account_id; delete body.accountId; delete body.tenant_id; delete body.tenantId; delete body.owner_user_id; delete body.ownerUserId;
   const item = await createProduto(body, { accountId });
   return { ok: true, repositoryMode: getProdutosRepositoryMode(), item };
 }

@@ -2,6 +2,7 @@
 import { env } from '../../config/env.js';
 import { BadRequestError, DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
+import { getFabricanteById } from '../fabricantes/fabricantes.repository.js';
 
 const memoryProdutos = [];
 
@@ -37,6 +38,59 @@ function applyMemoryFilters(items, filters = {}, accountId) {
     result = result.filter((item) => [item.nome, item.sku, item.codigo, item.descricao, item.categoria, item.marca].some((v) => String(v || '').toLowerCase().includes(q)));
   }
   return result;
+}
+
+function normalizeNullableUuid(value) {
+  const raw = String(value || '').trim();
+  return raw || null;
+}
+
+async function resolveFabricanteForProduto(accountId, fabricanteId) {
+  const normalized = normalizeNullableUuid(fabricanteId);
+  if (!normalized) return null;
+  const fabricante = await getFabricanteById(normalized, { accountId });
+  if (String(fabricante.account_id || '') !== String(accountId || '')) {
+    throw new ForbiddenError('Fabricante de outra conta nao permitido', { code: 'FABRICANTE_CROSS_TENANT', domain: 'produtos-catalogo' });
+  }
+  return fabricante;
+}
+
+function getProdutoFabricanteId(data = {}) {
+  if (Object.prototype.hasOwnProperty.call(data, 'fabricante_id')) return data.fabricante_id;
+  if (Object.prototype.hasOwnProperty.call(data, 'fabricanteId')) return data.fabricanteId;
+  return undefined;
+}
+
+async function attachFabricanteData(item, options = {}) {
+  if (!item) return item;
+  const fabricanteId = item.fabricante_id || item.fabricanteId || null;
+  if (!fabricanteId) {
+    return { ...item, fabricante_id: null, fabricanteId: null, fabricante_nome: null, fabricante_logo_url: null, regras_comerciais_fabricante: null };
+  }
+  try {
+    const fabricante = await getFabricanteById(fabricanteId, { accountId: options.accountId });
+    const regras = {
+      cnpj: fabricante.cnpj || null,
+      pedido_minimo: fabricante.pedido_minimo_valor ?? fabricante.pedido_minimo ?? fabricante.valor_minimo_duplicata ?? 0,
+      duplicata_minima: fabricante.valor_minimo_duplicata ?? fabricante.pedido_minimo ?? fabricante.pedido_minimo_valor ?? 0,
+      comissao_padrao: fabricante.comissao_padrao_percentual ?? 0,
+      condicoes_pagamento: Array.isArray(fabricante.condicoes_pagamento) ? fabricante.condicoes_pagamento : [],
+      aceita_bonificacao: Boolean(fabricante.aceita_bonificacao),
+      aceita_consignacao: Boolean(fabricante.aceita_consignacao),
+      responsavel_comercial_nome: fabricante.responsavel_comercial_nome || null,
+      responsavel_comercial_email: fabricante.responsavel_comercial_email || null
+    };
+    return {
+      ...item,
+      fabricante_id: fabricante.id || fabricanteId,
+      fabricanteId: fabricante.id || fabricanteId,
+      fabricante_nome: fabricante.nome || null,
+      fabricante_logo_url: fabricante.logo_url || null,
+      regras_comerciais_fabricante: regras
+    };
+  } catch {
+    return { ...item, fabricante_id: fabricanteId, fabricanteId, fabricante_nome: null, fabricante_logo_url: null, regras_comerciais_fabricante: null };
+  }
 }
 
 function scoreItem(item, query) {
@@ -92,15 +146,16 @@ export async function listProdutos(filters = {}, options = {}) {
     const to = from + limit - 1;
     const { data, error, count } = await query.range(from, to);
     if (error) throw new DatabaseError('Falha ao listar produtos', { details: error });
-
     const total = count || 0;
-    return { items: data || [], total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
+    const items = await Promise.all((data || []).map((item) => attachFabricanteData(item, { accountId })));
+    return { items, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   const filtered = applyMemoryFilters(memoryProdutos, filters, accountId);
   const total = filtered.length;
   const from = (page - 1) * limit;
-  return { items: filtered.slice(from, from + limit), total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
+  const items = await Promise.all(filtered.slice(from, from + limit).map((item) => attachFabricanteData(item, { accountId })));
+  return { items, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
 }
 
 export async function getProdutoById(id, options = {}) {
@@ -114,12 +169,12 @@ export async function getProdutoById(id, options = {}) {
     const { data, error } = await supabase.from('produtos').select('*').eq('account_id', accountId).eq('id', id).maybeSingle();
     if (error) throw new DatabaseError('Falha ao buscar produto', { details: error });
     if (!data) throw new NotFoundError('Produto nao encontrado', { domain: 'produtos-catalogo', code: 'PRODUTO_NOT_FOUND' });
-    return data;
+    return attachFabricanteData(data, { accountId });
   }
 
   const item = memoryProdutos.find((produto) => produto.id === id && produto.account_id === accountId);
   if (!item) throw new NotFoundError('Produto nao encontrado', { domain: 'produtos-catalogo', code: 'PRODUTO_NOT_FOUND' });
-  return item;
+  return attachFabricanteData(item, { accountId });
 }
 
 export async function searchProdutos(query, options = {}) {
@@ -142,7 +197,7 @@ export async function searchProdutos(query, options = {}) {
       .or(`nome.ilike.%${searchQuery}%,sku.ilike.%${searchQuery}%,codigo.ilike.%${searchQuery}%,descricao.ilike.%${searchQuery}%,categoria.ilike.%${searchQuery}%,marca.ilike.%${searchQuery}%`)
       .limit(100);
     if (error) throw new DatabaseError('Falha na busca de produtos', { details: error });
-    return { items: data || [], total: (data || []).length, query: searchQuery };
+    return { items: await Promise.all((data || []).map((item) => attachFabricanteData(item, { accountId }))), total: (data || []).length, query: searchQuery };
   }
 
   const items = memoryProdutos
@@ -161,6 +216,7 @@ export async function createProduto(data, options = {}) {
   const repositoryMode = getProdutosRepositoryMode();
   debugRepository('createProduto', { repositoryMode, accountId, filters: null });
 
+  const fabricante = await resolveFabricanteForProduto(accountId, getProdutoFabricanteId(data));
   const payload = {
     account_id: accountId,
     codigo: data.codigo || null,
@@ -169,7 +225,7 @@ export async function createProduto(data, options = {}) {
     descricao: data.descricao || null,
     categoria: data.categoria || null,
     marca: data.marca || null,
-    fabricanteId: data.fabricanteId || data.fabricante_id || null,
+    fabricante_id: fabricante?.id || normalizeNullableUuid(getProdutoFabricanteId(data)),
     imagemUrl: data.imagemUrl || data.imagem_url || null,
     ean: data.ean || null,
     ncm: data.ncm || null,
@@ -187,12 +243,12 @@ export async function createProduto(data, options = {}) {
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data: inserted, error } = await supabase.from('produtos').insert(payload).select('*').single();
     if (error) throw new DatabaseError('Falha ao criar produto', { details: error });
-    return inserted;
+    return attachFabricanteData(inserted, { accountId });
   }
 
   const item = { id: randomUUID(), ...payload, createdAt: new Date().toISOString() };
   memoryProdutos.push(item);
-  return item;
+  return attachFabricanteData(item, { accountId });
 }
 
 export async function updateProduto(id, data = {}, options = {}) {
@@ -215,13 +271,19 @@ export async function updateProduto(id, data = {}, options = {}) {
     throw new BadRequestError('Nome invalido', { code: 'VALIDATION_ERROR', domain: 'produtos-catalogo' });
   }
 
+  let fabricanteId;
+  if (Object.prototype.hasOwnProperty.call(data, 'fabricante_id') || Object.prototype.hasOwnProperty.call(data, 'fabricanteId')) {
+    const fabricante = await resolveFabricanteForProduto(accountId, getProdutoFabricanteId(data));
+    fabricanteId = fabricante?.id || null;
+  }
+
   const nextAtivo = statusRaw ? statusRaw === 'ativo' : (typeof data.ativo === 'boolean' ? data.ativo : undefined);
   const payload = {
     ...(nome !== undefined ? { nome } : {}),
     ...(data.descricao !== undefined ? { descricao: data.descricao || null } : {}),
     ...(data.sku !== undefined ? { sku: data.sku || null } : {}),
     ...(data.categoria !== undefined ? { categoria: data.categoria || null } : {}),
-    ...(data.fabricanteId !== undefined ? { fabricanteId: data.fabricanteId || null } : {}),
+    ...(fabricanteId !== undefined ? { fabricante_id: fabricanteId, fabricanteId } : {}),
     ...(data.imagemUrl !== undefined ? { imagemUrl: data.imagemUrl || null } : {}),
     ...(precoRaw !== undefined ? { preco: Number(precoRaw) } : {}),
     ...(statusRaw ? { status: statusRaw } : {}),
@@ -233,13 +295,13 @@ export async function updateProduto(id, data = {}, options = {}) {
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data: updated, error } = await supabase.from('produtos').update(payload).eq('id', id).eq('account_id', accountId).select('*').single();
     if (error) throw new DatabaseError('Falha ao atualizar produto', { details: error });
-    return updated;
+    return attachFabricanteData(updated, { accountId });
   }
 
   const idx = memoryProdutos.findIndex((produto) => produto.id === id && produto.account_id === accountId);
   if (idx < 0) throw new NotFoundError('Produto nao encontrado', { domain: 'produtos-catalogo', code: 'PRODUTO_NOT_FOUND' });
   memoryProdutos[idx] = { ...memoryProdutos[idx], ...payload, updatedAt: new Date().toISOString() };
-  return memoryProdutos[idx];
+  return attachFabricanteData(memoryProdutos[idx], { accountId });
 }
 
 export function __resetMemoryProdutosForTests() {

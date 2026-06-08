@@ -14,6 +14,7 @@ test('produto 360 acessibilidade e edição seguem funcionais', async () => {
   const apiClient = {
     async get(path) {
       if (path === '/produtos/p1') return { item: { id: 'p1', nome: 'Produto A', sku: 'SKU1', categoria: 'Cat', preco: 10, status: 'ativo', created_at: '2026-01-01T00:00:00.000Z', updated_at: '2026-05-01T00:00:00.000Z' } };
+      if (path === '/fabricantes') return { items: [{ id: 'fab-1', nome: 'Fábrica 1' }] };
       if (path === '/pedidos') return { items: usage.pedidos };
       if (path.startsWith('/pedidos/')) return { id: path.split('/').pop(), itens: usage.detalhes[path.split('/').pop()] || [] };
       throw new Error(`unhandled get ${path}`);
@@ -38,6 +39,8 @@ test('produto 360 acessibilidade e edição seguem funcionais', async () => {
   dispatchKeydown(hit, ' ');
   await flush();
   findButtonByText('Editar Produto').click();
+  await flush();
+  assert.ok(root.querySelector('#nhpd-fabricante_id'));
   dispatchInput(root.querySelector('#nhpd-nome'), 'Produto B');
   findButtonByText('Salvar alterações').click();
   await flush(); await flush();

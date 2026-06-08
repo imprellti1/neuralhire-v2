@@ -14,8 +14,24 @@
     }
   },
   {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/fabricantes",
+    "query": {
+      "limit": "100",
+      "page": "1",
+      "status": "ativo"
+    }
+  },
+  {
     "body": {
       "ativo": true,
+      "fabricante_id": null,
       "nome": "Produto X",
       "preco": 20,
       "preco_unitario": 20,
@@ -49,6 +65,21 @@
       "x-test-role": "manager"
     },
     "method": "GET",
+    "path": "/fabricantes",
+    "query": {
+      "limit": "100",
+      "page": "1",
+      "status": "ativo"
+    }
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
     "path": "/pedidos",
     "query": {
       "limit": "200",
@@ -60,6 +91,7 @@
       "ativo": true,
       "categoria": "Cat",
       "descricao": "Produto de teste",
+      "fabricante_id": null,
       "nome": "Produto Editado",
       "preco": 30,
       "preco_unitario": 30,
@@ -85,6 +117,21 @@
     "method": "GET",
     "path": "/produtos/p1",
     "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json",
+      "x-test-account-id": "acc-analytics-001",
+      "x-test-role": "manager"
+    },
+    "method": "GET",
+    "path": "/fabricantes",
+    "query": {
+      "limit": "100",
+      "page": "1",
+      "status": "ativo"
+    }
   },
   {
     "body": null,

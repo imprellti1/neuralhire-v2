@@ -13,6 +13,7 @@ export function mapProdutoCreatePayload(form = {}) {
     descricao: String(form.descricao || '').trim() || undefined,
     sku: String(form.sku || '').trim() || undefined,
     categoria: String(form.categoria || '').trim() || undefined,
+    fabricante_id: form.fabricante_id ? String(form.fabricante_id).trim() : null,
     preco,
     preco_unitario: preco,
     status,

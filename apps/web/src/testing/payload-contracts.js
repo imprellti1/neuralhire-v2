@@ -44,7 +44,7 @@ export function assertEnumField(payload, field, allowedValues) {
 export function assertProdutoPostPayload(payload) {
   assert.ok(payload && typeof payload === 'object');
   assertRequiredFields(payload, ['nome', 'preco']);
-  assertAllowedFields(payload, ['nome', 'sku', 'categoria', 'descricao', 'preco', 'preco_unitario', 'status', 'ativo']);
+  assertAllowedFields(payload, ['nome', 'sku', 'categoria', 'descricao', 'fabricante_id', 'preco', 'preco_unitario', 'status', 'ativo']);
   assert.equal(typeof payload.nome, 'string');
   assert.equal(typeof payload.preco, 'number');
   assertNoForbiddenPayloadFields(payload);
@@ -53,7 +53,7 @@ export function assertProdutoPostPayload(payload) {
 export function assertProdutoPatchPayload(payload) {
   assert.ok(payload && typeof payload === 'object');
   assertRequiredFields(payload, ['nome', 'preco']);
-  assertAllowedFields(payload, ['nome', 'sku', 'categoria', 'descricao', 'preco', 'preco_unitario', 'status', 'ativo']);
+  assertAllowedFields(payload, ['nome', 'sku', 'categoria', 'descricao', 'fabricante_id', 'preco', 'preco_unitario', 'status', 'ativo']);
   assert.equal(typeof payload.nome, 'string');
   assert.equal(typeof payload.preco, 'number');
   assertNoForbiddenPayloadFields(payload);

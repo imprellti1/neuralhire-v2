@@ -13,6 +13,7 @@ export function mapProdutosData(response = {}, search = '') {
       produtoExibicao: item?.nome || item?.produto || item?.title || '-',
       skuExibicao: item?.sku || item?.codigo || '-',
       categoriaExibicao: item?.categoria || item?.category || '-',
+      fabricanteExibicao: item?.fabricante_nome || item?.fabricante?.nome || 'Sem fábrica',
       precoExibicao: Number(item?.preco ?? item?.price ?? 0),
       statusExibicao: item?.status || item?.situacao || '-',
       criadoEmExibicao: asDate(item?.created_at || item?.createdAt || item?.criado_em)

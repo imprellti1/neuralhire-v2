@@ -53,6 +53,11 @@ export function mapProdutoDetailsData(response = {}) {
     ativo: status === 'ativo',
     preco: Number(item?.preco ?? item?.preco_unitario ?? 0),
     precoFormatado: fmtBrl(item?.preco ?? item?.preco_unitario ?? 0),
+    fabricanteId: item?.fabricante_id || item?.fabricanteId || null,
+    fabricanteNome: item?.fabricante_nome || item?.fabricante?.nome || null,
+    fabricanteLogoUrl: item?.fabricante_logo_url || item?.fabricante?.logo_url || null,
+    fabricanteCnpj: item?.fabricante?.cnpj || item?.fabricante_cnpj || null,
+    regrasComerciaisFabricante: item?.regras_comerciais_fabricante || item?.fabricante?.regras_comerciais_fabricante || null,
     criadoEm,
     atualizadoEm,
     criadoEmFormatado: fmtDate(criadoEm),
@@ -68,7 +73,8 @@ export function createProdutoEditForm(data = {}) {
     categoria: data?.categoria && data.categoria !== '-' ? data.categoria : '',
     preco: Number.isFinite(Number(data?.preco)) ? String(Number(data.preco).toFixed(2)).replace('.', ',') : '',
     descricao: data?.descricao && data.descricao !== 'Produto não identificado' ? data.descricao : '',
-    status: data?.status === 'inativo' ? 'inativo' : 'ativo'
+    status: data?.status === 'inativo' ? 'inativo' : 'ativo',
+    fabricante_id: data?.fabricanteId || ''
   };
 }
 
@@ -91,6 +97,7 @@ export function mapProdutoUpdatePayload(form = {}) {
     descricao: String(form.descricao || '').trim() || undefined,
     sku: String(form.sku || '').trim() || undefined,
     categoria: String(form.categoria || '').trim() || undefined,
+    fabricante_id: form.fabricante_id ? String(form.fabricante_id).trim() : null,
     preco,
     preco_unitario: preco,
     status,

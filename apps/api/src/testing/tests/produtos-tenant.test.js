@@ -2,6 +2,7 @@ import { createApiApp } from '../../app.js';
 import { createTestRequest } from '../create-test-request.js';
 import { createTestResponse } from '../create-test-response.js';
 import { assertEqual } from '../assert.js';
+import { createFabricante } from '../../modules/fabricantes/fabricantes.repository.js';
 
 function parseBody(res) {
   try { return JSON.parse(res.body || '{}'); } catch { return {}; }
@@ -44,6 +45,17 @@ export function getProdutosTenantTests() {
       }
     },
     {
+      name: 'POST /produtos aceita fabricante valido e rejeita cross tenant',
+      run: async () => {
+        const app = createApiApp();
+        const fabricante = await createFabricante({ nome: 'Fab OK', cnpj: '32345678000199' }, { accountId: 'acc-fab-ok' });
+        const created = await call(app, { method: 'POST', url: '/produtos', role: 'admin', accountId: 'acc-fab-ok', body: { nome: 'Produto Fab', preco: 10, fabricante_id: fabricante.body?.item?.id || fabricante.id } });
+        assertEqual(created.body.item.fabricante_nome, 'Fab OK');
+        const blocked = await call(app, { method: 'POST', url: '/produtos', role: 'admin', accountId: 'acc-fab-no', body: { nome: 'Produto Bloqueado', preco: 10, fabricante_id: fabricante.body?.item?.id || fabricante.id } });
+        assertEqual(blocked.res.statusCode === 404 || blocked.res.statusCode === 403, true);
+      }
+    },
+    {
       name: 'PATCH /produtos/:id atualiza campos permitidos no mesmo tenant',
       run: async () => {
         const app = createApiApp();
@@ -63,6 +75,17 @@ export function getProdutosTenantTests() {
         const updated = await call(app, { method: 'PATCH', url: `/produtos/${created.body.item.id}`, role: 'admin', accountId: 'acc-safe', body: { account_id: 'acc-evil', owner_user_id: 'evil', tenant_id: 'evil', nome: 'Produto Safe 2' } });
         assertEqual(updated.res.statusCode, 200);
         assertEqual(updated.body.item.account_id, 'acc-safe');
+      }
+    },
+    {
+      name: 'PATCH /produtos/:id atualiza fabricante',
+      run: async () => {
+        const app = createApiApp();
+        const fabA = await createFabricante({ nome: 'Fab A', cnpj: '42345678000199' }, { accountId: 'acc-fab-edit' });
+        const fabB = await createFabricante({ nome: 'Fab B', cnpj: '52345678000199' }, { accountId: 'acc-fab-edit' });
+        const created = await call(app, { method: 'POST', url: '/produtos', role: 'admin', accountId: 'acc-fab-edit', body: { nome: 'Produto X', preco: 10, fabricante_id: fabA.id } });
+        const updated = await call(app, { method: 'PATCH', url: `/produtos/${created.body.item.id}`, role: 'admin', accountId: 'acc-fab-edit', body: { fabricante_id: fabB.id } });
+        assertEqual(updated.body.item.fabricante_nome, 'Fab B');
       }
     },
     {
@@ -94,6 +117,14 @@ export function getProdutosTenantTests() {
         await call(app, { method: 'POST', url: '/produtos', role: 'admin', accountId: 'acc-b', body: { nome: 'Prod B' } });
         const { body } = await call(app, { method: 'GET', url: '/produtos', role: 'sales', accountId: 'acc-a' });
         assertEqual(body.items.every((item) => item.account_id === 'acc-a'), true);
+      }
+    },
+    {
+      name: 'POST /produtos bloqueia payload com tenant fields',
+      run: async () => {
+        const app = createApiApp();
+        const { body } = await call(app, { method: 'POST', url: '/produtos', role: 'admin', accountId: 'acc-tenant', body: { nome: 'Produto T', preco: 10, account_id: 'evil', tenant_id: 'evil', owner_user_id: 'evil' } });
+        assertEqual(body.item.account_id, 'acc-tenant');
       }
     }
   ];

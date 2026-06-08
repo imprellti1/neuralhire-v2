@@ -65,6 +65,7 @@ export function renderProdutosPage(root, { apiClient }) {
         <td>${p.produtoExibicao}</td>
         <td>${p.skuExibicao}</td>
         <td>${p.categoriaExibicao}</td>
+        <td>${p.fabricanteExibicao || 'Sem fábrica'}</td>
         <td>${fmtCurrency(p.precoExibicao)}</td>
         <td><span class="nhp-badge">${p.statusExibicao}</span></td>
         <td>${fmtDate(p.criadoEmExibicao)}</td>
@@ -83,7 +84,7 @@ export function renderProdutosPage(root, { apiClient }) {
         </div>
         <div class="nhp-table-wrap"><table class="nhp-table">
           <tr>
-            <th>Produto</th><th>SKU</th><th>Categoria</th><th>Preço</th><th>Status</th><th>Criação</th>
+            <th>Produto</th><th>SKU</th><th>Categoria</th><th>Fábrica</th><th>Preço</th><th>Status</th><th>Criação</th>
           </tr>
           ${rows}
         </table></div><div class="nhp-pager">

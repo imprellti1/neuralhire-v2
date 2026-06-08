@@ -21,6 +21,8 @@ function run() {
   assert.equal(has("usageExportLista.onclick = () => exportUsageCsv('lista')"), true, 'Fluxo CSV lista não encontrado');
   assert.equal(has("usageExportPeriodo.onclick = () => exportUsageCsv('periodo')"), true, 'Fluxo CSV período não encontrado');
   assert.equal(has("const blob = new Blob([`\\uFEFF${csv}`]"), true, 'Fluxo de exportação CSV não encontrado');
+  assert.equal(has('Fábrica vinculada'), true, 'Card de fábrica vinculada não encontrado');
+  assert.equal(has('nhpd-fabricante_id'), true, 'Select de fábrica não encontrado');
 }
 
 run();

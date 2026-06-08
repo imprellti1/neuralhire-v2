@@ -4,6 +4,7 @@ export function createProdutoCreateState() {
       nome: '',
       sku: '',
       categoria: '',
+      fabricante_id: '',
       preco: '',
       descricao: '',
       status: 'ativo'
@@ -11,6 +12,9 @@ export function createProdutoCreateState() {
     loading: false,
     error: '',
     success: '',
-    fieldErrors: {}
+    fieldErrors: {},
+    fabricantesLoading: false,
+    fabricantesError: '',
+    fabricantes: []
   };
 }

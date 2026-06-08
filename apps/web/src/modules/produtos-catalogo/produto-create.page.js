@@ -31,6 +31,22 @@ export function renderProdutoCreatePage(root, { apiClient }) {
   injectStyles();
   const state = createProdutoCreateState();
 
+  async function loadFabricantes() {
+    state.fabricantesLoading = true;
+    state.fabricantesError = '';
+    render();
+    try {
+      const response = await apiClient.get('/fabricantes', { status: 'ativo', limit: 100, page: 1 });
+      state.fabricantes = Array.isArray(response?.items) ? response.items : [];
+    } catch {
+      state.fabricantes = [];
+      state.fabricantesError = 'Não foi possível carregar as fábricas.';
+    } finally {
+      state.fabricantesLoading = false;
+      render();
+    }
+  }
+
   function render() {
     const f = state.form;
     root.innerHTML = `
@@ -49,10 +65,12 @@ export function renderProdutoCreatePage(root, { apiClient }) {
           </div>
           <div>
             <label class="nhpr-field">Preço *<input id="preco" placeholder="129,90" value="${f.preco}" ${state.loading ? 'disabled' : ''}/>${state.fieldErrors.preco ? `<span class="nhpr-ferr">${state.fieldErrors.preco}</span>` : ''}</label>
+            <label class="nhpr-field">Fábrica<select id="fabricante_id" ${state.loading ? 'disabled' : ''}><option value="">Sem fábrica vinculada</option>${(state.fabricantes || []).map((fab) => `<option value="${fab.id}" ${String(f.fabricante_id || '') === String(fab.id) ? 'selected' : ''}>${fab.nome || '-'}</option>`).join('')}</select></label>
             <label class="nhpr-field">Status<select id="status" ${state.loading ? 'disabled' : ''}><option value="ativo" ${f.status === 'ativo' ? 'selected' : ''}>ativo</option><option value="inativo" ${f.status === 'inativo' ? 'selected' : ''}>inativo</option></select></label>
             <label class="nhpr-field">Descrição<textarea id="descricao" ${state.loading ? 'disabled' : ''}>${f.descricao}</textarea></label>
           </div>
         </div>
+        ${state.fabricantesError ? `<div class="nhpr-ferr">${state.fabricantesError}</div>` : ''}
       </section>
       <section class="nhpr-row">
         <button class="nhpr-btn" id="nhpr-cancel" ${state.loading ? 'disabled' : ''}>Cancelar</button>
@@ -66,6 +84,8 @@ export function renderProdutoCreatePage(root, { apiClient }) {
       const el = root.querySelector(`#${id}`);
       if (el) el.oninput = (e) => { state.form[id] = e.target.value || ''; };
     });
+    const fabricante = root.querySelector('#fabricante_id');
+    if (fabricante) fabricante.onchange = (e) => { state.form.fabricante_id = e.target.value || ''; };
     const status = root.querySelector('#status');
     if (status) status.onchange = (e) => { state.form.status = e.target.value || 'ativo'; };
 
@@ -94,4 +114,5 @@ export function renderProdutoCreatePage(root, { apiClient }) {
   }
 
   render();
+  loadFabricantes();
 }
