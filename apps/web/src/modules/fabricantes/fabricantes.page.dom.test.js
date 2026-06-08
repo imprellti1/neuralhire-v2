@@ -77,7 +77,7 @@ test('fabricantes: logo aceita upload local e mostra preview', async () => {
   document.querySelector('#nhf-new').click();
   await flush();
   const fileInput = document.querySelector('[data-form-field="logo_upload"]');
-  const file = new File(['fake-image'], 'logo.png', { type: 'image/png' });
+  const file = new window.File(['fake-image'], 'logo.png', { type: 'image/png' });
   Object.defineProperty(fileInput, 'files', { value: [file], configurable: true });
   fileInput.dispatchEvent(new Event('change', { bubbles: true }));
   await flush(); await flush();
@@ -109,7 +109,7 @@ test('fabricantes: upload real envia logo depois de salvar e recarrega url persi
   document.querySelector('#nhf-buscar-cnpj').click();
   await flush(); await flush();
   const fileInput = document.querySelector('[data-form-field="logo_upload"]');
-  const file = new File(['fake-image'], 'logo.png', { type: 'image/png' });
+  const file = new window.File(['fake-image'], 'logo.png', { type: 'image/png' });
   Object.defineProperty(fileInput, 'files', { value: [file], configurable: true });
   fileInput.dispatchEvent(new Event('change', { bubbles: true }));
   await flush(); await flush();
@@ -141,7 +141,7 @@ test('fabricantes: upload falho mostra erro inline e nao simula sucesso', async 
   document.querySelector('#nhf-buscar-cnpj').click();
   await flush(); await flush();
   const fileInput = document.querySelector('[data-form-field="logo_upload"]');
-  const file = new File(['fake-image'], 'logo.png', { type: 'image/png' });
+  const file = new window.File(['fake-image'], 'logo.png', { type: 'image/png' });
   Object.defineProperty(fileInput, 'files', { value: [file], configurable: true });
   fileInput.dispatchEvent(new Event('change', { bubbles: true }));
   await flush(); await flush();

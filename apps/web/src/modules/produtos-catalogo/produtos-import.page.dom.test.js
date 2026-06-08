@@ -20,10 +20,14 @@ test('produtos import page renders preview and execution states', async () => {
   await renderProdutosImportPage(document.body, { apiClient });
   await flush();
   assert.match(document.body.textContent, /Importação de Produtos/);
+  assert.match(document.body.textContent, /Selecione um arquivo XLSX antes de continuar\./);
+  document.querySelector('#npi-preview').click();
+  await flush();
+  assert.equal(calls.length, 0);
   const fab = document.querySelector('#npi-fab');
   fab.value = 'fab-1';
   fab.dispatchEvent(new Event('change', { bubbles: true }));
-  const file = new File(['fake'], 'Estoque_288.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const file = new window.File(['fake'], 'Estoque_288.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const input = document.querySelector('#npi-file');
   Object.defineProperty(input, 'files', { value: [file] });
   input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -31,6 +35,10 @@ test('produtos import page renders preview and execution states', async () => {
   await flush();
   await flush();
   assert.match(document.body.textContent, /Divergências/);
+  const previewCall = calls.find((call) => call.path === '/produtos/importar-estoque/preview');
+  assert.ok(previewCall?.body instanceof FormData);
+  assert.equal(previewCall.body.get('fabricante_id'), 'fab-1');
+  assert.ok(previewCall.body.get('file') instanceof File);
   document.querySelector('#npi-run').click();
   await flush();
   await flush();
