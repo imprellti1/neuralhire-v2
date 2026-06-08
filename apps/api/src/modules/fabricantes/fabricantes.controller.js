@@ -16,6 +16,7 @@ import {
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { BadRequestError, ForbiddenError } from '../../core/errors.js';
 import { logger } from '../../core/logger.js';
+import { recordAuditLog } from '../../core/audit-logs.js';
 
 const normalizeCnpj = (value) => String(value || '').replace(/\D/g, '') || null;
 
@@ -408,14 +409,28 @@ export async function createFabricanteHandler(context) {
   const body = context.body || {};
   const accountId = getAccountIdFromContext(context);
   assertAdminLike(context);
-  return createFabricante(normalizeFabricantePayload(body), { accountId });
+  try {
+    const item = await createFabricante(normalizeFabricantePayload(body), { accountId });
+    await recordAuditLog(context, { modulo: 'fabricantes', entidade: 'fabricante', entidade_id: item?.id || null, acao: 'criar', descricao: 'Fábrica criada', status: 'success', sucesso: true }).catch(() => null);
+    return item;
+  } catch (error) {
+    await recordAuditLog(context, { modulo: 'fabricantes', entidade: 'fabricante', acao: 'criar', descricao: 'Falha ao criar fábrica', status: 'failed', sucesso: false, erro_codigo: error?.code || 'INTERNAL_SERVER_ERROR', erro_mensagem: error?.message || 'Erro ao criar fábrica' }).catch(() => null);
+    throw error;
+  }
 }
 
 export async function updateFabricanteHandler(context) {
   const body = context.body || {};
   const accountId = getAccountIdFromContext(context);
   assertAdminLike(context);
-  return updateFabricante(context.params.id, normalizeFabricantePatchPayload(body), { accountId });
+  try {
+    const item = await updateFabricante(context.params.id, normalizeFabricantePatchPayload(body), { accountId });
+    await recordAuditLog(context, { modulo: 'fabricantes', entidade: 'fabricante', entidade_id: context.params.id || null, acao: 'editar', descricao: 'Fábrica editada', status: 'success', sucesso: true }).catch(() => null);
+    return item;
+  } catch (error) {
+    await recordAuditLog(context, { modulo: 'fabricantes', entidade: 'fabricante', entidade_id: context.params.id || null, acao: 'editar', descricao: 'Falha ao editar fábrica', status: 'failed', sucesso: false, erro_codigo: error?.code || 'INTERNAL_SERVER_ERROR', erro_mensagem: error?.message || 'Erro ao editar fábrica' }).catch(() => null);
+    throw error;
+  }
 }
 
 export async function updateFabricanteLogoHandler(context) {
@@ -423,8 +438,14 @@ export async function updateFabricanteLogoHandler(context) {
   assertAdminLike(context);
   const body = context.body || {};
   const upload = body?.logo || body?.file || body?.logo_upload || null;
-  const updated = await updateFabricanteLogo(context.params.id, upload, { accountId });
-  return { data: { logo_url: updated.logo_url } };
+  try {
+    const updated = await updateFabricanteLogo(context.params.id, upload, { accountId });
+    await recordAuditLog(context, { modulo: 'fabricantes', entidade: 'fabricante', entidade_id: context.params.id || null, acao: 'upload_remocao_imagem', descricao: 'Logo da fábrica atualizado', status: 'success', sucesso: true }).catch(() => null);
+    return { data: { logo_url: updated.logo_url } };
+  } catch (error) {
+    await recordAuditLog(context, { modulo: 'fabricantes', entidade: 'fabricante', entidade_id: context.params.id || null, acao: 'upload_remocao_imagem', descricao: 'Falha ao atualizar logo da fábrica', status: 'failed', sucesso: false, erro_codigo: error?.code || 'INTERNAL_SERVER_ERROR', erro_mensagem: error?.message || 'Erro ao atualizar logo' }).catch(() => null);
+    throw error;
+  }
 }
 
 export async function getCondicoesPagamento(context) {
@@ -436,19 +457,25 @@ export async function getCondicoesPagamento(context) {
 export async function createCondicaoPagamentoHandler(context) {
   const accountId = getAccountIdFromContext(context);
   assertAdminLike(context);
-  return createCondicaoPagamento(context.params.id, context.body || {}, { accountId });
+  const item = await createCondicaoPagamento(context.params.id, context.body || {}, { accountId });
+  await recordAuditLog(context, { modulo: 'fabricantes', entidade: 'fabricante', entidade_id: context.params.id || null, acao: 'vincular_produto', descricao: 'Condição de pagamento criada', status: 'success', sucesso: true }).catch(() => null);
+  return item;
 }
 
 export async function updateCondicaoPagamentoHandler(context) {
   const accountId = getAccountIdFromContext(context);
   assertAdminLike(context);
-  return updateCondicaoPagamento(context.params.id, context.params.condicaoId, context.body || {}, { accountId });
+  const item = await updateCondicaoPagamento(context.params.id, context.params.condicaoId, context.body || {}, { accountId });
+  await recordAuditLog(context, { modulo: 'fabricantes', entidade: 'fabricante', entidade_id: context.params.id || null, acao: 'vincular_produto', descricao: 'Condição de pagamento editada', status: 'success', sucesso: true }).catch(() => null);
+  return item;
 }
 
 export async function deleteCondicaoPagamentoHandler(context) {
   const accountId = getAccountIdFromContext(context);
   assertAdminLike(context);
-  return deleteCondicaoPagamento(context.params.id, context.params.condicaoId, { accountId });
+  const item = await deleteCondicaoPagamento(context.params.id, context.params.condicaoId, { accountId });
+  await recordAuditLog(context, { modulo: 'fabricantes', entidade: 'fabricante', entidade_id: context.params.id || null, acao: 'vincular_desvincular_produto', descricao: 'Condição de pagamento removida', status: 'success', sucesso: true }).catch(() => null);
+  return item;
 }
 
 export async function getFabricanteVendedores(context) {
@@ -461,7 +488,9 @@ export async function replaceFabricanteVendedoresHandler(context) {
   const accountId = getAccountIdFromContext(context);
   assertAdminLike(context);
   const items = Array.isArray(context.body?.vendedores) ? context.body.vendedores : [];
-  return { ok: true, ...(await replaceFabricanteVendedores(context.params.id, items, { accountId })) };
+  const result = await replaceFabricanteVendedores(context.params.id, items, { accountId });
+  await recordAuditLog(context, { modulo: 'fabricantes', entidade: 'fabricante', entidade_id: context.params.id || null, acao: 'vincular_desvincular_vendedor', descricao: 'Vínculos de vendedores atualizados', status: 'success', sucesso: true, metadata: { vendedores: items } }).catch(() => null);
+  return { ok: true, ...result };
 }
 
 export async function updateFabricanteVendedorHandler(context) {
@@ -473,7 +502,9 @@ export async function updateFabricanteVendedorHandler(context) {
 export async function deleteFabricanteVendedorHandler(context) {
   const accountId = getAccountIdFromContext(context);
   assertAdminLike(context);
-  return { ok: true, ...(await deleteFabricanteVendedor(context.params.id, context.params.vendedorId, { accountId })) };
+  const result = await deleteFabricanteVendedor(context.params.id, context.params.vendedorId, { accountId });
+  await recordAuditLog(context, { modulo: 'fabricantes', entidade: 'fabricante', entidade_id: context.params.id || null, acao: 'vincular_desvincular_vendedor', descricao: 'Vínculo de vendedor removido', status: 'success', sucesso: true, metadata: { vendedor_id: context.params.vendedorId || null } }).catch(() => null);
+  return { ok: true, ...result };
 }
 
 export async function lookupCnpjHandler(context) {

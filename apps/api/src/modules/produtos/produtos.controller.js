@@ -7,6 +7,7 @@ import {
   searchProdutos
   ,updateProduto
 } from './produtos.repository.js';
+import { recordAuditLog } from '../../core/audit-logs.js';
 
 function parseBoolean(value) {
   if (value === true || value === 'true') return true;
@@ -52,14 +53,26 @@ export async function createProdutoHandler(context = {}) {
   const accountId = getAccountIdFromContext(context);
   const body = { ...(context.body || {}) };
   delete body.account_id; delete body.accountId; delete body.tenant_id; delete body.tenantId; delete body.owner_user_id; delete body.ownerUserId;
-  const item = await createProduto(body, { accountId });
-  return { ok: true, repositoryMode: getProdutosRepositoryMode(), item };
+  try {
+    const item = await createProduto(body, { accountId });
+    await recordAuditLog(context, { modulo: 'produtos', entidade: 'produto', entidade_id: item?.id || null, acao: 'criar', descricao: 'Produto criado', status: 'success', sucesso: true, metadata: { produto_id: item?.id || null, nome: item?.nome || body.nome || null } });
+    return { ok: true, repositoryMode: getProdutosRepositoryMode(), item };
+  } catch (error) {
+    await recordAuditLog(context, { modulo: 'produtos', entidade: 'produto', acao: 'criar', descricao: 'Falha ao criar produto', status: 'failed', sucesso: false, erro_codigo: error?.code || 'INTERNAL_SERVER_ERROR', erro_mensagem: error?.message || 'Erro ao criar produto', metadata: { nome: body.nome || null } }).catch(() => null);
+    throw error;
+  }
 }
 
 export async function updateProdutoHandler(context = {}) {
   const accountId = getAccountIdFromContext(context);
   const body = { ...(context.body || {}) };
   delete body.account_id; delete body.accountId; delete body.tenant_id; delete body.tenantId; delete body.owner_user_id; delete body.ownerUserId;
-  const item = await updateProduto(context.params?.id, body, { accountId });
-  return { ok: true, repositoryMode: getProdutosRepositoryMode(), item };
+  try {
+    const item = await updateProduto(context.params?.id, body, { accountId });
+    await recordAuditLog(context, { modulo: 'produtos', entidade: 'produto', entidade_id: context.params?.id || item?.id || null, acao: 'editar', descricao: 'Produto editado', status: 'success', sucesso: true, metadata: { produto_id: context.params?.id || item?.id || null } });
+    return { ok: true, repositoryMode: getProdutosRepositoryMode(), item };
+  } catch (error) {
+    await recordAuditLog(context, { modulo: 'produtos', entidade: 'produto', entidade_id: context.params?.id || null, acao: 'editar', descricao: 'Falha ao editar produto', status: 'failed', sucesso: false, erro_codigo: error?.code || 'INTERNAL_SERVER_ERROR', erro_mensagem: error?.message || 'Erro ao editar produto' }).catch(() => null);
+    throw error;
+  }
 }

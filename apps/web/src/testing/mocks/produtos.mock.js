@@ -11,8 +11,12 @@ export function createProdutosMockHandlers({ scenario = 'success' } = {}) {
   const baseHandlers = {
     'GET /produtos': () => ({ items: [makeProduto()], pagination: { page: 1, totalPages: 1, total: 1, limit: 10 } }),
     'GET /produtos/p1': () => createSuccessResponse({ item: makeProduto() }),
+    'GET /produtos/p1/imagens': () => createSuccessResponse({ items: [{ id: 'img-1', produto_id: 'p1', variacao_id: null, url: 'https://example.com/img.jpg', storage_path: 'acc/p1/pai/img.jpg', ordem: 0, principal: true, tipo: 'image' }] }),
     'POST /produtos': ({ body }) => createSuccessResponse({ item: body?.nome === 'SemID' ? {} : { id: 'p1' } }),
-    'PATCH /produtos/p1': ({ body }) => ({ item: makeProduto({ ...body, updated_at: '2026-05-03T00:00:00.000Z' }) })
+    'PATCH /produtos/p1': ({ body }) => ({ item: makeProduto({ ...body, updated_at: '2026-05-03T00:00:00.000Z' }) }),
+    'POST /produtos/p1/imagens': ({ body }) => createSuccessResponse({ item: { id: 'img-new', produto_id: 'p1', ...body } }),
+    'PATCH /produtos/p1/imagens/img-1': ({ body }) => createSuccessResponse({ item: { id: 'img-1', produto_id: 'p1', ...body } }),
+    'DELETE /produtos/p1/imagens/img-1': () => createSuccessResponse({ removed: true })
   };
 
   if (scenario === 'notFound') return createMockScenario(baseHandlers, { 'GET /produtos/p1': () => createNotFoundResponse('Produto nao encontrado') });

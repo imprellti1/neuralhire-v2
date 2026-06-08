@@ -1,6 +1,7 @@
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { applyOwnerFilter } from '../../core/commercial-scope.js';
 import { createPedido, getPedidoById, getPedidoStatusHistory, getPedidosRepositoryMode, listPedidos, updatePedido, updatePedidoItens, updatePedidoStatus } from './pedidos.repository.js';
+import { recordAuditLog } from '../../core/audit-logs.js';
 
 export async function getPedidos(context = {}) {
   const accountId = getAccountIdFromContext(context);
@@ -20,8 +21,14 @@ export async function createPedidoHandler(context = {}) {
   const accountId = getAccountIdFromContext(context);
   const body = { ...(context.body || {}) };
   delete body.account_id; delete body.accountId;
-  const result = await createPedido(body, { accountId, context });
-  return { ok: true, repositoryMode: getPedidosRepositoryMode(), ...result };
+  try {
+    const result = await createPedido(body, { accountId, context });
+    await recordAuditLog(context, { modulo: 'pedidos', entidade: 'pedido', entidade_id: result?.item?.id || null, acao: 'criar', descricao: 'Pedido criado', status: 'success', sucesso: true, metadata: { pedido_id: result?.item?.id || null } }).catch(() => null);
+    return { ok: true, repositoryMode: getPedidosRepositoryMode(), ...result };
+  } catch (error) {
+    await recordAuditLog(context, { modulo: 'pedidos', entidade: 'pedido', acao: 'criar', descricao: 'Falha ao criar pedido', status: 'failed', sucesso: false, erro_codigo: error?.code || 'INTERNAL_SERVER_ERROR', erro_mensagem: error?.message || 'Erro ao criar pedido' }).catch(() => null);
+    throw error;
+  }
 }
 
 export async function updatePedidoStatusHandler(context = {}) {

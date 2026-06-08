@@ -2,9 +2,7 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/produtos",
@@ -16,9 +14,7 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/fabricantes",
@@ -29,18 +25,29 @@
     }
   },
   {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/produto-categorias",
+    "query": {
+      "status": "ativo"
+    }
+  },
+  {
     "body": {
       "ativo": true,
       "fabricante_id": null,
+      "icms_percentual": 0,
       "nome": "Produto X",
       "preco": 20,
+      "preco_promocional": 0,
       "preco_unitario": 20,
       "status": "ativo"
     },
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "POST",
     "path": "/produtos",
@@ -49,9 +56,7 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/produtos/p1",
@@ -60,9 +65,7 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/fabricantes",
@@ -75,9 +78,27 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/produto-categorias",
+    "query": {
+      "status": "ativo"
+    }
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/produtos/p1/imagens",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/pedidos",
@@ -89,19 +110,18 @@
   {
     "body": {
       "ativo": true,
-      "categoria": "Cat",
       "descricao": "Produto de teste",
       "fabricante_id": null,
+      "icms_percentual": null,
       "nome": "Produto Editado",
       "preco": 30,
+      "preco_promocional": null,
       "preco_unitario": 30,
       "sku": "S1",
       "status": "ativo"
     },
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "PATCH",
     "path": "/produtos/p1",
@@ -110,9 +130,7 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/produtos/p1",
@@ -121,9 +139,7 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/fabricantes",
@@ -136,9 +152,27 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/produto-categorias",
+    "query": {
+      "status": "ativo"
+    }
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/produtos/p1/imagens",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/pedidos",

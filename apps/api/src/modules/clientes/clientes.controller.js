@@ -2,6 +2,7 @@ import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { NotFoundError, ValidationError } from '../../core/errors.js';
 import { applyOwnerFilter, canAccessAllTenantData } from '../../core/commercial-scope.js';
 import { createCliente, getClienteById, getClientesRepositoryMode, listClientes, updateCliente } from './clientes.repository.js';
+import { recordAuditLog } from '../../core/audit-logs.js';
 
 function parseBoolean(value) {
   if (value === true || value === 'true') return true;
@@ -47,6 +48,7 @@ export async function createClienteHandler(context) {
   }
 
   const item = await createCliente(body, { accountId, context });
+  await recordAuditLog(context, { modulo: 'clientes', entidade: 'cliente', entidade_id: item?.id || null, acao: 'criar', descricao: 'Cliente criado', status: 'success', sucesso: true, metadata: { cliente_id: item?.id || null, nome: item?.nome || body.nome || null } }).catch(() => null);
   return {
     ok: true,
     repositoryMode: getClientesRepositoryMode(),
@@ -81,8 +83,10 @@ export async function updateClienteHandler(context = {}) {
   }
   try {
     const item = await updateCliente(id, body, { accountId, context });
+    await recordAuditLog(context, { modulo: 'clientes', entidade: 'cliente', entidade_id: id, acao: 'editar', descricao: 'Cliente editado', status: 'success', sucesso: true, metadata: { cliente_id: id } }).catch(() => null);
     return { ok: true, repositoryMode: getClientesRepositoryMode(), item };
   } catch (error) {
+    await recordAuditLog(context, { modulo: 'clientes', entidade: 'cliente', entidade_id: id, acao: 'editar', descricao: 'Falha ao editar cliente', status: 'failed', sucesso: false, erro_codigo: error?.code || 'INTERNAL_SERVER_ERROR', erro_mensagem: error?.message || 'Erro ao editar cliente' }).catch(() => null);
     if (error?.code === 'OWNER_SCOPE_FORBIDDEN' || error?.code === 'VENDEDOR_SCOPE_FORBIDDEN') {
       throw new NotFoundError('Cliente nao encontrado', { code: 'CLIENTE_NOT_FOUND', domain: 'clientes-crm' });
     }
