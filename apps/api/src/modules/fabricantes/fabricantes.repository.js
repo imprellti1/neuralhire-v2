@@ -382,7 +382,7 @@ function normalizeVinculoNumber(value, field) {
 function normalizeFabricanteVinculoInput(data = {}) {
   return {
     vendedor_id: String(data.vendedor_id || '').trim(),
-    principal: Boolean(data.principal),
+    principal: data.principal === undefined ? undefined : Boolean(data.principal),
     status: normalizeVinculoStatus(data.status),
     comissao_percentual: normalizeVinculoNumber(data.comissao_percentual, 'comissao_percentual'),
     pedido_minimo_valor: normalizeVinculoNumber(data.pedido_minimo_valor, 'pedido_minimo_valor'),

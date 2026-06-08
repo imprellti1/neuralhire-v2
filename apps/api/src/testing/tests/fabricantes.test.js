@@ -222,8 +222,10 @@ export function getFabricantesTests() {
       const listed = await listFabricanteVendedores(fab.id, { accountId: 'acc-vinc' });
       assert.equal(listed.items.length, 2);
       assert.equal(listed.items[0].vendedor_nome, 'Vendedor 1');
+      assert.equal(listed.items[0].principal, true);
       const updated = await updateFabricanteVendedor(fab.id, vend1.id, { comissao_percentual: 7 }, { accountId: 'acc-vinc' });
       assert.equal(updated.comissao_percentual, 7);
+      assert.equal(updated.principal, true);
       await assert.rejects(() => replaceFabricanteVendedores(fab.id, [
         { vendedor_id: vend1.id, principal: true },
         { vendedor_id: vend2.id, principal: true }

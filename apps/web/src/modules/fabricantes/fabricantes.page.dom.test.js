@@ -248,6 +248,12 @@ test('fabricantes: aba vendedores lista, adiciona principal e reabre persistido'
   const vinculoPut = calls.find((call) => call.method === 'PUT' && call.path === '/fabricantes/fab-v/vendedores');
   assert.ok(vinculoPut);
   assert.equal(Object.prototype.hasOwnProperty.call(vinculoPut.body?.vendedores?.[0] || {}, 'condicoes_pagamento'), false);
+  document.querySelector('[data-edit-id="fab-v"]').click();
+  await flush(); await flush();
+  document.querySelector('[data-tab="vinculos"]').click();
+  await flush();
+  assert.match(document.body.textContent, /Principal/);
+  assert.match(document.body.textContent, /Ana Vendas[\s\S]*Ativo[\s\S]*Sim[\s\S]*7\.5%/);
   teardownFrontendDom(dom);
 });
 

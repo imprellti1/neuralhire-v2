@@ -3,8 +3,11 @@ import { deleteCondicaoPagamento, deleteFabricanteVendedor, fetchCondicoesPagame
 import { mapFabricantesData } from './fabricantes.mapper.js';
 import { fetchVendedoresData } from '../vendedores/vendedores.service.js';
 
+const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
 function brl(value) {
-  return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const num = Number(value || 0);
+  return Number.isFinite(num) ? currencyFormatter.format(num) : currencyFormatter.format(0);
 }
 
 function parseBrlInput(value) {
@@ -799,8 +802,25 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
         if (state.form.vendedor_vinculo_id) {
           await saveFabricanteVendedor(apiClient, state.selected.id, vendedorId, payload);
         } else {
-          const nextVinculos = getVinculoFormPayload();
-          await saveFabricanteVendedores(apiClient, state.selected.id, nextVinculos);
+          const nextVinculos = (state.vendedoresVinculos || [])
+            .filter((row) => String(row.id) !== String(state.form.vendedor_vinculo_id || ''))
+            .map((row) => ({
+              vendedor_id: row.vendedor_id || null,
+              principal: Boolean(row.principal),
+              status: row.status || 'ativo',
+              comissao_percentual: row.comissao_percentual === '' || row.comissao_percentual === null ? null : Number(String(row.comissao_percentual).replace(',', '.')),
+              pedido_minimo_valor: row.pedido_minimo_valor === '' || row.pedido_minimo_valor === null ? null : Number(String(row.pedido_minimo_valor).replace(',', '.')),
+              valor_minimo_duplicata: row.valor_minimo_duplicata === '' || row.valor_minimo_duplicata === null ? null : Number(String(row.valor_minimo_duplicata).replace(',', '.')),
+              observacoes: row.observacoes || null
+            }));
+          const normalizedNewRow = {
+            ...payload,
+            principal: Boolean(payload.principal)
+          };
+          const mergedRows = normalizedNewRow.principal
+            ? [...nextVinculos.map((row) => ({ ...row, principal: false })), normalizedNewRow]
+            : [...nextVinculos, normalizedNewRow];
+          await saveFabricanteVendedores(apiClient, state.selected.id, mergedRows);
         }
         await loadFabricanteVinculos(state.selected.id);
         resetVinculoForm();
