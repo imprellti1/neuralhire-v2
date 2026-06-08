@@ -5,6 +5,23 @@ export async function fetchProdutoDetailsData(apiClient, produtoId) {
   return mapProdutoDetailsData(response);
 }
 
+export async function fetchProdutoImagens(apiClient, produtoId) {
+  const response = await apiClient.get(`/produtos/${produtoId}/imagens`);
+  return Array.isArray(response?.items) ? response.items : [];
+}
+
+export async function uploadProdutoImagem(apiClient, produtoId, payload) {
+  return apiClient.post(`/produtos/${produtoId}/imagens`, payload);
+}
+
+export async function updateProdutoImagem(apiClient, produtoId, imagemId, payload) {
+  return apiClient.patch(`/produtos/${produtoId}/imagens/${imagemId}`, payload);
+}
+
+export async function deleteProdutoImagem(apiClient, produtoId, imagemId) {
+  return apiClient.delete(`/produtos/${produtoId}/imagens/${imagemId}`);
+}
+
 export async function updateProduto(apiClient, produtoId, form) {
   const payload = mapProdutoUpdatePayload(form);
   return apiClient.patch(`/produtos/${produtoId}`, payload);

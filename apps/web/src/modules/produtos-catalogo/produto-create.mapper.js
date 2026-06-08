@@ -12,9 +12,12 @@ export function mapProdutoCreatePayload(form = {}) {
     nome: String(form.nome || '').trim(),
     descricao: String(form.descricao || '').trim() || undefined,
     sku: String(form.sku || '').trim() || undefined,
-    categoria: String(form.categoria || '').trim() || undefined,
+    categoria_id: String(form.categoria_id || '').trim() || undefined,
     fabricante_id: form.fabricante_id ? String(form.fabricante_id).trim() : null,
     preco,
+    preco_promocional: Number.isFinite(Number(form.preco_promocional)) ? Number(form.preco_promocional) : undefined,
+    icms_percentual: Number.isFinite(Number(form.icms_percentual)) ? Number(form.icms_percentual) : undefined,
+    video_url: String(form.video_url || '').trim() || undefined,
     preco_unitario: preco,
     status,
     ativo: status === 'ativo'

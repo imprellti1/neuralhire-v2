@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createProduto, __resetMemoryProdutosForTests } from '../../modules/produtos/produtos.repository.js';
 import { createFabricante, __resetMemoryFabricantesForTests } from '../../modules/fabricantes/fabricantes.repository.js';
-import { __resetMemoryProductEditorForTests, createVariation, getProductEditorProduct, listProductEditorProducts, listVariations, updateProductEditorProduct, updateVariation, updateVariationImage } from '../../modules/product-editor/product-editor.repository.js';
+import { __resetMemoryProductEditorForTests, adjustVariationStock, createVariation, getProductEditorProduct, listProductEditorProducts, listVariations, listVariationMovements, updateProductEditorProduct, updateVariation, updateVariationImage } from '../../modules/product-editor/product-editor.repository.js';
 
 export function getProductEditorTests() {
   return [
@@ -44,7 +44,7 @@ export function getProductEditorTests() {
       __resetMemoryProdutosForTests(); __resetMemoryProductEditorForTests();
       const created = await createProduto({ nome: 'Produto 7', sku: 'SKU7' }, { accountId: 'acc-1' });
       const updated = await updateProductEditorProduct(created.id, { imagemUrl: 'https://img.test/a.jpg' }, { accountId: 'acc-1' });
-      assert.equal(updated.imagemUrl, 'https://img.test/a.jpg');
+      assert.equal(updated.imagemUrl || updated.imagem_url, 'https://img.test/a.jpg');
     } },
     { name: 'cria variação', run: async () => {
       __resetMemoryProdutosForTests(); __resetMemoryProductEditorForTests();
@@ -94,6 +94,21 @@ export function getProductEditorTests() {
       await createVariation(created.id, { sku: 'VAR15' }, { accountId: 'acc-1' });
       const variations = await listVariations(created.id, { accountId: 'acc-1' });
       assert.equal(variations.length, 1);
+    } },
+    { name: 'ajusta estoque e registra movimento', run: async () => {
+      __resetMemoryProdutosForTests(); __resetMemoryProductEditorForTests();
+      const created = await createProduto({ nome: 'Produto 16', sku: 'SKU16' }, { accountId: 'acc-1' });
+      const variation = await createVariation(created.id, { sku: 'VAR16', estoque: 1 }, { accountId: 'acc-1' });
+      const result = await adjustVariationStock(created.id, variation.id, { quantidade: 5, observacao: 'ajuste' }, { accountId: 'acc-1' });
+      assert.equal(result.variation.estoque_atual, 5);
+      const movements = await listVariationMovements(created.id, variation.id, { accountId: 'acc-1' });
+      assert.equal(movements.length, 1);
+    } },
+    { name: 'movimento bloqueia cross tenant', run: async () => {
+      __resetMemoryProdutosForTests(); __resetMemoryProductEditorForTests();
+      const created = await createProduto({ nome: 'Produto 17', sku: 'SKU17' }, { accountId: 'acc-1' });
+      const variation = await createVariation(created.id, { sku: 'VAR17' }, { accountId: 'acc-1' });
+      await assert.rejects(() => listVariationMovements(created.id, variation.id, { accountId: 'acc-2' }));
     } }
   ];
 }

@@ -1,6 +1,6 @@
 import { asyncHandler } from '../../core/async-handler.js';
 import { sendSuccess } from '../../core/response.js';
-import { createProductEditorVariationHandler, getProductEditorProductHandler, getProductEditorProducts, getProductEditorVariationsHandler, patchProductEditorImagesHandler, patchProductEditorProductHandler, patchProductEditorVariationHandler, patchProductEditorVariationImageHandler } from './product-editor.controller.js';
+import { createProductEditorVariationHandler, getProductEditorProductHandler, getProductEditorProducts, getProductEditorVariationHandler, getProductEditorVariationMovementsHandler, getProductEditorVariationsHandler, patchProductEditorImagesHandler, patchProductEditorProductHandler, patchProductEditorVariationHandler, patchProductEditorVariationImageHandler, patchProductEditorVariationStockHandler } from './product-editor.controller.js';
 
 export function registerProductEditorRoutes(router) {
   router.registerRoute({ method: 'GET', path: '/product-editor/products', domain: 'produtos-catalogo', handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await getProductEditorProducts(context))) });
@@ -11,4 +11,7 @@ export function registerProductEditorRoutes(router) {
   router.registerRoute({ method: 'POST', path: '/product-editor/products/:productId/variations', domain: 'produtos-catalogo', handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await createProductEditorVariationHandler(context))) });
   router.registerRoute({ method: 'PATCH', path: '/product-editor/products/:productId/variations/:variationId', domain: 'produtos-catalogo', handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await patchProductEditorVariationHandler(context))) });
   router.registerRoute({ method: 'PATCH', path: '/product-editor/products/:productId/variations/:variationId/image', domain: 'produtos-catalogo', handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await patchProductEditorVariationImageHandler(context))) });
+  router.registerRoute({ method: 'PATCH', path: '/product-editor/products/:productId/variations/:variationId/stock', domain: 'produtos-catalogo', handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await patchProductEditorVariationStockHandler(context))) });
+  router.registerRoute({ method: 'GET', path: '/product-editor/products/:productId/variations/:variationId', domain: 'produtos-catalogo', handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await getProductEditorVariationHandler(context))) });
+  router.registerRoute({ method: 'GET', path: '/product-editor/products/:productId/variations/:variationId/movements', domain: 'produtos-catalogo', handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await getProductEditorVariationMovementsHandler(context))) });
 }

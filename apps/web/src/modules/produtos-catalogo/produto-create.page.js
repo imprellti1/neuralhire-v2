@@ -30,6 +30,7 @@ function injectStyles() {
 export function renderProdutoCreatePage(root, { apiClient }) {
   injectStyles();
   const state = createProdutoCreateState();
+  state.categorias = [];
 
   async function loadFabricantes() {
     state.fabricantesLoading = true;
@@ -43,6 +44,17 @@ export function renderProdutoCreatePage(root, { apiClient }) {
       state.fabricantesError = 'Não foi possível carregar as fábricas.';
     } finally {
       state.fabricantesLoading = false;
+      render();
+    }
+  }
+
+  async function loadCategorias() {
+    try {
+      const response = await apiClient.get('/produto-categorias', { status: 'ativo' });
+      state.categorias = Array.isArray(response?.items) ? response.items : [];
+    } catch {
+      state.categorias = [];
+    } finally {
       render();
     }
   }
@@ -61,10 +73,13 @@ export function renderProdutoCreatePage(root, { apiClient }) {
           <div>
             <label class="nhpr-field">Nome do Produto *<input id="nome" value="${f.nome}" ${state.loading ? 'disabled' : ''}/>${state.fieldErrors.nome ? `<span class="nhpr-ferr">${state.fieldErrors.nome}</span>` : ''}</label>
             <label class="nhpr-field">SKU<input id="sku" value="${f.sku}" ${state.loading ? 'disabled' : ''}/></label>
-            <label class="nhpr-field">Categoria<input id="categoria" value="${f.categoria}" ${state.loading ? 'disabled' : ''}/></label>
+            <label class="nhpr-field">Categoria<select id="categoria_id" ${state.loading ? 'disabled' : ''}><option value="">Selecione...</option>${(state.categorias || []).map((cat) => `<option value="${cat.id}" ${String(f.categoria_id || '') === String(cat.id) ? 'selected' : ''}>${cat.parent_id ? `↳ ${cat.nome}` : cat.nome}</option>`).join('')}</select></label>
           </div>
           <div>
             <label class="nhpr-field">Preço *<input id="preco" placeholder="129,90" value="${f.preco}" ${state.loading ? 'disabled' : ''}/>${state.fieldErrors.preco ? `<span class="nhpr-ferr">${state.fieldErrors.preco}</span>` : ''}</label>
+            <label class="nhpr-field">Preço promocional<input id="preco_promocional" value="${f.preco_promocional || ''}" ${state.loading ? 'disabled' : ''}/></label>
+            <label class="nhpr-field">ICMS %<input id="icms_percentual" value="${f.icms_percentual || ''}" ${state.loading ? 'disabled' : ''}/></label>
+            <label class="nhpr-field">Video URL<input id="video_url" value="${f.video_url || ''}" ${state.loading ? 'disabled' : ''}/></label>
             <label class="nhpr-field">Fábrica<select id="fabricante_id" ${state.loading ? 'disabled' : ''}><option value="">Sem fábrica vinculada</option>${(state.fabricantes || []).map((fab) => `<option value="${fab.id}" ${String(f.fabricante_id || '') === String(fab.id) ? 'selected' : ''}>${fab.nome || '-'}</option>`).join('')}</select></label>
             <label class="nhpr-field">Status<select id="status" ${state.loading ? 'disabled' : ''}><option value="ativo" ${f.status === 'ativo' ? 'selected' : ''}>ativo</option><option value="inativo" ${f.status === 'inativo' ? 'selected' : ''}>inativo</option></select></label>
             <label class="nhpr-field">Descrição<textarea id="descricao" ${state.loading ? 'disabled' : ''}>${f.descricao}</textarea></label>
@@ -80,10 +95,12 @@ export function renderProdutoCreatePage(root, { apiClient }) {
 
     root.querySelector('#nhpr-back').onclick = () => { window.location.hash = '#/produtos'; };
     root.querySelector('#nhpr-cancel').onclick = () => { window.location.hash = '#/produtos'; };
-    ['nome', 'sku', 'categoria', 'preco', 'descricao'].forEach((id) => {
+    ['nome', 'sku', 'preco', 'descricao'].forEach((id) => {
       const el = root.querySelector(`#${id}`);
       if (el) el.oninput = (e) => { state.form[id] = e.target.value || ''; };
     });
+    const categoria = root.querySelector('#categoria_id');
+    if (categoria) categoria.onchange = (e) => { state.form.categoria_id = e.target.value || ''; };
     const fabricante = root.querySelector('#fabricante_id');
     if (fabricante) fabricante.onchange = (e) => { state.form.fabricante_id = e.target.value || ''; };
     const status = root.querySelector('#status');
@@ -115,4 +132,5 @@ export function renderProdutoCreatePage(root, { apiClient }) {
 
   render();
   loadFabricantes();
+  loadCategorias();
 }

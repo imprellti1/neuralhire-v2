@@ -8,6 +8,7 @@ export function createProdutoDetailsState() {
     saving: false,
     form: {},
     fabricantes: [],
+    categorias: [],
     fabricantesLoading: false,
     fabricantesError: '',
     fieldErrors: {},

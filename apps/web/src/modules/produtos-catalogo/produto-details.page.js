@@ -1,6 +1,6 @@
 import { createProdutoDetailsState } from './produto-details.state.js';
 import { applyProdutoUsageDrillDown, applyProdutoUsageFilters, createProdutoEditForm, mapProdutoUsageCsvContent, mapProdutoUsageCsvFilename, mapProdutoUsageCsvRows, validateProdutoEditForm } from './produto-details.mapper.js';
-import { fetchProdutoDetailsData, fetchProdutoUsageData, updateProduto } from './produto-details.service.js';
+import { deleteProdutoImagem, fetchProdutoDetailsData, fetchProdutoImagens, fetchProdutoUsageData, updateProduto, updateProdutoImagem, uploadProdutoImagem } from './produto-details.service.js';
 
 function statusClass(status) {
   if (status === 'ativo') return 'is-ok';
@@ -29,6 +29,27 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     }
   }
 
+  async function loadCategorias() {
+    try {
+      const response = await apiClient.get('/produto-categorias', { status: 'ativo' });
+      state.categorias = Array.isArray(response?.items) ? response.items : [];
+    } catch {
+      state.categorias = [];
+    } finally {
+      render();
+    }
+  }
+
+  async function loadImagens() {
+    try {
+      state.images = await fetchProdutoImagens(apiClient, produtoId);
+    } catch {
+      state.images = [];
+    } finally {
+      render();
+    }
+  }
+
   function injectStyles() {
     if (document.getElementById('nh-produto-details-style')) return;
     const style = document.createElement('style');
@@ -51,6 +72,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     .nhpd-chart-hit{cursor:pointer}.nhpd-chart-hit.active{fill:#1f56dc;opacity:.18}.nhpd-chart-hit{fill:transparent}
     .nhpd-chart-tip{font-size:12px;color:#334155;margin:-2px 0 8px}
     .nhpd-ferr{font-size:12px;color:#b42318}.nhpd-msg{padding:10px;border-radius:10px;font-size:13px;margin-bottom:10px;background:#ecfdf3;color:#047857}
+    .nhpd-image-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.nhpd-image-card{border:1px solid #e5ecf8;border-radius:12px;padding:10px}.nhpd-image-card img{width:100%;height:140px;object-fit:cover;border-radius:10px;background:#f8fbff}
     @media (max-width:1024px){.nhpd-grid{grid-template-columns:1fr}.nhpd-title{font-size:24px}.nhpd-dl{grid-template-columns:1fr}.nhpd-kpi{grid-template-columns:1fr 1fr}}
     `;
     document.head.appendChild(style);
@@ -61,9 +83,12 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
       ${state.feedbackMessage ? `<div class="nhpd-msg" role="status" aria-live="polite">${state.feedbackMessage}</div>` : ''}
       <label class="nhpd-field">Nome<input id="nhpd-nome" value="${state.form.nome || ''}" ${state.saving ? 'disabled' : ''}/>${state.fieldErrors.nome ? `<span class="nhpd-ferr">${state.fieldErrors.nome}</span>` : ''}</label>
       <label class="nhpd-field">SKU<input id="nhpd-sku" value="${state.form.sku || ''}" ${state.saving ? 'disabled' : ''}/></label>
-      <label class="nhpd-field">Categoria<input id="nhpd-categoria" value="${state.form.categoria || ''}" ${state.saving ? 'disabled' : ''}/></label>
+      <label class="nhpd-field">Categoria<select id="nhpd-categoria_id" ${state.saving ? 'disabled' : ''}><option value="">Selecione...</option>${(state.categorias || []).map((cat) => `<option value="${cat.id}" ${String(state.form.categoria_id || '') === String(cat.id) ? 'selected' : ''}>${cat.parent_id ? `↳ ${cat.nome}` : cat.nome}</option>`).join('')}</select></label>
       <label class="nhpd-field">Fábrica<select id="nhpd-fabricante_id" ${state.saving ? 'disabled' : ''}><option value="">Sem fábrica vinculada</option>${(state.fabricantes || []).map((fab) => `<option value="${fab.id}" ${String(state.form.fabricante_id || '') === String(fab.id) ? 'selected' : ''}>${fab.nome || '-'}</option>`).join('')}</select>${state.fabricantesError ? `<span class="nhpd-ferr">${state.fabricantesError}</span>` : ''}</label>
-      <label class="nhpd-field">Preço<input id="nhpd-preco" value="${state.form.preco || ''}" ${state.saving ? 'disabled' : ''}/>${state.fieldErrors.preco ? `<span class="nhpd-ferr">${state.fieldErrors.preco}</span>` : ''}</label>
+      <label class="nhpd-field">Preço à vista<input id="nhpd-preco" value="${state.form.preco || ''}" ${state.saving ? 'disabled' : ''}/>${state.fieldErrors.preco ? `<span class="nhpd-ferr">${state.fieldErrors.preco}</span>` : ''}</label>
+      <label class="nhpd-field">Preço promocional<input id="nhpd-preco_promocional" value="${state.form.preco_promocional || ''}" ${state.saving ? 'disabled' : ''}/></label>
+      <label class="nhpd-field">ICMS %<input id="nhpd-icms_percentual" value="${state.form.icms_percentual || ''}" ${state.saving ? 'disabled' : ''}/></label>
+      <label class="nhpd-field">Video URL<input id="nhpd-video_url" value="${state.form.video_url || ''}" ${state.saving ? 'disabled' : ''}/></label>
       <label class="nhpd-field">Status<select id="nhpd-status" ${state.saving ? 'disabled' : ''}><option value="ativo" ${state.form.status === 'ativo' ? 'selected' : ''}>ativo</option><option value="inativo" ${state.form.status === 'inativo' ? 'selected' : ''}>inativo</option></select>${state.fieldErrors.status ? `<span class="nhpd-ferr">${state.fieldErrors.status}</span>` : ''}</label>
       <label class="nhpd-field">Descrição<textarea id="nhpd-descricao" ${state.saving ? 'disabled' : ''}>${state.form.descricao || ''}</textarea></label>
       <div style="display:flex;gap:8px;justify-content:flex-end"><button id="nhpd-cancel-edit" class="nhpd-btn" aria-label="Cancelar edição do produto" ${state.saving ? 'disabled' : ''}>Cancelar</button><button id="nhpd-save-edit" class="nhpd-btn primary" aria-label="Salvar alterações do produto" ${state.saving ? 'disabled' : ''}>${state.saving ? 'Salvando...' : 'Salvar alterações'}</button></div>
@@ -84,10 +109,16 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
         ${state.editing ? renderEditForm() : `<article class="nhpd-card"><h3>Resumo do Produto</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Nome</dt><dd class="nhpd-dd">${d.nomeExibicao}</dd><dt class="nhpd-dt">SKU</dt><dd class="nhpd-dd">${d.sku}</dd><dt class="nhpd-dt">Categoria</dt><dd class="nhpd-dd">${d.categoria}</dd><dt class="nhpd-dt">Status</dt><dd class="nhpd-dd">${d.status}</dd><dt class="nhpd-dt">Descrição</dt><dd class="nhpd-dd">${d.descricao}</dd></dl></article>`}
         <article class="nhpd-card"><h3>Fábrica vinculada</h3>${d.fabricanteId ? `<div style="display:flex;gap:12px;align-items:center;margin-bottom:10px">${d.fabricanteLogoUrl ? `<img src="${d.fabricanteLogoUrl}" alt="Logo da fábrica" style="width:64px;height:48px;object-fit:contain;border:1px solid #e5ecf8;border-radius:10px;padding:4px;background:#fff"/>` : '<div style="width:64px;height:48px;border:1px solid #e5ecf8;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#61708f">Sem logo</div>'}<div><strong>${d.fabricanteNome || 'Sem nome'}</strong><div style="color:#61708f;font-size:13px">${d.regrasComerciaisFabricante?.responsavel_comercial_nome || 'Sem responsável comercial'}</div></div></div><dl class="nhpd-dl"><dt class="nhpd-dt">CNPJ</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante?.cnpj || d.fabricanteCnpj || '-'}</dd><dt class="nhpd-dt">Pedido mínimo</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante ? brl(d.regrasComerciaisFabricante.pedido_minimo) : '-'}</dd><dt class="nhpd-dt">Duplicata mínima</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante ? brl(d.regrasComerciaisFabricante.duplicata_minima) : '-'}</dd><dt class="nhpd-dt">Comissão padrão</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante ? `${Number(d.regrasComerciaisFabricante.comissao_padrao || 0)}%` : '-'}</dd><dt class="nhpd-dt">Condição de pagamento</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante?.condicoes_pagamento?.[0]?.prazo || '-'}</dd><dt class="nhpd-dt">Bonificação</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante ? (d.regrasComerciaisFabricante.aceita_bonificacao ? 'Sim' : 'Não') : '-'}</dd><dt class="nhpd-dt">Consignação</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante ? (d.regrasComerciaisFabricante.aceita_consignacao ? 'Sim' : 'Não') : '-'}</dd></dl>` : '<div class="nhpd-state">Sem fábrica vinculada.</div>'}</article>
         <article class="nhpd-card"><h3>Preço e Comercial</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Preço atual</dt><dd class="nhpd-dd">${d.precoFormatado}</dd><dt class="nhpd-dt">Status comercial</dt><dd class="nhpd-dd">${d.status}</dd><dt class="nhpd-dt">Ativo/Inativo</dt><dd class="nhpd-dd">${d.ativo ? 'Ativo' : 'Inativo'}</dd></dl></article>
+        <article class="nhpd-card"><h3>Imagens</h3>${renderImagesBlock()}</article>
         <article class="nhpd-card"><h3>Auditoria</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Criado em</dt><dd class="nhpd-dd">${d.criadoEmFormatado}</dd><dt class="nhpd-dt">Atualizado em</dt><dd class="nhpd-dd">${d.atualizadoEmFormatado}</dd><dt class="nhpd-dt">ID técnico</dt><dd class="nhpd-dd">${d.idTecnicoAbreviado}</dd></dl></article>
         <article class="nhpd-card"><h3>Uso em Pedidos / Histórico comercial</h3>${renderUsageBlock()}</article>
       </div>
     </section>`;
+  }
+
+  function renderImagesBlock() {
+    const primary = (state.images || []).find((img) => img.principal) || (state.images || [])[0] || null;
+    return `<div style="display:grid;gap:10px"><div>${primary ? `<img src="${primary.url}" alt="Imagem principal do produto" style="width:100%;max-height:280px;object-fit:cover;border-radius:14px;border:1px solid #e5ecf8" />` : '<div class="nhpd-state">Sem imagem cadastrada.</div>'}</div><div><input type="file" id="nhpd-image-file" accept="image/jpeg,image/png,image/webp" ${state.saving ? 'disabled' : ''}/><button id="nhpd-image-upload" class="nhpd-btn primary" ${state.saving ? 'disabled' : ''}>Enviar imagem</button></div><div class="nhpd-image-grid">${(state.images || []).map((img) => `<div class="nhpd-image-card"><img src="${img.url}" alt="imagem do produto"/><div style="display:flex;justify-content:space-between;gap:8px;margin-top:8px"><button class="nhpd-btn js-img-primary" data-id="${img.id}">${img.principal ? 'Principal' : 'Tornar principal'}</button><button class="nhpd-btn js-img-remove" data-id="${img.id}">Remover</button></div></div>`).join('')}</div>`;
   }
 
   function renderUsageBlock() {
@@ -130,13 +161,15 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
   }
 
   function bindEditHandlers() {
-    const fields = ['nome', 'sku', 'categoria', 'preco', 'descricao'];
+    const fields = ['nome', 'sku', 'preco', 'preco_promocional', 'icms_percentual', 'video_url', 'descricao'];
     fields.forEach((field) => {
       const el = root.querySelector(`#nhpd-${field}`);
       if (el) el.oninput = (e) => { state.form[field] = e.target.value || ''; };
     });
     const status = root.querySelector('#nhpd-status');
     if (status) status.onchange = (e) => { state.form.status = e.target.value || 'ativo'; };
+    const categoria = root.querySelector('#nhpd-categoria_id');
+    if (categoria) categoria.onchange = (e) => { state.form.categoria_id = e.target.value || ''; };
     const fabricante = root.querySelector('#nhpd-fabricante_id');
     if (fabricante) fabricante.onchange = (e) => { state.form.fabricante_id = e.target.value || ''; };
 
@@ -181,6 +214,21 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     if (usageMore) usageMore.onclick = () => { state.usageVisibleCount += USAGE_STEP; render(); };
     const usageLess = root.querySelector('#nhpd-usage-less');
     if (usageLess) usageLess.onclick = () => { state.usageVisibleCount = USAGE_STEP; render(); };
+    const imageUpload = root.querySelector('#nhpd-image-upload');
+    if (imageUpload) imageUpload.onclick = async () => {
+      const file = root.querySelector('#nhpd-image-file')?.files?.[0];
+      if (!file) return;
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      await uploadProdutoImagem(apiClient, produtoId, { upload: { fileName: file.name, mimeType: file.type, size: file.size, base64 }, principal: true, tipo: 'image' });
+      await loadImagens();
+    };
+    root.querySelectorAll('.js-img-primary').forEach((btn) => btn.onclick = async () => { await updateProdutoImagem(apiClient, produtoId, btn.dataset.id, { principal: true }); await loadImagens(); });
+    root.querySelectorAll('.js-img-remove').forEach((btn) => btn.onclick = async () => { await deleteProdutoImagem(apiClient, produtoId, btn.dataset.id); await loadImagens(); });
     function exportUsageCsv(mode) {
       const u = applyProdutoUsageFilters(state.usage, state.usageFilters);
       const baseRows = applyProdutoUsageDrillDown(u.pedidosRecentes || [], state.usageDrillDown, u.agrupamentoTemporal);
@@ -248,6 +296,8 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
       if (!state?.data?.id) state.notFound = true;
       if (options.feedbackMessage) state.feedbackMessage = options.feedbackMessage;
       loadFabricantes();
+      loadCategorias();
+      loadImagens();
       loadUsage();
     } catch (error) {
       if (error?.status === 404) state.notFound = true;

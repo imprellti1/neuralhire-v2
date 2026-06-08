@@ -21,7 +21,7 @@ export async function getProdutos(context = {}) {
     page: query.page !== undefined ? Number(query.page) : undefined,
     limit: query.limit !== undefined ? Number(query.limit) : undefined,
     search: query.search,
-    categoria: query.categoria,
+    categoria_id: query.categoria_id || query.categoriaId || query.categoria,
     marca: query.marca,
     ativo: parseBoolean(query.ativo)
   };

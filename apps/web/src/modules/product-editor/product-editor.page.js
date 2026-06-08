@@ -1,5 +1,5 @@
 import { createProductEditorState } from './product-editor.state.js';
-import { createProductEditorVariation, fetchProductEditorProduct, fetchProductEditorProducts, fetchProductEditorVariations, saveProductEditorImages, saveProductEditorProduct, updateProductEditorVariation, updateProductEditorVariationImage } from './product-editor.service.js';
+import { createProductEditorVariation, fetchProductEditorProduct, fetchProductEditorProducts, fetchProductEditorVariationMovements, fetchProductEditorVariations, saveProductEditorImages, saveProductEditorProduct, updateProductEditorVariation, updateProductEditorVariationImage, updateProductEditorVariationStock } from './product-editor.service.js';
 
 function injectStyles() {
   if (document.getElementById('nh-pe-style')) return;
@@ -24,6 +24,7 @@ export function renderProductEditorPage(root, { apiClient } = {}) {
     state.selected = await fetchProductEditorProduct(apiClient, id);
     state.form = { ...state.form, ...state.selected, precoUnitario: state.selected.precoUnitario ?? state.selected.preco_unitario ?? '', galeria: state.selected.galeria || [] };
     state.variations = (await fetchProductEditorVariations(apiClient, id)).items || [];
+    state.movements = [];
     state.dirty = false; render();
   }
 
@@ -54,8 +55,9 @@ export function renderProductEditorPage(root, { apiClient } = {}) {
     </div>
     <hr/>
     <h3>Variações</h3>
-    <table class="npe-variations"><tr><th>SKU</th><th>Cor</th><th>Tamanho</th><th>Estoque</th><th>Preço</th><th>Imagem</th><th>Ativo</th></tr>${state.variations.map((v) => `<tr data-var="${v.id}"><td>${v.sku}</td><td>${v.cor}</td><td>${v.tamanho}</td><td>${v.estoque}</td><td>${currency(v.preco)}</td><td>${v.imagemUrl ? 'sim' : '-'}</td><td>${v.ativo ? 'Sim' : 'Não'}</td></tr>`).join('')}</table>
-    <div class="npe-grid" style="margin-top:12px"><label class="npe-field">Nova SKU<input id="pv-sku"></label><label class="npe-field">Cor<input id="pv-cor"></label><label class="npe-field">Tamanho<input id="pv-tamanho"></label><label class="npe-field">Estoque<input id="pv-estoque" value="0"></label><label class="npe-field">Preço<input id="pv-preco" value="0"></label><label class="npe-field">Imagem<input id="pv-imagemUrl"></label><button id="pv-create" class="npe-btn" style="grid-column:1/-1">Nova variação</button></div>`;
+    <table class="npe-variations"><tr><th>SKU</th><th>Cor</th><th>Tamanho</th><th>Saldo</th><th>Preço</th><th>Imagem</th><th>Ativo</th><th>Ação</th></tr>${state.variations.map((v) => `<tr data-var="${v.id}"><td>${v.sku}</td><td>${v.cor || '-'}</td><td>${v.tamanho || v.grade || '-'}</td><td>${Number(v.estoque_atual ?? v.estoque ?? 0)}</td><td>${currency(v.preco)}</td><td>${v.imagemUrl ? 'sim' : '-'}</td><td>${v.ativo ? 'Sim' : 'Não'}</td><td><button class="npe-btn secondary" data-stock="${v.id}">Movimentos</button></td></tr>`).join('')}</table>
+    <div class="npe-grid" style="margin-top:12px"><label class="npe-field">Nova SKU<input id="pv-sku"></label><label class="npe-field">Cor<input id="pv-cor"></label><label class="npe-field">Tamanho<input id="pv-tamanho"></label><label class="npe-field">Saldo inicial<input id="pv-estoque" value="0"></label><label class="npe-field">Preço<input id="pv-preco" value="0"></label><label class="npe-field">Imagem<input id="pv-imagemUrl"></label><button id="pv-create" class="npe-btn" style="grid-column:1/-1">Nova variação</button></div>
+    ${state.movements?.length ? `<hr/><h4>Movimentos</h4><table class="npe-variations"><tr><th>Tipo</th><th>Qtd</th><th>Saldo</th><th>Origem</th></tr>${state.movements.map((m) => `<tr><td>${m.tipo}</td><td>${m.quantidade}</td><td>${m.saldo_posterior}</td><td>${m.origem || '-'}</td></tr>`).join('')}</table>` : ''}`;
   }
 
   function bindEditor() {
@@ -68,6 +70,7 @@ export function renderProductEditorPage(root, { apiClient } = {}) {
     const save = root.querySelector('#pe-save'); if (save) save.onclick = saveProduct;
     const discard = root.querySelector('#pe-discard'); if (discard) discard.onclick = () => selectProduct(state.selected.id);
     const create = root.querySelector('#pv-create'); if (create) create.onclick = createVariation;
+    root.querySelectorAll('button[data-stock]').forEach((btn) => { btn.onclick = () => loadMovements(btn.getAttribute('data-stock')); });
     root.querySelectorAll('tr[data-var]').forEach((row) => { row.onclick = () => editVariation(row.getAttribute('data-var')); });
   }
 
@@ -85,7 +88,8 @@ export function renderProductEditorPage(root, { apiClient } = {}) {
     state.saving = false; render();
   }
   async function createVariation() { await createProductEditorVariation(apiClient, state.selected.id, { sku: root.querySelector('#pv-sku').value, cor: root.querySelector('#pv-cor').value, tamanho: root.querySelector('#pv-tamanho').value, estoque: Number(root.querySelector('#pv-estoque').value || 0), preco: Number(root.querySelector('#pv-preco').value || 0), imagemUrl: root.querySelector('#pv-imagemUrl').value, ativo: true }); await selectProduct(state.selected.id); }
-  async function editVariation(variationId) { const variation = state.variations.find((v) => v.id === variationId); if (!variation) return; await updateProductEditorVariation(apiClient, state.selected.id, variationId, { ...variation, sku: `${variation.sku}-EDIT` }); await updateProductEditorVariationImage(apiClient, state.selected.id, variationId, { imagemUrl: variation.imagemUrl || 'https://example.com/variation.jpg' }); await selectProduct(state.selected.id); }
+  async function editVariation(variationId) { const variation = state.variations.find((v) => v.id === variationId); if (!variation) return; await updateProductEditorVariation(apiClient, state.selected.id, variationId, { ...variation, sku: `${variation.sku}-EDIT` }); await updateProductEditorVariationImage(apiClient, state.selected.id, variationId, { imagemUrl: variation.imagemUrl || 'https://example.com/variation.jpg' }); await updateProductEditorVariationStock(apiClient, state.selected.id, variationId, { quantidade: Number(variation.estoque_atual ?? variation.estoque ?? 0) }); await selectProduct(state.selected.id); }
+  async function loadMovements(variationId) { const data = await fetchProductEditorVariationMovements(apiClient, state.selected.id, variationId); state.movements = data.items || []; render(); }
 
   render();
   loadList();

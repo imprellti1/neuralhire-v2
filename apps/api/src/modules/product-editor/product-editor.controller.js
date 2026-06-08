@@ -1,5 +1,5 @@
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
-import { createVariation, getProductEditorProduct, listProductEditorProducts, listVariations, updateProductEditorImages, updateProductEditorProduct, updateVariation, updateVariationImage } from './product-editor.repository.js';
+import { adjustVariationStock, createVariation, getProductEditorProduct, getVariationById, listProductEditorProducts, listVariationMovements, listVariations, updateProductEditorImages, updateProductEditorProduct, updateVariation, updateVariationImage } from './product-editor.repository.js';
 
 export async function getProductEditorProducts(context = {}) {
   const accountId = getAccountIdFromContext(context);
@@ -42,4 +42,19 @@ export async function patchProductEditorVariationHandler(context = {}) {
 export async function patchProductEditorVariationImageHandler(context = {}) {
   const accountId = getAccountIdFromContext(context);
   return { ok: true, item: await updateVariationImage(context.params?.productId, context.params?.variationId, context.body || {}, { accountId }) };
+}
+
+export async function patchProductEditorVariationStockHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  return { ok: true, item: await adjustVariationStock(context.params?.productId, context.params?.variationId, context.body || {}, { accountId, fabricanteId: context.body?.fabricante_id || context.body?.fabricanteId || null }) };
+}
+
+export async function getProductEditorVariationMovementsHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  return { ok: true, items: await listVariationMovements(context.params?.productId, context.params?.variationId, { accountId }) };
+}
+
+export async function getProductEditorVariationHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  return { ok: true, item: await getVariationById(context.params?.productId, context.params?.variationId, { accountId }) };
 }

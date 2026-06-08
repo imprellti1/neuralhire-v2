@@ -4,6 +4,7 @@ import { getProdutoById, listProdutos, updateProduto } from '../produtos/produto
 import { getFabricanteById } from '../fabricantes/fabricantes.repository.js';
 
 const memoryVariations = [];
+const memoryStockMovements = [];
 
 function assertAccount(accountId) {
   if (!accountId) throw new BadRequestError('accountId obrigatorio');
@@ -22,6 +23,35 @@ function nonNegativeNumber(value, label) {
   const num = Number(value);
   if (!Number.isFinite(num) || num < 0) throw new BadRequestError(`${label} invalido`);
   return num;
+}
+
+function normalizeVariationPayload(data = {}) {
+  return {
+    ...(data.cor !== undefined ? { nome: String(data.cor || '').trim(), grade: String(data.tamanho || data.grade || data.cor || '').trim() || null } : {}),
+    ...(data.tamanho !== undefined ? { grade: String(data.tamanho || '').trim() || null } : {}),
+    ...(data.imagemUrl !== undefined ? { imagemUrl: String(data.imagemUrl || '').trim() || null } : {}),
+    ...(data.imagem_url !== undefined ? { imagemUrl: String(data.imagem_url || '').trim() || null } : {})
+  };
+}
+
+function makeMovement(tipo, variation, options, data, saldoAnterior, saldoPosterior, observacao = null) {
+  return {
+    id: randomUUID(),
+    account_id: options.accountId,
+    produto_id: variation.product_id,
+    variacao_id: variation.id,
+    fabricante_id: options.fabricanteId || null,
+    tipo,
+    quantidade: saldoPosterior - saldoAnterior,
+    saldo_anterior: saldoAnterior,
+    saldo_posterior: saldoPosterior,
+    origem: data.origem || tipo,
+    arquivo_origem: data.arquivo_origem || null,
+    import_batch_id: data.import_batch_id || null,
+    observacao: observacao || String(data.observacao || '').trim() || null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
 }
 
 function buildFabricanteSummary(fabricante) {
@@ -71,6 +101,8 @@ export async function updateProductEditorProduct(productId, data = {}, options =
   if (data.subcategoria !== undefined && String(data.subcategoria).trim()) payload.subcategoria = String(data.subcategoria).trim();
   if (data.familia !== undefined && String(data.familia).trim()) payload.familia = String(data.familia).trim();
   if (data.colecao !== undefined && String(data.colecao).trim()) payload.colecao = String(data.colecao).trim();
+  if (data.imagemUrl !== undefined) payload.imagemUrl = String(data.imagemUrl || '').trim() || null;
+  if (data.imagem_url !== undefined) payload.imagemUrl = String(data.imagem_url || '').trim() || null;
   const preco = nonNegativeNumber(data.preco, 'Preco');
   if (preco !== undefined) payload.preco = preco;
   const precoUnitario = nonNegativeNumber(data.precoUnitario ?? data.preco_unitario, 'Preco unitario');
@@ -80,16 +112,12 @@ export async function updateProductEditorProduct(productId, data = {}, options =
     if (!['ativo', 'inativo'].includes(status)) throw new BadRequestError('Status invalido');
     payload.status = status;
   }
-  if (data.imagemUrl !== undefined && String(data.imagemUrl).trim()) payload.imagemUrl = String(data.imagemUrl).trim();
   return updateProduto(productId, payload, { accountId: options.accountId });
 }
 
 export async function updateProductEditorImages(productId, data = {}, options = {}) {
   assertAccount(options.accountId);
-  return updateProduto(productId, {
-    ...(data.imagemUrl !== undefined && String(data.imagemUrl).trim() ? { imagemUrl: String(data.imagemUrl).trim() } : {}),
-    ...(Array.isArray(data.galeria) ? { galeria: data.galeria.map((value) => String(value).trim()).filter(Boolean) } : {})
-  }, { accountId: options.accountId });
+  return updateProduto(productId, {}, { accountId: options.accountId });
 }
 
 export async function listVariations(productId, options = {}) {
@@ -103,16 +131,25 @@ export async function createVariation(productId, data = {}, options = {}) {
   await getProdutoById(productId, { accountId: options.accountId });
   const sku = sanitizeText(data.sku);
   if (!sku) throw new BadRequestError('SKU obrigatorio');
+  const estoque = nonNegativeNumber(data.estoque, 'Estoque');
+  if (estoque !== undefined && estoque < 0) throw new BadRequestError('Estoque invalido');
+  const normalized = normalizeVariationPayload(data);
   const variation = {
     id: randomUUID(),
     account_id: options.accountId,
     product_id: productId,
     sku,
-    cor: sanitizeText(data.cor) || '',
-    tamanho: sanitizeText(data.tamanho) || '',
-    estoque: nonNegativeNumber(data.estoque, 'Estoque') ?? 0,
+    nome: sanitizeText(data.nome) || sku,
+    grade: sanitizeText(data.grade) || sanitizeText(data.valor) || null,
+    tamanho: sanitizeText(data.tamanho) || sanitizeText(data.grade) || sanitizeText(data.valor) || null,
+    valor: sanitizeText(data.valor) || '',
+    cor: sanitizeText(data.cor) || null,
+    imagemUrl: normalized.imagemUrl || null,
+    imagem_principal_url: normalized.imagemUrl || null,
     preco: nonNegativeNumber(data.preco, 'Preco') ?? 0,
-    imagemUrl: sanitizeText(data.imagemUrl) || '',
+    preco_promocional: nonNegativeNumber(data.preco_promocional, 'Preco promocional') ?? null,
+    multiplo_venda: nonNegativeNumber(data.multiplo_venda, 'Multiplo venda') ?? 1,
+    estoque_atual: nonNegativeNumber(data.estoque ?? data.estoque_atual, 'Estoque') ?? 0,
     ativo: typeof data.ativo === 'boolean' ? data.ativo : true
   };
   memoryVariations.push(variation);
@@ -129,12 +166,18 @@ export async function updateVariation(productId, variationId, data = {}, options
   assertAccount(options.accountId);
   const variation = getVariationOrThrow(productId, variationId, options);
   if (data.sku !== undefined && String(data.sku).trim()) variation.sku = String(data.sku).trim();
-  if (data.cor !== undefined) variation.cor = String(data.cor || '').trim();
+  if (data.nome !== undefined) variation.nome = String(data.nome || '').trim();
+  if (data.grade !== undefined) variation.grade = String(data.grade || '').trim();
   if (data.tamanho !== undefined) variation.tamanho = String(data.tamanho || '').trim();
-  if (data.estoque !== undefined) variation.estoque = nonNegativeNumber(data.estoque, 'Estoque');
+  if (data.valor !== undefined) variation.valor = String(data.valor || '').trim();
+  if (data.cor !== undefined) variation.cor = String(data.cor || '').trim() || null;
   if (data.preco !== undefined) variation.preco = nonNegativeNumber(data.preco, 'Preco');
-  if (data.imagemUrl !== undefined) variation.imagemUrl = String(data.imagemUrl || '').trim();
+  if (data.preco_promocional !== undefined) variation.preco_promocional = nonNegativeNumber(data.preco_promocional, 'Preco promocional');
+  if (data.multiplo_venda !== undefined) variation.multiplo_venda = nonNegativeNumber(data.multiplo_venda, 'Multiplo venda');
   if (data.ativo !== undefined) variation.ativo = Boolean(data.ativo);
+  if (data.imagemUrl !== undefined) variation.imagemUrl = String(data.imagemUrl || '').trim() || null;
+  if (data.imagem_url !== undefined) variation.imagemUrl = String(data.imagem_url || '').trim() || null;
+  if (data.estoque_atual !== undefined || data.estoque !== undefined) variation.estoque_atual = nonNegativeNumber(data.estoque_atual ?? data.estoque, 'Estoque');
   return clone(variation);
 }
 
@@ -142,6 +185,43 @@ export async function updateVariationImage(productId, variationId, data = {}, op
   return updateVariation(productId, variationId, { imagemUrl: data.imagemUrl }, options);
 }
 
+export async function adjustVariationStock(productId, variationId, data = {}, options = {}) {
+  assertAccount(options.accountId);
+  const variation = getVariationOrThrow(productId, variationId, options);
+  const prev = Number(variation.estoque_atual || 0);
+  const next = Number(nonNegativeNumber(data.quantidade, 'Estoque'));
+  const delta = next - prev;
+  variation.estoque_atual = next;
+  const movement = makeMovement('AJUSTE_MANUAL', variation, options, data, prev, next);
+  memoryStockMovements.push(movement);
+  return { variation: clone(variation), movement: clone(movement) };
+}
+
+export async function registerImportStockMovement(productId, variationId, data = {}, options = {}) {
+  assertAccount(options.accountId);
+  const variation = getVariationOrThrow(productId, variationId, options);
+  const prev = Number(variation.estoque_atual || 0);
+  const next = Number(nonNegativeNumber(data.estoque_atual ?? data.quantidade, 'Estoque'));
+  if (prev === next) return { variation: clone(variation), movement: null };
+  variation.estoque_atual = next;
+  if (data.imagemUrl !== undefined) variation.imagemUrl = data.imagemUrl;
+  const movement = makeMovement('IMPORTACAO_ESTOQUE', variation, options, { ...data, origem: 'IMPORTACAO_XLSX' }, prev, next);
+  memoryStockMovements.push(movement);
+  return { variation: clone(variation), movement: clone(movement) };
+}
+
+export async function listVariationMovements(productId, variationId, options = {}) {
+  assertAccount(options.accountId);
+  getVariationOrThrow(productId, variationId, options);
+  return memoryStockMovements.filter((m) => m.account_id === options.accountId && m.produto_id === productId && m.variacao_id === variationId).map(clone);
+}
+
+export async function getVariationById(productId, variationId, options = {}) {
+  assertAccount(options.accountId);
+  return clone(getVariationOrThrow(productId, variationId, options));
+}
+
 export function __resetMemoryProductEditorForTests() {
   memoryVariations.length = 0;
+  memoryStockMovements.length = 0;
 }

@@ -3,9 +3,12 @@ export function createProdutoCreateState() {
     form: {
       nome: '',
       sku: '',
-      categoria: '',
+      categoria_id: '',
       fabricante_id: '',
       preco: '',
+      preco_promocional: '',
+      icms_percentual: '',
+      video_url: '',
       descricao: '',
       status: 'ativo'
     },
@@ -15,6 +18,7 @@ export function createProdutoCreateState() {
     fieldErrors: {},
     fabricantesLoading: false,
     fabricantesError: '',
-    fabricantes: []
+    fabricantes: [],
+    categorias: []
   };
 }
