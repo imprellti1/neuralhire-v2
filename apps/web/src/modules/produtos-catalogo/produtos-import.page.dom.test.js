@@ -3,18 +3,6 @@ import test from 'node:test';
 import { setupFrontendDom, teardownFrontendDom, flush } from '../../testing/frontend-test-helpers.js';
 import { renderProdutosImportPage } from './produtos-import.page.js';
 
-function appendXlsxField(formData, file) {
-  formData.append('file', file, file.name);
-}
-
-function createXlsxBlobFile(fileName) {
-  const blob = new Blob([new Uint8Array([1, 2, 3, 4])], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  });
-  Object.defineProperty(blob, 'name', { value: fileName, configurable: true });
-  return { blob, name: fileName };
-}
-
 test('produtos import page renders preview and execution states', async () => {
   const dom = setupFrontendDom('#/produtos/importacao');
   const calls = [];
@@ -35,10 +23,18 @@ test('produtos import page renders preview and execution states', async () => {
   assert.match(document.body.textContent, /Selecione um arquivo XLSX antes de continuar\./);
   const fab = document.querySelector('#npi-fab');
   assert.equal(fab.value, '550e8400-e29b-41d4-a716-446655440001');
-  const file = createXlsxBlobFile('Estoque_288.xlsx');
-  const input = document.querySelector('#npi-file');
-  Object.defineProperty(input, 'files', { value: [file.blob] });
-  input.dispatchEvent(new Event('change', { bubbles: true }));
+  const fileBlob = new Blob([new Uint8Array([1, 2, 3, 4])], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  });
+  Object.defineProperty(fileBlob, 'name', {
+    value: 'Estoque_288.xlsx'
+  });
+  const fileInput = document.querySelector('#npi-file');
+  Object.defineProperty(fileInput, 'files', {
+    configurable: true,
+    value: [fileBlob]
+  });
+  fileInput.dispatchEvent(new Event('change', { bubbles: true }));
   await flush();
   assert.match(document.body.textContent, /Arquivo selecionado: Estoque_288\.xlsx/);
   document.querySelector('#npi-preview').click();
@@ -53,7 +49,7 @@ test('produtos import page renders preview and execution states', async () => {
   assert.equal(previewCall.body.get('file').size > 0, true);
   assert.doesNotThrow(() => {
     const fd = new FormData();
-    appendXlsxField(fd, file.blob);
+    fd.append('file', fileBlob, fileBlob.name);
     fd.append('fabricante_id', '550e8400-e29b-41d4-a716-446655440001');
   });
   document.querySelector('#npi-run').click();
@@ -80,10 +76,18 @@ test('produtos import page does not call preview without fabricante selecionado'
   };
   renderProdutosImportPage(document.body, { apiClient });
   await flush();
-  const file = createXlsxBlobFile('Estoque_289.xlsx');
-  const input = document.querySelector('#npi-file');
-  Object.defineProperty(input, 'files', { value: [file.blob] });
-  input.dispatchEvent(new Event('change', { bubbles: true }));
+  const fileBlob = new Blob([new Uint8Array([1, 2, 3, 4])], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  });
+  Object.defineProperty(fileBlob, 'name', {
+    value: 'Estoque_289.xlsx'
+  });
+  const fileInput = document.querySelector('#npi-file');
+  Object.defineProperty(fileInput, 'files', {
+    configurable: true,
+    value: [fileBlob]
+  });
+  fileInput.dispatchEvent(new Event('change', { bubbles: true }));
   await flush();
   document.querySelector('#npi-preview').click();
   await flush();
@@ -104,10 +108,18 @@ test('produtos import page keeps fabricanteId in sync with selected option', asy
   await flush();
   const select = document.querySelector('#npi-fab');
   assert.equal(select.value, '550e8400-e29b-41d4-a716-446655440099');
-  const file = createXlsxBlobFile('Estoque_290.xlsx');
-  const input = document.querySelector('#npi-file');
-  Object.defineProperty(input, 'files', { value: [file.blob] });
-  input.dispatchEvent(new Event('change', { bubbles: true }));
+  const fileBlob = new Blob([new Uint8Array([1, 2, 3, 4])], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  });
+  Object.defineProperty(fileBlob, 'name', {
+    value: 'Estoque_290.xlsx'
+  });
+  const fileInput = document.querySelector('#npi-file');
+  Object.defineProperty(fileInput, 'files', {
+    configurable: true,
+    value: [fileBlob]
+  });
+  fileInput.dispatchEvent(new Event('change', { bubbles: true }));
   await flush();
   const previewBtn = document.querySelector('#npi-preview');
   assert.equal(previewBtn.disabled, false);
