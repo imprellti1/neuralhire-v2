@@ -240,11 +240,14 @@ test('fabricantes: aba vendedores lista, adiciona principal e reabre persistido'
   document.querySelector('[data-vinculo-form-field="vendedor_vinculo_principal"]').value = 'true';
   document.querySelector('[data-vinculo-form-field="vendedor_vinculo_principal"]').dispatchEvent(new Event('change', { bubbles: true }));
   dispatchInput(document.querySelector('[data-vinculo-form-field="vendedor_vinculo_comissao_percentual"]'), '7.5');
-  dispatchInput(document.querySelector('[data-vinculo-form-field="vendedor_vinculo_condicoes_pagamento"]'), '30/60/90');
   document.querySelector('[data-vinculo-form-save]').click();
   await flush(); await flush();
   const calls = getSanitizedFetchCalls();
   assert.ok(calls.some((call) => call.method === 'PUT' && call.path === '/fabricantes/fab-v/vendedores'));
+  assert.doesNotMatch(document.body.textContent, /Condição de pagamento/);
+  const vinculoPut = calls.find((call) => call.method === 'PUT' && call.path === '/fabricantes/fab-v/vendedores');
+  assert.ok(vinculoPut);
+  assert.equal(Object.prototype.hasOwnProperty.call(vinculoPut.body?.vendedores?.[0] || {}, 'condicoes_pagamento'), false);
   teardownFrontendDom(dom);
 });
 
@@ -297,7 +300,6 @@ test('fabricantes: aba vendedores edita e inativa vínculo sem duplicar principa
   document.querySelector('[data-vinculo-edit="vinc-1"]').click();
   await flush();
   dispatchInput(document.querySelector('[data-vinculo-form-field="vendedor_vinculo_comissao_percentual"]'), '8');
-  dispatchInput(document.querySelector('[data-vinculo-form-field="vendedor_vinculo_condicoes_pagamento"]'), '45/45');
   document.querySelector('[data-vinculo-form-field="vendedor_vinculo_status"]').value = 'inativo';
   document.querySelector('[data-vinculo-form-field="vendedor_vinculo_status"]').dispatchEvent(new Event('change', { bubbles: true }));
   document.querySelector('[data-vinculo-form-save]').click();
@@ -305,6 +307,30 @@ test('fabricantes: aba vendedores edita e inativa vínculo sem duplicar principa
   assert.equal(patchBody.comissao_percentual, 8);
   assert.equal(patchBody.status, 'inativo');
   assert.match(document.body.textContent, /Inativo/);
+  teardownFrontendDom(dom);
+});
+
+test('fabricantes: aba vendedores nao exibe condicao de pagamento no formulario ou tabela', async () => {
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
+  const fabricantes = [{ id: 'fab-v3', nome: 'Fab V3', cnpj: '12345678000190', status: 'ativo', pedido_minimo: 10, boleto_minimo: 20, comissao_padrao_percentual: 5 }];
+  installFetchMock({
+    'GET /fabricantes': () => ({ items: fabricantes, pagination: { page: 1, totalPages: 1, total: fabricantes.length, limit: 20 } }),
+    'GET /fabricantes/fab-v3': () => ({ ...fabricantes[0] }),
+    'GET /fabricantes/fab-v3/condicoes-pagamento': () => ({ items: [], total: 0 }),
+    'GET /fabricantes/fab-v3/vendedores': () => ({ items: [], total: 0 }),
+    'GET /vendedores': () => ({ items: [{ id: 'vend-9', nome: 'Vendedor Novo', email: 'novo@empresa.com.br', status: 'ativo' }], pagination: { page: 1, totalPages: 1, total: 1, limit: 20 } })
+  });
+  bootstrapWebApp();
+  await flush(); await flush();
+  document.querySelector('[data-edit-id="fab-v3"]').click();
+  await flush(); await flush();
+  document.querySelector('[data-tab="vinculos"]').click();
+  await flush();
+  assert.doesNotMatch(document.body.textContent, /Condição de pagamento/);
+  document.querySelector('[data-vinculo-add]').click();
+  await flush();
+  assert.equal(document.querySelector('[data-vinculo-form-field="vendedor_vinculo_condicoes_pagamento"]'), null);
   teardownFrontendDom(dom);
 });
 

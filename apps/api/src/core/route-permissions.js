@@ -7,7 +7,7 @@ export const ROUTE_PERMISSIONS = {
   'GET /system/admin-only': { authenticated: true, role: 'admin' },
   'GET /vendedores': { authenticated: true, permission: 'vendedores:read', tenantRequired: true, domain: 'vendedores' },
   'GET /vendedores/:id': { authenticated: true, permission: 'vendedores:read', tenantRequired: true, domain: 'vendedores' },
-  'POST /vendedores': { authenticated: true, permission: 'vendedores:write', tenantRequired: true, domain: 'vendedores' },
+  'POST /vendedores': { authenticated: true, permission: 'vendedores:create', tenantRequired: true, domain: 'vendedores' },
   'PATCH /vendedores/:id': { authenticated: true, permission: 'vendedores:write', tenantRequired: true, domain: 'vendedores' },
   'PATCH /vendedores/:id/status': { authenticated: true, permission: 'vendedores:write', tenantRequired: true, domain: 'vendedores' },
   'GET /vendedores/:id/fabricantes': { authenticated: true, permission: 'vendedores:read', tenantRequired: true, domain: 'vendedores' },

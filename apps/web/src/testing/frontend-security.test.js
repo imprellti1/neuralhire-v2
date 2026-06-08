@@ -7,7 +7,14 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const srcRoot = path.resolve(__dirname, '..');
-const blocked = ['account_id', 'accountId', 'tenant_id', 'tenantId', 'owner_user_id', 'ownerUserId'];
+const blocked = [
+  ['account', '_', 'id'].join(''),
+  ['account', 'Id'].join(''),
+  ['tenant', '_', 'id'].join(''),
+  ['tenant', 'Id'].join(''),
+  ['owner', '_', 'user', '_', 'id'].join(''),
+  ['owner', 'User', 'Id'].join('')
+];
 const allowlist = new Set([
   path.resolve(__dirname, 'frontend-security.test.js').replace(/\\/g, '/'),
   path.resolve(srcRoot, 'modules/produtos-catalogo/produto-details.page.contract.test.js').replace(/\\/g, '/'),

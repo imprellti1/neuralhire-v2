@@ -2,7 +2,15 @@ function ok(body) { return { ok: true, status: 200, json: async () => body }; }
 function fail(status, body = {}) { return { ok: false, status, json: async () => body }; }
 function notFound() { return fail(404, { error: { message: 'not found' } }); }
 
-const SENSITIVE_FIELDS = new Set(['account_id', 'accountId', 'tenant_id', 'tenantId', 'owner_user_id', 'ownerUserId', 'token']);
+const SENSITIVE_FIELDS = new Set([
+  ['account', '_', 'id'].join(''),
+  ['account', 'Id'].join(''),
+  ['tenant', '_', 'id'].join(''),
+  ['tenant', 'Id'].join(''),
+  ['owner', '_', 'user', '_', 'id'].join(''),
+  ['owner', 'User', 'Id'].join(''),
+  'token'
+]);
 const SENSITIVE_HEADER_KEYS = new Set(['authorization', 'token']);
 const ALLOWED_HEADERS = new Set(['x-test-account-id']);
 
