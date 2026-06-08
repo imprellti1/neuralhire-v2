@@ -8,7 +8,7 @@ test('produtos import page renders preview and execution states', async () => {
   const calls = [];
   const apiClient = {
     get: async (path) => {
-      if (path === '/fabricantes') return { items: [{ id: 'fab-1', nome: 'Fab 1' }] };
+      if (path === '/fabricantes') return { items: [{ id: 'fab-1', nome: 'Fab 1' }, { id: 'fab-2', nome: 'Fab 2' }] };
       return { items: [] };
     },
     post: async (path, body) => {
@@ -21,16 +21,14 @@ test('produtos import page renders preview and execution states', async () => {
   await flush();
   assert.match(document.body.textContent, /Importação de Produtos/);
   assert.match(document.body.textContent, /Selecione um arquivo XLSX antes de continuar\./);
-  document.querySelector('#npi-preview').click();
-  await flush();
-  assert.equal(calls.length, 0);
   const fab = document.querySelector('#npi-fab');
-  fab.value = 'fab-1';
-  fab.dispatchEvent(new Event('change', { bubbles: true }));
+  assert.equal(fab.value, 'fab-1');
   const file = new window.File(['fake'], 'Estoque_288.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const input = document.querySelector('#npi-file');
   Object.defineProperty(input, 'files', { value: [file] });
   input.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+  assert.match(document.body.textContent, /Arquivo selecionado: Estoque_288\.xlsx/);
   document.querySelector('#npi-preview').click();
   await flush();
   await flush();
@@ -39,11 +37,38 @@ test('produtos import page renders preview and execution states', async () => {
   assert.ok(previewCall?.body instanceof FormData);
   assert.equal(previewCall.body.get('fabricante_id'), 'fab-1');
   assert.ok(previewCall.body.get('file') instanceof File);
+  assert.equal(previewCall.body.get('file').name, 'Estoque_288.xlsx');
   document.querySelector('#npi-run').click();
   await flush();
   await flush();
   assert.match(document.body.textContent, /completed/i);
   assert.ok(calls.some((call) => call.path === '/produtos/importar-estoque/preview'));
   assert.ok(calls.some((call) => call.path === '/produtos/importar-estoque'));
+  teardownFrontendDom(dom);
+});
+
+test('produtos import page does not call preview without fabricante selecionado', async () => {
+  const dom = setupFrontendDom('#/produtos/importacao-empty');
+  const calls = [];
+  const apiClient = {
+    get: async (path) => {
+      if (path === '/fabricantes') return { items: [] };
+      return { items: [] };
+    },
+    post: async (path, body) => {
+      calls.push({ path, body });
+      return { ok: true };
+    }
+  };
+  renderProdutosImportPage(document.body, { apiClient });
+  await flush();
+  const file = new window.File(['fake'], 'Estoque_289.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const input = document.querySelector('#npi-file');
+  Object.defineProperty(input, 'files', { value: [file] });
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+  document.querySelector('#npi-preview').click();
+  await flush();
+  assert.equal(calls.length, 0);
   teardownFrontendDom(dom);
 });

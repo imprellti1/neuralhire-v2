@@ -37,54 +37,67 @@ async function fileToFormData(file, fabricanteId) {
 
 export function renderProdutosImportPage(root, { apiClient }) {
   injectStyles();
-  let file = null;
-  let fileName = '';
-  let fabricanteId = '';
-  let preview = null;
-  let result = null;
-  let loading = false;
-  let error = '';
-  let fileError = 'Selecione um arquivo XLSX antes de continuar.';
+  const state = {
+    file: null,
+    fileName: '',
+    fabricanteId: '',
+    preview: null,
+    result: null,
+    loading: false,
+    error: '',
+    fileError: 'Selecione um arquivo XLSX antes de continuar.'
+  };
   const fabricantes = [];
 
   async function loadFabricantes() {
     try {
       const data = await apiClient.get('/fabricantes', { page: 1, limit: 100 });
       fabricantes.splice(0, fabricantes.length, ...(data.items || []));
+      if (!state.fabricanteId) {
+        const primeiraFabricaValida = fabricantes.find((f) => String(f?.id || '').trim());
+        if (primeiraFabricaValida) {
+          state.fabricanteId = String(primeiraFabricaValida.id);
+        }
+      }
     } catch {}
   }
 
   function render() {
-    root.innerHTML = `<section class="npi"><div class="npi-card"><div class="npi-title">Importação de Produtos</div><div class="npi-sub">Upload de XLSX com produto pai, variações e estoque por grade.</div></div><div class="npi-grid"><div class="npi-card"><div class="npi-field"><label>Fábrica</label><select id="npi-fab"><option value="">Selecione</option>${fabricantes.map((f) => `<option value="${f.id}" ${String(fabricanteId) === String(f.id) ? 'selected' : ''}>${f.nome}</option>`).join('')}</select></div><div class="npi-field"><label>Arquivo XLSX</label><input id="npi-file" type="file" accept=".xlsx"><div class="npi-sub">${fileName ? `Arquivo selecionado: ${fileName}` : 'Nenhum arquivo escolhido'}</div></div>${fileError ? `<div class="npi-state" role="alert">${fileError}</div>` : ''}<div class="npi-actions"><button id="npi-preview" class="npi-btn secondary" ${loading || !file ? 'disabled' : ''}>Preview</button><button id="npi-run" class="npi-btn" ${loading || !preview || !file ? 'disabled' : ''}>Importar</button></div>${error ? `<div class="npi-state" role="alert">${error}</div>` : ''}${result ? `<div class="npi-state">${JSON.stringify(result.summary || result, null, 2)}</div>` : ''}</div><div class="npi-card">${preview ? `<div class="npi-kpi"><div><strong>${preview.totalRows || 0}</strong><div>Linhas</div></div><div><strong>${preview.divergences || 0}</strong><div>Divergências</div></div><div><strong>${(preview.sampleRows || []).length}</strong><div>Amostra</div></div><div><strong>${(preview.headers || []).length}</strong><div>Colunas</div></div></div><h4>Primeiras linhas</h4><table class="npi-table">${(preview.sampleRows || []).map((row) => `<tr><td>${row.codigo_erp}</td><td>${row.nome_produto}</td><td>${row.variacao_nome || '-'}</td><td>${row.variationsCount || 0}</td></tr>`).join('')}</table>` : '<div class="npi-state">Faça o preview para validar a planilha.</div>'}</div></div></section>`;
-    root.querySelector('#npi-fab').onchange = (e) => { fabricanteId = e.target.value; };
+    const selectedValue = String(state.fabricanteId || '');
+    root.innerHTML = `<section class="npi"><div class="npi-card"><div class="npi-title">Importação de Produtos</div><div class="npi-sub">Upload de XLSX com produto pai, variações e estoque por grade.</div></div><div class="npi-grid"><div class="npi-card"><div class="npi-field"><label>Fábrica</label><select id="npi-fab"><option value="">Selecione</option>${fabricantes.map((f) => `<option value="${String(f.id)}" ${selectedValue === String(f.id) ? 'selected' : ''}>${f.nome}</option>`).join('')}</select></div><div class="npi-field"><label>Arquivo XLSX</label><input id="npi-file" type="file" accept=".xlsx"><div class="npi-sub">${state.fileName ? `Arquivo selecionado: ${state.fileName}` : 'Nenhum arquivo escolhido'}</div></div>${state.fileError ? `<div class="npi-state" role="alert">${state.fileError}</div>` : ''}<div class="npi-actions"><button id="npi-preview" class="npi-btn secondary" ${state.loading || !state.file || !state.fabricanteId ? 'disabled' : ''}>Preview</button><button id="npi-run" class="npi-btn" ${state.loading || !state.preview || !state.file || !state.fabricanteId ? 'disabled' : ''}>Importar</button></div>${state.error ? `<div class="npi-state" role="alert">${state.error}</div>` : ''}${state.result ? `<div class="npi-state">${JSON.stringify(state.result.summary || state.result, null, 2)}</div>` : ''}</div><div class="npi-card">${state.preview ? `<div class="npi-kpi"><div><strong>${state.preview.totalRows || 0}</strong><div>Linhas</div></div><div><strong>${state.preview.divergences || 0}</strong><div>Divergências</div></div><div><strong>${(state.preview.sampleRows || []).length}</strong><div>Amostra</div></div><div><strong>${(state.preview.headers || []).length}</strong><div>Colunas</div></div></div><h4>Primeiras linhas</h4><table class="npi-table">${(state.preview.sampleRows || []).map((row) => `<tr><td>${row.codigo_erp}</td><td>${row.nome_produto}</td><td>${row.variacao_nome || '-'}</td><td>${row.variationsCount || 0}</td></tr>`).join('')}</table>` : '<div class="npi-state">Faça o preview para validar a planilha.</div>'}</div></div></section>`;
+    root.querySelector('#npi-fab').onchange = (e) => {
+      state.fabricanteId = e.target.value;
+      state.error = '';
+      render();
+    };
     root.querySelector('#npi-file').onchange = (e) => {
       const selectedFile = e.target.files?.[0] || null;
-      file = selectedFile;
-      fileName = selectedFile?.name || '';
-      fileError = file ? '' : 'Selecione um arquivo XLSX antes de continuar.';
-      error = '';
+      state.file = selectedFile;
+      state.fileName = selectedFile?.name || '';
+      state.fileError = state.file ? '' : 'Selecione um arquivo XLSX antes de continuar.';
+      state.error = '';
       render();
     };
     function requireValidInput() {
-      if (!fabricanteId) {
-        error = 'Selecione um fabricante antes de continuar.';
-        fileError = '';
+      if (!state.fabricanteId) {
+        state.error = 'Selecione uma fábrica antes de continuar.';
+        state.fileError = '';
         return false;
       }
-      const isFileLike = typeof File !== 'undefined' && file instanceof File;
-      const isBlobLike = typeof Blob !== 'undefined' && file instanceof Blob;
-      if (!file || (!isFileLike && !isBlobLike)) {
-        fileError = 'Selecione um arquivo XLSX antes de continuar.';
-        error = '';
+      const isFileLike = typeof File !== 'undefined' && state.file instanceof File;
+      const isBlobLike = typeof Blob !== 'undefined' && state.file instanceof Blob;
+      if (!state.file || (!isFileLike && !isBlobLike)) {
+        state.fileError = 'Selecione um arquivo XLSX antes de continuar.';
+        state.error = '';
         return false;
       }
-      const fileName = String(file?.name || '').trim().toLowerCase();
+      const fileName = String(state.file?.name || '').trim().toLowerCase();
       if (!fileName.endsWith('.xlsx')) {
-        fileError = 'Selecione um arquivo XLSX antes de continuar.';
-        error = '';
+        state.fileError = 'Selecione um arquivo XLSX antes de continuar.';
+        state.error = '';
         return false;
       }
-      fileError = '';
+      state.fileError = '';
       return true;
     }
     root.querySelector('#npi-preview').onclick = async () => {
@@ -92,15 +105,17 @@ export function renderProdutosImportPage(root, { apiClient }) {
         render();
         return;
       }
-      loading = true; render();
-      error = '';
+      state.loading = true; render();
+      state.error = '';
       try {
-        const fd = await fileToFormData(file, fabricanteId);
-        preview = await apiClient.post('/produtos/importar-estoque/preview', fd);
+        const fd = new FormData();
+        fd.append('file', state.file, state.file.name);
+        fd.append('fabricante_id', state.fabricanteId);
+        state.preview = await apiClient.post('/produtos/importar-estoque/preview', fd);
       } catch (err) {
-        error = err?.message || 'Arquivo XLSX invalido. Selecione um arquivo compatível e tente novamente.';
+        state.error = err?.message || 'Arquivo XLSX invalido. Selecione um arquivo compatível e tente novamente.';
       } finally {
-        loading = false; render();
+        state.loading = false; render();
       }
     };
     const run = root.querySelector('#npi-run');
@@ -109,15 +124,17 @@ export function renderProdutosImportPage(root, { apiClient }) {
         render();
         return;
       }
-      loading = true; render();
-      error = '';
+      state.loading = true; render();
+      state.error = '';
       try {
-        const fd = await fileToFormData(file, fabricanteId);
-        result = await apiClient.post('/produtos/importar-estoque', fd);
+        const fd = new FormData();
+        fd.append('file', state.file, state.file.name);
+        fd.append('fabricante_id', state.fabricanteId);
+        state.result = await apiClient.post('/produtos/importar-estoque', fd);
       } catch (err) {
-        error = err?.message || 'Não foi possível importar o arquivo.';
+        state.error = err?.message || 'Não foi possível importar o arquivo.';
       } finally {
-        loading = false; render();
+        state.loading = false; render();
       }
     };
   }
