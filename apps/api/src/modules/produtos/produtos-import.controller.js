@@ -45,12 +45,16 @@ function shouldLogImportPreview() {
 
 function resolveFabricanteId(context = {}) {
   const body = cleanBody(context.body || {});
-  return body.fabricante_id || body.fabricanteId || body.fabricante?.id || null;
+  const nestedBody = cleanBody(body.body || {});
+  const merged = { ...nestedBody, ...body };
+  return merged.fabricante_id || merged.fabricanteId || merged.fabricante?.id || null;
 }
 
 function resolveImportFile(context = {}) {
   const body = cleanBody(context.body || {});
-  return body.file || body.arquivo || body.xlsx || null;
+  const nestedBody = cleanBody(body.body || {});
+  const merged = { ...nestedBody, ...body };
+  return merged.file || merged.arquivo || merged.xlsx || null;
 }
 
 async function ensureFabricante(accountId, fabricanteId) {
@@ -104,9 +108,11 @@ export async function previewProdutosImportHandler(context = {}) {
   const file = resolveImportFile(context);
   if (shouldLogImportPreview()) {
     console.log('[produtos-import] preview received', {
+      requestId: context.requestId || null,
       fabricanteId,
       bodyKeys: Object.keys(body || {}),
-      hasFile: Boolean(file)
+      hasFile: Boolean(file),
+      fileKeys: file && typeof file === 'object' ? Object.keys(file) : []
     });
   }
   if (!fabricanteId) throw new BadRequestError('fabricante_id obrigatorio', { domain: 'produtos-import' });
