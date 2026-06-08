@@ -23,10 +23,11 @@ test('produtos import page renders preview and execution states', async () => {
   assert.match(document.body.textContent, /Selecione um arquivo XLSX antes de continuar\./);
   const fab = document.querySelector('#npi-fab');
   assert.equal(fab.value, '550e8400-e29b-41d4-a716-446655440001');
-  const fileBlob = new Blob([new Uint8Array([1, 2, 3, 4])], {
+  const fileBlob = new Blob(['conteudo'], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   });
   Object.defineProperty(fileBlob, 'name', {
+    configurable: true,
     value: 'Estoque_288.xlsx'
   });
   const fileInput = document.querySelector('#npi-file');
@@ -45,7 +46,8 @@ test('produtos import page renders preview and execution states', async () => {
   assert.ok(previewCall?.body instanceof FormData);
   assert.equal(previewCall.body.get('fabricante_id'), '550e8400-e29b-41d4-a716-446655440001');
   const previewFile = previewCall.body.get('file');
-  assert.ok(previewFile instanceof Blob || previewFile instanceof File);
+  assert.ok(previewFile);
+  assert.equal(typeof previewFile.size, 'number');
   assert.equal(previewFile.name, 'Estoque_288.xlsx');
   assert.equal(previewFile.size > 0, true);
   assert.doesNotThrow(() => {
@@ -77,10 +79,11 @@ test('produtos import page does not call preview without fabricante selecionado'
   };
   renderProdutosImportPage(document.body, { apiClient });
   await flush();
-  const fileBlob = new Blob([new Uint8Array([1, 2, 3, 4])], {
+  const fileBlob = new Blob(['conteudo'], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   });
   Object.defineProperty(fileBlob, 'name', {
+    configurable: true,
     value: 'Estoque_289.xlsx'
   });
   const fileInput = document.querySelector('#npi-file');
@@ -109,10 +112,11 @@ test('produtos import page keeps fabricanteId in sync with selected option', asy
   await flush();
   const select = document.querySelector('#npi-fab');
   assert.equal(select.value, '550e8400-e29b-41d4-a716-446655440099');
-  const fileBlob = new Blob([new Uint8Array([1, 2, 3, 4])], {
+  const fileBlob = new Blob(['conteudo'], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   });
   Object.defineProperty(fileBlob, 'name', {
+    configurable: true,
     value: 'Estoque_290.xlsx'
   });
   const fileInput = document.querySelector('#npi-file');
