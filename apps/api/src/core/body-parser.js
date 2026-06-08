@@ -56,9 +56,11 @@ async function readRequestBuffer(req, limitBytes) {
 }
 
 function parseMultipartBody(buffer, boundary) {
-  const marker = `--${boundary}`;
   const text = buffer.toString('binary');
-  const parts = text.split(marker);
+  const normalized = text.startsWith(`--${boundary}`)
+    ? text.slice(`--${boundary}`.length)
+    : text;
+  const parts = normalized.split(`\r\n--${boundary}`);
   const payload = {};
 
   for (const part of parts) {
@@ -93,17 +95,6 @@ function parseMultipartBody(buffer, boundary) {
     }
     payload[fieldName] = Buffer.from(rawValue, 'binary').toString('utf8').replace(/\r\n$/, '');
   }
-
-  console.log('[multipart-debug]', {
-    keys: Object.keys(payload || {}),
-    file: payload?.file
-      ? {
-          fileName: payload.file.fileName,
-          mimeType: payload.file.mimeType,
-          size: payload.file.size
-        }
-      : null
-  });
 
   return payload;
 }
