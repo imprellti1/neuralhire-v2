@@ -37,6 +37,10 @@ export function splitDescricaoProduto(descricao = '') {
 export function parseXlsxAgGridBuffer(buffer) {
   const tmpDir = mkdtempSync(path.join(tmpdir(), 'nh-produtos-'));
   const xlsxPath = path.join(tmpDir, 'import.xlsx');
+  console.log('[produtos-import][xlsx] buffer info', {
+    size: buffer?.length ?? 0,
+    firstBytesHex: Buffer.isBuffer(buffer) ? buffer.subarray(0, 32).toString('hex') : null
+  });
   writeFileSync(xlsxPath, buffer);
   const script = String.raw`
 import json, sys, zipfile, xml.etree.ElementTree as ET
@@ -47,6 +51,8 @@ with zipfile.ZipFile(path) as z:
     ns = {'a': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main', 'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'}
     rels = ET.fromstring(z.read('xl/_rels/workbook.xml.rels'))
     rel_map = {rel.attrib['Id']: rel.attrib['Target'] for rel in rels}
+    sheet_names = [sheet.attrib.get('name') for sheet in wb.findall('.//a:sheets/a:sheet', ns)]
+    print(json.dumps({'sheetNames': sheet_names}))
     sheet_target = None
     for sheet in wb.findall('.//a:sheets/a:sheet', ns):
         if sheet.attrib.get('name') == 'ag-grid':
@@ -88,8 +94,20 @@ with zipfile.ZipFile(path) as z:
 `;
   const result = spawnSync('python', ['-c', script, xlsxPath], { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
   rmSync(tmpDir, { recursive: true, force: true });
-  if (result.status !== 0) throw new DatabaseError('Falha ao ler XLSX', { details: result.stderr || result.stdout });
+  if (result.status !== 0) {
+    console.error('[produtos-import][xlsx] leitura falhou', {
+      status: result.status,
+      signal: result.signal,
+      stdout: result.stdout,
+      stderr: result.stderr
+    });
+    console.error('[produtos-import][xlsx] stack completa', result.stderr || result.stdout || 'sem stack');
+    throw new DatabaseError('Falha ao ler XLSX', { details: result.stderr || result.stdout });
+  }
   const parsed = JSON.parse(result.stdout || '{}');
+  console.log('[produtos-import][xlsx] workbook info', {
+    sheetNames: parsed.sheetNames || null
+  });
   if (parsed.error === 'SHEET_NOT_FOUND') throw new BadRequestError('Aba ag-grid nao encontrada', { domain: 'produtos-import' });
   return parsed.rows || [];
 }
