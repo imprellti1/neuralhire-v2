@@ -8,6 +8,7 @@ import { getVendedorById } from '../vendedores/vendedores.repository.js';
 
 const memoryFabricantes = [];
 const memoryCondicoes = [];
+const memoryFabricanteVendedores = [];
 
 function assertAccountId(accountId) {
   if (!accountId) throw new ForbiddenError('Contexto de tenant obrigatorio', { code: 'TENANT_REQUIRED', domain: 'fabricantes' });
@@ -77,6 +78,18 @@ function normalizePaymentConditionEntry(entry, index = 0) {
 function normalizePaymentConditions(value) {
   const input = sanitizePaymentConditionInput(value);
   return input.map((entry, index) => normalizePaymentConditionEntry(entry, index));
+}
+
+function normalizeVinculoPaymentConditions(value) {
+  const input = sanitizePaymentConditionInput(value);
+  return input.map((entry, index) => {
+    const normalized = normalizePaymentConditionEntry(entry, index);
+    return {
+      prazo: normalized.prazo,
+      parcelas: normalized.parcelas,
+      prazo_medio_dias: normalized.prazo_medio_dias
+    };
+  });
 }
 
 function normalizeNullableUuid(value) {
@@ -304,6 +317,7 @@ function normalizeFabricantePatchData(data = {}) {
   const payload = { ...data };
   for (const field of ['account_id', 'tenant_id', 'owner_user_id']) delete payload[field];
   if (payload.logo_upload) delete payload.logo_upload;
+  if (payload.vendedores) delete payload.vendedores;
   return payload;
 }
 
@@ -350,6 +364,94 @@ function assertCommercialRules(data = {}) {
     if (data[field] !== undefined && typeof data[field] !== 'boolean') {
       throw new BadRequestError(`Tipo invalido para ${field}`, { domain: 'fabricantes', code: 'BOOLEAN_INVALID' });
     }
+  }
+}
+
+function normalizeVinculoStatus(value) {
+  return String(value || '').toLowerCase() === 'inativo' ? 'inativo' : 'ativo';
+}
+
+function normalizeVinculoNumber(value, field) {
+  if (value === undefined || value === null || value === '') return null;
+  const num = Number(value);
+  if (!Number.isFinite(num)) throw new BadRequestError(`Valor invalido para ${field}`, { domain: 'fabricantes', code: 'NEGATIVE_VALUE' });
+  if (num < 0) throw new BadRequestError(`Valor invalido para ${field}`, { domain: 'fabricantes', code: 'NEGATIVE_VALUE' });
+  return num;
+}
+
+function normalizeFabricanteVinculoInput(data = {}) {
+  return {
+    vendedor_id: String(data.vendedor_id || '').trim(),
+    principal: Boolean(data.principal),
+    status: normalizeVinculoStatus(data.status),
+    comissao_percentual: normalizeVinculoNumber(data.comissao_percentual, 'comissao_percentual'),
+    pedido_minimo_valor: normalizeVinculoNumber(data.pedido_minimo_valor, 'pedido_minimo_valor'),
+    valor_minimo_duplicata: normalizeVinculoNumber(data.valor_minimo_duplicata, 'valor_minimo_duplicata'),
+    condicoes_pagamento: data.condicoes_pagamento === undefined ? undefined : normalizeVinculoPaymentConditions(data.condicoes_pagamento),
+    observacoes: data.observacoes !== undefined ? (data.observacoes || null) : undefined
+  };
+}
+
+function normalizeFabricanteVinculoRecord(data = {}, current = null) {
+  const base = current || {};
+  const payload = {
+    vendedor_id: data.vendedor_id !== undefined ? String(data.vendedor_id || '').trim() : base.vendedor_id || null,
+    principal: data.principal !== undefined ? Boolean(data.principal) : Boolean(base.principal),
+    status: data.status !== undefined ? normalizeVinculoStatus(data.status) : normalizeVinculoStatus(base.status),
+    comissao_percentual: data.comissao_percentual !== undefined ? normalizeVinculoNumber(data.comissao_percentual, 'comissao_percentual') : normalizeVinculoNumber(base.comissao_percentual, 'comissao_percentual'),
+    pedido_minimo_valor: data.pedido_minimo_valor !== undefined ? normalizeVinculoNumber(data.pedido_minimo_valor, 'pedido_minimo_valor') : normalizeVinculoNumber(base.pedido_minimo_valor, 'pedido_minimo_valor'),
+    valor_minimo_duplicata: data.valor_minimo_duplicata !== undefined ? normalizeVinculoNumber(data.valor_minimo_duplicata, 'valor_minimo_duplicata') : normalizeVinculoNumber(base.valor_minimo_duplicata, 'valor_minimo_duplicata'),
+    condicoes_pagamento: data.condicoes_pagamento !== undefined ? normalizeVinculoPaymentConditions(data.condicoes_pagamento) : normalizeVinculoPaymentConditions(base.condicoes_pagamento || []),
+    observacoes: data.observacoes !== undefined ? (data.observacoes || null) : base.observacoes || null,
+    updated_at: new Date().toISOString()
+  };
+  return payload;
+}
+
+async function resolveVendedorForFabricante(accountId, vendedorId) {
+  const vendedor = await getVendedorById(vendedorId, { accountId });
+  if (!vendedor) throw new BadRequestError('Vendedor invalido para a conta', { domain: 'fabricantes', code: 'VENDEDOR_INVALIDO' });
+  if (String(vendedor.status || '').toLowerCase() !== 'ativo') {
+    throw new BadRequestError('Vendedor deve estar ativo', { domain: 'fabricantes', code: 'VENDEDOR_INATIVO' });
+  }
+  return vendedor;
+}
+
+function validatePrincipalUnique(items = []) {
+  const principals = items.filter((item) => item.principal);
+  if (principals.length > 1) {
+    throw new BadRequestError('Apenas um vendedor principal por fabrica', { domain: 'fabricantes', code: 'MULTIPLE_PRINCIPAL' });
+  }
+}
+
+async function hydrateFabricanteVinculos(accountId, items = []) {
+  const vendedorIds = [...new Set((items || []).map((item) => item.vendedor_id).filter(Boolean))];
+  const vendedores = [];
+  for (const vendedorId of vendedorIds) {
+    try {
+      vendedores.push(await getVendedorById(vendedorId, { accountId }));
+    } catch {
+      // Keep response resilient if a referenced vendor disappeared.
+    }
+  }
+  return (items || []).map((item) => {
+    const vendedor = vendedores.find((row) => row.id === item.vendedor_id) || null;
+    return {
+      ...item,
+      vendedor: vendedor ? { id: vendedor.id, nome: vendedor.nome, email: vendedor.email, status: vendedor.status } : null,
+      vendedor_nome: vendedor?.nome || null,
+      vendedor_email: vendedor?.email || null
+    };
+  });
+}
+
+async function assertVinculoConstraints(accountId, fabricanteId, items = []) {
+  const fabricante = await getFabricanteById(fabricanteId, { accountId });
+  if (!fabricante) throw new NotFoundError('Fabricante nao encontrado', { domain: 'fabricantes', code: 'FABRICANTE_NOT_FOUND' });
+  validatePrincipalUnique(items);
+  for (const item of items) {
+    if (!item.vendedor_id) throw new BadRequestError('Vendedor obrigatorio no vinculo', { domain: 'fabricantes', code: 'VENDEDOR_INVALIDO' });
+    await resolveVendedorForFabricante(accountId, item.vendedor_id);
   }
 }
 
@@ -559,13 +661,126 @@ export async function deleteCondicaoPagamento(fabricanteId, condicaoId, options 
   return updateFabricante(fabricanteId, { condicoes_pagamento: updated }, { accountId });
 }
 
+export async function listFabricanteVendedores(fabricanteId, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  await getFabricanteById(fabricanteId, { accountId });
+  if (isSupabaseMode()) {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data, error } = await supabase.from('fabricante_vendedores').select('*').eq('account_id', accountId).eq('fabricante_id', fabricanteId).order('principal', { ascending: false }).order('created_at', { ascending: false });
+    if (error) throw new DatabaseError('Falha ao listar vinculos da fabrica', { details: error });
+    return { items: await hydrateFabricanteVinculos(accountId, data || []), total: (data || []).length };
+  }
+  const items = memoryFabricanteVendedores.filter((row) => row.account_id === accountId && row.fabricante_id === fabricanteId);
+  return { items: await hydrateFabricanteVinculos(accountId, items), total: items.length };
+}
+
+export async function replaceFabricanteVendedores(fabricanteId, vinculos = [], options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  const items = Array.isArray(vinculos) ? vinculos : [];
+  await assertVinculoConstraints(accountId, fabricanteId, items);
+  if (isSupabaseMode()) {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { error: deleteError } = await supabase.from('fabricante_vendedores').delete().eq('account_id', accountId).eq('fabricante_id', fabricanteId);
+    if (deleteError) throw new DatabaseError('Falha ao atualizar vinculos da fabrica', { details: deleteError });
+    if (items.length) {
+      const payload = items.map((item) => ({
+        account_id: accountId,
+        fabricante_id: fabricanteId,
+        vendedor_id: item.vendedor_id,
+        principal: Boolean(item.principal),
+        status: normalizeVinculoStatus(item.status),
+        comissao_percentual: item.comissao_percentual,
+        pedido_minimo_valor: item.pedido_minimo_valor,
+        valor_minimo_duplicata: item.valor_minimo_duplicata,
+        condicoes_pagamento: item.condicoes_pagamento || [],
+        observacoes: item.observacoes || null
+      }));
+      const { error: insertError } = await supabase.from('fabricante_vendedores').insert(payload);
+      if (insertError) throw new DatabaseError('Falha ao criar vinculos da fabrica', { details: insertError });
+    }
+    return listFabricanteVendedores(fabricanteId, options);
+  }
+  const remaining = memoryFabricanteVendedores.filter((row) => !(row.account_id === accountId && row.fabricante_id === fabricanteId));
+  memoryFabricanteVendedores.length = 0;
+  memoryFabricanteVendedores.push(...remaining);
+  for (const item of items) {
+    memoryFabricanteVendedores.push({
+      id: randomUUID(),
+      account_id: accountId,
+      fabricante_id: fabricanteId,
+      vendedor_id: item.vendedor_id,
+      principal: Boolean(item.principal),
+      status: normalizeVinculoStatus(item.status),
+      comissao_percentual: item.comissao_percentual ?? null,
+      pedido_minimo_valor: item.pedido_minimo_valor ?? null,
+      valor_minimo_duplicata: item.valor_minimo_duplicata ?? null,
+      condicoes_pagamento: item.condicoes_pagamento || [],
+      observacoes: item.observacoes || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
+  }
+  return listFabricanteVendedores(fabricanteId, options);
+}
+
+export async function updateFabricanteVendedor(fabricanteId, vendedorId, data, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  await getFabricanteById(fabricanteId, { accountId });
+  await resolveVendedorForFabricante(accountId, vendedorId);
+  const normalized = normalizeFabricanteVinculoInput(data);
+  if (normalized.comissao_percentual !== null && normalized.comissao_percentual > 100) {
+    throw new BadRequestError('Comissao invalida', { domain: 'fabricantes', code: 'PERCENT_OUT_OF_RANGE' });
+  }
+  const currentList = (await listFabricanteVendedores(fabricanteId, options)).items || [];
+  const current = currentList.find((item) => String(item.vendedor_id) === String(vendedorId));
+  if (!current) throw new NotFoundError('Vinculo nao encontrado', { domain: 'fabricantes', code: 'VINCULO_NOT_FOUND' });
+  const next = normalizeFabricanteVinculoRecord(normalized, current);
+  if (next.principal) validatePrincipalUnique(currentList.filter((item) => String(item.vendedor_id) !== String(vendedorId)).concat([{ ...next, vendedor_id: vendedorId, principal: true }]));
+  if (isSupabaseMode()) {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data: updated, error } = await supabase.from('fabricante_vendedores').update(next).eq('account_id', accountId).eq('fabricante_id', fabricanteId).eq('vendedor_id', vendedorId).select('*').single();
+    if (error) throw new DatabaseError('Falha ao atualizar vinculo', { details: error });
+    return (await hydrateFabricanteVinculos(accountId, [updated]))[0];
+  }
+  const idx = memoryFabricanteVendedores.findIndex((row) => row.account_id === accountId && row.fabricante_id === fabricanteId && String(row.vendedor_id) === String(vendedorId));
+  if (idx < 0) throw new NotFoundError('Vinculo nao encontrado', { domain: 'fabricantes', code: 'VINCULO_NOT_FOUND' });
+  memoryFabricanteVendedores[idx] = { ...memoryFabricanteVendedores[idx], ...next, fabricante_id: fabricanteId, vendedor_id: vendedorId };
+  return (await hydrateFabricanteVinculos(accountId, [memoryFabricanteVendedores[idx]]))[0];
+}
+
+export async function deleteFabricanteVendedor(fabricanteId, vendedorId, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  await getFabricanteById(fabricanteId, { accountId });
+  await resolveVendedorForFabricante(accountId, vendedorId);
+  if (isSupabaseMode()) {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { error } = await supabase.from('fabricante_vendedores').delete().eq('account_id', accountId).eq('fabricante_id', fabricanteId).eq('vendedor_id', vendedorId);
+    if (error) throw new DatabaseError('Falha ao remover vinculo', { details: error });
+    return { removed: true };
+  }
+  const idx = memoryFabricanteVendedores.findIndex((row) => row.account_id === accountId && row.fabricante_id === fabricanteId && String(row.vendedor_id) === String(vendedorId));
+  if (idx < 0) throw new NotFoundError('Vinculo nao encontrado', { domain: 'fabricantes', code: 'VINCULO_NOT_FOUND' });
+  memoryFabricanteVendedores.splice(idx, 1);
+  return { removed: true };
+}
+
 export function __resetMemoryFabricantesForTests() {
   memoryFabricantes.length = 0;
   memoryCondicoes.length = 0;
+  memoryFabricanteVendedores.length = 0;
 }
 
 export function __loadMemoryFabricantes(items = []) {
   memoryFabricantes.length = 0;
   memoryCondicoes.length = 0;
+  memoryFabricanteVendedores.length = 0;
   for (const item of items) memoryFabricantes.push({ ...item });
 }

@@ -11,6 +11,10 @@ export const fabricantesModule = defineModule({
     'PATCH /fabricantes/:id',
     'GET /fabricantes/:id/condicoes-pagamento',
     'POST /fabricantes/:id/condicoes-pagamento',
-    'PATCH /fabricantes/:id/condicoes-pagamento/:condicaoId'
+    'PATCH /fabricantes/:id/condicoes-pagamento/:condicaoId',
+    'GET /fabricantes/:id/vendedores',
+    'PUT /fabricantes/:id/vendedores',
+    'PATCH /fabricantes/:id/vendedores/:vendedorId',
+    'DELETE /fabricantes/:id/vendedores/:vendedorId'
   ]
 });

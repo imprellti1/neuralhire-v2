@@ -30,6 +30,22 @@ export async function deleteCondicaoPagamento(apiClient, fabricanteId, condicaoI
   return apiClient.delete(`/fabricantes/${fabricanteId}/condicoes-pagamento/${condicaoId}`);
 }
 
+export async function fetchFabricanteVendedores(apiClient, fabricanteId) {
+  return apiClient.get(`/fabricantes/${fabricanteId}/vendedores`);
+}
+
+export async function saveFabricanteVendedores(apiClient, fabricanteId, vendedores) {
+  return apiClient.put(`/fabricantes/${fabricanteId}/vendedores`, { vendedores });
+}
+
+export async function saveFabricanteVendedor(apiClient, fabricanteId, vendedorId, payload) {
+  return apiClient.patch(`/fabricantes/${fabricanteId}/vendedores/${vendedorId}`, payload);
+}
+
+export async function deleteFabricanteVendedor(apiClient, fabricanteId, vendedorId) {
+  return apiClient.delete(`/fabricantes/${fabricanteId}/vendedores/${vendedorId}`);
+}
+
 export async function lookupCnpj(apiClient, cnpj) {
   return apiClient.get(`/cnpj/${cnpj}`);
 }

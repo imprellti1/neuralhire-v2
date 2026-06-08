@@ -118,6 +118,18 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
     return out;
   }
 
-  return { get, post, patch, baseUrl };
+  async function put(path, body = {}, headers = {}) {
+    const { res } = await request('PUT', path, { body, headers });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(out?.error?.message || 'Request failed');
+      err.status = res.status;
+      err.body = out;
+      throw err;
+    }
+    return out;
+  }
+
+  return { get, post, patch, put, baseUrl };
 }
 

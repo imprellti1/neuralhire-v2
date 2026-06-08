@@ -2,11 +2,15 @@ import {
   deleteCondicaoPagamento,
   createCondicaoPagamento,
   createFabricante,
+  deleteFabricanteVendedor,
   getFabricanteById,
   listCondicoesPagamento,
   listFabricantes,
+  listFabricanteVendedores,
+  replaceFabricanteVendedores,
   updateFabricanteLogo,
   updateCondicaoPagamento,
+  updateFabricanteVendedor,
   updateFabricante
 } from './fabricantes.repository.js';
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
@@ -445,6 +449,31 @@ export async function deleteCondicaoPagamentoHandler(context) {
   const accountId = getAccountIdFromContext(context);
   assertAdminLike(context);
   return deleteCondicaoPagamento(context.params.id, context.params.condicaoId, { accountId });
+}
+
+export async function getFabricanteVendedores(context) {
+  const accountId = getAccountIdFromContext(context);
+  assertAdminLike(context);
+  return { ok: true, ...(await listFabricanteVendedores(context.params.id, { accountId })) };
+}
+
+export async function replaceFabricanteVendedoresHandler(context) {
+  const accountId = getAccountIdFromContext(context);
+  assertAdminLike(context);
+  const items = Array.isArray(context.body?.vendedores) ? context.body.vendedores : [];
+  return { ok: true, ...(await replaceFabricanteVendedores(context.params.id, items, { accountId })) };
+}
+
+export async function updateFabricanteVendedorHandler(context) {
+  const accountId = getAccountIdFromContext(context);
+  assertAdminLike(context);
+  return { ok: true, item: await updateFabricanteVendedor(context.params.id, context.params.vendedorId, context.body || {}, { accountId }) };
+}
+
+export async function deleteFabricanteVendedorHandler(context) {
+  const accountId = getAccountIdFromContext(context);
+  assertAdminLike(context);
+  return { ok: true, ...(await deleteFabricanteVendedor(context.params.id, context.params.vendedorId, { accountId })) };
 }
 
 export async function lookupCnpjHandler(context) {

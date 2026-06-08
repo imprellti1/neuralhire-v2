@@ -1,5 +1,5 @@
 import { createFabricantesState } from './fabricantes.state.js';
-import { deleteCondicaoPagamento, fetchCondicoesPagamento, fetchFabricanteData, fetchFabricantesData, lookupCnpj, saveCondicaoPagamento, saveFabricante, uploadFabricanteLogo } from './fabricantes.service.js';
+import { deleteCondicaoPagamento, deleteFabricanteVendedor, fetchCondicoesPagamento, fetchFabricanteData, fetchFabricanteVendedores, fetchFabricantesData, lookupCnpj, saveCondicaoPagamento, saveFabricante, saveFabricanteVendedor, saveFabricanteVendedores, uploadFabricanteLogo } from './fabricantes.service.js';
 import { mapFabricantesData } from './fabricantes.mapper.js';
 import { fetchVendedoresData } from '../vendedores/vendedores.service.js';
 
@@ -128,6 +128,50 @@ function normalizePaymentRows(raw) {
   return Array.isArray(raw) ? raw.map((row) => normalizePaymentRow(row)) : [];
 }
 
+function normalizeVinculoRow(row = {}) {
+  return {
+    id: row?.id || generateRowId(),
+    vendedor_id: row?.vendedor_id || row?.vendedor?.id || '',
+    vendedor_nome: row?.vendedor_nome || row?.vendedor?.nome || '',
+    vendedor_email: row?.vendedor_email || row?.vendedor?.email || '',
+    principal: Boolean(row?.principal),
+    status: row?.status || 'ativo',
+    comissao_percentual: row?.comissao_percentual ?? '',
+    pedido_minimo_valor: row?.pedido_minimo_valor ?? '',
+    valor_minimo_duplicata: row?.valor_minimo_duplicata ?? '',
+    condicoes_pagamento: Array.isArray(row?.condicoes_pagamento) ? row.condicoes_pagamento : [],
+    observacoes: row?.observacoes || ''
+  };
+}
+
+function normalizeVinculoRows(raw) {
+  return Array.isArray(raw) ? raw.map((row) => normalizeVinculoRow(row)) : [];
+}
+
+function normalizeVinculoForm(row = {}) {
+  return {
+    vendedor_vinculo_id: row?.id || '',
+    vendedor_vinculo_vendedor_id: row?.vendedor_id || '',
+    vendedor_vinculo_principal: Boolean(row?.principal),
+    vendedor_vinculo_status: row?.status || 'ativo',
+    vendedor_vinculo_comissao_percentual: row?.comissao_percentual ?? '',
+    vendedor_vinculo_pedido_minimo_valor: row?.pedido_minimo_valor ?? '',
+    vendedor_vinculo_valor_minimo_duplicata: row?.valor_minimo_duplicata ?? '',
+    vendedor_vinculo_condicoes_pagamento: Array.isArray(row?.condicoes_pagamento) && row.condicoes_pagamento.length ? row.condicoes_pagamento.map((item) => item?.prazo).filter(Boolean).join('/') : '',
+    vendedor_vinculo_observacoes: row?.observacoes || ''
+  };
+}
+
+function calculatePaymentConditionMeta(value) {
+  const raw = String(value || '').trim().replace(/\s+/g, '');
+  if (!raw) return { valid: false, prazo: '', parcelas: '', prazo_medio_dias: '' };
+  const parts = raw.split('/').filter(Boolean);
+  if (!parts.length || parts.some((part) => !/^[1-9]\d*$/.test(part))) return { valid: false, prazo: raw, parcelas: '', prazo_medio_dias: '' };
+  const parcelas = parts.length;
+  const prazo_medio_dias = Math.round(parts.reduce((sum, part) => sum + Number(part), 0) / parcelas);
+  return { valid: true, prazo: parts.join('/'), parcelas, prazo_medio_dias };
+}
+
 function injectStyles() {
   if (document.getElementById('nh-fab-style')) return;
   const style = document.createElement('style');
@@ -227,6 +271,10 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     state.vendedoresLoading = false;
     state.vendedoresError = '';
     state.vendedores = [];
+    state.vendedoresVinculosLoading = false;
+    state.vendedoresVinculosError = '';
+    state.vendedoresVinculos = [];
+    state.vendedorVinculoEditId = null;
     render();
     loadVendedores();
   }
@@ -251,8 +299,15 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       state.form.logo_preview = isPersistableLogoUrl(detail.logo_url) ? detail.logo_url : state.form.logo_preview || '';
       state.form.logo_upload_error = '';
       state.form.responsavel_vendedor_id = detail.responsavel_vendedor_id || '';
-      const condicoes = await fetchCondicoesPagamento(apiClient, selected.id);
+      await fetchCondicoesPagamento(apiClient, selected.id);
       state.form.condicoes_pagamento = normalizePaymentRows(detail.condicoes_pagamento || []);
+      try {
+        const vinculos = await fetchFabricanteVendedores(apiClient, selected.id);
+        state.vendedoresVinculos = normalizeVinculoRows(vinculos.items || []);
+        state.vendedorVinculoEditId = null;
+      } catch {
+        state.vendedoresVinculos = [];
+      }
       render();
     } catch {
       state.error = true;
@@ -266,6 +321,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     state.condicoes = [];
     state.condicaoId = null;
     state.form = emptyForm();
+    state.vendedorVinculoEditId = null;
     render();
   }
 
@@ -283,6 +339,73 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       state.vendedoresLoading = false;
       render();
     }
+  }
+
+  async function loadFabricanteVinculos(fabricanteId) {
+    if (!fabricanteId) return;
+    state.vendedoresVinculosLoading = true;
+    state.vendedoresVinculosError = '';
+    render();
+    try {
+      const response = await fetchFabricanteVendedores(apiClient, fabricanteId);
+      state.vendedoresVinculos = normalizeVinculoRows(response.items || []);
+    } catch {
+      state.vendedoresVinculos = [];
+      state.vendedoresVinculosError = 'Falha ao carregar vínculos desta fábrica.';
+    } finally {
+      state.vendedoresVinculosLoading = false;
+      render();
+    }
+  }
+
+  function resetVinculoForm() {
+    state.vendedorVinculoEditId = null;
+    state.form.vendedor_vinculo_id = '';
+    state.form.vendedor_vinculo_vendedor_id = '';
+    state.form.vendedor_vinculo_principal = false;
+    state.form.vendedor_vinculo_status = 'ativo';
+    state.form.vendedor_vinculo_comissao_percentual = '';
+    state.form.vendedor_vinculo_pedido_minimo_valor = '';
+    state.form.vendedor_vinculo_valor_minimo_duplicata = '';
+    state.form.vendedor_vinculo_condicoes_pagamento = '';
+    state.form.vendedor_vinculo_observacoes = '';
+  }
+
+  function openVinculoForm(row = null) {
+    const normalized = normalizeVinculoForm(row || {});
+    state.vendedorVinculoEditId = normalized.vendedor_vinculo_id || '__new__';
+    Object.assign(state.form, normalized);
+    render();
+  }
+
+  function getVinculoFormPayload() {
+    const rows = state.vendedoresVinculos || [];
+    const vendedorId = state.form.vendedor_vinculo_vendedor_id || '';
+    const editId = state.vendedorVinculoEditId || state.form.vendedor_vinculo_id || null;
+    const existing = rows.find((row) => String(row.id) === String(editId)) || null;
+    const payment = String(state.form.vendedor_vinculo_condicoes_pagamento || '').trim();
+    const normalizedPrincipal = Boolean(state.form.vendedor_vinculo_principal);
+    const normalizedStatus = state.form.vendedor_vinculo_status === 'inativo' ? 'inativo' : 'ativo';
+    const normalized = {
+      id: editId || generateRowId(),
+      vendedor_id: vendedorId,
+      vendedor_nome: existing?.vendedor_nome || (state.vendedores.find((v) => String(v.id) === String(vendedorId))?.nome || ''),
+      vendedor_email: existing?.vendedor_email || (state.vendedores.find((v) => String(v.id) === String(vendedorId))?.email || ''),
+      principal: normalizedPrincipal,
+      status: normalizedStatus,
+      comissao_percentual: state.form.vendedor_vinculo_comissao_percentual === '' ? '' : Number(String(state.form.vendedor_vinculo_comissao_percentual).replace(',', '.')),
+      pedido_minimo_valor: state.form.vendedor_vinculo_pedido_minimo_valor === '' ? '' : Number(String(state.form.vendedor_vinculo_pedido_minimo_valor).replace(',', '.')),
+      valor_minimo_duplicata: state.form.vendedor_vinculo_valor_minimo_duplicata === '' ? '' : Number(String(state.form.vendedor_vinculo_valor_minimo_duplicata).replace(',', '.')),
+      condicoes_pagamento: payment ? [calculatePaymentConditionMeta(payment)].filter((item) => item.valid).map((item) => ({ prazo: item.prazo, parcelas: item.parcelas, prazo_medio_dias: item.prazo_medio_dias })) : [],
+      observacoes: state.form.vendedor_vinculo_observacoes || ''
+    };
+    if (normalized.principal) {
+      return rows.map((row) => (String(row.id) === String(normalized.id) ? normalized : { ...row, principal: false })).filter(Boolean);
+    }
+    if (existing) {
+      return rows.map((row) => (String(row.id) === String(normalized.id) ? normalized : row));
+    }
+    return [...rows, normalized];
   }
 
   function applyLookup(data) {
@@ -489,6 +612,16 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
         render();
         return;
       }
+      const vinculosPayload = (state.vendedoresVinculos || []).map((row) => ({
+        vendedor_id: row.vendedor_id || null,
+        principal: Boolean(row.principal),
+        status: row.status || 'ativo',
+        comissao_percentual: row.comissao_percentual === '' || row.comissao_percentual === null ? null : Number(String(row.comissao_percentual).replace(',', '.')),
+        pedido_minimo_valor: row.pedido_minimo_valor === '' || row.pedido_minimo_valor === null ? null : Number(String(row.pedido_minimo_valor).replace(',', '.')),
+        valor_minimo_duplicata: row.valor_minimo_duplicata === '' || row.valor_minimo_duplicata === null ? null : Number(String(row.valor_minimo_duplicata).replace(',', '.')),
+        condicoes_pagamento: String(row.condicoes_pagamento || '').trim() ? [calculatePaymentConditionMeta(row.condicoes_pagamento)].filter((item) => item.valid).map((item) => ({ prazo: item.prazo, parcelas: item.parcelas, prazo_medio_dias: item.prazo_medio_dias })) : [],
+        observacoes: row.observacoes || null
+      })).filter((row) => row.vendedor_id);
       const fabricantePayload = {
           nome: state.form.nome_fantasia || state.form.nome || state.form.razao_social || '',
           cnpj: onlyDigits(state.form.cnpj),
@@ -519,9 +652,11 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
           tabela_precos_url: state.form.tabela_precos_url || null,
           observacoes: state.form.observacoes || null,
           status: state.selected?.status === 'inativo' ? 'inativo' : 'ativo',
-          responsavel_vendedor_id: state.form.responsavel_vendedor_id || null
+          responsavel_vendedor_id: state.form.responsavel_vendedor_id || null,
+          vendedores: vinculosPayload
         };
         const saved = await saveFabricante(apiClient, fabricantePayload, state.selected?.id || null);
+        if (saved?.id && vinculosPayload.length) await saveFabricanteVendedores(apiClient, saved.id, vinculosPayload);
         const fabricanteId = saved.id || state.selected?.id || null;
         let logoUploadError = '';
         if (state.form.logo_file && fabricanteId) {
@@ -589,6 +724,99 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
         render();
       });
     });
+    root.querySelector('[data-vinculo-add]')?.addEventListener('click', () => openVinculoForm(null));
+    root.querySelectorAll('[data-vinculo-edit]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const rowId = btn.getAttribute('data-vinculo-edit');
+        const row = (state.vendedoresVinculos || []).find((item) => String(item.id) === String(rowId));
+        openVinculoForm(row || null);
+      });
+    });
+    root.querySelectorAll('[data-vinculo-remove]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const rowId = btn.getAttribute('data-vinculo-remove');
+        const row = (state.vendedoresVinculos || []).find((item) => String(item.id) === String(rowId));
+        if (!state.selected?.id || !row) return;
+        state.vendedoresVinculosLoading = true;
+        render();
+        try {
+          await deleteFabricanteVendedor(apiClient, state.selected.id, row.vendedor_id);
+          await loadFabricanteVinculos(state.selected.id);
+          if (state.vendedorVinculoEditId === row.id) resetVinculoForm();
+        } catch (error) {
+          state.vendedoresVinculosError = error?.body?.error?.message || error?.message || 'Falha ao remover vínculo.';
+        } finally {
+          state.vendedoresVinculosLoading = false;
+          render();
+        }
+      });
+    });
+    root.querySelectorAll('[data-vinculo-form-field]').forEach((el) => {
+      const key = el.getAttribute('data-vinculo-form-field');
+      const update = (value) => {
+        if (key === 'vendedor_vinculo_principal') {
+          state.form.vendedor_vinculo_principal = value === 'true' || value === true;
+        } else {
+          state.form[key] = value;
+        }
+      };
+      el.addEventListener('input', (e) => update(e.target.value));
+      el.addEventListener('change', (e) => update(e.target.value));
+    });
+    root.querySelector('[data-vinculo-form-cancel]')?.addEventListener('click', () => {
+      resetVinculoForm();
+      render();
+    });
+    root.querySelector('[data-vinculo-form-save]')?.addEventListener('click', async () => {
+      if (!state.selected?.id) return;
+      const vendedorId = String(root.querySelector('[data-vinculo-form-field="vendedor_vinculo_vendedor_id"]')?.value || state.form.vendedor_vinculo_vendedor_id || '').trim();
+      const principalValue = String(root.querySelector('[data-vinculo-form-field="vendedor_vinculo_principal"]')?.value ?? state.form.vendedor_vinculo_principal ?? false);
+      const statusValue = String(root.querySelector('[data-vinculo-form-field="vendedor_vinculo_status"]')?.value || state.form.vendedor_vinculo_status || 'ativo');
+      const comissaoValue = String(root.querySelector('[data-vinculo-form-field="vendedor_vinculo_comissao_percentual"]')?.value ?? state.form.vendedor_vinculo_comissao_percentual ?? '');
+      const pedidoMinimoValue = String(root.querySelector('[data-vinculo-form-field="vendedor_vinculo_pedido_minimo_valor"]')?.value ?? state.form.vendedor_vinculo_pedido_minimo_valor ?? '');
+      const duplicataValue = String(root.querySelector('[data-vinculo-form-field="vendedor_vinculo_valor_minimo_duplicata"]')?.value ?? state.form.vendedor_vinculo_valor_minimo_duplicata ?? '');
+      const condicaoValue = String(root.querySelector('[data-vinculo-form-field="vendedor_vinculo_condicoes_pagamento"]')?.value ?? state.form.vendedor_vinculo_condicoes_pagamento ?? '');
+      const observacoesValue = String(root.querySelector('[data-vinculo-form-field="vendedor_vinculo_observacoes"]')?.value ?? state.form.vendedor_vinculo_observacoes ?? '');
+      if (!vendedorId) {
+        state.vendedoresVinculosError = 'Selecione um vendedor.';
+        render();
+        return;
+      }
+      const duplicate = (state.vendedoresVinculos || []).some((row) => String(row.vendedor_id) === String(vendedorId) && String(row.id) !== String(state.form.vendedor_vinculo_id || ''));
+      if (duplicate) {
+        state.vendedoresVinculosError = 'Este vendedor já está vinculado a esta fábrica.';
+        render();
+        return;
+      }
+      state.vendedoresVinculosError = '';
+      state.vendedoresVinculosLoading = true;
+      render();
+      try {
+        const payload = {
+          vendedor_id: vendedorId,
+          principal: principalValue === 'true',
+          status: statusValue === 'inativo' ? 'inativo' : 'ativo',
+          comissao_percentual: comissaoValue === '' ? null : Number(comissaoValue.replace(',', '.')),
+          pedido_minimo_valor: pedidoMinimoValue === '' ? null : Number(pedidoMinimoValue.replace(',', '.')),
+          valor_minimo_duplicata: duplicataValue === '' ? null : Number(duplicataValue.replace(',', '.')),
+          condicoes_pagamento: String(condicaoValue || '').trim() ? [calculatePaymentConditionMeta(condicaoValue)].filter((item) => item.valid).map((item) => ({ prazo: item.prazo, parcelas: item.parcelas, prazo_medio_dias: item.prazo_medio_dias })) : [],
+          observacoes: observacoesValue || null
+        };
+        if (state.form.vendedor_vinculo_id) {
+          await saveFabricanteVendedor(apiClient, state.selected.id, vendedorId, payload);
+        } else {
+          const nextVinculos = getVinculoFormPayload();
+          await saveFabricanteVendedores(apiClient, state.selected.id, nextVinculos);
+        }
+        await loadFabricanteVinculos(state.selected.id);
+        resetVinculoForm();
+      } catch (error) {
+        state.vendedoresVinculosError = error?.body?.error?.message || error?.message || 'Falha ao salvar vínculo.';
+      } finally {
+        state.vendedoresVinculosLoading = false;
+        render();
+      }
+    });
   }
 
   function renderFormTab() {
@@ -615,9 +843,22 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     return `<div class="nhf-form-grid"><label class="nhf-field"><span>Valor mínimo do pedido</span><input data-form-field="pedido_minimo_valor" value="${state.form.pedido_minimo_valor_display || formatCurrencyFromNumber(state.form.pedido_minimo_valor ?? 0)}" ${locked ? 'disabled' : ''} inputmode="decimal"><div class="nhf-inline-error">${errors.pedido_minimo_valor || ''}</div></label><label class="nhf-field"><span>Valor mínimo por duplicata</span><input data-form-field="pedido_minimo" value="${state.form.pedido_minimo_display || formatCurrencyFromNumber(state.form.valor_minimo_duplicata ?? 0)}" ${locked ? 'disabled' : ''} inputmode="decimal"><div class="nhf-inline-error">${errors.valor_minimo_duplicata || ''}</div></label><label class="nhf-field"><span>Quantidade mínima de itens</span><input data-form-field="pedido_minimo_itens" type="number" min="0" value="${state.form.pedido_minimo_itens ?? 0}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.pedido_minimo_itens || ''}</div></label><label class="nhf-field"><span>Prazo médio de entrega em dias</span><input data-form-field="prazo_entrega_dias" type="number" min="0" value="${state.form.prazo_entrega_dias ?? 0}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.prazo_entrega_dias || ''}</div></label><label class="nhf-field"><span>Comissão padrão %</span><input data-form-field="comissao_padrao_percentual" type="number" min="0" max="100" value="${state.form.comissao_padrao_percentual ?? 0}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.comissao_padrao_percentual || ''}</div></label><label class="nhf-field"><span>Aceita bonificação?</span><select data-form-field="aceita_bonificacao" ${locked ? 'disabled' : ''}><option value="">Selecione</option><option value="true" ${state.form.aceita_bonificacao === 'true' ? 'selected' : ''}>Sim</option><option value="false" ${state.form.aceita_bonificacao === 'false' ? 'selected' : ''}>Não</option></select></label><label class="nhf-field"><span>Aceita consignação?</span><select data-form-field="aceita_consignacao" ${locked ? 'disabled' : ''}><option value="">Selecione</option><option value="true" ${state.form.aceita_consignacao === 'true' ? 'selected' : ''}>Sim</option><option value="false" ${state.form.aceita_consignacao === 'false' ? 'selected' : ''}>Não</option></select></label><label class="nhf-field nhf-field-full"><span>Política de troca</span><textarea data-form-field="politica_troca" ${locked ? 'disabled' : ''}>${state.form.politica_troca || ''}</textarea></label><div class="nhf-field nhf-field-full"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><span>Condições de pagamento</span><div class="nhf-muted">Adicione linhas com prazos separados por /.</div></div><button class="nhf-btn" type="button" data-payment-add ${locked ? 'disabled' : ''}>+ Adicionar condição</button></div><div style="display:grid;gap:10px;margin-top:10px">${rows || '<div class="nhf-state">Nenhuma condição cadastrada.</div>'}</div><div class="nhf-inline-error">${errors.condicoes_pagamento || ''}</div></div><label class="nhf-field"><span>URL da tabela de preços</span><input data-form-field="tabela_precos_url" value="${state.form.tabela_precos_url || ''}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.tabela_precos_url || ''}</div></label><label class="nhf-field nhf-field-full"><span>Observações comerciais</span><textarea data-form-field="observacoes_comerciais" ${locked ? 'disabled' : ''}>${state.form.observacoes_comerciais || ''}</textarea></label></div>`;
   }
 
+  function renderVinculosTab() {
+    const locked = isLocked();
+    const rows = (state.vendedoresVinculos || []).map((row) => {
+      const paymentText = Array.isArray(row.condicoes_pagamento) && row.condicoes_pagamento.length ? row.condicoes_pagamento.map((item) => item.prazo).filter(Boolean).join(', ') : 'Herdado da fábrica';
+      const principal = row.principal ? '<span class="nhf-pill">Sim</span>' : '<span class="nhf-muted">Não</span>';
+      const vendedor = state.vendedores.find((item) => String(item.id) === String(row.vendedor_id));
+      return `<tr><td>${row.vendedor_nome || vendedor?.nome || '-'}</td><td>${row.vendedor_email || vendedor?.email || '-'}</td><td><span class="nhf-pill">${row.status === 'inativo' ? 'Inativo' : 'Ativo'}</span></td><td>${principal}</td><td>${row.comissao_percentual === '' || row.comissao_percentual === null || row.comissao_percentual === undefined ? '<span class="nhf-muted">Herdada</span>' : `${row.comissao_percentual}%`}</td><td>${paymentText}</td><td>${row.pedido_minimo_valor === '' || row.pedido_minimo_valor === null || row.pedido_minimo_valor === undefined ? '<span class="nhf-muted">Herdado</span>' : brl(Number(row.pedido_minimo_valor))}</td><td>${row.valor_minimo_duplicata === '' || row.valor_minimo_duplicata === null || row.valor_minimo_duplicata === undefined ? '<span class="nhf-muted">Herdado</span>' : brl(Number(row.valor_minimo_duplicata))}</td><td><button class="nhf-btn" type="button" data-vinculo-edit="${row.id}" ${locked ? 'disabled' : ''}>Editar</button> <button class="nhf-btn" type="button" data-vinculo-remove="${row.id}" ${locked ? 'disabled' : ''}>${row.status === 'ativo' ? 'Inativar' : 'Remover'}</button></td></tr>`;
+    }).join('');
+    const vendedorOptions = ['<option value="">Selecione um vendedor real</option>'].concat((state.vendedores || []).map((vendedor) => `<option value="${vendedor.id}" ${String(vendedor.id) === String(state.form.vendedor_vinculo_vendedor_id || '') ? 'selected' : ''}>${vendedor.nome || '-'}${vendedor.email ? ` - ${vendedor.email}` : ''}${(state.vendedoresVinculos || []).some((row) => String(row.vendedor_id) === String(vendedor.id) && String(row.id) !== String(state.form.vendedor_vinculo_id || '')) ? ' (já vinculado)' : ''}</option>`)).join('');
+    const editorVisible = Boolean(state.vendedorVinculoEditId);
+    return `<div class="nhf-form-grid"><div class="nhf-field nhf-field-full"><div class="nhf-inline"><div><div class="nhf-section-title">Vendedores</div><div class="nhf-muted">Selecione um vendedor da conta e ajuste apenas as regras específicas desta fábrica. Campos vazios herdam da fábrica.</div></div><button class="nhf-btn" type="button" data-vinculo-add ${locked ? 'disabled' : ''}>Adicionar vendedor</button></div>${state.vendedoresVinculosError ? `<div class="nhf-inline-error">${state.vendedoresVinculosError}</div>` : ''}${state.vendedoresVinculosLoading ? '<div class="nhf-muted">Carregando vínculos...</div>' : ''}<div style="overflow:auto;margin-top:10px"><table class="nhf-table"><tr><th>Nome</th><th>E-mail</th><th>Status</th><th>Principal</th><th>Comissão específica</th><th>Condição de pagamento</th><th>Pedido mín.</th><th>Duplicata mín.</th><th>Ações</th></tr>${rows || '<tr><td colspan="9" class="nhf-state">Nenhum vendedor vinculado a esta fábrica.</td></tr>'}</table></div></div>${editorVisible ? `<div class="nhf-panel nhf-field-full" style="padding:14px"><div class="nhf-inline" style="justify-content:space-between"><div><div class="nhf-section-title">${state.vendedorVinculoEditId ? 'Editar vínculo' : 'Adicionar vínculo'}</div><div class="nhf-muted">As regras vazias herdam da fábrica.</div></div><button class="nhf-btn" type="button" data-vinculo-form-cancel>Cancelar</button></div><div class="nhf-form-grid" style="margin-top:12px"><label class="nhf-field"><span>Vendedor</span><select data-vinculo-form-field="vendedor_vinculo_vendedor_id" ${locked ? 'disabled' : ''}>${vendedorOptions}</select></label><label class="nhf-field"><span>Status</span><select data-vinculo-form-field="vendedor_vinculo_status" ${locked ? 'disabled' : ''}><option value="ativo" ${state.form.vendedor_vinculo_status === 'ativo' ? 'selected' : ''}>Ativo</option><option value="inativo" ${state.form.vendedor_vinculo_status === 'inativo' ? 'selected' : ''}>Inativo</option></select></label><label class="nhf-field"><span>Principal</span><select data-vinculo-form-field="vendedor_vinculo_principal" ${locked ? 'disabled' : ''}><option value="false" ${!state.form.vendedor_vinculo_principal ? 'selected' : ''}>Não</option><option value="true" ${state.form.vendedor_vinculo_principal ? 'selected' : ''}>Sim</option></select></label><label class="nhf-field"><span>Comissão %</span><input data-vinculo-form-field="vendedor_vinculo_comissao_percentual" value="${state.form.vendedor_vinculo_comissao_percentual ?? ''}" inputmode="decimal" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Pedido mínimo</span><input data-vinculo-form-field="vendedor_vinculo_pedido_minimo_valor" value="${state.form.vendedor_vinculo_pedido_minimo_valor ?? ''}" inputmode="decimal" ${locked ? 'disabled' : ''}></label><label class="nhf-field"><span>Duplicata mínima</span><input data-vinculo-form-field="vendedor_vinculo_valor_minimo_duplicata" value="${state.form.vendedor_vinculo_valor_minimo_duplicata ?? ''}" inputmode="decimal" ${locked ? 'disabled' : ''}></label><label class="nhf-field nhf-field-full"><span>Condição de pagamento</span><input data-vinculo-form-field="vendedor_vinculo_condicoes_pagamento" value="${state.form.vendedor_vinculo_condicoes_pagamento || ''}" placeholder="30/60/90" ${locked ? 'disabled' : ''}></label><label class="nhf-field nhf-field-full"><span>Observações</span><textarea data-vinculo-form-field="vendedor_vinculo_observacoes" ${locked ? 'disabled' : ''}>${state.form.vendedor_vinculo_observacoes || ''}</textarea></label><div class="nhf-field nhf-field-full"><button class="nhf-btn" type="button" data-vinculo-form-save ${locked ? 'disabled' : ''}>Salvar vínculo</button></div></div></div>` : ''}</div>`;
+  }
+
   function renderModal() {
     const actionLabel = state.selected ? 'Salvar alterações' : 'Salvar fábrica';
-    return `<div id="nhf-modal-backdrop" class="nhf-modal-backdrop" tabindex="0"><div class="nhf-modal"><div class="nhf-modal-head"><div><div class="nhf-title">${state.selected ? 'Editar fábrica' : 'Nova fábrica'}</div><div class="nhf-sub">Cadastre a fábrica começando pelo CNPJ e siga com os dados comerciais.</div></div><button id="nhf-modal-close" class="nhf-btn" type="button">Fechar</button></div><div class="nhf-modal-tabs"><button class="nhf-tab" data-tab="gerais" aria-selected="${state.modalTab === 'gerais'}">Informações gerais</button><button class="nhf-tab" data-tab="regras" aria-selected="${state.modalTab === 'regras'}">Regras comerciais</button></div><div class="nhf-modal-body">${state.modalTab === 'gerais' ? renderFormTab() : renderRulesTab()}<div style="margin-top:18px;display:flex;justify-content:flex-end;gap:10px"><button id="nhf-save" class="nhf-btn" type="button" ${(!isCnpjValid() || !canEditCommercialFields()) ? 'disabled' : ''}>${state.saving ? 'Salvando...' : actionLabel}</button></div></div></div></div>`;
+    return `<div id="nhf-modal-backdrop" class="nhf-modal-backdrop" tabindex="0"><div class="nhf-modal"><div class="nhf-modal-head"><div><div class="nhf-title">${state.selected ? 'Editar fábrica' : 'Nova fábrica'}</div><div class="nhf-sub">Cadastre a fábrica começando pelo CNPJ e siga com os dados comerciais.</div></div><button id="nhf-modal-close" class="nhf-btn" type="button">Fechar</button></div><div class="nhf-modal-tabs"><button class="nhf-tab" data-tab="gerais" aria-selected="${state.modalTab === 'gerais'}">Informações gerais</button><button class="nhf-tab" data-tab="regras" aria-selected="${state.modalTab === 'regras'}">Regras comerciais</button><button class="nhf-tab" data-tab="vinculos" aria-selected="${state.modalTab === 'vinculos'}">Vendedores</button></div><div class="nhf-modal-body">${state.modalTab === 'gerais' ? renderFormTab() : state.modalTab === 'regras' ? renderRulesTab() : renderVinculosTab()}<div style="margin-top:18px;display:flex;justify-content:flex-end;gap:10px"><button id="nhf-save" class="nhf-btn" type="button" ${(!isCnpjValid() || !canEditCommercialFields()) ? 'disabled' : ''}>${state.saving ? 'Salvando...' : actionLabel}</button></div></div></div></div>`;
   }
 
   function render() {

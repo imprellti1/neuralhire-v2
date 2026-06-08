@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
-import { createCondicaoPagamento, createFabricante, getFabricanteById, listFabricantes, updateCondicaoPagamento, updateFabricante, updateFabricanteLogo, __resetMemoryFabricantesForTests } from '../../modules/fabricantes/fabricantes.repository.js';
+import { createCondicaoPagamento, createFabricante, deleteFabricanteVendedor, getFabricanteById, listFabricanteVendedores, listFabricantes, replaceFabricanteVendedores, updateCondicaoPagamento, updateFabricante, updateFabricanteVendedor, updateFabricanteLogo, __resetMemoryFabricantesForTests } from '../../modules/fabricantes/fabricantes.repository.js';
+import { createVendedor, __resetMemoryVendedoresForTests } from '../../modules/vendedores/vendedores.repository.js';
 import { env } from '../../config/env.js';
 
 function createSupabaseMock() {
@@ -205,6 +206,29 @@ export function getFabricantesTests() {
       __resetMemoryFabricantesForTests();
       await createFabricante({ nome: 'Fabrica K', cnpj: '111' }, { accountId: 'acc-1' });
       await assert.rejects(() => createFabricante({ nome: 'Fabrica K', cnpj: '222' }, { accountId: 'acc-1' }));
+    } },
+    { name: 'vínculos fábrica-vendedor com regras', run: async () => {
+      __resetMemoryFabricantesForTests();
+      __resetMemoryVendedoresForTests();
+      const fab = await createFabricante({ nome: 'Fabrica Vinculo' }, { accountId: 'acc-vinc' });
+      const vend1 = await createVendedor({ nome: 'Vendedor 1', email: 'v1@ex.com' }, { accountId: 'acc-vinc' });
+      const vend2 = await createVendedor({ nome: 'Vendedor 2', email: 'v2@ex.com' }, { accountId: 'acc-vinc' });
+      const created = await replaceFabricanteVendedores(fab.id, [
+        { vendedor_id: vend1.id, principal: true, status: 'ativo', comissao_percentual: 5, pedido_minimo_valor: 100, valor_minimo_duplicata: 50, condicoes_pagamento: [{ prazo: '30/60/90' }], observacoes: 'principal' },
+        { vendedor_id: vend2.id, principal: false, status: 'ativo' }
+      ], { accountId: 'acc-vinc' });
+      assert.equal(created.total, 2);
+      assert.equal(created.items[0].principal, true);
+      const listed = await listFabricanteVendedores(fab.id, { accountId: 'acc-vinc' });
+      assert.equal(listed.items.length, 2);
+      assert.equal(listed.items[0].vendedor_nome, 'Vendedor 1');
+      const updated = await updateFabricanteVendedor(fab.id, vend1.id, { comissao_percentual: 7 }, { accountId: 'acc-vinc' });
+      assert.equal(updated.comissao_percentual, 7);
+      await assert.rejects(() => replaceFabricanteVendedores(fab.id, [
+        { vendedor_id: vend1.id, principal: true },
+        { vendedor_id: vend2.id, principal: true }
+      ], { accountId: 'acc-vinc' }));
+      await deleteFabricanteVendedor(fab.id, vend2.id, { accountId: 'acc-vinc' });
     } }
   ];
 }

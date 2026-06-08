@@ -191,6 +191,123 @@ test('fabricantes: modal carrega vendedores reais e exibe loading', async () => 
   teardownFrontendDom(dom);
 });
 
+test('fabricantes: aba vendedores lista, adiciona principal e reabre persistido', async () => {
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
+  const fabricantes = [{ id: 'fab-v', nome: 'Fab V', cnpj: '12345678000190', status: 'ativo', pedido_minimo: 10, boleto_minimo: 20, comissao_padrao_percentual: 5 }];
+  const vinculos = [];
+  const vendedores = [
+    { id: 'vend-1', nome: 'Ana Vendas', email: 'ana@empresa.com.br', status: 'ativo' },
+    { id: 'vend-2', nome: 'Bruno Vendas', email: 'bruno@empresa.com.br', status: 'ativo' }
+  ];
+  installFetchMock({
+    'GET /fabricantes': () => ({ items: fabricantes, pagination: { page: 1, totalPages: 1, total: fabricantes.length, limit: 20 } }),
+    'GET /fabricantes/fab-v': () => ({ ...fabricantes[0] }),
+    'GET /fabricantes/fab-v/condicoes-pagamento': () => ({ items: [], total: 0 }),
+    'GET /fabricantes/fab-v/vendedores': () => ({ items: vinculos, total: vinculos.length }),
+    'GET /vendedores': () => ({ items: vendedores, pagination: { page: 1, totalPages: 1, total: vendedores.length, limit: 20 } }),
+    'PUT /fabricantes/fab-v/vendedores': ({ body }) => {
+      vinculos.splice(0, vinculos.length, ...(body.vendedores || []).map((row, index) => ({
+        id: `vinc-${index + 1}`,
+        vendedor_id: row.vendedor_id,
+        vendedor_nome: vendedores.find((item) => item.id === row.vendedor_id)?.nome || '',
+        vendedor_email: vendedores.find((item) => item.id === row.vendedor_id)?.email || '',
+        principal: Boolean(row.principal),
+        status: row.status || 'ativo',
+        comissao_percentual: row.comissao_percentual ?? '',
+        pedido_minimo_valor: row.pedido_minimo_valor ?? '',
+        valor_minimo_duplicata: row.valor_minimo_duplicata ?? '',
+        condicoes_pagamento: row.condicoes_pagamento || [],
+        observacoes: row.observacoes || ''
+      })));
+      return { items: vinculos, total: vinculos.length };
+    }
+  });
+  bootstrapWebApp();
+  await flush(); await flush();
+  document.querySelector('[data-edit-id="fab-v"]').click();
+  await flush(); await flush();
+  document.querySelector('[data-tab="vinculos"]').click();
+  await flush();
+  assert.match(document.body.textContent, /Nenhum vendedor vinculado a esta fábrica/);
+  document.querySelector('[data-vinculo-add]').click();
+  await flush();
+  const vendedorSelect = document.querySelector('[data-vinculo-form-field="vendedor_vinculo_vendedor_id"]');
+  vendedorSelect.value = 'vend-1';
+  vendedorSelect.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+  assert.equal(document.querySelector('[data-vinculo-form-field="vendedor_vinculo_vendedor_id"]').value, 'vend-1');
+  document.querySelector('[data-vinculo-form-field="vendedor_vinculo_principal"]').value = 'true';
+  document.querySelector('[data-vinculo-form-field="vendedor_vinculo_principal"]').dispatchEvent(new Event('change', { bubbles: true }));
+  dispatchInput(document.querySelector('[data-vinculo-form-field="vendedor_vinculo_comissao_percentual"]'), '7.5');
+  dispatchInput(document.querySelector('[data-vinculo-form-field="vendedor_vinculo_condicoes_pagamento"]'), '30/60/90');
+  document.querySelector('[data-vinculo-form-save]').click();
+  await flush(); await flush();
+  const calls = getSanitizedFetchCalls();
+  assert.ok(calls.some((call) => call.method === 'PUT' && call.path === '/fabricantes/fab-v/vendedores'));
+  teardownFrontendDom(dom);
+});
+
+test('fabricantes: aba vendedores edita e inativa vínculo sem duplicar principal', async () => {
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
+  const fabricantes = [{ id: 'fab-v2', nome: 'Fab V2', cnpj: '12345678000190', status: 'ativo', pedido_minimo: 10, boleto_minimo: 20, comissao_padrao_percentual: 5 }];
+  const vinculos = [{
+    id: 'vinc-1',
+    vendedor_id: 'vend-1',
+    vendedor_nome: 'Ana Vendas',
+    vendedor_email: 'ana@empresa.com.br',
+    principal: true,
+    status: 'ativo',
+    comissao_percentual: 5,
+    pedido_minimo_valor: 100,
+    valor_minimo_duplicata: 50,
+    condicoes_pagamento: [{ prazo: '30/60/90', parcelas: 3, prazo_medio_dias: 60 }],
+    observacoes: 'Obs'
+  }];
+  const vendedores = [{ id: 'vend-1', nome: 'Ana Vendas', email: 'ana@empresa.com.br', status: 'ativo' }];
+  let patchBody = null;
+  installFetchMock({
+    'GET /fabricantes': () => ({ items: fabricantes, pagination: { page: 1, totalPages: 1, total: fabricantes.length, limit: 20 } }),
+    'GET /fabricantes/fab-v2': () => ({ ...fabricantes[0] }),
+    'GET /fabricantes/fab-v2/condicoes-pagamento': () => ({ items: [], total: 0 }),
+    'GET /fabricantes/fab-v2/vendedores': () => ({ items: vinculos, total: vinculos.length }),
+    'GET /vendedores': () => ({ items: vendedores, pagination: { page: 1, totalPages: 1, total: vendedores.length, limit: 20 } }),
+    'PATCH /fabricantes/fab-v2/vendedores/vend-1': ({ body }) => {
+      patchBody = body;
+      Object.assign(vinculos[0], {
+        principal: Boolean(body.principal),
+        status: body.status || 'ativo',
+        comissao_percentual: body.comissao_percentual,
+        pedido_minimo_valor: body.pedido_minimo_valor,
+        valor_minimo_duplicata: body.valor_minimo_duplicata,
+        condicoes_pagamento: body.condicoes_pagamento || [],
+        observacoes: body.observacoes || ''
+      });
+      return { item: vinculos[0] };
+    },
+    'DELETE /fabricantes/fab-v2/vendedores/vend-1': () => ({ ok: true })
+  });
+  bootstrapWebApp();
+  await flush(); await flush();
+  document.querySelector('[data-edit-id="fab-v2"]').click();
+  await flush(); await flush();
+  document.querySelector('[data-tab="vinculos"]').click();
+  await flush();
+  document.querySelector('[data-vinculo-edit="vinc-1"]').click();
+  await flush();
+  dispatchInput(document.querySelector('[data-vinculo-form-field="vendedor_vinculo_comissao_percentual"]'), '8');
+  dispatchInput(document.querySelector('[data-vinculo-form-field="vendedor_vinculo_condicoes_pagamento"]'), '45/45');
+  document.querySelector('[data-vinculo-form-field="vendedor_vinculo_status"]').value = 'inativo';
+  document.querySelector('[data-vinculo-form-field="vendedor_vinculo_status"]').dispatchEvent(new Event('change', { bubbles: true }));
+  document.querySelector('[data-vinculo-form-save]').click();
+  await flush(); await flush();
+  assert.equal(patchBody.comissao_percentual, 8);
+  assert.equal(patchBody.status, 'inativo');
+  assert.match(document.body.textContent, /Inativo/);
+  teardownFrontendDom(dom);
+});
+
 test('fabricantes: edição preserva responsavel comercial vinculado', async () => {
   const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
   mockAuthenticatedSession();
