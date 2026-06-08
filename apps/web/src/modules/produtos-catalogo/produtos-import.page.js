@@ -6,32 +6,45 @@ function injectStyles() {
   document.head.appendChild(style);
 }
 
-async function fileToFormData(file, fabricanteId) {
+export async function fileToFormData(file, fabricanteId) {
   const fd = new FormData();
   if (typeof fd.append !== 'function') {
     throw new TypeError('FormData indisponivel');
   }
 
-  const isFileLike = typeof File !== 'undefined' && file instanceof File;
-  const isBlobLike = typeof Blob !== 'undefined' && file instanceof Blob;
+  const isBlobLike =
+    file &&
+    typeof file === 'object' &&
+    typeof file.size === 'number' &&
+    typeof file.type === 'string';
+  const safeBlob =
+    typeof Blob !== 'undefined' && file instanceof Blob
+      ? file
+      : new Blob(
+          [file?.buffer || file?.contents || file || ''],
+          {
+            type:
+              file?.type ||
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          }
+        );
   const fileName = String(file?.name || '').trim();
-  const validName = fileName.toLowerCase().endsWith('.xlsx');
-  const fallbackName = fileName || 'import.xlsx';
+  const fallbackName = fileName || 'estoque.xlsx';
 
   if (!fabricanteId) {
     throw new TypeError('Selecione um fabricante antes de continuar.');
   }
 
-  if (!file || (!isFileLike && !isBlobLike)) {
+  if (!file || (!isBlobLike && !(typeof Blob !== 'undefined' && file instanceof Blob))) {
     throw new TypeError('Selecione um arquivo XLSX antes de continuar.');
   }
 
-  if (!validName) {
+  if (!String(fallbackName).toLowerCase().endsWith('.xlsx')) {
     throw new TypeError('Selecione um arquivo XLSX antes de continuar.');
   }
 
   fd.append('fabricante_id', String(fabricanteId || '').trim());
-  fd.append('file', file, fallbackName);
+  fd.append('file', safeBlob, fallbackName);
   return fd;
 }
 
