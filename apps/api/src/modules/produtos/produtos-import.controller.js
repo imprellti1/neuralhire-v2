@@ -22,37 +22,35 @@ function cleanBody(body = {}) {
 }
 
 function parseBase64File(file) {
-  if (!file?.base64) return null;
-  return Buffer.from(String(file.base64).replace(/^data:[^;]+;base64,/, ''), 'base64');
+  if (!file) return null;
+  if (Buffer.isBuffer(file)) return file;
+  if (file?.buffer && Buffer.isBuffer(file.buffer)) return file.buffer;
+  if (file?.content && Buffer.isBuffer(file.content)) return file.content;
+  if (file?.data && Buffer.isBuffer(file.data)) return file.data;
+  if (Array.isArray(file)) {
+    return parseBase64File(file[0] || null);
+  }
+  if (file?.base64) {
+    return Buffer.from(String(file.base64).replace(/^data:[^;]+;base64,/, ''), 'base64');
+  }
+  if (typeof file === 'string') {
+    return Buffer.from(String(file).replace(/^data:[^;]+;base64,/, ''), 'base64');
+  }
+  return null;
 }
 
 function shouldLogImportPreview() {
-  return ['development', 'homologation', 'homolog', 'test'].includes(String(env?.NODE_ENV || env?.APP_ENV || '').toLowerCase());
+  return String(env?.APP_ENV || env?.NODE_ENV || '').toLowerCase() !== 'production';
 }
 
-function resolveImportPayload(context = {}) {
+function resolveFabricanteId(context = {}) {
   const body = cleanBody(context.body || {});
-  const fields = cleanBody(context.fields || {});
-  const formData = cleanBody(context.formData || {});
-  const payload = {
-    ...fields,
-    ...formData,
-    ...body,
-    ...(body?.fields && typeof body.fields === 'object' ? body.fields : {}),
-    ...(body?.formData && typeof body.formData === 'object' ? body.formData : {})
-  };
-  const file = payload.arquivo || payload.file || payload.xlsx || fields.arquivo || fields.file || fields.xlsx || formData.arquivo || formData.file || formData.xlsx || null;
-  const fabricanteId =
-    payload.fabricante_id ||
-    fields.fabricante_id ||
-    formData.fabricante_id ||
-    body.fabricante_id ||
-    payload.fabricanteId ||
-    fields.fabricanteId ||
-    formData.fabricanteId ||
-    body.fabricanteId ||
-    null;
-  return { body: payload, fields, formData, file, fabricanteId };
+  return body.fabricante_id || body.fabricanteId || body.fabricante?.id || null;
+}
+
+function resolveImportFile(context = {}) {
+  const body = cleanBody(context.body || {});
+  return body.file || body.arquivo || body.xlsx || null;
 }
 
 async function ensureFabricante(accountId, fabricanteId) {
@@ -101,12 +99,13 @@ function computeGradeTotals(row) {
 
 export async function previewProdutosImportHandler(context = {}) {
   const accountId = assertContextAccount(context);
-  const { body, fields, file, fabricanteId } = resolveImportPayload(context);
+  const body = cleanBody(context.body || {});
+  const fabricanteId = resolveFabricanteId(context);
+  const file = resolveImportFile(context);
   if (shouldLogImportPreview()) {
     console.log('[produtos-import] preview received', {
       fabricanteId,
       bodyKeys: Object.keys(body || {}),
-      fieldKeys: Object.keys(fields || {}),
       hasFile: Boolean(file)
     });
   }
@@ -119,7 +118,8 @@ export async function previewProdutosImportHandler(context = {}) {
 
 export async function executeProdutosImportHandler(context = {}) {
   const accountId = assertContextAccount(context);
-  const { file, fabricanteId } = resolveImportPayload(context);
+  const fabricanteId = resolveFabricanteId(context);
+  const file = resolveImportFile(context);
   if (!fabricanteId) throw new BadRequestError('fabricante_id obrigatorio', { domain: 'produtos-import' });
   const buffer = parseBase64File(file);
   if (!buffer) throw new BadRequestError('Arquivo XLSX obrigatorio', { domain: 'produtos-import' });

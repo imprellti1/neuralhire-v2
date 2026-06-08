@@ -7,6 +7,7 @@ import { createFabricante } from '../../modules/fabricantes/fabricantes.reposito
 import { __resetMemoryProdutosForTests } from '../../modules/produtos/produtos.repository.js';
 import { __resetMemoryProductEditorForTests } from '../../modules/product-editor/product-editor.repository.js';
 import { __dumpImportMemory } from '../../modules/produtos/produtos-import.repository.js';
+import { parseJsonBody } from '../../core/body-parser.js';
 
 function parseBody(res) {
   try { return JSON.parse(res.body || '{}'); } catch { return {}; }
@@ -43,6 +44,21 @@ function createMultipartBody({ fields = {}, file = null, boundary = '----neuralh
   }
   push(`--${boundary}--\r\n`);
   return { body: Buffer.concat(chunks), boundary };
+}
+
+function createMultipartRequest({ accountId, role, fields = {}, file = null }) {
+  const multipart = createMultipartBody({ fields, file });
+  const req = createTestRequest({
+    method: 'POST',
+    url: '/produtos/importar-estoque/preview',
+    headers: {
+      ...(role ? { 'x-test-role': role } : {}),
+      ...(accountId ? { 'x-test-account-id': accountId } : {}),
+      'content-type': `multipart/form-data; boundary=${multipart.boundary}`
+    },
+    body: multipart.body
+  });
+  return { req, multipart };
 }
 
 export function getProdutosImportTests() {
@@ -93,6 +109,28 @@ export function getProdutosImportTests() {
         const out = parseBody(res);
         assert.equal(res.statusCode, 200);
         assert.equal(out.ok, true);
+      }
+    },
+    {
+      name: 'body parser multipart expõe fabricante_id e file no context.body',
+      run: async () => {
+        const { req, multipart } = createMultipartRequest({
+          accountId: 'acc-parser',
+          role: 'admin',
+          fields: { fabricante_id: 'fab-parser' },
+          file: {
+            fileName: 'Estoque_288.xlsx',
+            mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            content: Buffer.from('fake-xlsx')
+          }
+        });
+        const parsed = await parseJsonBody(req);
+        assert.equal(parsed.fabricante_id, 'fab-parser');
+        assert.ok(parsed.file);
+        assert.equal(parsed.file.fileName, 'Estoque_288.xlsx');
+        assert.ok(parsed.file.base64);
+        assert.equal(typeof parsed.file.base64, 'string');
+        assert.equal(multipart.boundary.startsWith('----neuralhire-boundary'), true);
       }
     },
     {
