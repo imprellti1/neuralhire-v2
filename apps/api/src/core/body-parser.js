@@ -80,6 +80,14 @@ function parseMultipartBody(buffer, boundary) {
     const fieldName = nameMatch[1];
     const fileNameMatch = disposition.match(/filename="([^"]*)"/i);
     const contentType = String(headers['content-type'] || '').toLowerCase();
+    console.log('[multipart-debug]', {
+      disposition,
+      fieldName,
+      hasFilename: Boolean(fileNameMatch),
+      contentType,
+      rawValueLength: rawValue.length,
+      rawValuePreview: String(rawValue).slice(0, 120)
+    });
     if (fileNameMatch) {
       const fileBuffer = Buffer.from(rawValue, 'binary');
       payload[fieldName] = {
@@ -93,6 +101,7 @@ function parseMultipartBody(buffer, boundary) {
     payload[fieldName] = Buffer.from(rawValue, 'binary').toString('utf8').replace(/\r\n$/, '');
   }
 
+  console.log('[multipart-debug-payload]', Object.keys(payload));
   return payload;
 }
 
