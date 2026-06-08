@@ -55,6 +55,9 @@ function normalizePaymentConditionEntry(entry, index = 0) {
   if (!prazoRaw) {
     throw new BadRequestError(`Condicao de pagamento invalida na linha ${index + 1}`, { domain: 'fabricantes', code: 'CONDICAO_INVALIDA' });
   }
+  if (!/^\d+(?:\/\d+)*$/.test(prazoRaw)) {
+    throw new BadRequestError(`Condicao de pagamento invalida na linha ${index + 1}`, { domain: 'fabricantes', code: 'CONDICAO_INVALIDA' });
+  }
   const parts = prazoRaw.split('/').filter(Boolean);
   if (!parts.length || parts.some((part) => !/^[1-9]\d*$/.test(part))) {
     throw new BadRequestError(`Condicao de pagamento invalida na linha ${index + 1}`, { domain: 'fabricantes', code: 'CONDICAO_INVALIDA' });
@@ -170,8 +173,10 @@ export async function updateFabricanteLogo(id, upload, options = {}) {
 
 function normalizeFabricanteRecord(data = {}, current = null) {
   const base = current || {};
-  const valorMinimoDuplicata = data.valor_minimo_duplicata !== undefined ? data.valor_minimo_duplicata : data.pedido_minimo_valor;
-  const baseValorMinimoDuplicata = base.valor_minimo_duplicata ?? base.pedido_minimo_valor ?? base.pedido_minimo ?? 0;
+  const valorMinimoDuplicata = data.valor_minimo_duplicata !== undefined ? data.valor_minimo_duplicata : data.pedido_minimo;
+  const pedidoMinimoValor = data.pedido_minimo_valor !== undefined ? data.pedido_minimo_valor : data.pedido_minimo;
+  const baseValorMinimoDuplicata = base.valor_minimo_duplicata ?? base.pedido_minimo ?? base.pedido_minimo_valor ?? 0;
+  const basePedidoMinimoValor = base.pedido_minimo_valor ?? base.pedido_minimo ?? base.valor_minimo_duplicata ?? 0;
   const payload = {
     nome: data.nome !== undefined ? String(data.nome || '').trim() : base.nome,
     razao_social: data.razao_social !== undefined ? (data.razao_social || null) : base.razao_social || null,
@@ -191,7 +196,7 @@ function normalizeFabricanteRecord(data = {}, current = null) {
     logo_url: data.logo_url !== undefined ? sanitizeLogoUrl(data.logo_url) : sanitizeLogoUrl(base.logo_url),
     status: data.status !== undefined ? (data.status === 'inativo' ? 'inativo' : 'ativo') : base.status || 'ativo',
     valor_minimo_duplicata: valorMinimoDuplicata !== undefined ? normalizeNonNegativeNumber(valorMinimoDuplicata, 'valor_minimo_duplicata') : normalizeNonNegativeNumber(baseValorMinimoDuplicata, 'valor_minimo_duplicata'),
-    pedido_minimo_valor: valorMinimoDuplicata !== undefined ? normalizeNonNegativeNumber(valorMinimoDuplicata, 'pedido_minimo_valor') : normalizeNonNegativeNumber(baseValorMinimoDuplicata, 'pedido_minimo_valor'),
+    pedido_minimo_valor: pedidoMinimoValor !== undefined ? normalizeNonNegativeNumber(pedidoMinimoValor, 'pedido_minimo_valor') : normalizeNonNegativeNumber(basePedidoMinimoValor, 'pedido_minimo_valor'),
     pedido_minimo_itens: data.pedido_minimo_itens !== undefined ? Math.floor(normalizeNonNegativeNumber(data.pedido_minimo_itens, 'pedido_minimo_itens')) : Math.floor(normalizeNonNegativeNumber(base.pedido_minimo_itens ?? 0, 'pedido_minimo_itens')),
     prazo_entrega_dias: data.prazo_entrega_dias !== undefined ? Math.floor(normalizeNonNegativeNumber(data.prazo_entrega_dias, 'prazo_entrega_dias')) : Math.floor(normalizeNonNegativeNumber(base.prazo_entrega_dias ?? 0, 'prazo_entrega_dias')),
     comissao_padrao_percentual: data.comissao_padrao_percentual !== undefined ? normalizePercent(data.comissao_padrao_percentual) : normalizePercent(base.comissao_padrao_percentual ?? 0),
@@ -407,8 +412,8 @@ export async function createFabricante(data, options = {}) {
     endereco_completo: data.endereco_completo || composeEnderecoCompleto(data),
     logo_url: sanitizeLogoUrl(data.logo_url),
     status: data.status === 'inativo' ? 'inativo' : 'ativo',
-    valor_minimo_duplicata: normalizeNonNegativeNumber(data.valor_minimo_duplicata ?? data.pedido_minimo_valor ?? data.pedido_minimo ?? 0, 'valor_minimo_duplicata'),
-    pedido_minimo_valor: normalizeNonNegativeNumber(data.valor_minimo_duplicata ?? data.pedido_minimo_valor ?? data.pedido_minimo ?? 0, 'pedido_minimo_valor'),
+    valor_minimo_duplicata: normalizeNonNegativeNumber(data.valor_minimo_duplicata ?? data.pedido_minimo ?? 0, 'valor_minimo_duplicata'),
+    pedido_minimo_valor: normalizeNonNegativeNumber(data.pedido_minimo_valor ?? data.pedido_minimo ?? 0, 'pedido_minimo_valor'),
     pedido_minimo_itens: Math.floor(normalizeNonNegativeNumber(data.pedido_minimo_itens ?? 0, 'pedido_minimo_itens')),
     prazo_entrega_dias: Math.floor(normalizeNonNegativeNumber(data.prazo_entrega_dias ?? 0, 'prazo_entrega_dias')),
     comissao_padrao_percentual: normalizePercent(data.comissao_padrao_percentual ?? 0),
@@ -418,7 +423,7 @@ export async function createFabricante(data, options = {}) {
     condicoes_pagamento: normalizePaymentConditions(data.condicoes_pagamento || []),
     observacoes_comerciais: data.observacoes_comerciais || null,
     tabela_precos_url: data.tabela_precos_url || null,
-    pedido_minimo: normalizeNonNegativeNumber(data.valor_minimo_duplicata ?? data.pedido_minimo_valor ?? data.pedido_minimo ?? 0, 'pedido_minimo'),
+    pedido_minimo: normalizeNonNegativeNumber(data.valor_minimo_duplicata ?? data.pedido_minimo ?? 0, 'pedido_minimo'),
     boleto_minimo: Math.floor(normalizeNonNegativeNumber(data.pedido_minimo_itens ?? data.boleto_minimo ?? 0, 'boleto_minimo')),
     observacoes: data.observacoes || null
   };

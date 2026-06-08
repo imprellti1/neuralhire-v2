@@ -191,12 +191,18 @@ test('fabricantes: envia e recarrega regras comerciais', async () => {
   await flush(); await flush();
   document.querySelector('[data-tab="regras"]').click();
   await flush();
+  assert.equal(document.querySelector('[data-form-field="pedido_minimo_valor"]').value.includes('R$'), true);
   assert.equal(document.querySelector('[data-form-field="pedido_minimo"]').value.includes('R$'), true);
   assert.equal(document.querySelector('[data-form-field="aceita_bonificacao"]').value, 'true');
   assert.equal(document.querySelector('[data-form-field="aceita_consignacao"]').value, 'true');
+  document.querySelector('[data-form-field="pedido_minimo_valor"]').value = 'R$ 750,00';
+  document.querySelector('[data-form-field="pedido_minimo_valor"]').dispatchEvent(new Event('input', { bubbles: true }));
+  document.querySelector('[data-form-field="pedido_minimo"]').value = 'R$ 125,00';
+  document.querySelector('[data-form-field="pedido_minimo"]').dispatchEvent(new Event('input', { bubbles: true }));
   document.querySelector('#nhf-save').click();
   await flush(); await flush();
-  assert.equal(savedBody.valor_minimo_duplicata, 1000);
+  assert.equal(savedBody.pedido_minimo_valor, 750);
+  assert.equal(savedBody.valor_minimo_duplicata, 125);
   assert.equal(savedBody.aceita_bonificacao, true);
   assert.equal(savedBody.aceita_consignacao, true);
   teardownFrontendDom(dom);
@@ -235,6 +241,7 @@ test('fabricantes: regras comerciais validam campos basicos', async () => {
   document.querySelector('[data-payment-add]').click();
   await flush();
   const prazoInput = document.querySelector('[data-payment-prazo]');
+  assert.equal(prazoInput.type, 'text');
   dispatchInput(prazoInput, '30/60/90');
   await flush();
   assert.match(document.body.textContent, /3 parcelas · prazo médio 60 dias/);
@@ -287,6 +294,7 @@ test('fabricantes: salva e reabre condicoes estruturadas', async () => {
   document.querySelector('[data-payment-add]').click();
   await flush();
   dispatchInput(document.querySelector('[data-payment-prazo]'), '30/60/90');
+  document.querySelector('[data-payment-prazo]').dispatchEvent(new Event('blur', { bubbles: true }));
   await flush();
   document.querySelector('#nhf-save').click();
   await flush(); await flush();
@@ -296,6 +304,31 @@ test('fabricantes: salva e reabre condicoes estruturadas', async () => {
   document.querySelector('[data-tab="regras"]').click();
   await flush();
   assert.equal(document.querySelector('[data-payment-prazo]').value, '30/60/90');
+  teardownFrontendDom(dom);
+});
+
+test('fabricantes: condicao calcula parcelas e prazo medio ao digitar prazo livre', async () => {
+  const dom = setupFrontendDom('#/fabricantes', 'app.neuralhire.com.br');
+  mockAuthenticatedSession();
+  installFetchMock({ 'GET /fabricantes': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 20 } }) });
+  bootstrapWebApp();
+  await flush(); await flush();
+  document.querySelector('#nhf-new').click();
+  await flush();
+  document.querySelector('#nhf-unlock-manual').click();
+  await flush();
+  document.querySelector('[data-tab="regras"]').click();
+  await flush();
+  document.querySelector('[data-payment-add]').click();
+  await flush();
+  const prazo = document.querySelector('[data-payment-prazo]');
+  dispatchInput(prazo, '30 / 60 / 90');
+  await flush();
+  assert.equal(prazo.value, '30 / 60 / 90');
+  prazo.dispatchEvent(new Event('blur', { bubbles: true }));
+  await flush();
+  assert.equal(document.querySelector('[data-payment-prazo]').value, '30/60/90');
+  assert.match(document.body.textContent, /3 parcelas · prazo médio 60 dias/);
   teardownFrontendDom(dom);
 });
 

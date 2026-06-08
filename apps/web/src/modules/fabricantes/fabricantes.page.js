@@ -130,6 +130,16 @@ function calculatePaymentRow(prazo) {
   return { valid: true, prazo: parts.join('/'), parcelas, prazo_medio_dias };
 }
 
+function normalizePaymentInputValue(value) {
+  return String(value || '').replace(/[^\d/\s]/g, '');
+}
+
+function normalizePaymentInputFinal(value) {
+  const cleaned = normalizePaymentInputValue(value).replace(/\s+/g, '');
+  if (!cleaned) return '';
+  return cleaned.split('/').filter(Boolean).join('/');
+}
+
 function normalizePaymentRows(raw) {
   return Array.isArray(raw) ? raw.map((row) => normalizePaymentRow(row)) : [];
 }
@@ -203,10 +213,12 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     state.selected = selected;
     state.condicoes = [];
     state.condicaoId = null;
-  state.form = selected ? { ...emptyForm(), ...selected, cnpj: selected.cnpj || '' } : emptyForm();
+    state.form = selected ? { ...emptyForm(), ...selected, cnpj: selected.cnpj || '' } : emptyForm();
     state.form.nome_fantasia = selected?.nome || selected?.nome_fantasia || state.form.nome_fantasia || '';
-    state.form.valor_minimo_duplicata = selected?.valor_minimo_duplicata ?? selected?.pedido_minimo_valor ?? selected?.pedido_minimo ?? 0;
-    state.form.pedido_minimo_display = selected?.valor_minimo_duplicata !== undefined || selected?.pedido_minimo_valor !== undefined || selected?.pedido_minimo !== undefined ? formatCurrencyFromNumber(selected.valor_minimo_duplicata ?? selected.pedido_minimo_valor ?? selected.pedido_minimo) : '';
+    state.form.valor_minimo_duplicata = selected?.valor_minimo_duplicata ?? selected?.pedido_minimo ?? 0;
+    state.form.pedido_minimo_valor = selected?.pedido_minimo_valor ?? selected?.pedido_minimo ?? 0;
+    state.form.pedido_minimo_display = selected?.valor_minimo_duplicata !== undefined || selected?.pedido_minimo !== undefined ? formatCurrencyFromNumber(selected.valor_minimo_duplicata ?? selected.pedido_minimo) : '';
+    state.form.pedido_minimo_valor_display = selected?.pedido_minimo_valor !== undefined || selected?.pedido_minimo !== undefined ? formatCurrencyFromNumber(selected.pedido_minimo_valor ?? selected.pedido_minimo) : '';
     state.form.pedido_minimo_itens = selected?.pedido_minimo_itens ?? 0;
     state.form.prazo_entrega_dias = selected?.prazo_entrega_dias ?? 0;
     state.form.comissao_padrao_percentual = selected?.comissao_padrao_percentual ?? 0;
@@ -242,8 +254,10 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       const detail = await fetchFabricanteData(apiClient, selected.id);
       state.selected = detail;
       state.form = { ...state.form, ...detail, nome_fantasia: detail.nome || detail.nome_fantasia || state.form.nome_fantasia || '', cnpj: detail.cnpj || '' };
-      state.form.pedido_minimo_display = formatCurrencyFromNumber(detail.valor_minimo_duplicata ?? detail.pedido_minimo_valor ?? detail.pedido_minimo);
-      state.form.valor_minimo_duplicata = detail.valor_minimo_duplicata ?? detail.pedido_minimo_valor ?? detail.pedido_minimo ?? 0;
+      state.form.pedido_minimo_display = formatCurrencyFromNumber(detail.valor_minimo_duplicata ?? detail.pedido_minimo ?? 0);
+      state.form.pedido_minimo_valor_display = formatCurrencyFromNumber(detail.pedido_minimo_valor ?? detail.pedido_minimo ?? 0);
+      state.form.valor_minimo_duplicata = detail.valor_minimo_duplicata ?? detail.pedido_minimo ?? 0;
+      state.form.pedido_minimo_valor = detail.pedido_minimo_valor ?? detail.pedido_minimo ?? 0;
       state.form.pedido_minimo_itens = detail.pedido_minimo_itens ?? 0;
       state.form.prazo_entrega_dias = detail.prazo_entrega_dias ?? 0;
       state.form.condicoes_pagamento = normalizePaymentRows(detail.condicoes_pagamento || []);
@@ -415,6 +429,17 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     root.querySelector('[data-form-field="responsavel_vendedor_id"]')?.addEventListener('change', (e) => {
       state.form.responsavel_vendedor_id = e.target.value || '';
     });
+    root.querySelector('[data-form-field="pedido_minimo_valor"]')?.addEventListener('input', (e) => {
+      state.form.pedido_minimo_valor_display = String(e.target.value || '');
+      const parsed = parseBrlInput(state.form.pedido_minimo_valor_display);
+      state.form.pedido_minimo_valor = parsed ?? 0;
+    });
+    root.querySelector('[data-form-field="pedido_minimo_valor"]')?.addEventListener('blur', (e) => {
+      const parsed = parseBrlInput(e.target.value);
+      state.form.pedido_minimo_valor = parsed ?? 0;
+      state.form.pedido_minimo_valor_display = parsed === null ? '' : brl(parsed);
+      e.target.value = state.form.pedido_minimo_valor_display;
+    });
     root.querySelector('[data-form-field="pedido_minimo"]')?.addEventListener('input', (e) => {
       state.form.pedido_minimo_display = String(e.target.value || '');
       const parsed = parseBrlInput(state.form.pedido_minimo_display);
@@ -449,8 +474,10 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     root.querySelector('#nhf-save')?.addEventListener('click', async () => {
       if (!isCnpjValid() || !canEditCommercialFields()) return;
       const formErrors = {};
-      const pedidoMinimoValor = parseBrlInput(state.form.pedido_minimo_display);
-      if (pedidoMinimoValor !== null && pedidoMinimoValor < 0) formErrors.pedido_minimo_valor = 'Valor nao pode ser negativo.';
+      const pedidoMinimoPedido = parseBrlInput(state.form.pedido_minimo_valor_display);
+      const pedidoMinimoDuplicata = parseBrlInput(state.form.pedido_minimo_display);
+      if (pedidoMinimoPedido !== null && pedidoMinimoPedido < 0) formErrors.pedido_minimo_valor = 'Valor nao pode ser negativo.';
+      if (pedidoMinimoDuplicata !== null && pedidoMinimoDuplicata < 0) formErrors.valor_minimo_duplicata = 'Valor nao pode ser negativo.';
       if (Number(state.form.pedido_minimo_itens || 0) < 0) formErrors.pedido_minimo_itens = 'Valor nao pode ser negativo.';
       if (Number(state.form.prazo_entrega_dias || 0) < 0) formErrors.prazo_entrega_dias = 'Valor nao pode ser negativo.';
       const comissao = Number(state.form.comissao_padrao_percentual || 0);
@@ -464,7 +491,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       state.saving = true;
       render();
       try {
-      const paymentRows = (state.form.condicoes_pagamento || []).map((row) => calculatePaymentRow(row.prazo)).filter((row) => row.valid).map((row) => ({ prazo: row.prazo, parcelas: row.parcelas, prazo_medio_dias: row.prazo_medio_dias }));
+        const paymentRows = (state.form.condicoes_pagamento || []).map((row) => calculatePaymentRow(row.prazo)).filter((row) => row.valid).map((row) => ({ prazo: row.prazo, parcelas: row.parcelas, prazo_medio_dias: row.prazo_medio_dias }));
       if ((state.form.condicoes_pagamento || []).some((row) => !calculatePaymentRow(row.prazo).valid)) {
         state.form.formErrors = { ...(state.form.formErrors || {}), condicoes_pagamento: 'Revise as condicoes de pagamento.' };
         state.saving = false;
@@ -489,6 +516,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
           cep: state.form.cep || null,
           endereco_completo: state.form.endereco_completo || composeEnderecoCompleto(state.form) || null,
           valor_minimo_duplicata: Number.isFinite(Number(state.form.valor_minimo_duplicata)) ? Number(state.form.valor_minimo_duplicata) : (parseBrlInput(state.form.pedido_minimo_display) ?? 0),
+          pedido_minimo_valor: Number.isFinite(Number(state.form.pedido_minimo_valor)) ? Number(state.form.pedido_minimo_valor) : (parseBrlInput(state.form.pedido_minimo_valor_display) ?? 0),
           pedido_minimo_itens: Number(state.form.pedido_minimo_itens || 0),
           prazo_entrega_dias: Number(state.form.prazo_entrega_dias || 0),
           comissao_padrao_percentual: Number(state.form.comissao_padrao_percentual || 0),
@@ -530,7 +558,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     });
     root.querySelectorAll('[data-form-field]').forEach((el) => {
       const key = el.getAttribute('data-form-field');
-      if (key === 'pedido_minimo') return;
+      if (key === 'pedido_minimo' || key === 'pedido_minimo_valor') return;
       el.addEventListener('input', (e) => { state.form[key] = e.target.value; });
       el.addEventListener('change', (e) => { state.form[key] = e.target.value; });
     });
@@ -541,7 +569,12 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
     root.querySelectorAll('[data-payment-prazo]').forEach((input) => {
       input.addEventListener('input', (e) => {
         const rowId = input.getAttribute('data-payment-prazo');
-        state.form.condicoes_pagamento = (state.form.condicoes_pagamento || []).map((row) => String(row.id) === String(rowId) ? { ...row, prazo: String(e.target.value || '').replace(/\s+/g, '') } : row);
+        state.form.condicoes_pagamento = (state.form.condicoes_pagamento || []).map((row) => String(row.id) === String(rowId) ? { ...row, prazo: normalizePaymentInputValue(e.target.value) } : row);
+        render();
+      });
+      input.addEventListener('blur', (e) => {
+        const rowId = input.getAttribute('data-payment-prazo');
+        state.form.condicoes_pagamento = (state.form.condicoes_pagamento || []).map((row) => String(row.id) === String(rowId) ? { ...row, prazo: normalizePaymentInputFinal(e.target.value) } : row);
         render();
       });
     });
@@ -575,7 +608,7 @@ export function renderFabricantesPage(root, { apiClient } = {}) {
       const calc = calculatePaymentRow(row.prazo);
       return `<div class="nhf-panel" data-payment-row="${row.id}" style="padding:12px"><div class="nhf-inline"><label class="nhf-field"><span>Prazo</span><input data-payment-prazo="${row.id}" value="${row.prazo || ''}" placeholder="30/60/90" ${locked ? 'disabled' : ''}></label><div class="nhf-muted" style="align-self:center">${calc.valid ? `${calc.parcelas} parcelas · prazo médio ${calc.prazo_medio_dias} dias` : 'Digite um prazo valido'}</div><button class="nhf-btn" type="button" data-payment-remove="${row.id}" ${locked ? 'disabled' : ''}>Remover</button></div><div class="nhf-inline-error">${!calc.valid && row.prazo ? 'Formato invalido' : ''}</div></div>`;
     }).join('');
-    return `<div class="nhf-form-grid"><label class="nhf-field"><span>Valor mínimo por duplicata</span><input data-form-field="pedido_minimo" value="${state.form.pedido_minimo_display || formatCurrencyFromNumber(state.form.valor_minimo_duplicata ?? 0)}" ${locked ? 'disabled' : ''} inputmode="decimal"><div class="nhf-inline-error">${errors.valor_minimo_duplicata || errors.pedido_minimo_valor || ''}</div></label><label class="nhf-field"><span>Quantidade mínima de itens</span><input data-form-field="pedido_minimo_itens" type="number" min="0" value="${state.form.pedido_minimo_itens ?? 0}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.pedido_minimo_itens || ''}</div></label><label class="nhf-field"><span>Prazo médio de entrega em dias</span><input data-form-field="prazo_entrega_dias" type="number" min="0" value="${state.form.prazo_entrega_dias ?? 0}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.prazo_entrega_dias || ''}</div></label><label class="nhf-field"><span>Comissão padrão %</span><input data-form-field="comissao_padrao_percentual" type="number" min="0" max="100" value="${state.form.comissao_padrao_percentual ?? 0}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.comissao_padrao_percentual || ''}</div></label><label class="nhf-field"><span>Aceita bonificação?</span><select data-form-field="aceita_bonificacao" ${locked ? 'disabled' : ''}><option value="">Selecione</option><option value="true" ${state.form.aceita_bonificacao === 'true' ? 'selected' : ''}>Sim</option><option value="false" ${state.form.aceita_bonificacao === 'false' ? 'selected' : ''}>Não</option></select></label><label class="nhf-field"><span>Aceita consignação?</span><select data-form-field="aceita_consignacao" ${locked ? 'disabled' : ''}><option value="">Selecione</option><option value="true" ${state.form.aceita_consignacao === 'true' ? 'selected' : ''}>Sim</option><option value="false" ${state.form.aceita_consignacao === 'false' ? 'selected' : ''}>Não</option></select></label><label class="nhf-field nhf-field-full"><span>Política de troca</span><textarea data-form-field="politica_troca" ${locked ? 'disabled' : ''}>${state.form.politica_troca || ''}</textarea></label><div class="nhf-field nhf-field-full"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><span>Condições de pagamento</span><div class="nhf-muted">Adicione linhas com prazos separados por /.</div></div><button class="nhf-btn" type="button" data-payment-add ${locked ? 'disabled' : ''}>+ Adicionar condição</button></div><div style="display:grid;gap:10px;margin-top:10px">${rows || '<div class="nhf-state">Nenhuma condição cadastrada.</div>'}</div><div class="nhf-inline-error">${errors.condicoes_pagamento || ''}</div></div><label class="nhf-field"><span>URL da tabela de preços</span><input data-form-field="tabela_precos_url" value="${state.form.tabela_precos_url || ''}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.tabela_precos_url || ''}</div></label><label class="nhf-field nhf-field-full"><span>Observações comerciais</span><textarea data-form-field="observacoes_comerciais" ${locked ? 'disabled' : ''}>${state.form.observacoes_comerciais || ''}</textarea></label></div>`;
+    return `<div class="nhf-form-grid"><label class="nhf-field"><span>Valor mínimo do pedido</span><input data-form-field="pedido_minimo_valor" value="${state.form.pedido_minimo_valor_display || formatCurrencyFromNumber(state.form.pedido_minimo_valor ?? 0)}" ${locked ? 'disabled' : ''} inputmode="decimal"><div class="nhf-inline-error">${errors.pedido_minimo_valor || ''}</div></label><label class="nhf-field"><span>Valor mínimo por duplicata</span><input data-form-field="pedido_minimo" value="${state.form.pedido_minimo_display || formatCurrencyFromNumber(state.form.valor_minimo_duplicata ?? 0)}" ${locked ? 'disabled' : ''} inputmode="decimal"><div class="nhf-inline-error">${errors.valor_minimo_duplicata || ''}</div></label><label class="nhf-field"><span>Quantidade mínima de itens</span><input data-form-field="pedido_minimo_itens" type="number" min="0" value="${state.form.pedido_minimo_itens ?? 0}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.pedido_minimo_itens || ''}</div></label><label class="nhf-field"><span>Prazo médio de entrega em dias</span><input data-form-field="prazo_entrega_dias" type="number" min="0" value="${state.form.prazo_entrega_dias ?? 0}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.prazo_entrega_dias || ''}</div></label><label class="nhf-field"><span>Comissão padrão %</span><input data-form-field="comissao_padrao_percentual" type="number" min="0" max="100" value="${state.form.comissao_padrao_percentual ?? 0}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.comissao_padrao_percentual || ''}</div></label><label class="nhf-field"><span>Aceita bonificação?</span><select data-form-field="aceita_bonificacao" ${locked ? 'disabled' : ''}><option value="">Selecione</option><option value="true" ${state.form.aceita_bonificacao === 'true' ? 'selected' : ''}>Sim</option><option value="false" ${state.form.aceita_bonificacao === 'false' ? 'selected' : ''}>Não</option></select></label><label class="nhf-field"><span>Aceita consignação?</span><select data-form-field="aceita_consignacao" ${locked ? 'disabled' : ''}><option value="">Selecione</option><option value="true" ${state.form.aceita_consignacao === 'true' ? 'selected' : ''}>Sim</option><option value="false" ${state.form.aceita_consignacao === 'false' ? 'selected' : ''}>Não</option></select></label><label class="nhf-field nhf-field-full"><span>Política de troca</span><textarea data-form-field="politica_troca" ${locked ? 'disabled' : ''}>${state.form.politica_troca || ''}</textarea></label><div class="nhf-field nhf-field-full"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><span>Condições de pagamento</span><div class="nhf-muted">Adicione linhas com prazos separados por /.</div></div><button class="nhf-btn" type="button" data-payment-add ${locked ? 'disabled' : ''}>+ Adicionar condição</button></div><div style="display:grid;gap:10px;margin-top:10px">${rows || '<div class="nhf-state">Nenhuma condição cadastrada.</div>'}</div><div class="nhf-inline-error">${errors.condicoes_pagamento || ''}</div></div><label class="nhf-field"><span>URL da tabela de preços</span><input data-form-field="tabela_precos_url" value="${state.form.tabela_precos_url || ''}" ${locked ? 'disabled' : ''}><div class="nhf-inline-error">${errors.tabela_precos_url || ''}</div></label><label class="nhf-field nhf-field-full"><span>Observações comerciais</span><textarea data-form-field="observacoes_comerciais" ${locked ? 'disabled' : ''}>${state.form.observacoes_comerciais || ''}</textarea></label></div>`;
   }
 
   function renderModal() {

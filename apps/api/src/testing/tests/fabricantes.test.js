@@ -33,11 +33,13 @@ export function getFabricantesTests() {
     } },
     { name: 'persiste regras comerciais', run: async () => {
       __resetMemoryFabricantesForTests();
-      const created = await createFabricante({ nome: 'Fabrica Regras', valor_minimo_duplicata: 1000, aceita_bonificacao: true, aceita_consignacao: true }, { accountId: 'acc-1' });
+      const created = await createFabricante({ nome: 'Fabrica Regras', pedido_minimo_valor: 800, valor_minimo_duplicata: 1000, aceita_bonificacao: true, aceita_consignacao: true }, { accountId: 'acc-1' });
+      assert.equal(created.pedido_minimo_valor, 800);
       assert.equal(created.valor_minimo_duplicata, 1000);
       assert.equal(created.aceita_bonificacao, true);
       assert.equal(created.aceita_consignacao, true);
-      const updated = await updateFabricante(created.id, { valor_minimo_duplicata: 1500, aceita_bonificacao: false, aceita_consignacao: false }, { accountId: 'acc-1' });
+      const updated = await updateFabricante(created.id, { pedido_minimo_valor: 900, valor_minimo_duplicata: 1500, aceita_bonificacao: false, aceita_consignacao: false }, { accountId: 'acc-1' });
+      assert.equal(updated.pedido_minimo_valor, 900);
       assert.equal(updated.valor_minimo_duplicata, 1500);
       assert.equal(updated.aceita_bonificacao, false);
       assert.equal(updated.aceita_consignacao, false);
@@ -84,6 +86,7 @@ export function getFabricantesTests() {
       __resetMemoryFabricantesForTests();
       const fab = await createFabricante({ nome: 'Fabrica H2' }, { accountId: 'acc-1' });
       await assert.rejects(() => createCondicaoPagamento(fab.id, { prazo: '30/0' }, { accountId: 'acc-1' }));
+      await assert.rejects(() => createCondicaoPagamento(fab.id, { prazo: '30//60' }, { accountId: 'acc-1' }));
     } },
     { name: 'tenant isolation', run: async () => {
       __resetMemoryFabricantesForTests();
