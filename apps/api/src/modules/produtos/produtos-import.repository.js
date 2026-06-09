@@ -4,11 +4,13 @@ import xlsx from 'xlsx';
 import { BadRequestError, DatabaseError, ForbiddenError } from '../../core/errors.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { getFabricanteById } from '../fabricantes/fabricantes.repository.js';
+import { listProdutoCategorias } from '../produto-categorias/produto-categorias.repository.js';
 import { createProduto, listProdutos, updateProduto } from './produtos.repository.js';
 import { createVariation, listVariations, updateVariation } from '../product-editor/product-editor.repository.js';
 
 const memoryBatches = [];
 const memoryStocks = [];
+const categoriaLookupCache = new Map();
 const MAX_PREVIEW_ROWS = 50;
 const VARIATION_HEADERS = ['P', 'M', 'G', 'GG', '35-36', '37-38', '39-40', '41-42', '43-44', 'UNI'];
 const STOCK_HEADER_HINTS = ['estoque', 'quantidade', 'qtd', 'saldo'];
@@ -224,6 +226,21 @@ async function ensureFabricante(accountId, fabricanteId) {
   return fabricante;
 }
 
+async function resolveCategoriaForProduto(accountId, categoriaNome) {
+  const nome = String(categoriaNome || '').trim();
+  if (!nome) return { categoria: null, categoria_id: null };
+  const cacheKey = `${accountId}::${nome.toLowerCase()}`;
+  if (categoriaLookupCache.has(cacheKey)) return categoriaLookupCache.get(cacheKey);
+  const result = await listProdutoCategorias({}, { accountId });
+  const match = (result.items || []).find((categoria) => String(categoria.nome || '').trim().toLowerCase() === nome.toLowerCase());
+  const resolved = {
+    categoria: nome,
+    categoria_id: match?.id || null
+  };
+  categoriaLookupCache.set(cacheKey, resolved);
+  return resolved;
+}
+
 function buildImportIdentity(row, headers) {
   const columns = detectColumns(headers);
   const description = columns.descriptionIndex >= 0 ? row[headers[columns.descriptionIndex]] : '';
@@ -267,17 +284,37 @@ async function findProductByIdentity(accountId, fabricanteId, identity) {
 
 async function upsertProdutoPai(accountId, fabricanteId, identity) {
   const existing = await findProductByIdentity(accountId, fabricanteId, identity);
-  const payload = {
+  const categoria = await resolveCategoriaForProduto(accountId, identity.categoria);
+  const basePayload = {
     fabricante_id: fabricanteId,
     codigo: identity.codigo || null,
     sku: identity.codigo || null,
     nome: identity.nome || identity.codigo || 'Produto importado',
     descricao: identity.nome || null,
-    categoria: identity.categoria || null,
+    categoria: categoria.categoria,
+    categoria_id: categoria.categoria_id,
+    estoque: identity.estoque ?? 0,
+    status: 'ativo',
     ativo: true
   };
-  if (existing) return { item: await updateProduto(existing.id, payload, { accountId }), created: false };
-  return { item: await createProduto({ ...payload, preco: identity.preco ?? 0, estoque: identity.estoque ?? 0 }, { accountId }), created: true };
+  const createPayload = {
+    ...basePayload,
+    preco: identity.preco ?? 0
+  };
+  const updatePayload = {
+    ...basePayload,
+    ...(Number.isFinite(identity.preco) && identity.preco > 0 ? { preco: identity.preco } : {})
+  };
+  console.info('[produtos-import] create produto payload', {
+    nome: createPayload.nome,
+    sku: createPayload.sku,
+    fabricante_id: createPayload.fabricante_id,
+    categoria_id: createPayload.categoria_id,
+    hasPreco: createPayload.preco != null,
+    status: createPayload.status
+  });
+  if (existing) return { item: await updateProduto(existing.id, updatePayload, { accountId }), created: false };
+  return { item: await createProduto(createPayload, { accountId }), created: true };
 }
 
 async function upsertVariacao(accountId, produtoId, parsed, grade) {
