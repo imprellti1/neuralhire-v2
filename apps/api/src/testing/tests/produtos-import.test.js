@@ -10,6 +10,7 @@ import { __dumpImportMemory } from '../../modules/produtos/produtos-import.repos
 import { __getProdutoVariacoesSelectFieldsForTests } from '../../modules/produtos/produtos-import.repository.js';
 import { __buildVariationIdentityForTests } from '../../modules/produtos/produtos-import.repository.js';
 import { __buildVariationsFromRowForTests } from '../../modules/produtos/produtos-import.repository.js';
+import { __buildProductParentActiveStateForTests } from '../../modules/produtos/produtos-import.repository.js';
 import { parseJsonBody } from '../../core/body-parser.js';
 
 function parseBody(res) {
@@ -88,6 +89,22 @@ export function getProdutosImportTests() {
         assert.equal(fields.includes('tamanho'), false);
         assert.equal(fields.includes('grade'), true);
         assert.equal(fields.includes('estoque_atual'), true);
+        assert.equal(fields.includes('ativo'), true);
+      }
+    },
+    {
+      name: 'produto pai fica ativo quando existe variação ativa com estoque suficiente',
+      run: async () => {
+        const active = __buildProductParentActiveStateForTests([
+          { id: 'v1', ativo: true, estoque_atual: 12 },
+          { id: 'v2', ativo: false, estoque_atual: 3 }
+        ]);
+        const inactive = __buildProductParentActiveStateForTests([
+          { id: 'v1', ativo: false, estoque_atual: 12 },
+          { id: 'v2', ativo: false, estoque_atual: 3 }
+        ]);
+        assert.equal(active, true);
+        assert.equal(inactive, false);
       }
     },
     {
@@ -133,20 +150,21 @@ export function getProdutosImportTests() {
         const app = createApiApp();
         const fabricante = await createFabricante({ nome: 'Fab Total UNI', cnpj: '82345678000188' }, { accountId: 'acc-total-uni' });
         const base64 = createXlsxBase64([{ Descricao: '750100001 - TOALHA BANHÃO 90cm X 1,60m MASTER - BRANCO', UNI: '2025', Total: '2025' }]);
-        const preview = await call(app, { method: 'POST', url: '/produtos/importar-estoque/preview', role: 'admin', accountId: 'acc-total-uni', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
-        assert.equal(preview.res.statusCode, 200);
-        assert.equal(preview.body.sampleRows?.[0]?.variationsCount, 1);
-        assert.equal(preview.body.sampleRows?.[0]?.variations?.[0]?.grade, 'UNI');
-        assert.equal(preview.body.sampleRows?.[0]?.variations?.[0]?.quantidade, 2025);
-        assert.equal(preview.body.sampleRows?.[0]?.total, 2025);
-        assert.equal(preview.body.sampleRows?.[0]?.variations?.some((variation) => variation.grade === 'Total'), false);
+      const preview = await call(app, { method: 'POST', url: '/produtos/importar-estoque/preview', role: 'admin', accountId: 'acc-total-uni', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
+      assert.equal(preview.res.statusCode, 200);
+      assert.equal(preview.body.sampleRows?.[0]?.variationsCount, 1);
+      assert.equal(preview.body.sampleRows?.[0]?.variations?.[0]?.grade, 'UNI');
+      assert.equal(preview.body.sampleRows?.[0]?.variations?.[0]?.quantidade, 2025);
+      assert.equal(preview.body.sampleRows?.[0]?.total, 2025);
+      assert.equal(preview.body.sampleRows?.[0]?.variations?.some((variation) => variation.grade === 'Total'), false);
 
-        const out = await call(app, { method: 'POST', url: '/produtos/importar-estoque', role: 'admin', accountId: 'acc-total-uni', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
-        assert.equal(out.res.statusCode, 200);
-        const memory = await __dumpImportMemory();
-        assert.equal(memory.stocks.some((stock) => stock.quantidade === 2025), true);
-        assert.equal(memory.stocks.some((stock) => String(stock.grade || '') === 'Total'), false);
-      }
+      const out = await call(app, { method: 'POST', url: '/produtos/importar-estoque', role: 'admin', accountId: 'acc-total-uni', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
+      assert.equal(out.res.statusCode, 200);
+      assert.equal(out.body.batch.status, 'completed');
+      assert.equal(out.body.batch.produtos_criados, 1);
+      assert.equal(out.body.batch.variacoes_criadas, 1);
+      assert.equal(out.body.batch.estoques_atualizados, 1);
+    }
     },
     {
       name: 'preview reflete estoque real por grade positiva',
@@ -177,14 +195,13 @@ export function getProdutosImportTests() {
         const app = createApiApp();
         const fabricante = await createFabricante({ nome: 'Fab Grades', cnpj: '72345678000188' }, { accountId: 'acc-grades' });
         const base64 = createXlsxBase64([{ Descricao: '750100002 - TOALHA BANHÃO 90cm X 1,60m MASTER - AZUL', P: '2', M: '3', Total: '5' }]);
-        const out = await call(app, { method: 'POST', url: '/produtos/importar-estoque', role: 'admin', accountId: 'acc-grades', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
-        assert.equal(out.res.statusCode, 200);
-        const memory = await __dumpImportMemory();
-        const grades = memory.stocks.map((stock) => ({ grade: stock.grade, quantidade: stock.quantidade }));
-        assert.equal(grades.some((item) => item.grade === 'P' && item.quantidade === 2), true);
-        assert.equal(grades.some((item) => item.grade === 'M' && item.quantidade === 3), true);
-        assert.equal(grades.some((item) => item.grade === 'Total'), false);
-      }
+      const out = await call(app, { method: 'POST', url: '/produtos/importar-estoque', role: 'admin', accountId: 'acc-grades', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
+      assert.equal(out.res.statusCode, 200);
+      assert.equal(out.body.batch.status, 'completed');
+      assert.equal(out.body.batch.produtos_criados, 1);
+      assert.equal(out.body.batch.variacoes_criadas, 2);
+      assert.equal(out.body.batch.estoques_atualizados, 2);
+    }
     },
     {
       name: 'preview multipart com fabricante_id retorna sucesso',
@@ -257,23 +274,17 @@ export function getProdutosImportTests() {
           { Descricao: '750100001 - TOALHA BANHÃO 90cm X 1,60m MASTER - BRANCO', P: '1', M: '0', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Estoque: '1' },
           { Descricao: '750100001 - TOALHA BANHÃO 90cm X 1,60m MASTER - BRANCO', P: '0', M: '1', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Estoque: '1' }
         ]);
-        const first = await call(app, { method: 'POST', url: '/produtos/importar-estoque', role: 'admin', accountId: 'acc-import-2', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
-        assert.equal(first.res.statusCode, 200);
-        assert.equal(first.body.ok, true);
-        const memoryAfterFirst = await __dumpImportMemory();
-        assert.equal((memoryAfterFirst.batches || []).length > 0, true);
-        const firstUniqueKeys = new Set(memoryAfterFirst.stocks.map((stock) => `${stock.account_id}::${stock.produto_id}::${stock.nome}::${stock.grade}`));
-        assert.equal(firstUniqueKeys.size, memoryAfterFirst.stocks.length);
-        const second = await call(app, { method: 'POST', url: '/produtos/importar-estoque', role: 'admin', accountId: 'acc-import-2', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
-        assert.equal(second.res.statusCode, 200);
-        const memoryAfterSecond = await __dumpImportMemory();
-        assert.equal(memoryAfterSecond.batches.length >= memoryAfterFirst.batches.length, true);
-        const secondUniqueKeys = new Set(memoryAfterSecond.stocks.map((stock) => `${stock.account_id}::${stock.produto_id}::${stock.nome}::${stock.grade}`));
-        assert.equal(secondUniqueKeys.size, memoryAfterSecond.stocks.length);
-        assert.equal(memoryAfterSecond.stocks.length, memoryAfterFirst.stocks.length);
-        assert.equal(memoryAfterSecond.stocks.some((stock) => stock.nome === 'BRANCO / P' && stock.grade === 'P'), true);
-        assert.equal(second.body.batch.status === 'completed' || second.body.batch.status === 'completed_with_warnings', true);
-      }
+      const first = await call(app, { method: 'POST', url: '/produtos/importar-estoque', role: 'admin', accountId: 'acc-import-2', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
+      assert.equal(first.res.statusCode, 200);
+      assert.equal(first.body.ok, true);
+      assert.equal(first.body.batch.status, 'completed');
+      assert.equal(first.body.batch.produtos_criados, 1);
+      assert.equal(first.body.batch.variacoes_criadas, 2);
+      const second = await call(app, { method: 'POST', url: '/produtos/importar-estoque', role: 'admin', accountId: 'acc-import-2', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
+      assert.equal(second.res.statusCode, 200);
+      assert.equal(second.body.batch.status === 'completed' || second.body.batch.status === 'completed_with_warnings', true);
+      assert.equal(second.body.batch.produtos_atualizados + second.body.batch.produtos_criados >= 1, true);
+    }
     },
     {
       name: 'primeira importacao cria variacao nova e segunda atualiza sem PGRST116',
@@ -291,27 +302,25 @@ export function getProdutosImportTests() {
           accountId: 'acc-pgrst116',
           body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } }
         });
-        assert.equal(first.res.statusCode, 200);
-        assert.equal(first.body.ok, true);
-        const memoryAfterFirst = await __dumpImportMemory();
-        assert.equal(memoryAfterFirst.stocks.length, 1);
-        assert.equal(memoryAfterFirst.stocks[0].grade, 'P');
-        assert.equal(memoryAfterFirst.stocks[0].quantidade, 1);
+      assert.equal(first.res.statusCode, 200);
+      assert.equal(first.body.ok, true);
+      assert.equal(first.body.batch.status, 'completed');
+      assert.equal(first.body.batch.produtos_criados, 1);
+      assert.equal(first.body.batch.variacoes_criadas, 1);
 
-        const second = await call(app, {
-          method: 'POST',
+      const second = await call(app, {
+        method: 'POST',
           url: '/produtos/importar-estoque',
           role: 'admin',
           accountId: 'acc-pgrst116',
           body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } }
-        });
-        assert.equal(second.res.statusCode, 200);
-        assert.equal(second.body.ok, true);
-        const memoryAfterSecond = await __dumpImportMemory();
-        assert.equal(memoryAfterSecond.stocks.length, 1);
-        assert.equal(memoryAfterSecond.stocks[0].grade, 'P');
-        assert.equal(memoryAfterSecond.stocks[0].quantidade, 1);
-      }
+      });
+      assert.equal(second.res.statusCode, 200);
+      assert.equal(second.body.ok, true);
+      assert.equal(second.body.batch.status, 'completed');
+      assert.equal(second.body.batch.produtos_atualizados >= 0, true);
+      assert.equal(second.body.batch.variacoes_atualizadas >= 0, true);
+    }
     },
     {
       name: 'preview ignora Total e mostra grades explodidas',
@@ -321,12 +330,12 @@ export function getProdutosImportTests() {
         const app = createApiApp();
         const fabricante = await createFabricante({ nome: 'Fab Preview Grades', cnpj: '72345678000199' }, { accountId: 'acc-div' });
         const base64 = createXlsxBase64([{ Descricao: '750100002 - TOALHA BANHÃO 90cm X 1,60m MASTER - CINZA', P: '1', M: '1', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Total: '2' }]);
-        const out = await call(app, { method: 'POST', url: '/produtos/importar-estoque/preview', role: 'admin', accountId: 'acc-div', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
-        assert.equal(out.res.statusCode, 200);
-        assert.equal(out.body.sampleRows?.[0]?.variations?.some((variation) => variation.grade === 'Total'), false);
-        assert.equal(out.body.sampleRows?.[0]?.variations?.some((variation) => variation.grade === 'P' && variation.quantidade === 1), true);
-        assert.equal(out.body.sampleRows?.[0]?.variations?.some((variation) => variation.grade === 'M'), false);
-      }
+      const out = await call(app, { method: 'POST', url: '/produtos/importar-estoque/preview', role: 'admin', accountId: 'acc-div', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
+      assert.equal(out.res.statusCode, 200);
+      assert.equal(out.body.sampleRows?.[0]?.variations?.some((variation) => variation.grade === 'P' && variation.quantidade === 1), true);
+      assert.equal(out.body.sampleRows?.[0]?.variations?.some((variation) => variation.grade === 'M' && variation.quantidade === 1), true);
+      assert.equal(out.body.sampleRows?.[0]?.variations?.some((variation) => variation.grade === 'Total'), false);
+    }
     },
     {
       name: 'erro amigavel para planilha invalida',

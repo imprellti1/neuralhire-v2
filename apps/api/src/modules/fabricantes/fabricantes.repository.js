@@ -478,7 +478,7 @@ export async function listFabricantes(filters = {}, options = {}) {
     return { items: await attachResponsibleVendor(accountId, data || []), total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
-  const items = memoryFabricantes.filter((item) => item.account_id === accountId);
+  const items = memoryFabricantes.filter((item) => String(item.account_id || item.accountId || '') === String(accountId));
   const q = String(filters.search || '').trim().toLowerCase();
   const filtered = items.filter((item) => (!filters.status || item.status === filters.status) && (!q || [item.nome, item.razao_social, item.cnpj].some((v) => String(v || '').toLowerCase().includes(q))));
   const total = filtered.length;
@@ -782,5 +782,8 @@ export function __loadMemoryFabricantes(items = []) {
   memoryFabricantes.length = 0;
   memoryCondicoes.length = 0;
   memoryFabricanteVendedores.length = 0;
-  for (const item of items) memoryFabricantes.push({ ...item });
+  for (const item of items) {
+    const account_id = item.account_id || item.accountId || null;
+    memoryFabricantes.push({ ...item, account_id, accountId: item.accountId || account_id });
+  }
 }

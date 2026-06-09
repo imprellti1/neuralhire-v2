@@ -16,7 +16,7 @@ const VARIATION_HEADERS = ['P', 'M', 'G', 'GG', '35-36', '37-38', '39-40', '41-4
 const STOCK_HEADER_HINTS = ['estoque', 'quantidade', 'qtd', 'saldo'];
 const CATEGORY_HEADER_HINTS = ['categoria', 'grupo'];
 const PRICE_HEADER_HINTS = ['preco', 'preço', 'valor'];
-const PRODUTO_VARIACOES_SELECT_FIELDS = 'id, account_id, produto_id, sku, nome, valor, cor, grade, estoque_atual';
+const PRODUTO_VARIACOES_SELECT_FIELDS = 'id, account_id, produto_id, sku, nome, valor, cor, grade, estoque_atual, ativo';
 const PRODUTO_IMPORT_BATCH_FIELDS = [
   'account_id',
   'fabricante_id',
@@ -630,6 +630,10 @@ function buildPreviewErrorRow(rowIndex, message, row) {
 
 export function __getProdutoVariacoesSelectFieldsForTests() {
   return PRODUTO_VARIACOES_SELECT_FIELDS;
+}
+
+export function __buildProductParentActiveStateForTests(variations = []) {
+  return buildProductParentActiveState(variations);
 }
 
 export async function previewImportXlsx({ accountId, fabricanteId, fileName, buffer }) {

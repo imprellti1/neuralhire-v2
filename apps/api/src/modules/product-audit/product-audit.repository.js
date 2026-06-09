@@ -198,7 +198,8 @@ export async function auditSummary(options = {}) {
   const statusScopedProducts = filterByStatus(produtos, normalizedFilters.status);
   const context = buildAuditContext(statusScopedProducts, accountId);
   const filtered = context.applyFilters(normalizedFilters);
-  return context.buildSummary(filtered);
+  const issueItems = filtered.filter((item) => (item.issues || []).length > 0);
+  return context.buildSummary(issueItems);
 }
 
 export async function listAuditProducts(filters = {}, options = {}) {
@@ -206,7 +207,9 @@ export async function listAuditProducts(filters = {}, options = {}) {
   assertAccountId(accountId);
   const response = await listProdutos({}, { accountId });
   const fabricantes = await listFabricantes({}, { accountId });
-  const fabricanteById = new Map((fabricantes.items || []).map((item) => [item.id, item]));
+  const fabricanteById = new Map((fabricantes.items || [])
+    .filter((item) => String(item.account_id || item.accountId || '') === String(accountId))
+    .map((item) => [item.id, item]));
   const products = (response.items || []).map((item) => {
     const fabricanteId = extractFabricanteId(item, accountId);
     return {
@@ -219,7 +222,8 @@ export async function listAuditProducts(filters = {}, options = {}) {
   const statusScopedProducts = filterByStatus(products, normalizedFilters.status);
   const context = buildAuditContext(statusScopedProducts, accountId);
   const filtered = context.applyFilters(normalizedFilters);
-  const summary = context.buildSummary(filtered);
+  const summaryItems = filtered.filter((item) => (item.issues || []).length > 0);
+  const summary = context.buildSummary(summaryItems);
   const issueItems = filtered
     .filter((item) => (item.issues || []).length > 0)
     .slice()
@@ -247,7 +251,9 @@ export async function getAuditProduct(productId, options = {}) {
   const produto = await getProdutoById(productId, { accountId });
   const fabricanteId = extractFabricanteId(produto, accountId);
   const fabricantes = await listFabricantes({}, { accountId });
-  const fabricanteNome = fabricanteId ? (fabricantes.items || []).find((item) => item.id === fabricanteId)?.nome || '-' : '-';
+  const fabricanteNome = fabricanteId ? (fabricantes.items || [])
+    .filter((item) => String(item.account_id || item.accountId || '') === String(accountId))
+    .find((item) => item.id === fabricanteId)?.nome || '-' : '-';
   const detail = await listAuditProducts({ search: produto.nome }, { accountId });
   const item = (detail.items || []).find((row) => row.id === productId) || { ...produto, fabricanteId, fabricanteNome, issues: buildIssues(produto, accountId, new Set(), new Set()) };
   return { ...item, fabricanteId, fabricanteNome, issues: item.issues || buildIssues(item, accountId, new Set(), new Set()) };

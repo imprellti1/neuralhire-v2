@@ -20,6 +20,7 @@ function renderVariationAttributes(variation) {
   return values.length ? values.join(' | ') : '-';
 }
 const USAGE_STEP = 5;
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 
 export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
   const state = createProdutoDetailsState();
@@ -258,14 +259,33 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     if (imageUpload) imageUpload.onclick = async () => {
       const file = root.querySelector('#nhpd-image-file')?.files?.[0];
       if (!file) return;
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ''));
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      await uploadProdutoImagem(apiClient, produtoId, { upload: { fileName: file.name, mimeType: file.type, size: file.size, base64 }, principal: true, tipo: 'image' });
-      await loadImagens();
+      if (file.size > MAX_IMAGE_BYTES) {
+        state.feedbackMessage = 'A imagem ultrapassa o limite de 25MB.';
+        render();
+        return;
+      }
+      state.saving = true;
+      state.feedbackMessage = '';
+      render();
+      try {
+        const formData = new FormData();
+        formData.append('upload', file, file.name);
+        formData.append('principal', 'true');
+        formData.append('tipo', 'image');
+        await uploadProdutoImagem(apiClient, produtoId, formData);
+        state.feedbackMessage = 'Imagem enviada com sucesso.';
+        await loadImagens();
+      } catch (error) {
+        const code = error?.body?.error?.code || error?.code;
+        if (code === 'PAYLOAD_TOO_LARGE') {
+          state.feedbackMessage = 'A imagem ultrapassa o limite de 25MB.';
+        } else {
+          state.feedbackMessage = error?.body?.error?.message || error?.message || 'Não foi possível enviar a imagem.';
+        }
+      } finally {
+        state.saving = false;
+        render();
+      }
     };
     root.querySelectorAll('.js-img-primary').forEach((btn) => btn.onclick = async () => { await updateProdutoImagem(apiClient, produtoId, btn.dataset.id, { principal: true }); await loadImagens(); });
     root.querySelectorAll('.js-img-remove').forEach((btn) => btn.onclick = async () => { await deleteProdutoImagem(apiClient, produtoId, btn.dataset.id); await loadImagens(); });

@@ -34,7 +34,7 @@ async function readRequestBuffer(req, limitBytes) {
       total += chunk.length;
       if (total > limitBytes) {
         fail(new ValidationError('Payload excede limite permitido', {
-          details: [{ field: 'body', message: 'Payload maior que 2MB', rule: 'maxBytes' }],
+          details: [{ field: 'body', message: `Payload maior que ${Math.round(limitBytes / (1024 * 1024))}MB`, rule: 'maxBytes' }],
           domain: 'core-platform',
           code: 'PAYLOAD_TOO_LARGE'
         }));
@@ -57,17 +57,11 @@ async function readRequestBuffer(req, limitBytes) {
 
 function parseMultipartBody(buffer, boundary) {
   const rawBody = buffer.toString('binary');
-  console.log('[multipart-boundary]', boundary);
-  console.log('[multipart-body-head]', rawBody.slice(0, 1000));
   const text = rawBody;
   const normalized = text.startsWith(`--${boundary}`)
     ? text.slice(`--${boundary}`.length)
     : text;
   const parts = normalized.split(`\r\n--${boundary}`);
-  console.log('[multipart-parts-count]', parts.length);
-  console.log('[multipart-part-0]', parts[0]?.slice(0, 300));
-  console.log('[multipart-part-1]', parts[1]?.slice(0, 300));
-  console.log('[multipart-part-2]', parts[2]?.slice(0, 300));
   const payload = {};
 
   for (const part of parts) {

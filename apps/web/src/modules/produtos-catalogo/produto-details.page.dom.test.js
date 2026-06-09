@@ -104,3 +104,54 @@ test('produto 360 mantém o layout e o toggle de variações', async () => {
   anchorMock.restore();
   teardownFrontendDom(dom);
 });
+
+test('produto 360 envia imagem como multipart/form-data', async () => {
+  const dom = setupFrontendDom('#/produtos/p1');
+  mockObjectUrl();
+  const anchorMock = mockAnchorClicks(dom);
+
+  let uploadBody = null;
+  const apiClient = {
+    async get(path) {
+      if (path === '/produtos/p1') {
+        return { item: { id: 'p1', nome: 'Produto A', sku: 'SKU1', categoria: 'Cat', preco: 10, status: 'ativo', ativo: true } };
+      }
+      if (path === '/product-editor/products/p1') {
+        return { item: { id: 'p1', variations: [] } };
+      }
+      if (path === '/fabricantes') return { items: [] };
+      if (path === '/pedidos') return { items: [] };
+      if (path === '/produtos/p1/imagens') return { items: [] };
+      throw new Error(`unhandled get ${path}`);
+    },
+    async post(path, body) {
+      if (path === '/produtos/p1/imagens') {
+        uploadBody = body;
+        return { item: { id: 'img-1' } };
+      }
+      return { item: {} };
+    },
+    async patch() { return { item: { id: 'p1' } }; },
+    async delete() { return { removed: true }; }
+  };
+
+  const root = document.getElementById('root');
+  renderProdutoDetailsPage(root, { apiClient, produtoId: 'p1' });
+  await flush(); await flush(); await flush();
+
+  const file = new File([new Blob(['fake-image'])], 'foto.png', { type: 'image/png' });
+  const input = root.querySelector('#nhpd-image-file');
+  Object.defineProperty(input, 'files', { value: [file], configurable: true });
+  root.querySelector('#nhpd-image-upload').click();
+  await flush(); await flush();
+
+  assert.ok(uploadBody instanceof FormData);
+  assert.equal(uploadBody.get('principal'), 'true');
+  assert.equal(uploadBody.get('tipo'), 'image');
+  const uploadFile = uploadBody.get('upload');
+  assert.ok(uploadFile instanceof File);
+  assert.equal(uploadFile.name, 'foto.png');
+
+  anchorMock.restore();
+  teardownFrontendDom(dom);
+});

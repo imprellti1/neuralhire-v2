@@ -100,3 +100,40 @@ test('product audit page shows active issue summary without zeroing cards', asyn
   assert.ok(root.textContent.includes('Estoque zerado'));
   teardownFrontendDom(dom);
 });
+
+test('product audit page renders pagination and resets page on filter change', async () => {
+  const dom = setupFrontendDom('#/product-audit');
+  const root = document.getElementById('root');
+  const calls = [];
+  const apiClient = {
+    get: async (url, query) => {
+      if (url === '/product-audit/products') {
+        calls.push({ url, query: { ...query } });
+        const page = Number(query?.page || 1);
+        return {
+          items: [
+            { id: `p${page}`, nome: `Produto ${page}`, sku: `SKU${page}`, fabricanteNome: 'Fab 1', categoria: 'Cat', preco: 10, estoque: 1, status: 'ativo', issues: ['missing_image'] }
+          ],
+          pagination: { page, limit: 20, total: 40, totalPages: 2 },
+          summary: { totalProdutos: 40, comProblemas: 40, semFabrica: 0, semImagem: 40, semCategoria: 0, duplicados: 0, inativos: 0, estoqueZerado: 0, criticos: 40, medios: 0, leves: 0 }
+        };
+      }
+      if (url === '/fabricantes') return { items: [{ id: 'f1', nome: 'Fab 1' }] };
+      return {};
+    },
+    patch: async () => ({})
+  };
+  renderProductAuditPage(root, { apiClient });
+  await flush();
+  assert.ok(root.textContent.includes('Página 1 de 2'));
+  assert.ok(root.textContent.includes('40 registros'));
+  assert.equal(calls[0].query.page, 1);
+  root.querySelector('#nha-next').click();
+  await flush();
+  assert.equal(calls.at(-1).query.page, 2);
+  root.querySelector('#nha-search').value = 'abc';
+  root.querySelector('#nha-search').dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  await flush();
+  assert.equal(calls.at(-1).query.page, 1);
+  teardownFrontendDom(dom);
+});
