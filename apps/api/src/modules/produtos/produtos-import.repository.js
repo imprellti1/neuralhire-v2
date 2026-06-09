@@ -508,7 +508,17 @@ async function fetchExistingVariationsByProductIds(supabase, accountId, productI
     .select(PRODUTO_VARIACOES_SELECT_FIELDS)
     .eq('account_id', accountId)
     .in('produto_id', uniqueIds);
-  if (error) throw new DatabaseError('Falha ao consultar variacoes existentes', { details: error });
+  if (error) {
+    console.error('[produtos-import] fetch existing variations error', {
+      code: error?.code,
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+      productIdsCount: productIds?.length,
+      productIdsSample: productIds?.slice(0, 5)
+    });
+    throw new DatabaseError('Falha ao consultar variacoes existentes', { details: error });
+  }
   return data || [];
 }
 
