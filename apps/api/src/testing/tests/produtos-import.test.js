@@ -276,6 +276,44 @@ export function getProdutosImportTests() {
       }
     },
     {
+      name: 'primeira importacao cria variacao nova e segunda atualiza sem PGRST116',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryProductEditorForTests();
+        const app = createApiApp();
+        const fabricante = await createFabricante({ nome: 'Fab PGRST116', cnpj: '92345678000197' }, { accountId: 'acc-pgrst116' });
+        const base64 = createXlsxBase64([{ Descricao: '750100010 - TOALHA BANHÃO 90cm X 1,60m MASTER - PRETO', P: '1', Total: '1' }]);
+
+        const first = await call(app, {
+          method: 'POST',
+          url: '/produtos/importar-estoque',
+          role: 'admin',
+          accountId: 'acc-pgrst116',
+          body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } }
+        });
+        assert.equal(first.res.statusCode, 200);
+        assert.equal(first.body.ok, true);
+        const memoryAfterFirst = await __dumpImportMemory();
+        assert.equal(memoryAfterFirst.stocks.length, 1);
+        assert.equal(memoryAfterFirst.stocks[0].grade, 'P');
+        assert.equal(memoryAfterFirst.stocks[0].quantidade, 1);
+
+        const second = await call(app, {
+          method: 'POST',
+          url: '/produtos/importar-estoque',
+          role: 'admin',
+          accountId: 'acc-pgrst116',
+          body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } }
+        });
+        assert.equal(second.res.statusCode, 200);
+        assert.equal(second.body.ok, true);
+        const memoryAfterSecond = await __dumpImportMemory();
+        assert.equal(memoryAfterSecond.stocks.length, 1);
+        assert.equal(memoryAfterSecond.stocks[0].grade, 'P');
+        assert.equal(memoryAfterSecond.stocks[0].quantidade, 1);
+      }
+    },
+    {
       name: 'preview ignora Total e mostra grades explodidas',
       run: async () => {
         __resetMemoryProdutosForTests();

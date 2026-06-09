@@ -254,13 +254,14 @@ async function upsertStockRecord(record, existingVariation) {
           .eq('id', existingVariation.id)
           .eq('account_id', variationIdentity.accountId)
           .select(PRODUTO_VARIACOES_SELECT_FIELDS)
-          .single();
+          .maybeSingle();
         if (updateError) throw updateError;
+        const resolvedUpdatedVariation = updatedVariation || existingVariation;
 
         const movementPayload = {
           account_id: record.account_id,
           produto_id: record.produto_id,
-          variacao_id: updatedVariation.id,
+          variacao_id: resolvedUpdatedVariation.id,
           fabricante_id: record.fabricante_id,
           tipo: 'IMPORTACAO_ESTOQUE',
           quantidade: nextQuantidade - previousQuantidade,
@@ -273,7 +274,7 @@ async function upsertStockRecord(record, existingVariation) {
         };
         const { error: movementError } = await supabase.from('produto_variacao_movimentos').insert(movementPayload);
         if (movementError) throw movementError;
-        return { row: updatedVariation, created: false };
+        return { row: resolvedUpdatedVariation, created: false };
       }
 
       console.log('[insertVariationPayload]', conflictPayload);
@@ -281,13 +282,17 @@ async function upsertStockRecord(record, existingVariation) {
         .from('produto_variacoes')
         .upsert(conflictPayload, { onConflict: 'account_id,produto_id,nome,grade' })
         .select(PRODUTO_VARIACOES_SELECT_FIELDS)
-        .single();
+        .maybeSingle();
       if (upsertError) throw upsertError;
+      const resolvedUpsertedVariation = upsertedVariation || {
+        ...conflictPayload,
+        id: record.variacao_id || null
+      };
 
       const movementPayload = {
         account_id: record.account_id,
         produto_id: record.produto_id,
-        variacao_id: upsertedVariation.id,
+        variacao_id: resolvedUpsertedVariation.id,
         fabricante_id: record.fabricante_id,
         tipo: 'IMPORTACAO_ESTOQUE',
         quantidade: nextQuantidade,
@@ -300,7 +305,7 @@ async function upsertStockRecord(record, existingVariation) {
       };
       const { error: movementError } = await supabase.from('produto_variacao_movimentos').insert(movementPayload);
       if (movementError) throw movementError;
-      return { row: upsertedVariation, created: true };
+      return { row: resolvedUpsertedVariation, created: true };
     }
     const key = makeStockKey(record);
     const index = memoryStocks.findIndex((stock) => makeStockKey(stock) === key);
