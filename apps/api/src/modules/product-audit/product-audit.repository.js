@@ -33,14 +33,29 @@ function extractFabricanteId(item, accountId) {
   return getLink(accountId, item.id)?.fabricante_id || item.fabricanteId || item.fabricante_id || item.metadata?.fabricanteId || null;
 }
 
-function isInactiveProduct(item = {}) {
-  const status = String(item.status || '').toLowerCase();
-  const commercial = String(item.status_comercial || item.statusComercial || '').toLowerCase();
+function normalizeStatusValue(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function hasActiveIndicator(item = {}) {
+  const status = normalizeStatusValue(item.status);
+  const commercial = normalizeStatusValue(item.status_comercial || item.statusComercial);
+  return status === 'ativo' || commercial === 'ativo' || item.ativo === true;
+}
+
+function hasInactiveIndicator(item = {}) {
+  const status = normalizeStatusValue(item.status);
+  const commercial = normalizeStatusValue(item.status_comercial || item.statusComercial);
   return status === 'inativo' || commercial === 'inativo' || item.ativo === false;
 }
 
+function isInactiveProduct(item = {}) {
+  if (hasActiveIndicator(item)) return false;
+  return hasInactiveIndicator(item);
+}
+
 function isActiveProduct(item = {}) {
-  return !isInactiveProduct(item);
+  return hasActiveIndicator(item) || !isInactiveProduct(item);
 }
 
 function buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet) {
@@ -56,7 +71,7 @@ function buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet) {
   else if (preco <= 0) issues.push('invalid_price');
   if (duplicateSkuSet.has(String(item.sku || '').trim().toLowerCase()) && String(item.sku || '').trim()) issues.push('duplicate_sku');
   if (duplicateNameSet.has(String(item.nome || '').trim().toLowerCase()) && String(item.nome || '').trim()) issues.push('duplicate_name');
-  if (String(item.status || '').toLowerCase() === 'inativo' || item.ativo === false) issues.push('inactive_product');
+  if (isInactiveProduct(item)) issues.push('inactive_product');
   if (Number(item.estoque || 0) <= 0) issues.push('zero_stock');
   if (Array.isArray(item.variacoes) && item.variacoes.length) {
     if (item.variacoes.some((v) => !v?.imagemUrl && !v?.imagem_url)) issues.push('variation_without_image');
@@ -86,8 +101,8 @@ function getProductSeverity(item) {
 }
 
 function normalizeFilters(filters = {}) {
-  const rawStatus = String(filters.status || '').toLowerCase();
-  const status = rawStatus === 'inativos' ? 'inativo' : rawStatus;
+  const rawStatus = normalizeStatusValue(filters.status);
+  const status = rawStatus === 'inativos' || rawStatus === 'inactive' ? 'inativo' : rawStatus;
   return {
     issue: filters.issue ? String(filters.issue) : '',
     fabricanteId: filters.fabricanteId ? String(filters.fabricanteId) : '',
@@ -98,7 +113,7 @@ function normalizeFilters(filters = {}) {
 
 function applyFilters(items, filters = {}) {
   let filtered = items;
-  const statusFilter = String(filters.status || '').toLowerCase();
+  const statusFilter = normalizeStatusValue(filters.status);
   if (statusFilter === 'inativo') filtered = filtered.filter((item) => isInactiveProduct(item));
   else filtered = filtered.filter((item) => isActiveProduct(item));
   if (filters.issue) filtered = filtered.filter((item) => item.issues.includes(filters.issue));
@@ -111,7 +126,7 @@ function applyFilters(items, filters = {}) {
 }
 
 function filterByStatus(items, status) {
-  const statusFilter = String(status || '').toLowerCase();
+  const statusFilter = normalizeStatusValue(status);
   if (statusFilter === 'inativo') return items.filter((item) => isInactiveProduct(item));
   return items.filter((item) => isActiveProduct(item));
 }

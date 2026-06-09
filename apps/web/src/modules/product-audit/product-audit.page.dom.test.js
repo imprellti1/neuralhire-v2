@@ -72,3 +72,31 @@ test('product audit page renders kpis, table and actions', async () => {
   assert.equal(root.querySelectorAll('.nha-row').length, 5);
   teardownFrontendDom(dom);
 });
+
+test('product audit page shows active issue summary without zeroing cards', async () => {
+  const dom = setupFrontendDom('#/product-audit');
+  const root = document.getElementById('root');
+  const apiClient = {
+    get: async (url) => {
+      if (url === '/product-audit/products') {
+        return {
+          items: [
+            { id: 'p1', nome: 'Produto A', sku: 'SKU1', fabricanteNome: '-', categoria: '-', preco: 10, estoque: 0, status: 'ativo', issues: ['missing_image', 'missing_category'] }
+          ],
+          pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+          summary: { totalProdutos: 1, comProblemas: 1, semFabrica: 0, semImagem: 1, semCategoria: 1, duplicados: 0, inativos: 0, estoqueZerado: 1, criticos: 1, medios: 0, leves: 1 }
+        };
+      }
+      if (url === '/fabricantes') return { items: [] };
+      return {};
+    },
+    patch: async () => ({})
+  };
+  renderProductAuditPage(root, { apiClient });
+  await flush();
+  assert.ok(root.textContent.includes('Produtos com problema: 1'));
+  assert.ok(root.textContent.includes('Sem imagem'));
+  assert.ok(root.textContent.includes('Sem categoria'));
+  assert.ok(root.textContent.includes('Estoque zerado'));
+  teardownFrontendDom(dom);
+});

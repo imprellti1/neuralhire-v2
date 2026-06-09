@@ -77,6 +77,46 @@ export function getProductAuditTests() {
       assert.equal(summary.medios, 0);
       assert.equal(summary.criticos, 0);
     } },
+    { name: 'active normalization keeps problem products in default audit and excludes inactive products', run: async () => {
+      reset();
+      __loadMemoryProdutos([
+        { id: 'p1', account_id: 'acc-1', nome: 'Ativo sem imagem', sku: 'SKU1', categoria: 'Cat', preco: 10, estoque: 1, status_comercial: 'ativo', status: undefined, ativo: undefined, imagemUrl: null, variacoes: [{ id: 'v1', sku: 'SKU1-1', estoque: 1 }] },
+        { id: 'p2', account_id: 'acc-1', nome: 'Ativo sem categoria', sku: 'SKU2', categoria: null, preco: 10, estoque: 1, ativo: true, imagemUrl: 'img', variacoes: [{ id: 'v2', sku: 'SKU2-1', estoque: 1 }] },
+        { id: 'p3', account_id: 'acc-1', nome: 'Inativo claro', sku: 'SKU3', categoria: 'Cat', preco: 10, estoque: 1, status: 'inativo', imagemUrl: 'img', variacoes: [{ id: 'v3', sku: 'SKU3-1', estoque: 1 }] }
+      ]);
+      const defaultResult = await listAuditProducts({}, { accountId: 'acc-1' });
+      assert.equal(defaultResult.pagination.total, 2);
+      assert.equal(defaultResult.summary.totalProdutos, 2);
+      assert.equal(defaultResult.summary.comProblemas, 2);
+      assert.equal(defaultResult.summary.semImagem, 1);
+      assert.equal(defaultResult.summary.semCategoria, 1);
+      assert.equal(defaultResult.summary.inativos, 0);
+      assert.equal(defaultResult.items.some((item) => item.id === 'p1'), true);
+      assert.equal(defaultResult.items.some((item) => item.id === 'p2'), true);
+      assert.equal(defaultResult.items.some((item) => item.id === 'p3'), false);
+
+      const inactiveResult = await listAuditProducts({ status: 'inativo' }, { accountId: 'acc-1' });
+      assert.equal(inactiveResult.pagination.total, 1);
+      assert.equal(inactiveResult.summary.totalProdutos, 1);
+      assert.equal(inactiveResult.summary.comProblemas, 1);
+      assert.equal(inactiveResult.summary.inativos, 1);
+      assert.equal(inactiveResult.items[0].id, 'p3');
+    } },
+    { name: 'summary keeps active issues visible for default audit and does not zero out cards', run: async () => {
+      reset();
+      __loadMemoryProdutos([
+        { id: 'p1', account_id: 'acc-1', nome: 'Ativo A', sku: 'SKU10', categoria: null, preco: 10, estoque: 0, status: 'ativo', imagemUrl: null, variacoes: [] },
+        { id: 'p2', account_id: 'acc-1', nome: 'Ativo B', sku: 'SKU11', categoria: 'Cat', preco: 0, estoque: 1, status_comercial: 'ativo', variacoes: [{ id: 'v2', sku: 'SKU11-1', estoque: 1 }] }
+      ]);
+      const summary = await auditSummary({ accountId: 'acc-1' });
+      assert.equal(summary.totalProdutos, 2);
+      assert.equal(summary.comProblemas, 2);
+      assert.equal(summary.semImagem, 1);
+      assert.equal(summary.semCategoria, 1);
+      assert.equal(summary.estoqueZerado, 1);
+      assert.equal(summary.criticos >= 1, true);
+      assert.equal(summary.leves >= 1, true);
+    } },
     { name: 'list orders by severity, issue count and name', run: async () => {
       reset();
       __loadMemoryProdutos([
