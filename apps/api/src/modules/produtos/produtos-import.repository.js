@@ -456,7 +456,7 @@ export async function previewImportXlsx({ accountId, fabricanteId, fileName, buf
     updated_at: new Date().toISOString()
   });
 
-  return {
+  const result = {
     ok: true,
     batchId: batch.id,
     totalRows: parsedWorkbook.dataRows.length,
@@ -465,10 +465,20 @@ export async function previewImportXlsx({ accountId, fabricanteId, fileName, buf
     divergences,
     errors: errors.slice(0, 10),
     sampleRows,
+    items: sampleRows,
     headers: parsedWorkbook.headers,
     sheetName: parsedWorkbook.sheetName,
     sheetNames: parsedWorkbook.sheetNames
   };
+  console.info('[produtos-import] preview sample', result.items?.slice(0, 6).map((item) => ({
+    sku: item.sku,
+    cor: item.cor,
+    grade: item.grade || item.tamanho,
+    estoque: item.estoque,
+    total: item.total,
+    totalStock: item.totalStock
+  })));
+  return result;
 }
 
 export async function executeImportXlsx({ accountId, fabricanteId, fileName, buffer }) {

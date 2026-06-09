@@ -26,7 +26,7 @@ test('produtos import page renders preview and execution states', async () => {
     },
     post: async (path, body) => {
       calls.push({ path, body });
-      if (path === '/produtos/importar-estoque/preview') return { ok: true, batchId: 'batch-1', totalRows: 1, divergences: 1, sampleRows: [{ codigo_erp: '750100001', nome_produto: 'TOALHA', variacao_nome: 'BRANCO', variationsCount: 2 }], headers: ['Descrição'] };
+      if (path === '/produtos/importar-estoque/preview') return { ok: true, batchId: 'batch-1', totalRows: 1, divergences: 1, items: [{ sku: '750100001', nome_produto: 'TOALHA', cor: 'BRANCO', grade: 'UNI', estoque: 2025 }], sampleRows: [{ codigo_erp: '750100001', nome_produto: 'TOALHA', variacao_nome: 'BRANCO', variationsCount: 2 }], headers: ['Descrição'] };
       return { ok: true, batch: { status: 'completed', produtos_criados: 1, variacoes_criadas: 2, estoques_atualizados: 2, divergencias: 1 } };
     }
   };
@@ -49,6 +49,8 @@ test('produtos import page renders preview and execution states', async () => {
   await flush();
   await flush();
   assert.match(document.body.textContent, /Divergências/);
+  assert.match(document.body.textContent, /750100001/);
+  assert.match(document.body.textContent, /2025/);
   const previewCall = calls.find((call) => call.path === '/produtos/importar-estoque/preview');
   assert.ok(previewCall?.body instanceof FormData);
   assert.equal(previewCall.body.get('fabricante_id'), '550e8400-e29b-41d4-a716-446655440001');
