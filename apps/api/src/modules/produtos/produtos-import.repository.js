@@ -186,35 +186,94 @@ function makeStockKey(record) {
 }
 
 async function upsertStockRecord(record) {
-  if (mode() === 'supabase') {
-    const supabase = getSupabaseClient();
-    const { data: existing, error: findError } = await supabase
-      .from('produto_variacao_estoques')
-      .select('*')
-      .eq('account_id', record.account_id)
-      .eq('produto_id', record.produto_id)
-      .eq('variacao_id', record.variacao_id)
-      .eq('fabricante_id', record.fabricante_id)
-      .maybeSingle();
-    if (findError) throw new DatabaseError('Falha ao consultar estoque', { details: findError });
-    if (existing) {
-      const { data, error } = await supabase.from('produto_variacao_estoques').update(record).eq('id', existing.id).select('*').single();
-      if (error) throw new DatabaseError('Falha ao atualizar estoque', { details: error });
-      return { row: data, created: false };
+  try {
+    if (mode() === 'supabase') {
+      const supabase = getSupabaseClient();
+      const nextQuantidade = toQuantity(record.quantidade);
+      if (nextQuantidade === null || nextQuantidade < 0) {
+        throw new BadRequestError('Quantidade de estoque invalida', { domain: 'produtos-import', code: 'INVALID_STOCK_QUANTITY' });
+      }
+
+      const { data: existing, error: findError } = await supabase
+        .from('produto_variacoes')
+        .select('id, account_id, produto_id, sku, nome, valor, cor, grade, tamanho, estoque_atual')
+        .eq('account_id', record.account_id)
+        .eq('id', record.variacao_id)
+        .maybeSingle();
+      if (findError) throw new DatabaseError('Falha ao consultar estoque', { details: findError });
+
+      const previousQuantidade = Number(existing?.estoque_atual || 0);
+      if (existing && previousQuantidade === nextQuantidade) {
+        return { row: existing, created: false, movement: null };
+      }
+
+      const { data: updatedVariation, error: updateError } = await supabase
+        .from('produto_variacoes')
+        .update({ estoque_atual: nextQuantidade })
+        .eq('id', record.variacao_id)
+        .eq('account_id', record.account_id)
+        .select('id, account_id, produto_id, sku, nome, valor, cor, grade, tamanho, estoque_atual')
+        .single();
+      if (updateError) {
+        if (updateError.code === 'PGRST116') {
+          const { data: insertedVariation, error: insertError } = await supabase
+            .from('produto_variacoes')
+            .insert({
+              account_id: record.account_id,
+              produto_id: record.produto_id,
+              sku: record.sku || null,
+              nome: record.nome || null,
+              valor: record.valor || null,
+              cor: record.cor || null,
+              grade: record.grade || null,
+              tamanho: record.tamanho || null,
+              estoque_atual: nextQuantidade,
+              ativo: true
+            })
+            .select('id, account_id, produto_id, sku, nome, valor, cor, grade, tamanho, estoque_atual')
+            .single();
+          if (insertError) throw insertError;
+          return { row: insertedVariation, created: true };
+        }
+        throw updateError;
+      }
+
+      const movementPayload = {
+        account_id: record.account_id,
+        produto_id: record.produto_id,
+        variacao_id: record.variacao_id,
+        fabricante_id: record.fabricante_id,
+        tipo: 'IMPORTACAO_ESTOQUE',
+        quantidade: nextQuantidade - previousQuantidade,
+        saldo_anterior: previousQuantidade,
+        saldo_posterior: nextQuantidade,
+        origem: record.origem || 'IMPORTACAO_XLSX',
+        arquivo_origem: record.arquivo_origem || null,
+        import_batch_id: record.import_batch_id || null,
+        observacao: null
+      };
+      const { error: movementError } = await supabase.from('produto_variacao_movimentos').insert(movementPayload);
+      if (movementError) throw movementError;
+      return { row: updatedVariation, created: false };
     }
-    const { data, error } = await supabase.from('produto_variacao_estoques').insert(record).select('*').single();
-    if (error) throw new DatabaseError('Falha ao criar estoque', { details: error });
-    return { row: data, created: true };
+    const key = makeStockKey(record);
+    const index = memoryStocks.findIndex((stock) => makeStockKey(stock) === key);
+    if (index >= 0) {
+      memoryStocks[index] = { ...memoryStocks[index], ...record, updated_at: new Date().toISOString() };
+      return { row: memoryStocks[index], created: false };
+    }
+    const row = { id: randomUUID(), ...record, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    memoryStocks.push(row);
+    return { row, created: true };
+  } catch (error) {
+    console.error('[produtos-import] stock upsert failed', {
+      code: error?.code,
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint
+    });
+    throw new DatabaseError('Falha ao criar estoque', { details: error });
   }
-  const key = makeStockKey(record);
-  const index = memoryStocks.findIndex((stock) => makeStockKey(stock) === key);
-  if (index >= 0) {
-    memoryStocks[index] = { ...memoryStocks[index], ...record, updated_at: new Date().toISOString() };
-    return { row: memoryStocks[index], created: false };
-  }
-  const row = { id: randomUUID(), ...record, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
-  memoryStocks.push(row);
-  return { row, created: true };
 }
 
 async function ensureFabricante(accountId, fabricanteId) {
@@ -458,6 +517,12 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
           produto_id: productUpsert.item.id,
           variacao_id: variationUpsert.item.id,
           fabricante_id: fabricanteId,
+          sku: variationUpsert.item.sku || null,
+          nome: variationUpsert.item.nome || null,
+          valor: variationUpsert.item.valor || null,
+          cor: variationUpsert.item.cor || null,
+          grade: variationUpsert.item.grade || null,
+          tamanho: variationUpsert.item.tamanho || null,
           quantidade: variation.quantidade,
           origem: 'IMPORTACAO_XLSX',
           arquivo_origem: fileName || null,
