@@ -18,6 +18,7 @@ const CATEGORY_HEADER_HINTS = ['categoria', 'grupo'];
 const PRICE_HEADER_HINTS = ['preco', 'preço', 'valor'];
 const PRODUTO_VARIACOES_SELECT_FIELDS = 'id, account_id, produto_id, sku, nome, valor, cor, grade, estoque_atual';
 const IMPORT_PROGRESS_STEP = 25;
+const CHUNK_SIZE = 100;
 
 function assertAccountId(accountId) {
   if (!accountId) throw new ForbiddenError('Contexto de tenant obrigatorio', { code: 'TENANT_REQUIRED', domain: 'produtos-import' });
@@ -503,23 +504,36 @@ async function fetchExistingProductsBySku(supabase, accountId, fabricanteId, sku
 async function fetchExistingVariationsByProductIds(supabase, accountId, productIds = []) {
   const uniqueIds = [...new Set((productIds || []).map((id) => String(id || '').trim()).filter(Boolean))];
   if (!uniqueIds.length) return [];
-  const { data, error } = await supabase
-    .from('produto_variacoes')
-    .select(PRODUTO_VARIACOES_SELECT_FIELDS)
-    .eq('account_id', accountId)
-    .in('produto_id', uniqueIds);
-  if (error) {
-    console.error('[produtos-import] fetch existing variations error', {
-      code: error?.code,
-      message: error?.message,
-      details: error?.details,
-      hint: error?.hint,
-      productIdsCount: productIds?.length,
-      productIdsSample: productIds?.slice(0, 5)
-    });
-    throw new DatabaseError('Falha ao consultar variacoes existentes', { details: error });
+  const variations = [];
+
+  for (let index = 0; index < uniqueIds.length; index += CHUNK_SIZE) {
+    const chunk = uniqueIds.slice(index, index + CHUNK_SIZE);
+    const { data, error } = await supabase
+      .from('produto_variacoes')
+      .select(PRODUTO_VARIACOES_SELECT_FIELDS)
+      .eq('account_id', accountId)
+      .in('produto_id', chunk);
+
+    if (error) {
+      console.error('[produtos-import] fetch existing variations error', {
+        code: error?.code,
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        productIdsCount: productIds?.length,
+        productIdsSample: productIds?.slice(0, 5),
+        chunkIndex: index / CHUNK_SIZE,
+        chunkSize: chunk.length
+      });
+      throw new DatabaseError('Falha ao consultar variacoes existentes', { details: error });
+    }
+
+    if (data?.length) {
+      variations.push(...data);
+    }
   }
-  return data || [];
+
+  return variations;
 }
 
 function buildVariationLookupKey(accountId, produtoId, nome, grade) {
