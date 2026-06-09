@@ -17,6 +17,22 @@ const STOCK_HEADER_HINTS = ['estoque', 'quantidade', 'qtd', 'saldo'];
 const CATEGORY_HEADER_HINTS = ['categoria', 'grupo'];
 const PRICE_HEADER_HINTS = ['preco', 'preço', 'valor'];
 const PRODUTO_VARIACOES_SELECT_FIELDS = 'id, account_id, produto_id, sku, nome, valor, cor, grade, estoque_atual';
+const PRODUTO_IMPORT_BATCH_FIELDS = [
+  'account_id',
+  'fabricante_id',
+  'arquivo_nome',
+  'status',
+  'total_linhas',
+  'linhas_processadas',
+  'produtos_criados',
+  'produtos_atualizados',
+  'variacoes_criadas',
+  'variacoes_atualizadas',
+  'estoques_atualizados',
+  'erros',
+  'created_at',
+  'updated_at'
+];
 const IMPORT_PROGRESS_STEP = 25;
 const CHUNK_SIZE = 100;
 
@@ -166,14 +182,17 @@ async function createBatchRecord(payload) {
 
 async function updateBatchRecord(batchId, patch = {}) {
   const { batchId: _ignoredBatchId, ...persistedPatch } = patch || {};
+  const batchPayload = Object.fromEntries(
+    Object.entries(persistedPatch).filter(([key]) => PRODUTO_IMPORT_BATCH_FIELDS.includes(key))
+  );
   if (mode() === 'supabase') {
     const supabase = getSupabaseClient();
     try {
-      const { data, error } = await supabase.from('produto_import_batches').update(persistedPatch).eq('id', batchId).select('*').single();
+      const { data, error } = await supabase.from('produto_import_batches').update(batchPayload).eq('id', batchId).select('*').single();
       if (error) {
         console.error('[produtos-import] updateBatchRecord failed', {
           batchId,
-          payload: persistedPatch,
+          payload: batchPayload,
           error
         });
         throw new DatabaseError('Falha ao atualizar batch', { details: error });
@@ -182,7 +201,7 @@ async function updateBatchRecord(batchId, patch = {}) {
     } catch (error) {
       console.error('[produtos-import] updateBatchRecord failed', {
         batchId,
-        payload: persistedPatch,
+        payload: batchPayload,
         error: {
           message: error?.message || String(error),
           code: error?.code || null,
@@ -196,7 +215,7 @@ async function updateBatchRecord(batchId, patch = {}) {
   }
   const index = memoryBatches.findIndex((batch) => batch.id === batchId);
   if (index < 0) return null;
-  memoryBatches[index] = { ...memoryBatches[index], ...persistedPatch, updated_at: new Date().toISOString() };
+  memoryBatches[index] = { ...memoryBatches[index], ...batchPayload, updated_at: new Date().toISOString() };
   return memoryBatches[index];
 }
 
