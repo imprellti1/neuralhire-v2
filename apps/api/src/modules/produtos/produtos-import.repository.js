@@ -165,14 +165,15 @@ async function createBatchRecord(payload) {
 }
 
 async function updateBatchRecord(batchId, patch = {}) {
+  const { batchId: _ignoredBatchId, ...persistedPatch } = patch || {};
   if (mode() === 'supabase') {
     const supabase = getSupabaseClient();
     try {
-      const { data, error } = await supabase.from('produto_import_batches').update(patch).eq('id', batchId).select('*').single();
+      const { data, error } = await supabase.from('produto_import_batches').update(persistedPatch).eq('id', batchId).select('*').single();
       if (error) {
         console.error('[produtos-import] updateBatchRecord failed', {
           batchId,
-          payload: patch,
+          payload: persistedPatch,
           error
         });
         throw new DatabaseError('Falha ao atualizar batch', { details: error });
@@ -181,7 +182,7 @@ async function updateBatchRecord(batchId, patch = {}) {
     } catch (error) {
       console.error('[produtos-import] updateBatchRecord failed', {
         batchId,
-        payload: patch,
+        payload: persistedPatch,
         error: {
           message: error?.message || String(error),
           code: error?.code || null,
@@ -195,7 +196,7 @@ async function updateBatchRecord(batchId, patch = {}) {
   }
   const index = memoryBatches.findIndex((batch) => batch.id === batchId);
   if (index < 0) return null;
-  memoryBatches[index] = { ...memoryBatches[index], ...patch, updated_at: new Date().toISOString() };
+  memoryBatches[index] = { ...memoryBatches[index], ...persistedPatch, updated_at: new Date().toISOString() };
   return memoryBatches[index];
 }
 
