@@ -17,6 +17,7 @@ const STOCK_HEADER_HINTS = ['estoque', 'quantidade', 'qtd', 'saldo'];
 const CATEGORY_HEADER_HINTS = ['categoria', 'grupo'];
 const PRICE_HEADER_HINTS = ['preco', 'preço', 'valor'];
 const PRODUTO_VARIACOES_SELECT_FIELDS = 'id, account_id, produto_id, sku, nome, valor, cor, grade, estoque_atual';
+const IMPORT_PROGRESS_STEP = 25;
 
 function assertAccountId(accountId) {
   if (!accountId) throw new ForbiddenError('Contexto de tenant obrigatorio', { code: 'TENANT_REQUIRED', domain: 'produtos-import' });
@@ -426,6 +427,77 @@ function buildNormalizedItemsFromRow(row, headers, parsed, columns) {
   return { variations, items };
 }
 
+function normalizeKey(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function getParentSkuFromItem(item = {}) {
+  return String(item.codigo_erp || item.sku || item.nome_produto || '').trim() || null;
+}
+
+function getParentNameFromItem(item = {}) {
+  return String(item.nome_produto || item.nome || item.codigo_erp || '').trim() || null;
+}
+
+function buildVariationPayloadFromItem(item = {}, parentId, accountId, fabricanteId, fileName, batchId) {
+  const grade = String(item.grade || item.tamanho || '').trim() || null;
+  const cor = String(item.cor || item.variacao_nome || '').trim() || null;
+  const nome = grade === 'UNI'
+    ? (cor || 'UNI')
+    : `${cor || 'PADRAO'} / ${grade}`;
+  const estoque = Number(item.estoque || 0);
+  const ativo = estoque >= 10;
+  return {
+    account_id: accountId,
+    produto_id: parentId,
+    fabricante_id: fabricanteId,
+    sku: `${String(item.codigo_erp || item.sku || item.nome_produto || 'SKU').trim()}-${grade || 'UNI'}`,
+    nome,
+    valor: cor || '',
+    cor,
+    grade,
+    tamanho: grade,
+    estoque_atual: estoque,
+    ativo,
+    origem: 'IMPORTACAO_XLSX',
+    arquivo_origem: fileName || null,
+    import_batch_id: batchId
+  };
+}
+
+async function fetchExistingProductsBySku(supabase, accountId, fabricanteId, skus = []) {
+  const uniqueSkus = [...new Set((skus || []).map((sku) => String(sku || '').trim()).filter(Boolean))];
+  if (!uniqueSkus.length) return [];
+  const { data, error } = await supabase
+    .from('produtos')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('fabricante_id', fabricanteId)
+    .in('sku', uniqueSkus);
+  if (error) throw new DatabaseError('Falha ao consultar produtos existentes', { details: error });
+  return data || [];
+}
+
+async function fetchExistingVariationsByProductIds(supabase, accountId, productIds = []) {
+  const uniqueIds = [...new Set((productIds || []).map((id) => String(id || '').trim()).filter(Boolean))];
+  if (!uniqueIds.length) return [];
+  const { data, error } = await supabase
+    .from('produto_variacoes')
+    .select(PRODUTO_VARIACOES_SELECT_FIELDS)
+    .eq('account_id', accountId)
+    .in('produto_id', uniqueIds);
+  if (error) throw new DatabaseError('Falha ao consultar variacoes existentes', { details: error });
+  return data || [];
+}
+
+function buildVariationLookupKey(accountId, produtoId, nome, grade) {
+  return [normalizeKey(accountId), normalizeKey(produtoId), normalizeKey(nome), normalizeKey(grade)].join('::');
+}
+
+function buildProductParentActiveState(variations = []) {
+  return variations.some((variation) => Boolean(variation?.ativo) && Number(variation?.estoque_atual || 0) >= 10);
+}
+
 export function __buildVariationsFromRowForTests(row, headers, parsed, columns) {
   return buildVariationsFromRow(row, headers, parsed, columns);
 }
@@ -594,10 +666,7 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
   assertAccountId(accountId);
   await ensureFabricante(accountId, fabricanteId);
   const parsedWorkbook = await parseImportWorkbook(buffer);
-  console.info('[produtos-import] import start', {
-    fileName: fileName || null,
-    totalLines: parsedWorkbook.dataRows.length
-  });
+  console.info('[produtos-import] import start', { fileName: fileName || null, totalLines: parsedWorkbook.dataRows.length });
 
   const groupedItems = new Map();
   for (const row of parsedWorkbook.dataRows) {
@@ -605,11 +674,11 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
     if (!identity.parsed?.codigo_erp && !identity.parsed?.nome_produto) continue;
     const { variations, items } = buildNormalizedItemsFromRow(row, parsedWorkbook.headers, identity.parsed, identity.columns);
     if (!items.length) continue;
-    const parentKey = [fabricanteId, identity.codigo || identity.parsed?.codigo_erp || '', identity.nome || identity.parsed?.nome_produto || '']
-      .map((value) => String(value || '').trim().toLowerCase())
-      .join('::');
+    const parentSku = getParentSkuFromItem(items[0]);
+    const parentName = getParentNameFromItem(items[0]);
+    const parentKey = [fabricanteId, parentSku || '', parentName || ''].map((value) => normalizeKey(value)).join('::');
     if (!groupedItems.has(parentKey)) {
-      groupedItems.set(parentKey, { identity, rows: [], items: [], variations: [] });
+      groupedItems.set(parentKey, { parentSku, parentName, rows: [], items: [], variations: [] });
     }
     const group = groupedItems.get(parentKey);
     group.rows.push(row);
@@ -617,10 +686,7 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
     group.variations.push(...variations);
   }
 
-  console.info('[produtos-import] import totals', {
-    totalLines: parsedWorkbook.dataRows.length,
-    totalParents: groupedItems.size
-  });
+  console.info('[produtos-import] import totals', { totalLines: parsedWorkbook.dataRows.length, totalParents: groupedItems.size });
 
   const batch = await createBatchRecord({
     account_id: accountId,
@@ -658,105 +724,215 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
   };
 
   try {
-    let processedParents = 0;
-    let variationsProcessed = 0;
-    const productVariationCache = new Map();
-    for (const [parentKey, group] of groupedItems.entries()) {
-      const parentIndex = processedParents + 1;
-      if (parentIndex % 25 === 0) {
-        console.log('[produtos-import] parent start', {
-          index: parentIndex,
-          totalParents: groupedItems.size,
-          sku: group.identity.codigo || group.identity.parsed?.codigo_erp || null,
-          nome: group.identity.nome || group.identity.parsed?.nome_produto || null,
-          variationsCount: group.items.length
-        });
-      }
-      let productUpsert = productCache.get(parentKey);
-      if (!productUpsert) {
-        productUpsert = await upsertProdutoPai(accountId, fabricanteId, group.identity);
-        productCache.set(parentKey, productUpsert);
-        summary[productUpsert.created ? 'produtos_criados' : 'produtos_atualizados'] += 1;
-      }
+    const supabase = getSupabaseClient();
+    const parentList = [...groupedItems.values()];
+    const parentSkus = parentList.map((group) => group.parentSku).filter(Boolean);
+    const existingProducts = mode() === 'supabase'
+      ? await fetchExistingProductsBySku(supabase, accountId, fabricanteId, parentSkus)
+      : [];
+    const existingProductMap = new Map(existingProducts.map((product) => [normalizeKey(product.sku), product]));
 
-      const productId = productUpsert?.item?.id || null;
-      let variationMap = productVariationCache.get(productId);
-      if (!variationMap) {
-        variationMap = new Map();
-      }
-      if (!productVariationCache.has(productId) && mode() === 'supabase') {
-        variationMap = await findExistingVariationsForProduct(getSupabaseClient(), accountId, productId);
-        productVariationCache.set(productId, variationMap);
-      }
+    const productsToWrite = [];
+    for (const group of parentList) {
+      const sku = group.parentSku || group.parentName || 'Produto importado';
+      const existing = existingProductMap.get(normalizeKey(sku)) || null;
+      const firstItem = group.items[0] || {};
+      const totalStock = group.items.reduce((sum, item) => sum + Number(item.estoque || 0), 0);
+      const category = await resolveCategoriaForProduto(accountId, firstItem.categoria);
+      const productPayload = {
+        account_id: accountId,
+        fabricante_id: fabricanteId,
+        codigo: sku,
+        sku,
+        nome: group.parentName || sku,
+        descricao: group.parentName || sku,
+        categoria: category.categoria,
+        categoria_id: category.categoria_id,
+        estoque: totalStock,
+        status: 'ativo',
+        ativo: false,
+        preco: Number.isFinite(firstItem.preco) && firstItem.preco > 0 ? firstItem.preco : existing?.preco ?? 0
+      };
+      productsToWrite.push({ existing, payload: productPayload, group });
+    }
 
-      for (const item of group.items) {
-        const variationName = item.grade === 'UNI'
-          ? (item.cor || item.variacao_nome || 'UNI')
-          : `${item.cor || item.variacao_nome || 'PADRAO'} / ${item.grade}`;
-        const variationIdentity = buildVariationIdentity({
-          account_id: accountId,
-          produto_id: productId,
-          nome: variationName,
-          grade: item.grade || item.tamanho || null,
-          tamanho: item.tamanho || item.grade || null
-        });
-        const variationKey = buildVariationMapKey(variationIdentity);
-        let confirmedVariation = variationCache.get(variationKey) || variationMap.get(variationKey) || null;
-        if (!confirmedVariation?.id) {
-          const preExistingVariation = await ensureVariationInDatabase(getSupabaseClient(), {
-            account_id: accountId,
-            produto_id: productId,
-            sku: `${item.codigo_erp || item.sku || item.nome || variationName}-${item.grade || 'UNI'}`,
+    if (mode() !== 'supabase') {
+      for (const entry of productsToWrite) {
+        let item = entry.existing || null;
+        if (item?.id) {
+          item = await updateProduto(item.id, entry.payload, { accountId });
+          summary.produtos_atualizados += 1;
+        } else {
+          item = await createProduto(entry.payload, { accountId });
+          summary.produtos_criados += 1;
+        }
+        entry.saved = item;
+      }
+      for (const entry of productsToWrite) {
+        const productId = entry.saved?.id;
+        if (!productId) continue;
+        const existingVariationsForProduct = await listVariations(productId, { accountId });
+        const variationLookup = new Map(existingVariationsForProduct.map((variation) => [buildVariationLookupKey(accountId, productId, variation.nome, variation.grade), variation]));
+        for (const item of entry.group.items) {
+          const grade = String(item.grade || item.tamanho || '').trim() || null;
+          const cor = String(item.cor || item.variacao_nome || '').trim() || null;
+          const variationName = grade === 'UNI'
+            ? (cor || 'UNI')
+            : `${cor || 'PADRAO'} / ${grade}`;
+          const payload = {
+            sku: `${String(item.codigo_erp || item.sku || item.nome_produto || 'SKU').trim()}-${grade || 'UNI'}`,
             nome: variationName,
-            valor: item.cor || item.variacao_nome || '',
-            cor: item.cor || item.variacao_nome || null,
-            grade: item.grade || item.tamanho || null
-          }, variationIdentity);
-          confirmedVariation = preExistingVariation;
+            valor: cor || '',
+            cor,
+            preco: 0,
+            ativo: Number(item.estoque || 0) >= 10,
+            multiplo_venda: 1,
+            grade,
+            tamanho: grade,
+            estoque: Number(item.estoque || 0)
+          };
+          const key = buildVariationLookupKey(accountId, productId, variationName, grade);
+          const existingVariation = variationLookup.get(key) || null;
+          if (existingVariation) {
+            await updateVariation(productId, existingVariation.id, payload, { accountId });
+            summary.variacoes_atualizadas += 1;
+          } else {
+            await createVariation(productId, payload, { accountId });
+            summary.variacoes_criadas += 1;
+          }
+          summary.estoques_atualizados += 1;
+        }
+        const variationsAfter = await listVariations(productId, { accountId });
+        const active = buildProductParentActiveState(variationsAfter);
+        await updateProduto(productId, { ativo: active }, { accountId });
+        summary.linhas_processadas += entry.group.rows.length;
+      }
+      for (let index = 0; index < productsToWrite.length; index += 1) {
+        if ((index + 1) % IMPORT_PROGRESS_STEP === 0) {
+          console.info('[produtos-import] import progress', { parentsProcessed: index + 1, totalParents: productsToWrite.length });
+        }
+      }
+      const finalStatus = summary.erros.length || summary.divergencias ? 'completed_with_warnings' : 'completed';
+      await updateBatchRecord(batch.id, { ...summary, status: finalStatus, erros: summary.erros.length, updated_at: new Date().toISOString() });
+      console.info('[produtos-import] import done', {
+        batchId: batch.id,
+        totalLines: summary.total_linhas,
+        totalParents: groupedItems.size,
+        productsCreated: summary.produtos_criados,
+        productsUpdated: summary.produtos_atualizados,
+        variationsCreated: summary.variacoes_criadas,
+        variationsUpdated: summary.variacoes_atualizadas,
+        stocksUpdated: summary.estoques_atualizados,
+        status: finalStatus
+      });
+      return { ok: true, batch: { ...summary, status: finalStatus, erros: summary.erros } };
+    }
+
+    const productsUpsertPayload = productsToWrite.map(({ payload }) => ({
+      ...payload,
+      ativo: false
+    }));
+    let savedProducts = [];
+    if (mode() === 'supabase' && productsUpsertPayload.length) {
+      const { data, error } = await supabase
+        .from('produtos')
+        .upsert(productsUpsertPayload, { onConflict: 'account_id,fabricante_id,sku' })
+        .select('*');
+      if (error) throw new DatabaseError('Falha ao gravar produtos em lote', { details: error });
+      savedProducts = data || [];
+    }
+    const savedProductMap = new Map();
+    for (const product of savedProducts) savedProductMap.set(normalizeKey(product.sku), product);
+
+    for (let i = 0; i < productsToWrite.length; i += 1) {
+      const entry = productsToWrite[i];
+      const saved = savedProductMap.get(normalizeKey(entry.payload.sku)) || entry.existing || null;
+      if (!saved?.id) continue;
+      entry.saved = saved;
+      summary[entry.existing ? 'produtos_atualizados' : 'produtos_criados'] += 1;
+    }
+
+    const allProductIds = productsToWrite.map((entry) => entry.saved?.id).filter(Boolean);
+    const existingVariations = mode() === 'supabase'
+      ? await fetchExistingVariationsByProductIds(supabase, accountId, allProductIds)
+      : [];
+    const variationMap = new Map();
+    for (const variation of existingVariations) {
+      variationMap.set(buildVariationLookupKey(variation.account_id, variation.produto_id, variation.nome, variation.grade), variation);
+    }
+
+    const variationsToUpsert = [];
+    const parentActivityByProductId = new Map();
+    for (const entry of productsToWrite) {
+      const productId = entry.saved?.id;
+      if (!productId) continue;
+      const groupVariations = [];
+      for (const item of entry.group.items) {
+        const grade = String(item.grade || item.tamanho || '').trim() || null;
+        const cor = String(item.cor || item.variacao_nome || '').trim() || null;
+        const variationName = grade === 'UNI'
+          ? (cor || 'UNI')
+          : `${cor || 'PADRAO'} / ${grade}`;
+        const variationPayload = buildVariationPayloadFromItem(item, productId, accountId, fabricanteId, fileName, batch.id);
+        const variationKey = buildVariationLookupKey(accountId, productId, variationName, grade);
+        const existingVariation = variationMap.get(variationKey) || null;
+        if (existingVariation) {
+          summary.variacoes_atualizadas += 1;
+        } else {
           summary.variacoes_criadas += 1;
-          variationCache.set(variationKey, confirmedVariation);
-          variationMap.set(variationKey, confirmedVariation);
         }
-        if (!confirmedVariation?.id) {
-          throw new BadRequestError('Falha ao confirmar variação de estoque.', { domain: 'produtos-import', code: 'VARIACAO_ESTOQUE_NAO_CONFIRMADA' });
-        }
-        const stockResult = await upsertStockRecord({
-          account_id: accountId,
-          produto_id: productId,
-          variacao_id: confirmedVariation.id,
-          fabricante_id: fabricanteId,
-          sku: confirmedVariation.sku || null,
-          nome: confirmedVariation.nome || variationName || null,
-          valor: confirmedVariation.valor || null,
-          cor: item.cor || confirmedVariation.cor || null,
-          grade: item.grade || confirmedVariation.grade || null,
-          tamanho: item.tamanho || confirmedVariation.tamanho || null,
-          quantidade: item.estoque,
-          origem: 'IMPORTACAO_XLSX',
-          arquivo_origem: fileName || null,
-          import_batch_id: batch.id
-        }, confirmedVariation);
-        if (variationMap) {
-          variationMap.set(variationKey, stockResult?.row || confirmedVariation);
-        }
-        summary.estoques_atualizados += 1;
-        variationsProcessed += 1;
+        groupVariations.push({
+          ...variationPayload,
+          nome: variationName
+        });
       }
+      parentActivityByProductId.set(productId, groupVariations);
+      variationsToUpsert.push(...groupVariations);
+      summary.linhas_processadas += entry.group.rows.length;
+    }
 
-      if (mode() === 'supabase' && productId) {
-        await recalculateProductAvailability(getSupabaseClient(), accountId, productId);
+    if (mode() === 'supabase' && variationsToUpsert.length) {
+      const { error } = await supabase
+        .from('produto_variacoes')
+        .upsert(variationsToUpsert, { onConflict: 'account_id,produto_id,nome,grade' });
+      if (error) throw new DatabaseError('Falha ao gravar variacoes em lote', { details: error });
+      summary.estoques_atualizados += variationsToUpsert.length;
+    } else {
+      summary.estoques_atualizados += variationsToUpsert.length;
+    }
+
+    const productIdsToRecalc = [...parentActivityByProductId.keys()];
+    if (mode() === 'supabase' && productIdsToRecalc.length) {
+      const allVariationsAfterUpsert = await fetchExistingVariationsByProductIds(supabase, accountId, productIdsToRecalc);
+      const variationsByProduct = new Map();
+      for (const variation of allVariationsAfterUpsert) {
+        const list = variationsByProduct.get(variation.produto_id) || [];
+        list.push(variation);
+        variationsByProduct.set(variation.produto_id, list);
       }
+      const productUpdates = [];
+      for (const productId of productIdsToRecalc) {
+        const active = buildProductParentActiveState(variationsByProduct.get(productId) || []);
+        productUpdates.push({ id: productId, ativo: active, account_id: accountId });
+      }
+      for (const update of productUpdates) {
+        await supabase
+          .from('produtos')
+          .update({ ativo: update.ativo })
+          .eq('id', update.id)
+          .eq('account_id', update.account_id);
+      }
+    }
 
-      summary.linhas_processadas += group.rows.length;
-      processedParents += 1;
-      if (processedParents % 25 === 0) {
+    for (let index = 0; index < productsToWrite.length; index += 1) {
+      if ((index + 1) % IMPORT_PROGRESS_STEP === 0) {
         console.info('[produtos-import] import progress', {
-          parentsProcessed: processedParents,
-          totalParents: groupedItems.size,
-          variationsProcessed
+          parentsProcessed: index + 1,
+          totalParents: productsToWrite.length
         });
       }
     }
+
     const finalStatus = summary.erros.length || summary.divergencias ? 'completed_with_warnings' : 'completed';
     await updateBatchRecord(batch.id, { ...summary, status: finalStatus, erros: summary.erros.length, updated_at: new Date().toISOString() });
     console.info('[produtos-import] import done', {
