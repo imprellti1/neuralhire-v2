@@ -130,13 +130,13 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     </tr>`).join('');
     return `<section class="nhpd-panel">
       <div class="nhpd-head">
-        <div><div class="nhpd-title">${d.nomeExibicao}</div><div class="nhpd-sub">${d.sku !== '-' ? `SKU ${d.sku}` : `ID ${d.idTecnicoAbreviado}`} • ${d.categoria}</div><div style="margin-top:10px"><span class="nhpd-badge ${statusClass(d.status)}">${d.status}</span></div></div>
+        <div><div class="nhpd-title">${d.nomeExibicao}</div><div class="nhpd-sub">${d.categoria}</div><div style="margin-top:10px"><span class="nhpd-badge ${statusClass(d.status)}">${d.status}</span></div></div>
         <div style="display:flex;gap:8px"><button id="nhpd-back" class="nhpd-btn" aria-label="Voltar para lista de produtos">Voltar</button><button id="nhpd-edit" class="nhpd-btn primary" aria-label="Editar Produto" ${state.saving ? 'disabled' : ''}>Editar Produto</button></div>
       </div>
       <div class="nhpd-grid">
         <div class="nhpd-left-col">
-          ${state.editing ? renderEditForm() : `<article class="nhpd-card"><h3>Resumo do Produto</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Nome</dt><dd class="nhpd-dd">${d.nomeExibicao}</dd><dt class="nhpd-dt">SKU</dt><dd class="nhpd-dd">${d.sku}</dd><dt class="nhpd-dt">Categoria</dt><dd class="nhpd-dd">${d.categoria}</dd><dt class="nhpd-dt">Status</dt><dd class="nhpd-dd">${d.status}</dd><dt class="nhpd-dt">Descrição</dt><dd class="nhpd-dd">${d.descricao}</dd><dt class="nhpd-dt">Estoque total (todas as variações)</dt><dd class="nhpd-dd">${formatPtBrNumber(stockTotal)}</dd></dl></article>`}
-          <article class="nhpd-card"><h3>Preço e Comercial</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Preço atual</dt><dd class="nhpd-dd">${d.precoFormatado}</dd><dt class="nhpd-dt">Status comercial</dt><dd class="nhpd-dd">${d.status}</dd><dt class="nhpd-dt">Ativo/Inativo</dt><dd class="nhpd-dd">${d.ativo ? 'Ativo' : 'Inativo'}</dd></dl></article>
+          ${state.editing ? renderEditForm() : `<article class="nhpd-card"><h3>Resumo do Produto</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Nome</dt><dd class="nhpd-dd">${d.nomeExibicao}</dd><dt class="nhpd-dt">SKU</dt><dd class="nhpd-dd">${d.sku}</dd><dt class="nhpd-dt">Categoria</dt><dd class="nhpd-dd">${d.categoria}</dd><dt class="nhpd-dt">Status</dt><dd class="nhpd-dd">${d.status}</dd>${d.descricao ? `<dt class="nhpd-dt">Descrição</dt><dd class="nhpd-dd">${d.descricao}</dd>` : ''}<dt class="nhpd-dt">Estoque total (todas as variações)</dt><dd class="nhpd-dd">${formatPtBrNumber(stockTotal)}</dd></dl></article>`}
+          <article class="nhpd-card"><h3>Preço e Comercial</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Preço atual</dt><dd class="nhpd-dd">${d.precoFormatado}</dd><dt class="nhpd-dt">Status comercial</dt><dd class="nhpd-dd">${d.status}</dd></dl></article>
         </div>
         <div class="nhpd-right-col">
           <article class="nhpd-card"><h3>Fábrica vinculada</h3>${d.fabricanteId ? `<div class="nhpd-fabricante">${d.fabricanteLogoUrl ? `<div class="nhpd-fabricante-logo"><img src="${d.fabricanteLogoUrl}" alt="Logo da fábrica"/></div>` : '<div class="nhpd-fabricante-logo" aria-hidden="true"></div>'}<div class="nhpd-fabricante-name">${d.fabricanteNome || 'Sem nome'}</div></div>` : '<div class="nhpd-state">Sem fábrica vinculada.</div>'}</article>

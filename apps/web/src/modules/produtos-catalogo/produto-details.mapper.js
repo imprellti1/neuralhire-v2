@@ -40,6 +40,49 @@ function normalizeText(value, fallback = '-') {
   return text || fallback;
 }
 
+function normalizeDescription(rawDescription, nomeExibicao) {
+  const description = String(rawDescription || '').trim();
+  const nome = String(nomeExibicao || '').trim();
+  if (!description) return '';
+  if (description === nome) return '';
+  return description;
+}
+
+function normalizeArrayResponse(response = {}) {
+  if (Array.isArray(response)) return response;
+  return response?.items || response?.data || [];
+}
+
+function normalizeVariationAttributes(item = {}) {
+  const candidates = [
+    item?.atributos,
+    item?.attributes,
+    item?.atributo,
+    item?.atributo_nome,
+    item?.nome,
+    item?.valor,
+    item?.grade,
+    item?.tamanho,
+    item?.cor
+  ];
+  return candidates
+    .map((value) => String(value ?? '').trim())
+    .filter((value) => value && value !== '-');
+}
+
+function pickVariationStock(item = {}) {
+  const candidates = [item?.estoque_atual, item?.estoqueAtual, item?.estoque, item?.saldo_estoque, item?.stock];
+  for (const value of candidates) {
+    const num = Number(value);
+    if (Number.isFinite(num)) return num;
+  }
+  return 0;
+}
+
+function pickVariationUpdatedAt(item = {}) {
+  return item?.updated_at || item?.updatedAt || item?.atualizado_em || item?.created_at || item?.createdAt;
+}
+
 function normalizeVariationStatus(rawStatus, ativo) {
   const status = normalizeStatus(rawStatus, ativo);
   if (['ativo', 'inativo'].includes(status)) return status;
@@ -55,25 +98,31 @@ export function normalizeProdutoVariations(response = {}) {
   const candidates = [
     response?.variacoes,
     response?.variations,
+    response?.produto_variacoes,
+    response?.produtoVariacoes,
     response?.item?.variacoes,
     response?.item?.variations,
     response?.item?.variacoes_produto,
-    response?.item?.variations_produto
+    response?.item?.variations_produto,
+    response?.item?.produto_variacoes,
+    response?.item?.produtoVariacoes,
+    response?.items,
+    response?.data,
+    Array.isArray(response) ? response : null
   ];
-  const rawItems = candidates.find((value) => Array.isArray(value)) || [];
+  const rawItems = candidates.flatMap((value) => normalizeArrayResponse(value)).filter(Boolean);
   return rawItems.map((item, index) => {
     const status = normalizeVariationStatus(item?.status, item?.ativo);
-    const estoque = item?.estoque_atual ?? item?.estoqueAtual ?? item?.estoque ?? item?.saldo_estoque ?? item?.stock ?? 0;
-    const updatedAt = asDate(item?.updated_at || item?.updatedAt || item?.atualizado_em || item?.created_at || item?.createdAt);
-    const attributes = [
-      extractVariationAttribute(item?.cor || item?.color),
-      extractVariationAttribute(item?.grade || item?.tamanho || item?.size),
-      extractVariationAttribute(item?.atributo || item?.atributos),
-    ].filter(Boolean);
+    const estoque = pickVariationStock(item);
+    const updatedAt = asDate(pickVariationUpdatedAt(item));
+    const attributes = normalizeVariationAttributes(item);
     return {
       id: item?.id || `${index}`,
       sku: normalizeText(item?.sku || item?.codigo || item?.codigo_erp || item?.referencia, '-'),
+      cor: item?.cor || item?.color || null,
+      tamanho: item?.tamanho || item?.grade || item?.size || null,
       atributos: attributes,
+      estoqueAtual: Number(estoque || 0),
       estoque: Number(estoque || 0),
       preco: Number(item?.preco ?? item?.preco_unitario ?? item?.valor ?? 0),
       precoFormatado: fmtBrl(item?.preco ?? item?.preco_unitario ?? item?.valor ?? 0),
@@ -87,7 +136,7 @@ export function normalizeProdutoVariations(response = {}) {
 }
 
 export function sumProdutoVariationsStock(variations = []) {
-  return (Array.isArray(variations) ? variations : []).reduce((sum, variation) => sum + Number(variation?.estoque || 0), 0);
+  return (Array.isArray(variations) ? variations : []).reduce((sum, variation) => sum + Number(variation?.estoqueAtual ?? variation?.estoque ?? 0), 0);
 }
 
 export function mapProdutoDetailsData(response = {}) {
@@ -103,7 +152,7 @@ export function mapProdutoDetailsData(response = {}) {
     nomeExibicao,
     sku: item?.sku || '-',
     categoria: item?.categoria_nome || item?.categoria || '-',
-    descricao: String(item?.descricao || '').trim() || 'Produto não identificado',
+    descricao: normalizeDescription(item?.descricao, nomeExibicao),
     status,
     ativo: status === 'ativo',
     preco: Number(item?.preco ?? item?.preco_unitario ?? 0),
@@ -114,7 +163,12 @@ export function mapProdutoDetailsData(response = {}) {
     fabricanteCnpj: item?.fabricante?.cnpj || item?.fabricante_cnpj || null,
     regrasComerciaisFabricante: item?.regras_comerciais_fabricante || item?.fabricante?.regras_comerciais_fabricante || null,
     variacoes: normalizeProdutoVariations(response),
-    estoqueTotalVariacoes: sumProdutoVariationsStock(normalizeProdutoVariations(response)),
+    estoqueTotalVariacoes: (() => {
+      const variations = normalizeProdutoVariations(response);
+      if (variations.length) return sumProdutoVariationsStock(variations);
+      const consolidated = Number(item?.estoque_total ?? item?.estoqueTotal ?? item?.estoque ?? 0);
+      return Number.isFinite(consolidated) ? consolidated : 0;
+    })(),
     criadoEm,
     atualizadoEm,
     criadoEmFormatado: fmtDate(criadoEm),
@@ -132,7 +186,7 @@ export function createProdutoEditForm(data = {}) {
     preco_promocional: Number.isFinite(Number(data?.preco_promocional)) ? String(Number(data.preco_promocional).toFixed(2)).replace('.', ',') : '',
     icms_percentual: Number.isFinite(Number(data?.icms_percentual)) ? String(Number(data.icms_percentual).toFixed(2)).replace('.', ',') : '',
     video_url: data?.video_url || '',
-    descricao: data?.descricao && data.descricao !== 'Produto não identificado' ? data.descricao : '',
+    descricao: data?.descricao || '',
     status: data?.status === 'inativo' ? 'inativo' : 'ativo',
     fabricante_id: data?.fabricanteId || ''
   };

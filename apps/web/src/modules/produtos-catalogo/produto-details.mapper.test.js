@@ -25,9 +25,18 @@ function run() {
   assert.equal(produto.precoFormatado.includes('R$'), true);
   assert.equal(mapProdutoDetailsData({ item: { id: 'p2', nome: 'A', ativo: false } }).status, 'inativo');
   assert.equal(mapProdutoDetailsData({ item: { id: 'p3', nome: 'A' } }).status, 'desconhecido');
+  assert.equal(mapProdutoDetailsData({ item: { id: 'p3b', nome: 'A', descricao: 'A' } }).descricao, '');
+  assert.equal(mapProdutoDetailsData({ item: { id: 'p3c', nome: 'A', descricao: 'Descrição real' } }).descricao, 'Descrição real');
   const detailed = mapProdutoDetailsData({ item: { id: 'p4', nome: 'Produto', variacoes: [{ sku: 'V1', estoque_atual: 3, cor: 'Azul', grade: 'U', preco: 10 }] } });
   assert.equal(detailed.estoqueTotalVariacoes, 3);
   assert.equal(detailed.variacoes[0].atributos.includes('Azul'), true);
+  const directArray = mapProdutoDetailsData({ id: 'p5', nome: 'Produto 5', sku: 'S5', categoria: 'Cat', variations: [{ id: 'v1', sku: 'V1', tamanho: 'M', estoqueAtual: 4, preco: 10, status_comercial: 'ativo', updatedAt: '2026-05-01T00:00:00.000Z' }] });
+  assert.equal(directArray.variacoes.length, 1);
+  assert.equal(directArray.variacoes[0].estoqueAtual, 4);
+  assert.equal(directArray.estoqueTotalVariacoes, 4);
+  const dataWrapper = mapProdutoDetailsData({ item: { id: 'p6', nome: 'Produto 6', produtoVariacoes: { data: [{ id: 'v1', sku: 'V1', cor: 'Preto', grade: 'G', estoque_atual: 2, status_comercial: 'ativo' }] } } });
+  assert.equal(dataWrapper.variacoes.length, 1);
+  assert.equal(dataWrapper.estoqueTotalVariacoes, 2);
 
   assert.equal(mapProdutoUpdatePayload({ nome: 'A', preco: '129,90', status: 'ativo' }).preco, 129.9);
   assert.equal(mapProdutoUpdatePayload({ nome: 'A', preco: '129.90', status: 'ativo' }).preco, 129.9);

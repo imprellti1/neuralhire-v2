@@ -55,6 +55,7 @@ test('product audit page renders kpis, table and actions', async () => {
   assert.ok(root.textContent.includes('Produtos com problema'));
   assert.ok(root.textContent.includes('Ver Produto'));
   assert.ok(root.textContent.includes('Editar Produto'));
+  assert.ok(root.textContent.includes('Inativos'));
   const row = root.querySelector('.nha-row');
   row.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
   await flush();

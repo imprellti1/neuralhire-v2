@@ -1,17 +1,56 @@
 import { mapProdutoDetailsData, mapProdutoUpdatePayload, mapProdutoUsageData } from './produto-details.mapper.js';
 
-export async function fetchProdutoDetailsData(apiClient, produtoId) {
-  const response = await apiClient.get(`/produtos/${produtoId}`);
-  let enriched = response;
-  if (!Array.isArray(response?.item?.variacoes) && !Array.isArray(response?.item?.variations) && !Array.isArray(response?.variacoes) && !Array.isArray(response?.variations)) {
+async function tryGet(apiClient, paths) {
+  let lastError = null;
+  for (const path of paths) {
     try {
-      const variationsResponse = await apiClient.get(`/produtos/${produtoId}/variacoes`);
-      enriched = { ...response, variacoes: Array.isArray(variationsResponse?.items) ? variationsResponse.items : variationsResponse?.variacoes };
-    } catch {
-      enriched = response;
+      return await apiClient.get(path);
+    } catch (error) {
+      lastError = error;
     }
   }
-  return mapProdutoDetailsData(enriched);
+  throw lastError || new Error('Falha ao carregar recurso');
+}
+
+export async function fetchProdutoDetailsData(apiClient, produtoId) {
+  const response = await tryGet(apiClient, [
+    `/produtos/${produtoId}`,
+    `/product-editor/products/${produtoId}`
+  ]);
+  const hasVariations = [
+    response?.item?.variacoes,
+    response?.item?.variations,
+    response?.variacoes,
+    response?.variations,
+    response?.item?.produto_variacoes,
+    response?.item?.produtoVariacoes
+  ].some((value) => Array.isArray(value) && value.length > 0);
+
+  if (hasVariations) return mapProdutoDetailsData(response);
+
+  const variationsResponse = await tryGet(apiClient, [
+    `/produtos/${produtoId}/variacoes`,
+    `/product-editor/products/${produtoId}`,
+    `/product-editor/products/${produtoId}/variations`
+  ]).catch(() => null);
+
+  const normalizedVariations = Array.isArray(variationsResponse)
+    ? variationsResponse
+    : Array.isArray(variationsResponse?.items)
+      ? variationsResponse.items
+    : Array.isArray(variationsResponse?.data)
+        ? variationsResponse.data
+        : variationsResponse?.variacoes
+          || variationsResponse?.variations
+          || variationsResponse?.produto_variacoes
+          || variationsResponse?.produtoVariacoes
+          || variationsResponse?.item?.variacoes
+          || variationsResponse?.item?.variations
+          || variationsResponse?.item?.produto_variacoes
+          || variationsResponse?.item?.produtoVariacoes
+          || [];
+
+  return mapProdutoDetailsData({ ...response, variacoes: normalizedVariations });
 }
 
 export async function fetchProdutoImagens(apiClient, produtoId) {

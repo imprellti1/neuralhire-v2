@@ -19,10 +19,13 @@ export function getProductAuditTests() {
         { id: 'p2', account_id: 'acc-1', nome: 'Produto 1', sku: 'SKU1', categoria: null, preco: 0, estoque: 1, status: 'inativo' }
       ]);
       const summary = await auditSummary({ accountId: 'acc-1' });
-      assert.equal(summary.totalProducts, 2);
-      assert.equal(summary.withoutFabricante, 2);
-      assert.ok(summary.issues.some((issue) => issue.type === 'missing_fabricante'));
-      assert.ok(summary.issues.some((issue) => issue.type === 'duplicate_sku'));
+      assert.equal(summary.totalProdutos, 1);
+      assert.equal(summary.comProblemas, 1);
+      assert.equal(summary.semFabrica, 1);
+      assert.equal(summary.inativos, 0);
+      assert.equal(summary.criticos, 1);
+      assert.equal(summary.medios, 0);
+      assert.equal(summary.leves, 1);
     } },
     { name: 'link fabricante and fix product', run: async () => {
       reset();
@@ -43,11 +46,22 @@ export function getProductAuditTests() {
     } },
     { name: 'list filters by issue', run: async () => {
       reset();
-      __loadMemoryProdutos([{ id: 'p1', account_id: 'acc-1', nome: '', sku: '', categoria: '', preco: 0, estoque: 0, status: 'inativo' }]);
+      __loadMemoryProdutos([
+        { id: 'p1', account_id: 'acc-1', nome: '', sku: '', categoria: '', preco: 0, estoque: 0, status: 'inativo' },
+        { id: 'p2', account_id: 'acc-1', nome: 'Produto 2', sku: 'SKU2', categoria: 'Cat', preco: 10, estoque: 1, status: 'ativo' }
+      ]);
+      const defaultResult = await listAuditProducts({}, { accountId: 'acc-1' });
+      assert.equal(defaultResult.items.length, 1);
+      assert.equal(defaultResult.pagination.total, 1);
+      assert.equal(defaultResult.summary.totalProdutos, 1);
+      assert.equal(defaultResult.items[0].id, 'p2');
       const result = await listAuditProducts({ issue: 'missing_name' }, { accountId: 'acc-1' });
-      assert.equal(result.items.length, 1);
-      assert.equal(result.pagination.total, 1);
-      assert.equal(result.summary.totalProdutos, 1);
+      assert.equal(result.items.length, 0);
+      const inactive = await listAuditProducts({ status: 'inativo' }, { accountId: 'acc-1' });
+      assert.equal(inactive.items.length, 1);
+      assert.equal(inactive.pagination.total, 1);
+      assert.equal(inactive.summary.totalProdutos, 1);
+      assert.equal(inactive.items[0].id, 'p1');
     } },
     { name: 'summary accepts filters and matches list summary format', run: async () => {
       reset();

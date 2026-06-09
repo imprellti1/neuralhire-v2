@@ -33,6 +33,16 @@ function extractFabricanteId(item, accountId) {
   return getLink(accountId, item.id)?.fabricante_id || item.fabricanteId || item.fabricante_id || item.metadata?.fabricanteId || null;
 }
 
+function isInactiveProduct(item = {}) {
+  const status = String(item.status || '').toLowerCase();
+  const commercial = String(item.status_comercial || item.statusComercial || '').toLowerCase();
+  return status === 'inativo' || commercial === 'inativo' || item.ativo === false;
+}
+
+function isActiveProduct(item = {}) {
+  return !isInactiveProduct(item);
+}
+
 function buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet) {
   const issues = [];
   const fabricanteId = extractFabricanteId(item, accountId);
@@ -76,24 +86,34 @@ function getProductSeverity(item) {
 }
 
 function normalizeFilters(filters = {}) {
+  const rawStatus = String(filters.status || '').toLowerCase();
+  const status = rawStatus === 'inativos' ? 'inativo' : rawStatus;
   return {
     issue: filters.issue ? String(filters.issue) : '',
     fabricanteId: filters.fabricanteId ? String(filters.fabricanteId) : '',
-    status: filters.status ? String(filters.status) : '',
+    status,
     search: filters.search ? String(filters.search) : ''
   };
 }
 
 function applyFilters(items, filters = {}) {
   let filtered = items;
+  const statusFilter = String(filters.status || '').toLowerCase();
+  if (statusFilter === 'inativo') filtered = filtered.filter((item) => isInactiveProduct(item));
+  else filtered = filtered.filter((item) => isActiveProduct(item));
   if (filters.issue) filtered = filtered.filter((item) => item.issues.includes(filters.issue));
   if (filters.fabricanteId) filtered = filtered.filter((item) => item.fabricanteId === filters.fabricanteId);
-  if (filters.status) filtered = filtered.filter((item) => String(item.status || '').toLowerCase() === String(filters.status).toLowerCase());
   if (filters.search) {
     const q = String(filters.search).toLowerCase();
     filtered = filtered.filter((item) => [item.nome, item.sku, item.categoria, item.fabricanteNome].some((value) => String(value || '').toLowerCase().includes(q)));
   }
   return filtered;
+}
+
+function filterByStatus(items, status) {
+  const statusFilter = String(status || '').toLowerCase();
+  if (statusFilter === 'inativo') return items.filter((item) => isInactiveProduct(item));
+  return items.filter((item) => isActiveProduct(item));
 }
 
 function buildSummary(items) {
@@ -154,8 +174,9 @@ export async function auditSummary(options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
   const produtos = (await listProdutos({}, { accountId })).items || [];
-  const context = buildAuditContext(produtos, accountId);
   const normalizedFilters = normalizeFilters(filters);
+  const statusScopedProducts = filterByStatus(produtos, normalizedFilters.status);
+  const context = buildAuditContext(statusScopedProducts, accountId);
   const filtered = context.applyFilters(normalizedFilters);
   return context.buildSummary(filtered);
 }
@@ -174,8 +195,9 @@ export async function listAuditProducts(filters = {}, options = {}) {
       fabricanteNome: fabricanteId ? fabricanteById.get(fabricanteId)?.nome || '-' : '-'
     };
   });
-  const context = buildAuditContext(products, accountId);
   const normalizedFilters = normalizeFilters(filters);
+  const statusScopedProducts = filterByStatus(products, normalizedFilters.status);
+  const context = buildAuditContext(statusScopedProducts, accountId);
   const filtered = context.applyFilters(normalizedFilters);
   const summary = context.buildSummary(filtered);
   const issueItems = filtered
