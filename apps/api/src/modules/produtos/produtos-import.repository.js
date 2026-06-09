@@ -873,7 +873,17 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
         .from('produtos')
         .upsert(productsUpsertPayload, { onConflict: 'account_id,fabricante_id,sku' })
         .select('*');
-      if (error) throw new DatabaseError('Falha ao gravar produtos em lote', { details: error });
+      if (error) {
+        console.error('[produtos-import] bulk products error', {
+          code: error?.code,
+          message: error?.message,
+          details: error?.details,
+          hint: error?.hint,
+          count: productsUpsertPayload?.length,
+          sample: productsUpsertPayload?.slice(0, 3)
+        });
+        throw new DatabaseError('Falha ao gravar produtos em lote', { details: error });
+      }
       savedProducts = data || [];
     }
     const savedProductMap = new Map();
