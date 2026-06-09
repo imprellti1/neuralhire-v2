@@ -372,15 +372,16 @@ export async function updateProdutoVariacaoImagem(produtoId, variacaoId, upload,
   const accountId = options.accountId || null;
   assertAccountId(accountId);
   const scopedVariation = await assertVariacaoScope(accountId, produtoId, variacaoId);
+  const resolvedProdutoId = scopedVariation.produto_id || produtoId;
   const supabase = getSupabaseClient();
   if (!supabase) {
     const normalized = normalizeVariationImageUpload(upload);
     const updatedVariation = normalizeProdutoVariacao({
       ...scopedVariation,
-      imagem_url: `memory://${accountId}/${produtoId}/${variacaoId}/${safeName(normalized.fileName)}`,
-      imagem_path: `memory/${accountId}/${produtoId}/${variacaoId}/${safeName(normalized.fileName)}`
+      imagem_url: `memory://${accountId}/${resolvedProdutoId}/${variacaoId}/${safeName(normalized.fileName)}`,
+      imagem_path: `memory/${accountId}/${resolvedProdutoId}/${variacaoId}/${safeName(normalized.fileName)}`
     });
-    const idx = memoryProdutos.findIndex((produto) => produto.account_id === accountId && String(produto.id) === String(scopedVariation.produto_id || produtoId));
+    const idx = memoryProdutos.findIndex((produto) => produto.account_id === accountId && String(produto.id) === String(resolvedProdutoId));
     if (idx >= 0) {
       const product = memoryProdutos[idx];
       const rawVariations = Array.isArray(product.variacoes) ? product.variacoes : Array.isArray(product.variations) ? product.variations : Array.isArray(product.produto_variacoes) ? product.produto_variacoes : [];
@@ -389,16 +390,17 @@ export async function updateProdutoVariacaoImagem(produtoId, variacaoId, upload,
     }
     return updatedVariation;
   }
-  const uploaded = await uploadVariacaoImageToStorage({ accountId, produtoId, variacaoId, upload });
+  const uploaded = await uploadVariacaoImageToStorage({ accountId, produtoId: resolvedProdutoId, variacaoId, upload });
   const { data: updated, error } = await supabase
     .from('produto_variacoes')
     .update({ imagem_url: uploaded.url, imagem_path: uploaded.storage_path, updated_at: new Date().toISOString() })
     .eq('account_id', accountId)
-    .eq('produto_id', produtoId)
+    .eq('produto_id', resolvedProdutoId)
     .eq('id', variacaoId)
     .select(PRODUTO_VARIACOES_SELECT_FIELDS)
-    .single();
+    .maybeSingle();
   if (error) throw new DatabaseError('Falha ao atualizar imagem da variacao', { details: error });
+  if (!updated) throw new NotFoundError('Variacao nao encontrada', { domain: 'produtos-catalogo', code: 'VARIACAO_NOT_FOUND' });
   return normalizeProdutoVariacao(updated);
 }
 
