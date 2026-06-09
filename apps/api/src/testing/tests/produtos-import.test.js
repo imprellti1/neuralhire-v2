@@ -9,6 +9,7 @@ import { __resetMemoryProductEditorForTests } from '../../modules/product-editor
 import { __dumpImportMemory } from '../../modules/produtos/produtos-import.repository.js';
 import { __getProdutoVariacoesSelectFieldsForTests } from '../../modules/produtos/produtos-import.repository.js';
 import { __buildVariationIdentityForTests } from '../../modules/produtos/produtos-import.repository.js';
+import { __buildVariationsFromRowForTests } from '../../modules/produtos/produtos-import.repository.js';
 import { parseJsonBody } from '../../core/body-parser.js';
 
 function parseBody(res) {
@@ -90,6 +91,24 @@ export function getProdutosImportTests() {
       }
     },
     {
+      name: 'explode apenas grades com estoque positivo e ignora Total',
+      run: async () => {
+        const row = {
+          Descricao: '750100001 - TOALHA BANHÃO 90cm X 1,60m MASTER - BRANCO',
+          P: '10',
+          M: '',
+          G: '',
+          Total: '999'
+        };
+        const parsed = { codigo_erp: '750100001', nome_produto: 'TOALHA BANHÃO 90cm X 1,60m MASTER - BRANCO', cor: 'BRANCO', variacao_nome: 'BRANCO' };
+        const columns = { variationIndexes: new Map([['P', 1], ['M', 2], ['G', 3]]) };
+        const { variations } = __buildVariationsFromRowForTests(row, ['Descricao', 'P', 'M', 'G', 'Total'], parsed, columns);
+        assert.equal(variations.length, 1);
+        assert.equal(variations[0].grade, 'P');
+        assert.equal(variations[0].quantidade, 10);
+      }
+    },
+    {
       name: 'preview de XLSX valido sem exigir ag-grid',
       run: async () => {
         __resetMemoryProdutosForTests();
@@ -130,7 +149,7 @@ export function getProdutosImportTests() {
       }
     },
     {
-      name: 'preview reflete estoque real por grade',
+      name: 'preview reflete estoque real por grade positiva',
       run: async () => {
         __resetMemoryProdutosForTests();
         __resetMemoryProductEditorForTests();
@@ -147,12 +166,11 @@ export function getProdutosImportTests() {
         assert.equal(out.body.sampleRows?.[0]?.total, 2025);
         assert.equal(out.body.sampleRows?.[1]?.variations?.[0]?.quantidade, 3);
         assert.equal(out.body.sampleRows?.[1]?.total, 3);
-        assert.equal(out.body.sampleRows?.[2]?.variations?.[0]?.quantidade, 0);
-        assert.equal(out.body.sampleRows?.[2]?.total, 0);
+        assert.equal(out.body.sampleRows?.length, 2);
       }
     },
     {
-      name: 'importacao cria varias grades e ignora Total',
+      name: 'importacao cria somente grades com estoque positivo e ignora Total',
       run: async () => {
         __resetMemoryProdutosForTests();
         __resetMemoryProductEditorForTests();
@@ -269,7 +287,7 @@ export function getProdutosImportTests() {
         assert.equal(out.res.statusCode, 200);
         assert.equal(out.body.sampleRows?.[0]?.variations?.some((variation) => variation.grade === 'Total'), false);
         assert.equal(out.body.sampleRows?.[0]?.variations?.some((variation) => variation.grade === 'P' && variation.quantidade === 1), true);
-        assert.equal(out.body.sampleRows?.[0]?.variations?.some((variation) => variation.grade === 'M' && variation.quantidade === 1), true);
+        assert.equal(out.body.sampleRows?.[0]?.variations?.some((variation) => variation.grade === 'M'), false);
       }
     },
     {

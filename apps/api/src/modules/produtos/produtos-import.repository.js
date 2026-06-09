@@ -202,7 +202,26 @@ function buildVariationIdentity(record = {}) {
   };
 }
 
-async function upsertStockRecord(record) {
+function buildVariationMapKey({ accountId, produtoId, nome, grade }) {
+  return [accountId, produtoId, nome, grade].map((value) => String(value || '').trim()).join('::');
+}
+
+async function findExistingVariationsForProduct(supabase, accountId, produtoId) {
+  const { data, error } = await supabase
+    .from('produto_variacoes')
+    .select(PRODUTO_VARIACOES_SELECT_FIELDS)
+    .eq('account_id', accountId)
+    .eq('produto_id', produtoId);
+  if (error) throw new DatabaseError('Falha ao consultar estoque', { details: error });
+  const map = new Map();
+  for (const variation of data || []) {
+    const identity = buildVariationIdentity(variation);
+    map.set(buildVariationMapKey(identity), variation);
+  }
+  return map;
+}
+
+async function upsertStockRecord(record, existingVariation) {
   try {
     if (mode() === 'supabase') {
       const supabase = getSupabaseClient();
@@ -212,37 +231,6 @@ async function upsertStockRecord(record) {
       }
 
       const variationIdentity = buildVariationIdentity(record);
-      const lookup = {
-        accountId: variationIdentity.accountId,
-        produtoId: variationIdentity.produtoId,
-        nome: variationIdentity.nome,
-        grade: variationIdentity.grade
-      };
-      console.log('[existingVariationLookup]', lookup);
-      console.log('[existingVariationSelect]', {
-        table: 'produto_variacoes',
-        select: PRODUTO_VARIACOES_SELECT_FIELDS,
-        filters: {
-          account_id: variationIdentity.accountId,
-          produto_id: variationIdentity.produtoId,
-          nome: variationIdentity.nome,
-          grade: variationIdentity.grade
-        }
-      });
-      const { data: existing, error: findError } = await supabase
-        .from('produto_variacoes')
-        .select(PRODUTO_VARIACOES_SELECT_FIELDS)
-        .eq('account_id', variationIdentity.accountId)
-        .eq('produto_id', variationIdentity.produtoId)
-        .eq('nome', variationIdentity.nome)
-        .eq('grade', variationIdentity.grade)
-        .maybeSingle();
-      if (findError) throw new DatabaseError('Falha ao consultar estoque', { details: findError });
-      console.log('[existingVariationFound]', {
-        found: !!existing,
-        id: existing?.id
-      });
-
       const conflictPayload = {
         account_id: variationIdentity.accountId,
         produto_id: variationIdentity.produtoId,
@@ -255,15 +243,15 @@ async function upsertStockRecord(record) {
         ativo: true
       };
 
-      if (existing?.id) {
-        const previousQuantidade = Number(existing?.estoque_atual || 0);
+      if (existingVariation?.id) {
+        const previousQuantidade = Number(existingVariation?.estoque_atual || 0);
         if (previousQuantidade === nextQuantidade) {
-          return { row: existing, created: false, movement: null };
+          return { row: existingVariation, created: false, movement: null };
         }
         const { data: updatedVariation, error: updateError } = await supabase
           .from('produto_variacoes')
           .update(conflictPayload)
-          .eq('id', existing.id)
+          .eq('id', existingVariation.id)
           .eq('account_id', variationIdentity.accountId)
           .select(PRODUTO_VARIACOES_SELECT_FIELDS)
           .single();
@@ -390,7 +378,7 @@ function buildVariationsFromRow(row, headers, parsed, columns) {
     const index = columns.variationIndexes.get(grade.toUpperCase());
     if (index === undefined) continue;
     const quantity = toQuantity(row[headers[index]]);
-    if (quantity === null || quantity < 0) continue;
+    if (quantity === null || quantity <= 0) continue;
     const cor = parsed.cor || parsed.variacao_nome || null;
     const baseName = cor || 'PADRAO';
     variations.push({
@@ -405,7 +393,6 @@ function buildVariationsFromRow(row, headers, parsed, columns) {
 
 function buildNormalizedItemsFromRow(row, headers, parsed, columns) {
   const { variations } = buildVariationsFromRow(row, headers, parsed, columns);
-  const fallbackGrade = parsed.variacao_nome || parsed.cor || 'UNI';
   const items = variations.length
     ? variations.map((variation) => ({
       codigo_erp: parsed.codigo_erp || parsed.codigo || null,
@@ -414,50 +401,27 @@ function buildNormalizedItemsFromRow(row, headers, parsed, columns) {
       sku: parsed.codigo_erp || parsed.codigo || null,
       nome: parsed.nome_produto || parsed.nome || null,
       cor: variation.cor || parsed.cor || parsed.variacao_nome || null,
-      grade: variation.grade || variation.tamanho || fallbackGrade,
-      tamanho: variation.tamanho || variation.grade || fallbackGrade,
+      grade: variation.grade || variation.tamanho || null,
+      tamanho: variation.tamanho || variation.grade || null,
       estoque: Number(variation.quantidade || 0),
       total: Number(variation.quantidade || 0),
       totalStock: Number(variation.quantidade || 0),
-      variations: [{ grade: variation.grade || variation.tamanho || fallbackGrade, quantidade: Number(variation.quantidade || 0) }],
+      variations: [{ grade: variation.grade || variation.tamanho || null, quantidade: Number(variation.quantidade || 0) }],
       variationsCount: 1
     }))
-    : [{
-      codigo_erp: parsed.codigo_erp || parsed.codigo || null,
-      nome_produto: parsed.nome_produto || parsed.nome || null,
-      variacao_nome: parsed.cor || parsed.variacao_nome || null,
-      sku: parsed.codigo_erp || parsed.codigo || null,
-      nome: parsed.nome_produto || parsed.nome || null,
-      cor: parsed.cor || parsed.variacao_nome || null,
-      grade: fallbackGrade,
-      tamanho: fallbackGrade,
-      estoque: 0,
-      total: 0,
-      totalStock: 0,
-      variations: [{ grade: fallbackGrade, quantidade: 0 }],
-      variationsCount: 1
-    }];
+    : [];
   return { variations, items };
 }
 
-async function findProductByIdentity(accountId, fabricanteId, identity) {
-  const search = String(identity.codigo || identity.nome || '').trim();
-  if (!search) return null;
-  const result = await listProdutos({ search, page: 1, limit: 100 }, { accountId });
-  return (result.items || []).find((item) => String(item.fabricante_id || '') === String(fabricanteId) && [item.sku, item.codigo, item.nome].some((value) => String(value || '').trim() === search)) || null;
+export function __buildVariationsFromRowForTests(row, headers, parsed, columns) {
+  return buildVariationsFromRow(row, headers, parsed, columns);
 }
 
 async function upsertProdutoPai(accountId, fabricanteId, identity) {
   const search = String(identity.codigo || identity.nome || '').trim();
-  console.log('[produtos-import] search start', {
-    accountId,
-    fabricanteId,
-    search
-  });
+  console.log('[produtos-import] search start', { accountId, fabricanteId, search });
   const result = await listProdutos({ search, page: 1, limit: 100 }, { accountId });
-  console.log('[produtos-import] search result count', {
-    count: result?.items?.length || 0
-  });
+  console.log('[produtos-import] search result count', { count: result?.items?.length || 0 });
   const existing = (result.items || []).find((item) => String(item.fabricante_id || '') === String(fabricanteId) && [item.sku, item.codigo, item.nome].some((value) => String(value || '').trim() === search)) || null;
   const categoria = await resolveCategoriaForProduto(accountId, identity.categoria);
   const basePayload = {
@@ -549,6 +513,7 @@ export async function previewImportXlsx({ accountId, fabricanteId, fileName, buf
     }
     const { variations, items } = buildNormalizedItemsFromRow(row, parsedWorkbook.headers, identity.parsed, identity.columns);
     totalValid += 1;
+    if (!items.length) return;
     if (sampleRows.length < MAX_PREVIEW_ROWS) {
       sampleRows.push({
         codigo_erp: identity.parsed?.codigo_erp || identity.codigo || null,
@@ -626,6 +591,7 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
     const identity = buildImportIdentity(row, parsedWorkbook.headers);
     if (!identity.parsed?.codigo_erp && !identity.parsed?.nome_produto) continue;
     const { variations, items } = buildNormalizedItemsFromRow(row, parsedWorkbook.headers, identity.parsed, identity.columns);
+    if (!items.length) continue;
     const parentKey = [fabricanteId, identity.codigo || identity.parsed?.codigo_erp || '', identity.nome || identity.parsed?.nome_produto || '']
       .map((value) => String(value || '').trim().toLowerCase())
       .join('::');
@@ -681,43 +647,52 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
   try {
     let processedParents = 0;
     let variationsProcessed = 0;
+    const productVariationCache = new Map();
     for (const [parentKey, group] of groupedItems.entries()) {
-      console.log('[produtos-import] parent start', {
-        index: processedParents + 1,
-        totalParents: groupedItems.size,
-        sku: group.identity.codigo || group.identity.parsed?.codigo_erp || null,
-        nome: group.identity.nome || group.identity.parsed?.nome_produto || null,
-        variationsCount: group.items.length
-      });
+      const parentIndex = processedParents + 1;
+      if (parentIndex % 25 === 0) {
+        console.log('[produtos-import] parent start', {
+          index: parentIndex,
+          totalParents: groupedItems.size,
+          sku: group.identity.codigo || group.identity.parsed?.codigo_erp || null,
+          nome: group.identity.nome || group.identity.parsed?.nome_produto || null,
+          variationsCount: group.items.length
+        });
+      }
       let productUpsert = productCache.get(parentKey);
       if (!productUpsert) {
         productUpsert = await upsertProdutoPai(accountId, fabricanteId, group.identity);
         productCache.set(parentKey, productUpsert);
         summary[productUpsert.created ? 'produtos_criados' : 'produtos_atualizados'] += 1;
       }
-      console.log('[produtos-import] parent upserted', {
-        index: processedParents + 1,
-        produtoId: productUpsert?.item?.id || null,
-        sku: productUpsert?.item?.sku || null
-      });
 
-      console.log('[produtos-import] variations start', {
-        index: processedParents + 1,
-        produtoId: productUpsert?.item?.id || null,
-        count: group.items.length
-      });
+      const productId = productUpsert?.item?.id || null;
+      let variationMap = productVariationCache.get(productId);
+      if (!variationMap) {
+        variationMap = new Map();
+      }
+      if (!productVariationCache.has(productId) && mode() === 'supabase') {
+        variationMap = await findExistingVariationsForProduct(getSupabaseClient(), accountId, productId);
+        productVariationCache.set(productId, variationMap);
+      }
 
       for (const item of group.items) {
-        const variationKey = [productUpsert.item.id, item.cor || item.variacao_nome || item.grade || '', item.grade || item.tamanho || '']
-          .map((value) => String(value || '').trim().toLowerCase())
-          .join('::');
+        const variationIdentity = buildVariationIdentity({
+          account_id: accountId,
+          produto_id: productId,
+          nome: item.cor || item.variacao_nome || item.grade || null,
+          grade: item.grade || item.tamanho || null,
+          tamanho: item.tamanho || item.grade || null
+        });
+        const variationKey = buildVariationMapKey(variationIdentity);
         let variationUpsert = variationCache.get(variationKey);
         if (!variationUpsert) {
           variationUpsert = await upsertVariacao(accountId, productUpsert.item.id, group.identity.parsed, item.grade);
           variationCache.set(variationKey, variationUpsert);
           summary[variationUpsert.created ? 'variacoes_criadas' : 'variacoes_atualizadas'] += 1;
+          variationMap.set(variationKey, variationUpsert.item);
         }
-        await upsertStockRecord({
+        const stockResult = await upsertStockRecord({
           account_id: accountId,
           produto_id: productUpsert.item.id,
           variacao_id: variationUpsert.item.id,
@@ -732,7 +707,10 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
           origem: 'IMPORTACAO_XLSX',
           arquivo_origem: fileName || null,
           import_batch_id: batch.id
-        });
+        }, variationMap.get(variationKey));
+        if (variationMap) {
+          variationMap.set(variationKey, stockResult?.row || variationMap.get(variationKey));
+        }
         summary.estoques_atualizados += 1;
         variationsProcessed += 1;
       }
