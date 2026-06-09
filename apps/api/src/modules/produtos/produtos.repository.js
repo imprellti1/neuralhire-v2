@@ -62,6 +62,20 @@ function getProdutoFabricanteId(data = {}) {
   return undefined;
 }
 
+function normalizeProdutoUpdatePayload(payload = {}) {
+  const normalized = { ...payload };
+  delete normalized.fabricanteId;
+  delete normalized.imagemUrl;
+  delete normalized.image_url;
+  delete normalized.foto;
+  delete normalized.foto_url;
+  return normalized;
+}
+
+export function __normalizeProdutoUpdatePayloadForTests(payload = {}) {
+  return normalizeProdutoUpdatePayload(payload);
+}
+
 async function attachFabricanteData(item, options = {}) {
   if (!item) return item;
   const fabricanteId = item.fabricante_id || item.fabricanteId || null;
@@ -323,7 +337,7 @@ export async function updateProduto(id, data = {}, options = {}) {
     ...(data.sku !== undefined ? { sku: data.sku || null } : {}),
     ...(data.categoria_id !== undefined ? { categoria_id: data.categoria_id || null } : {}),
     ...(data.categoria !== undefined && data.categoria_id === undefined ? { categoria: data.categoria || null } : {}),
-    ...(fabricanteId !== undefined ? { fabricante_id: fabricanteId, fabricanteId } : {}),
+    ...(fabricanteId !== undefined ? { fabricante_id: fabricanteId } : {}),
     ...(precoRaw !== undefined ? { preco: Number(precoRaw) } : {}),
     ...(data.preco_promocional !== undefined ? { preco_promocional: Number(data.preco_promocional) } : {}),
     ...(data.icms_percentual !== undefined ? { icms_percentual: Number(data.icms_percentual) } : {}),
@@ -337,7 +351,8 @@ export async function updateProduto(id, data = {}, options = {}) {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     try {
-      const { data: updated, error } = await supabase.from('produtos').update(payload).eq('id', id).eq('account_id', accountId).select('*').single();
+      const supabasePayload = normalizeProdutoUpdatePayload(payload);
+      const { data: updated, error } = await supabase.from('produtos').update(supabasePayload).eq('id', id).eq('account_id', accountId).select('*').single();
       if (error) throw error;
       return attachFabricanteData(updated, { accountId });
     } catch (error) {

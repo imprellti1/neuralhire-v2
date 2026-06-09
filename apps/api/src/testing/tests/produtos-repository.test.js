@@ -2,6 +2,7 @@ import { assertEqual } from '../assert.js';
 import { __resetMemoryFabricantesForTests, createFabricante } from '../../modules/fabricantes/fabricantes.repository.js';
 import {
   __resetMemoryProdutosForTests,
+  __normalizeProdutoUpdatePayloadForTests,
   createProduto,
   getProdutoById,
   getProdutosRepositoryMode,
@@ -17,6 +18,27 @@ export function getProdutosRepositoryTests() {
       run: async () => {
         const mode = getProdutosRepositoryMode();
         assertEqual(mode.mode, 'memory');
+      }
+    },
+    {
+      name: 'updateProduto normaliza payload para Supabase',
+      run: async () => {
+        const payload = __normalizeProdutoUpdatePayloadForTests({
+          nome: 'Produto X',
+          fabricante_id: 'fab-1',
+          fabricanteId: 'fab-1',
+          imagemUrl: 'https://img.example/x.png',
+          imagem_url: 'https://img.example/x.png',
+          image_url: 'https://img.example/x.png',
+          foto: 'https://img.example/x.png',
+          foto_url: 'https://img.example/x.png',
+          descricao: 'Desc'
+        });
+        assertEqual(payload.fabricante_id, 'fab-1');
+        assertEqual(Object.prototype.hasOwnProperty.call(payload, 'fabricanteId'), false);
+        assertEqual(Object.prototype.hasOwnProperty.call(payload, 'imagemUrl'), false);
+        assertEqual(Object.prototype.hasOwnProperty.call(payload, 'image_url'), false);
+        assertEqual(Object.prototype.hasOwnProperty.call(payload, 'foto'), false);
       }
     },
     {
