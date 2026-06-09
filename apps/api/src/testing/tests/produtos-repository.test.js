@@ -1,15 +1,24 @@
 import { assertEqual } from '../assert.js';
+import { Buffer } from 'node:buffer';
 import { __resetMemoryFabricantesForTests, createFabricante } from '../../modules/fabricantes/fabricantes.repository.js';
 import {
   __resetMemoryProdutosForTests,
+  __loadMemoryProdutos,
   __normalizeProdutoUpdatePayloadForTests,
   createProduto,
   getProdutoById,
   getProdutosRepositoryMode,
-  listProdutos
+  listProdutos,
+  updateProdutoVariacaoImagem
 } from '../../modules/produtos/produtos.repository.js';
 
 const accountId = 'acc-prod-repo';
+
+function createSupabaseMock() {
+  return {
+    storage: {}
+  };
+}
 
 export function getProdutosRepositoryTests() {
   return [
@@ -105,6 +114,18 @@ export function getProdutosRepositoryTests() {
         const found = await getProdutoById(created.id, { accountId });
         assertEqual(found.regras_comerciais_fabricante.comissao_padrao, 7);
         assertEqual(found.regras_comerciais_fabricante.cnpj, '62345678000199');
+      }
+    },
+    {
+      name: 'updateProdutoVariacaoImagem salva imagem da variacao com tenant',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        const produtoId = 'prod-1';
+        const variacaoId = 'var-1';
+        __loadMemoryProdutos([{ id: produtoId, account_id: accountId, nome: 'Produto 1', variacoes: [{ id: variacaoId, account_id: accountId, produto_id: produtoId, imagem_url: null, imagem_path: null, ativo: true, sku: 'SKU-1', nome: 'Variação 1', valor: 0, cor: 'Azul', grade: 'G' }] }]);
+        const updated = await updateProdutoVariacaoImagem(produtoId, variacaoId, { fileName: 'foto.png', mimeType: 'image/png', base64: Buffer.from('fakepng').toString('base64'), size: 7 }, { accountId });
+        assertEqual(Boolean(updated.imagem_url), true);
+        assertEqual(updated.imagem_path.includes(`${accountId}/${produtoId}/${variacaoId}/`), true);
       }
     }
   ];

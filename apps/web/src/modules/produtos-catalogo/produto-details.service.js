@@ -58,8 +58,8 @@ export async function fetchProdutoImagens(apiClient, produtoId) {
   return Array.isArray(response?.items) ? response.items : [];
 }
 
-export async function uploadProdutoImagem(apiClient, produtoId, payload) {
-  return apiClient.post(`/produtos/${produtoId}/imagens`, payload);
+export async function uploadProdutoVariacaoImagem(apiClient, variacaoId, payload) {
+  return apiClient.post(`/produto-variacoes/${variacaoId}/imagem`, payload);
 }
 
 export async function updateProdutoImagem(apiClient, produtoId, imagemId, payload) {

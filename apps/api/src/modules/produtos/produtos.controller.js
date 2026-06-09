@@ -5,8 +5,9 @@ import {
   getProdutosRepositoryMode,
   listProdutos,
   listProdutoVariacoes,
-  searchProdutos
-  ,updateProduto
+  searchProdutos,
+  updateProdutoVariacaoImagem,
+  updateProduto
 } from './produtos.repository.js';
 import { recordAuditLog } from '../../core/audit-logs.js';
 
@@ -48,6 +49,25 @@ export async function getProdutoVariacoes(context = {}) {
   const produtoId = context.params?.produtoId || context.params?.id;
   const items = await listProdutoVariacoes(produtoId, { accountId });
   return { ok: true, repositoryMode: getProdutosRepositoryMode(), items };
+}
+
+export async function updateProdutoVariacaoImagemHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const produtoId = context.params?.produtoId || context.params?.id;
+  const variacaoId = context.params?.variacaoId;
+  const upload = context.body?.upload || context.body?.file || null;
+  const item = await updateProdutoVariacaoImagem(produtoId, variacaoId, upload, { accountId });
+  await recordAuditLog(context, {
+    modulo: 'produtos',
+    entidade: 'produto_variacao',
+    entidade_id: variacaoId || null,
+    acao: 'upload_imagem',
+    descricao: 'Imagem da variação atualizada',
+    status: 'success',
+    sucesso: true,
+    metadata: { produto_id: produtoId || null, variacao_id: variacaoId || null }
+  }).catch(() => null);
+  return { ok: true, item };
 }
 
 export async function searchProdutosHandler(context = {}) {

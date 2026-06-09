@@ -105,7 +105,7 @@ test('produto 360 mantém o layout e o toggle de variações', async () => {
   teardownFrontendDom(dom);
 });
 
-test('produto 360 envia imagem como multipart/form-data', async () => {
+test('produto 360 envia imagem da variacao como multipart/form-data', async () => {
   const dom = setupFrontendDom('#/produtos/p1');
   mockObjectUrl();
   const anchorMock = mockAnchorClicks(dom);
@@ -117,17 +117,17 @@ test('produto 360 envia imagem como multipart/form-data', async () => {
         return { item: { id: 'p1', nome: 'Produto A', sku: 'SKU1', categoria: 'Cat', preco: 10, status: 'ativo', ativo: true } };
       }
       if (path === '/product-editor/products/p1') {
-        return { item: { id: 'p1', variations: [] } };
+        return { item: { id: 'p1', variations: [{ id: 'v1', sku: 'SKU1-01', cor: 'Azul', grade: 'P', estoque_atual: 2, preco: 10, status: 'ativo', status_comercial: 'ativo', updated_at: '2026-05-03T00:00:00.000Z' }] } };
       }
       if (path === '/fabricantes') return { items: [] };
       if (path === '/pedidos') return { items: [] };
-      if (path === '/produtos/p1/imagens') return { items: [] };
+      if (path === '/produtos/p1/variacoes') return { items: [{ id: 'v1', sku: 'SKU1-01', cor: 'Azul', grade: 'P', estoque_atual: 2, preco: 10, status: 'ativo', status_comercial: 'ativo', updated_at: '2026-05-03T00:00:00.000Z' }] };
       throw new Error(`unhandled get ${path}`);
     },
     async post(path, body) {
-      if (path === '/produtos/p1/imagens') {
+      if (path === '/produto-variacoes/v1/imagem') {
         uploadBody = body;
-        return { item: { id: 'img-1' } };
+        return { item: { id: 'v1' } };
       }
       return { item: {} };
     },
@@ -140,14 +140,12 @@ test('produto 360 envia imagem como multipart/form-data', async () => {
   await flush(); await flush(); await flush();
 
   const file = new File([new Blob(['fake-image'])], 'foto.png', { type: 'image/png' });
-  const input = root.querySelector('#nhpd-image-file');
+  const input = root.querySelector('#nhpd-file-v1');
   Object.defineProperty(input, 'files', { value: [file], configurable: true });
-  root.querySelector('#nhpd-image-upload').click();
+  root.querySelector('.js-variation-image-upload').click();
   await flush(); await flush();
 
   assert.ok(uploadBody instanceof FormData);
-  assert.equal(uploadBody.get('principal'), 'true');
-  assert.equal(uploadBody.get('tipo'), 'image');
   const uploadFile = uploadBody.get('upload');
   assert.ok(uploadFile instanceof File);
   assert.equal(uploadFile.name, 'foto.png');

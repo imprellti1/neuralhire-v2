@@ -1,4 +1,6 @@
 ﻿import { randomUUID } from 'node:crypto';
+import { Buffer } from 'node:buffer';
+import path from 'node:path';
 import { env } from '../../config/env.js';
 import { BadRequestError, DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
@@ -7,6 +9,14 @@ import { getProdutoCategoriaById } from '../produto-categorias/produto-categoria
 
 const memoryProdutos = [];
 const PRODUTO_VARIACOES_SELECT_FIELDS = 'id, account_id, produto_id, sku, nome, valor, cor, grade, estoque_atual, preco, preco_promocional, multiplo_venda, ativo, imagem_url, imagem_path, created_at, updated_at';
+const VARIACAO_IMAGE_BUCKET = 'produto-variacoes-imagens';
+const MAX_VARIACAO_IMAGE_BYTES = 25 * 1024 * 1024;
+const ALLOWED_VARIACAO_IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const ALLOWED_VARIACAO_IMAGE_EXTENSIONS = new Map([
+  ['image/png', 'png'],
+  ['image/jpeg', 'jpg'],
+  ['image/webp', 'webp']
+]);
 
 function assertAccountId(accountId) {
   if (!accountId) {
@@ -252,6 +262,59 @@ function normalizeProdutoVariacao(item = {}) {
   };
 }
 
+function safeName(value) {
+  const fileName = path.basename(String(value || ''), path.extname(String(value || '')));
+  return fileName.replace(/[^a-z0-9_-]+/gi, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'imagem';
+}
+
+function normalizeVariationImageUpload(upload) {
+  if (!upload || typeof upload !== 'object') return null;
+  const fileName = String(upload.fileName || upload.filename || '').trim();
+  const mimeType = String(upload.mimeType || upload.contentType || '').trim().toLowerCase();
+  const base64 = String(upload.base64 || upload.data || '').trim();
+  const size = Number(upload.size || 0);
+  if (!fileName || !mimeType || !base64) return null;
+  if (!ALLOWED_VARIACAO_IMAGE_MIME_TYPES.has(mimeType)) {
+    throw new BadRequestError('Formato de imagem invalido', { domain: 'produtos-catalogo', code: 'INVALID_FILE_TYPE' });
+  }
+  if (!Number.isFinite(size) || size <= 0 || size > MAX_VARIACAO_IMAGE_BYTES) {
+    throw new BadRequestError('Arquivo excede o limite permitido', { domain: 'produtos-catalogo', code: 'PAYLOAD_TOO_LARGE' });
+  }
+  return { fileName, mimeType, base64, size };
+}
+
+async function ensureVariacaoImageBucket(supabase) {
+  try {
+    const { data } = await supabase.storage.listBuckets();
+    if (!Array.isArray(data) || !data.find((bucket) => bucket.name === VARIACAO_IMAGE_BUCKET)) {
+      await supabase.storage.createBucket(VARIACAO_IMAGE_BUCKET, { public: true, fileSizeLimit: MAX_VARIACAO_IMAGE_BYTES });
+    }
+  } catch {}
+}
+
+async function uploadVariacaoImageToStorage({ accountId, produtoId, variacaoId, upload }) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new DatabaseError('Supabase indisponivel');
+  await ensureVariacaoImageBucket(supabase);
+  const normalized = normalizeVariationImageUpload(upload);
+  if (!normalized) throw new BadRequestError('Imagem invalida', { domain: 'produtos-catalogo' });
+  const ext = ALLOWED_VARIACAO_IMAGE_EXTENSIONS.get(normalized.mimeType);
+  const objectPath = `${accountId}/${produtoId}/${variacaoId}/${Date.now()}-${safeName(normalized.fileName)}.${ext}`;
+  const bytes = Buffer.from(normalized.base64.replace(/^data:[^;]+;base64,/, ''), 'base64');
+  const { error } = await supabase.storage.from(VARIACAO_IMAGE_BUCKET).upload(objectPath, bytes, { upsert: true, contentType: normalized.mimeType });
+  if (error) throw new DatabaseError('Falha ao enviar imagem da variacao', { details: error });
+  const { data } = supabase.storage.from(VARIACAO_IMAGE_BUCKET).getPublicUrl(objectPath);
+  return { url: data?.publicUrl || null, storage_path: objectPath };
+}
+
+async function assertVariacaoScope(accountId, produtoId, variacaoId) {
+  await getProdutoById(produtoId, { accountId });
+  const variacoes = await listProdutoVariacoes(produtoId, { accountId });
+  const match = (variacoes || []).find((item) => String(item.id) === String(variacaoId));
+  if (!match) throw new NotFoundError('Variacao nao encontrada', { domain: 'produtos-catalogo', code: 'VARIACAO_NOT_FOUND' });
+  return match;
+}
+
 export async function listProdutoVariacoes(produtoId, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
@@ -260,7 +323,12 @@ export async function listProdutoVariacoes(produtoId, options = {}) {
   const repositoryMode = getProdutosRepositoryMode();
   debugRepository('listProdutoVariacoes', { repositoryMode, accountId, produtoId });
 
-  if (repositoryMode.mode !== 'supabase') return [];
+  if (repositoryMode.mode !== 'supabase') {
+    const item = memoryProdutos.find((produto) => produto.id === produtoId && produto.account_id === accountId);
+    if (!item) return [];
+    const rawVariations = Array.isArray(item.variacoes) ? item.variacoes : Array.isArray(item.variations) ? item.variations : Array.isArray(item.produto_variacoes) ? item.produto_variacoes : [];
+    return rawVariations.map(normalizeProdutoVariacao);
+  }
 
   const supabase = getSupabaseClient();
   if (!supabase) throw new DatabaseError('Supabase indisponivel');
@@ -273,6 +341,39 @@ export async function listProdutoVariacoes(produtoId, options = {}) {
     .order('created_at', { ascending: true });
   if (error) throw new DatabaseError('Falha ao listar variacoes do produto', { details: error });
   return (data || []).map(normalizeProdutoVariacao);
+}
+
+export async function updateProdutoVariacaoImagem(produtoId, variacaoId, upload, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  await assertVariacaoScope(accountId, produtoId, variacaoId);
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    const idx = memoryProdutos.findIndex((produto) => produto.id === produtoId && produto.account_id === accountId);
+    if (idx < 0) throw new NotFoundError('Produto nao encontrado', { domain: 'produtos-catalogo', code: 'PRODUTO_NOT_FOUND' });
+    const normalized = normalizeVariationImageUpload(upload);
+    const updatedVariation = normalizeProdutoVariacao({
+      ...(await assertVariacaoScope(accountId, produtoId, variacaoId)),
+      imagem_url: `memory://${accountId}/${produtoId}/${variacaoId}/${safeName(normalized.fileName)}`,
+      imagem_path: `memory/${accountId}/${produtoId}/${variacaoId}/${safeName(normalized.fileName)}`
+    });
+    const product = memoryProdutos[idx];
+    const rawVariations = Array.isArray(product.variacoes) ? product.variacoes : Array.isArray(product.variations) ? product.variations : Array.isArray(product.produto_variacoes) ? product.produto_variacoes : [];
+    const nextVariations = rawVariations.map((variation) => String(variation.id) === String(variacaoId) ? { ...variation, imagem_url: updatedVariation.imagem_url, imagem_path: updatedVariation.imagem_path } : variation);
+    memoryProdutos[idx] = { ...product, variacoes: nextVariations, variations: nextVariations, produto_variacoes: nextVariations, updatedAt: new Date().toISOString() };
+    return updatedVariation;
+  }
+  const uploaded = await uploadVariacaoImageToStorage({ accountId, produtoId, variacaoId, upload });
+  const { data: updated, error } = await supabase
+    .from('produto_variacoes')
+    .update({ imagem_url: uploaded.url, imagem_path: uploaded.storage_path, updated_at: new Date().toISOString() })
+    .eq('account_id', accountId)
+    .eq('produto_id', produtoId)
+    .eq('id', variacaoId)
+    .select(PRODUTO_VARIACOES_SELECT_FIELDS)
+    .single();
+  if (error) throw new DatabaseError('Falha ao atualizar imagem da variacao', { details: error });
+  return normalizeProdutoVariacao(updated);
 }
 
 export async function searchProdutos(query, options = {}) {

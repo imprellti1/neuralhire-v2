@@ -1,6 +1,8 @@
 import { asyncHandler } from '../../core/async-handler.js';
 import { sendSuccess } from '../../core/response.js';
-import { createProdutoHandler, getProduto, getProdutoVariacoes, getProdutos, searchProdutosHandler, updateProdutoHandler } from './produtos.controller.js';
+import { requirePermission } from '../../core/rbac.middleware.js';
+import { requireTenant } from '../../core/tenant.middleware.js';
+import { createProdutoHandler, getProduto, getProdutoVariacoes, getProdutos, searchProdutosHandler, updateProdutoHandler, updateProdutoVariacaoImagemHandler } from './produtos.controller.js';
 import { createProdutoSchema, updateProdutoSchema } from './produtos.schemas.js';
 
 export function registerProdutosRoutes(router) {
@@ -37,6 +39,16 @@ export function registerProdutosRoutes(router) {
     domain: 'produtos-catalogo',
     handler: asyncHandler(async (req, res, context) => {
       sendSuccess(res, await getProdutoVariacoes(context));
+    })
+  });
+
+  router.registerRoute({
+    method: 'POST',
+    path: '/produto-variacoes/:variacaoId/imagem',
+    domain: 'produtos-catalogo',
+    middlewares: [requirePermission('produtos:write'), requireTenant({ domain: 'produtos-catalogo' })],
+    handler: asyncHandler(async (req, res, context) => {
+      sendSuccess(res, await updateProdutoVariacaoImagemHandler(context));
     })
   });
 

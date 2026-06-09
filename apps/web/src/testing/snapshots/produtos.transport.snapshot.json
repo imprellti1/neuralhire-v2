@@ -101,15 +101,6 @@
       "content-type": "application/json"
     },
     "method": "GET",
-    "path": "/produtos/p1/imagens",
-    "query": {}
-  },
-  {
-    "body": null,
-    "headers": {
-      "content-type": "application/json"
-    },
-    "method": "GET",
     "path": "/pedidos",
     "query": {
       "limit": "200",
@@ -177,15 +168,6 @@
     "query": {
       "status": "ativo"
     }
-  },
-  {
-    "body": null,
-    "headers": {
-      "content-type": "application/json"
-    },
-    "method": "GET",
-    "path": "/produtos/p1/imagens",
-    "query": {}
   },
   {
     "body": null,

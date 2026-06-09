@@ -1,6 +1,6 @@
 import { createProdutoDetailsState } from './produto-details.state.js';
 import { applyProdutoUsageDrillDown, applyProdutoUsageFilters, createProdutoEditForm, mapProdutoUsageCsvContent, mapProdutoUsageCsvFilename, mapProdutoUsageCsvRows, validateProdutoEditForm } from './produto-details.mapper.js';
-import { deleteProdutoImagem, fetchProdutoDetailsData, fetchProdutoImagens, fetchProdutoUsageData, updateProduto, updateProdutoImagem, uploadProdutoImagem } from './produto-details.service.js';
+import { fetchProdutoDetailsData, fetchProdutoUsageData, updateProduto, uploadProdutoVariacaoImagem } from './produto-details.service.js';
 
 function statusClass(status) {
   if (status === 'ativo') return 'is-ok';
@@ -18,6 +18,10 @@ function normalizeStatusLabel(status, ativo) {
 function formatVariationField(value) {
   const text = String(value ?? '').trim();
   return text || '-';
+}
+function renderVariationImageCell(variation = {}) {
+  const src = variation.imagemUrl || variation.imagem_url || variation.raw?.imagemUrl || variation.raw?.imagem_url || variation.raw?.imagemPrincipalUrl || variation.raw?.imagem_principal_url || null;
+  return src ? `<img src="${src}" alt="Imagem da variação" style="width:60px;height:60px;object-fit:cover;border-radius:12px;border:1px solid #dbe4f2;background:#f8fbff" />` : '<div style="width:60px;height:60px;border-radius:12px;border:1px solid #dbe4f2;background:#f8fbff"></div>';
 }
 const USAGE_STEP = 5;
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
@@ -52,16 +56,6 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     }
   }
 
-  async function loadImagens() {
-    try {
-      state.images = await fetchProdutoImagens(apiClient, produtoId);
-    } catch {
-      state.images = [];
-    } finally {
-      render();
-    }
-  }
-
   function injectStyles() {
     if (document.getElementById('nh-produto-details-style')) return;
     const style = document.createElement('style');
@@ -90,7 +84,8 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     .nhpd-chart-hit{cursor:pointer}.nhpd-chart-hit.active{fill:#1f56dc;opacity:.18}.nhpd-chart-hit{fill:transparent}
     .nhpd-chart-tip{font-size:12px;color:#334155;margin:-2px 0 8px}
     .nhpd-ferr{font-size:12px;color:#b42318}.nhpd-msg{padding:10px;border-radius:10px;font-size:13px;margin-bottom:10px;background:#ecfdf3;color:#047857}
-    .nhpd-image-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.nhpd-image-card{border:1px solid #e5ecf8;border-radius:12px;padding:10px}.nhpd-image-card img{width:100%;height:140px;object-fit:cover;border-radius:10px;background:#f8fbff}
+    .nhpd-variation-image{width:60px;height:60px;object-fit:cover;border-radius:12px;border:1px solid #dbe4f2;background:#f8fbff}
+    .nhpd-image-picker{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     @media (max-width:1024px){.nhpd-grid{grid-template-columns:1fr}.nhpd-title{font-size:24px}.nhpd-dl{grid-template-columns:1fr}.nhpd-kpi{grid-template-columns:1fr 1fr}}
     `;
     document.head.appendChild(style);
@@ -121,6 +116,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     const variations = Array.isArray(d.variacoes) ? d.variacoes : [];
     const stockTotal = Number.isFinite(Number(d.estoqueTotalVariacoes)) ? Number(d.estoqueTotalVariacoes) : 0;
     const variationRows = variations.map((variation) => `<tr>
+      <td>${renderVariationImageCell(variation)}</td>
       <td>${formatVariationField(variation.sku)}</td>
       <td>${formatVariationField(variation.cor)}</td>
       <td>${formatVariationField(variation.tamanho)}</td>
@@ -129,6 +125,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
       <td><span class="nhpd-badge ${statusClass(variation.status)}">${variation.status}</span></td>
       <td>${normalizeStatusLabel(variation.statusComercial, variation.status === 'ativo')}</td>
       <td>${variation.updatedAtFormatado}</td>
+      <td><div class="nhpd-image-picker"><input type="file" id="nhpd-file-${variation.id}" accept="image/jpeg,image/png,image/webp" ${state.saving ? 'disabled' : ''}/><button class="nhpd-btn primary js-variation-image-upload" data-variacao-id="${variation.id}" ${state.saving ? 'disabled' : ''}>Alterar Imagem</button></div></td>
     </tr>`).join('');
     return `<section class="nhpd-panel">
       <div class="nhpd-head">
@@ -142,7 +139,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
         </div>
         <div class="nhpd-right-col">
           <article class="nhpd-card"><h3>Fábrica vinculada</h3>${d.fabricanteId ? `<div class="nhpd-fabricante">${d.fabricanteLogoUrl ? `<div class="nhpd-fabricante-logo"><img src="${d.fabricanteLogoUrl}" alt="Logo da fábrica"/></div>` : '<div class="nhpd-fabricante-logo" aria-hidden="true"></div>'}<div class="nhpd-fabricante-name">${d.fabricanteNome || 'Sem nome'}</div></div>` : '<div class="nhpd-state">Sem fábrica vinculada.</div>'}</article>
-          <article class="nhpd-card"><h3>Imagens</h3>${renderImagesBlock()}</article>
+          <article class="nhpd-card"><h3>Imagem do Produto</h3>${renderProductImageBlock(d, variations)}</article>
         </div>
         <article class="nhpd-card" style="grid-column:1 / -1"><h3>Uso em Pedidos / Histórico comercial</h3>${renderUsageBlock()}</article>
         <article class="nhpd-card nhpd-variation-section" style="grid-column:1 / -1">
@@ -150,15 +147,15 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
             <h3>Variações do Produto</h3>
             <button id="nhpd-variations-toggle" class="nhpd-collapse" aria-label="${state.variationsExpanded ? 'Recolher variações do produto' : 'Expandir variações do produto'}" aria-expanded="${state.variationsExpanded ? 'true' : 'false'}">${state.variationsExpanded ? '▾' : '▸'}</button>
           </div>
-          ${state.variationsExpanded ? `<div class="nhpd-table-wrap">${variations.length ? `<table class="nhpd-table"><thead><tr><th>SKU Variação</th><th>Cor</th><th>Grade</th><th>Estoque</th><th>Preço</th><th>Status</th><th>Status Comercial</th><th>Atualizado em</th></tr></thead><tbody>${variationRows}</tbody></table>` : '<div class="nhpd-state">Nenhuma variação cadastrada.</div>'}<div class="nhpd-footer"><div>Total de variações: ${variations.length}</div></div></div>` : `<div class="nhpd-footer"><div>Total de variações: ${variations.length}</div></div>`}
+          ${state.variationsExpanded ? `<div class="nhpd-table-wrap">${variations.length ? `<table class="nhpd-table"><thead><tr><th>Imagem</th><th>SKU Variação</th><th>Cor</th><th>Grade</th><th>Estoque</th><th>Preço</th><th>Status</th><th>Status Comercial</th><th>Atualizado em</th><th>Ação</th></tr></thead><tbody>${variationRows}</tbody></table>` : '<div class="nhpd-state">Nenhuma variação cadastrada.</div>'}<div class="nhpd-footer"><div>Total de variações: ${variations.length}</div></div></div>` : `<div class="nhpd-footer"><div>Total de variações: ${variations.length}</div></div>`}
         </article>
       </div>
     </section>`;
   }
 
-  function renderImagesBlock() {
-    const primary = (state.images || []).find((img) => img.principal) || (state.images || [])[0] || null;
-    return `<div style="display:grid;gap:10px"><div>${primary ? `<img src="${primary.url}" alt="Imagem principal do produto" style="width:100%;max-height:280px;object-fit:cover;border-radius:14px;border:1px solid #e5ecf8" />` : '<div class="nhpd-state">Sem imagem cadastrada.</div>'}</div><div><input type="file" id="nhpd-image-file" accept="image/jpeg,image/png,image/webp" ${state.saving ? 'disabled' : ''}/><button id="nhpd-image-upload" class="nhpd-btn primary" ${state.saving ? 'disabled' : ''}>Enviar imagem</button></div><div class="nhpd-image-grid">${(state.images || []).map((img) => `<div class="nhpd-image-card"><img src="${img.url}" alt="imagem do produto"/><div style="display:flex;justify-content:space-between;gap:8px;margin-top:8px"><button class="nhpd-btn js-img-primary" data-id="${img.id}">${img.principal ? 'Principal' : 'Tornar principal'}</button><button class="nhpd-btn js-img-remove" data-id="${img.id}">Remover</button></div></div>`).join('')}</div>`;
+  function renderProductImageBlock(product, variations = []) {
+    const primary = product.imagemUrl || product.imagem_url || variations.find((variation) => variation.imagemUrl || variation.imagem_url)?.imagemUrl || variations.find((variation) => variation.imagemUrl || variation.imagem_url)?.imagem_url || null;
+    return `<div style="display:grid;gap:10px"><div>${primary ? `<img src="${primary}" alt="Imagem principal do produto" style="width:100%;max-height:280px;object-fit:cover;border-radius:14px;border:1px solid #e5ecf8;object-fit:cover" />` : '<div class="nhpd-state">Sem imagem cadastrada.</div>'}</div><div class="nhpd-sub">Fallback para a imagem principal do produto quando a variação ainda não tem imagem própria.</div></div>`;
   }
 
   function renderUsageBlock() {
@@ -256,10 +253,10 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     if (usageMore) usageMore.onclick = () => { state.usageVisibleCount += USAGE_STEP; render(); };
     const usageLess = root.querySelector('#nhpd-usage-less');
     if (usageLess) usageLess.onclick = () => { state.usageVisibleCount = USAGE_STEP; render(); };
-    const imageUpload = root.querySelector('#nhpd-image-upload');
-    if (imageUpload) imageUpload.onclick = async () => {
-      const file = root.querySelector('#nhpd-image-file')?.files?.[0];
-      if (!file) return;
+    root.querySelectorAll('.js-variation-image-upload').forEach((btn) => btn.onclick = async () => {
+      const variacaoId = btn.dataset.variacaoId;
+      const file = root.querySelector(`#nhpd-file-${variacaoId}`)?.files?.[0];
+      if (!file || !variacaoId) return;
       if (file.size > MAX_IMAGE_BYTES) {
         state.feedbackMessage = 'A imagem ultrapassa o limite de 25MB.';
         render();
@@ -271,25 +268,17 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
       try {
         const formData = new FormData();
         formData.append('upload', file, file.name);
-        formData.append('principal', 'true');
-        formData.append('tipo', 'image');
-        await uploadProdutoImagem(apiClient, produtoId, formData);
-        state.feedbackMessage = 'Imagem enviada com sucesso.';
-        await loadImagens();
+        await uploadProdutoVariacaoImagem(apiClient, variacaoId, formData);
+        state.feedbackMessage = 'Imagem da variação atualizada com sucesso.';
+        await load({ preserveMessages: true, feedbackMessage: 'Imagem da variação atualizada com sucesso.' });
       } catch (error) {
         const code = error?.body?.error?.code || error?.code;
-        if (code === 'PAYLOAD_TOO_LARGE') {
-          state.feedbackMessage = 'A imagem ultrapassa o limite de 25MB.';
-        } else {
-          state.feedbackMessage = error?.body?.error?.message || error?.message || 'Não foi possível enviar a imagem.';
-        }
+        state.feedbackMessage = code === 'PAYLOAD_TOO_LARGE' ? 'A imagem ultrapassa o limite de 25MB.' : error?.body?.error?.message || error?.message || 'Não foi possível enviar a imagem.';
       } finally {
         state.saving = false;
         render();
       }
-    };
-    root.querySelectorAll('.js-img-primary').forEach((btn) => btn.onclick = async () => { await updateProdutoImagem(apiClient, produtoId, btn.dataset.id, { principal: true }); await loadImagens(); });
-    root.querySelectorAll('.js-img-remove').forEach((btn) => btn.onclick = async () => { await deleteProdutoImagem(apiClient, produtoId, btn.dataset.id); await loadImagens(); });
+    });
     function exportUsageCsv(mode) {
       const u = applyProdutoUsageFilters(state.usage, state.usageFilters);
       const baseRows = applyProdutoUsageDrillDown(u.pedidosRecentes || [], state.usageDrillDown, u.agrupamentoTemporal);
@@ -358,7 +347,6 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
       if (options.feedbackMessage) state.feedbackMessage = options.feedbackMessage;
       loadFabricantes();
       loadCategorias();
-      loadImagens();
       loadUsage();
     } catch (error) {
       if (error?.status === 404) state.notFound = true;
