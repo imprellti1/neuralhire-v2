@@ -127,3 +127,46 @@ test('produtos import page keeps fabricanteId in sync with selected option', asy
   assert.equal(previewBtn.disabled, false);
   teardownFrontendDom(dom);
 });
+
+test('produtos import page bloqueia a tela durante o processamento', async () => {
+  const dom = setupFrontendDom('#/produtos/importacao-processing');
+  let resolvePreview;
+  const apiClient = {
+    get: async (path) => {
+      if (path === '/fabricantes') return { items: [{ id: '550e8400-e29b-41d4-a716-446655440100', nome: 'Fab Processing' }] };
+      return { items: [] };
+    },
+    post: async (path) => {
+      if (path === '/produtos/importar-estoque/preview') {
+        return await new Promise((resolve) => {
+          resolvePreview = resolve;
+        });
+      }
+      return { ok: true };
+    }
+  };
+  await renderProdutosImportPage(document.body, { apiClient });
+  await flush();
+  const fileInput = document.querySelector('#npi-file');
+  const fileBlob = makeTestXlsxBlob();
+  Object.defineProperty(fileInput, 'files', {
+    configurable: true,
+    value: [fileBlob]
+  });
+  fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+  document.querySelector('#npi-preview').click();
+  await flush();
+  const overlay = document.querySelector('.nh-global-processing');
+  assert.ok(overlay);
+  assert.equal(overlay.hidden, false);
+  assert.match(overlay.textContent, /Lendo planilha/);
+  assert.equal(document.body.style.overflow, 'hidden');
+  resolvePreview({ ok: true, batchId: 'batch-2', totalRows: 1, divergences: 0, items: [{ sku: '750100001', nome: 'TOALHA', cor: 'BRANCO', grade: 'UNI', estoque: 2025 }], sampleRows: [], headers: ['Descrição'] });
+  await flush();
+  await flush();
+  const overlayAfter = document.querySelector('.nh-global-processing');
+  assert.ok(!overlayAfter || overlayAfter.hidden === true);
+  assert.notEqual(document.body.style.overflow, 'hidden');
+  teardownFrontendDom(dom);
+});

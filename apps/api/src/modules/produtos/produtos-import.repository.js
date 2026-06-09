@@ -104,7 +104,9 @@ function detectColumns(headers) {
 
 function validateMinimalColumns(headers) {
   const columns = detectColumns(headers);
-  if (columns.descriptionIndex < 0 && columns.skuIndex < 0) {
+  const hasRequiredBaseColumns = columns.descriptionIndex >= 0 || columns.skuIndex >= 0;
+  const hasVariationColumns = columns.variationIndexes.size > 0;
+  if (!hasRequiredBaseColumns && !hasVariationColumns) {
     throw new BadRequestError('A planilha precisa conter ao menos uma coluna de produto/nome/descrição.', { domain: 'produtos-import', code: 'MISSING_MINIMAL_COLUMNS' });
   }
 }
@@ -335,8 +337,44 @@ function buildVariationsFromRow(row, headers, parsed, columns) {
       quantidade: quantity
     });
   }
-  const totalStock = variations.reduce((sum, variation) => sum + Number(variation.quantidade || 0), 0);
-  return { variations, totalStock };
+  return { variations };
+}
+
+function buildNormalizedItemsFromRow(row, headers, parsed, columns) {
+  const { variations } = buildVariationsFromRow(row, headers, parsed, columns);
+  const fallbackGrade = parsed.variacao_nome || parsed.cor || 'UNI';
+  const items = variations.length
+    ? variations.map((variation) => ({
+      codigo_erp: parsed.codigo_erp || parsed.codigo || null,
+      nome_produto: parsed.nome_produto || parsed.nome || null,
+      variacao_nome: variation.cor || parsed.cor || parsed.variacao_nome || null,
+      sku: parsed.codigo_erp || parsed.codigo || null,
+      nome: parsed.nome_produto || parsed.nome || null,
+      cor: variation.cor || parsed.cor || parsed.variacao_nome || null,
+      grade: variation.grade || variation.tamanho || fallbackGrade,
+      tamanho: variation.tamanho || variation.grade || fallbackGrade,
+      estoque: Number(variation.quantidade || 0),
+      total: Number(variation.quantidade || 0),
+      totalStock: Number(variation.quantidade || 0),
+      variations: [{ grade: variation.grade || variation.tamanho || fallbackGrade, quantidade: Number(variation.quantidade || 0) }],
+      variationsCount: 1
+    }))
+    : [{
+      codigo_erp: parsed.codigo_erp || parsed.codigo || null,
+      nome_produto: parsed.nome_produto || parsed.nome || null,
+      variacao_nome: parsed.cor || parsed.variacao_nome || null,
+      sku: parsed.codigo_erp || parsed.codigo || null,
+      nome: parsed.nome_produto || parsed.nome || null,
+      cor: parsed.cor || parsed.variacao_nome || null,
+      grade: fallbackGrade,
+      tamanho: fallbackGrade,
+      estoque: 0,
+      total: 0,
+      totalStock: 0,
+      variations: [{ grade: fallbackGrade, quantidade: 0 }],
+      variationsCount: 1
+    }];
+  return { variations, items };
 }
 
 async function findProductByIdentity(accountId, fabricanteId, identity) {
@@ -420,20 +458,25 @@ export async function previewImportXlsx({ accountId, fabricanteId, fileName, buf
       errors.push(buildPreviewErrorRow(index + 2, 'A planilha precisa conter ao menos uma coluna de produto/nome/descrição.', row));
       return;
     }
-    const { variations, totalStock } = buildVariationsFromRow(row, parsedWorkbook.headers, identity.parsed, identity.columns);
+    const { variations, items } = buildNormalizedItemsFromRow(row, parsedWorkbook.headers, identity.parsed, identity.columns);
     totalValid += 1;
     if (sampleRows.length < MAX_PREVIEW_ROWS) {
       sampleRows.push({
-        codigo_erp: identity.parsed.codigo_erp,
-        nome_produto: identity.parsed.nome_produto,
-        variacao_nome: identity.parsed.variacao_nome,
-        cor: identity.parsed.cor || null,
-        categoria: identity.categoria,
-        total: totalStock,
-        totalStock,
+        codigo_erp: identity.parsed?.codigo_erp || identity.codigo || null,
+        nome_produto: identity.parsed?.nome_produto || identity.nome || null,
+        variacao_nome: identity.parsed?.variacao_nome || identity.parsed?.cor || null,
+        sku: identity.parsed?.codigo_erp || identity.codigo || null,
+        nome: identity.parsed?.nome_produto || identity.nome || null,
+        cor: identity.parsed?.cor || identity.parsed?.variacao_nome || null,
+        grade: null,
+        tamanho: null,
+        estoque: Number(variations.reduce((sum, variation) => sum + Number(variation.quantidade || 0), 0)),
+        total: Number(variations.reduce((sum, variation) => sum + Number(variation.quantidade || 0), 0)),
+        totalStock: Number(variations.reduce((sum, variation) => sum + Number(variation.quantidade || 0), 0)),
         variations,
         variationsCount: variations.length,
         hasStock: variations.some((variation) => variation.quantidade > 0),
+        categoria: identity.categoria,
         raw: row
       });
     }
@@ -472,11 +515,10 @@ export async function previewImportXlsx({ accountId, fabricanteId, fileName, buf
   };
   console.info('[produtos-import] preview sample', result.items?.slice(0, 6).map((item) => ({
     sku: item.sku,
+    nome: item.nome,
     cor: item.cor,
     grade: item.grade || item.tamanho,
-    estoque: item.estoque,
-    total: item.total,
-    totalStock: item.totalStock
+    estoque: item.estoque
   })));
   return result;
 }
@@ -525,8 +567,10 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
       }
       const productUpsert = await upsertProdutoPai(accountId, fabricanteId, identity);
       summary[productUpsert.created ? 'produtos_criados' : 'produtos_atualizados'] += 1;
-      const { variations } = buildVariationsFromRow(row, parsedWorkbook.headers, identity.parsed, identity.columns);
-      for (const variation of variations) {
+      const { variations, items } = buildNormalizedItemsFromRow(row, parsedWorkbook.headers, identity.parsed, identity.columns);
+      for (const [index, item] of items.entries()) {
+        const variation = variations[index];
+        if (!variation) continue;
         const variationUpsert = await upsertVariacao(accountId, productUpsert.item.id, identity.parsed, variation.grade);
         summary[variationUpsert.created ? 'variacoes_criadas' : 'variacoes_atualizadas'] += 1;
         await upsertStockRecord({
@@ -537,10 +581,10 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
           sku: variationUpsert.item.sku || null,
           nome: variationUpsert.item.nome || null,
           valor: variationUpsert.item.valor || null,
-          cor: variation.cor || variationUpsert.item.cor || null,
-          grade: variationUpsert.item.grade || null,
-          tamanho: variationUpsert.item.tamanho || null,
-          quantidade: variation.quantidade,
+          cor: item.cor || variationUpsert.item.cor || null,
+          grade: item.grade || variationUpsert.item.grade || null,
+          tamanho: item.tamanho || variationUpsert.item.tamanho || null,
+          quantidade: item.estoque,
           origem: 'IMPORTACAO_XLSX',
           arquivo_origem: fileName || null,
           import_batch_id: batch.id

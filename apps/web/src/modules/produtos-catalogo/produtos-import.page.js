@@ -1,3 +1,5 @@
+import { withGlobalProcessing } from '../../core/global-processing.js';
+
 function injectStyles() {
   if (document.getElementById('nh-produtos-import-style')) return;
   const style = document.createElement('style');
@@ -128,7 +130,11 @@ export function renderProdutosImportPage(root, { apiClient }) {
       state.error = '';
       try {
         const fd = await fileToFormData(state.file, state.fabricanteId);
-        state.preview = await apiClient.post('/produtos/importar-estoque/preview', fd);
+        state.preview = await withGlobalProcessing(() => apiClient.post('/produtos/importar-estoque/preview', fd), {
+          title: 'Lendo planilha',
+          message: 'Estamos analisando o arquivo XLSX e preparando a prévia.',
+          indeterminate: true
+        });
       } catch (err) {
         state.error = err?.message || 'Arquivo XLSX invalido. Selecione um arquivo compatível e tente novamente.';
       } finally {
@@ -145,7 +151,11 @@ export function renderProdutosImportPage(root, { apiClient }) {
       state.error = '';
       try {
         const fd = await fileToFormData(state.file, state.fabricanteId);
-        state.result = await apiClient.post('/produtos/importar-estoque', fd);
+        state.result = await withGlobalProcessing(() => apiClient.post('/produtos/importar-estoque', fd), {
+          title: 'Importando produtos',
+          message: 'Estamos criando produtos, variações e saldos de estoque. Não feche esta tela.',
+          indeterminate: true
+        });
       } catch (err) {
         state.error = err?.message || 'Não foi possível importar o arquivo.';
       } finally {

@@ -65,8 +65,9 @@ function getProdutoFabricanteId(data = {}) {
 async function attachFabricanteData(item, options = {}) {
   if (!item) return item;
   const fabricanteId = item.fabricante_id || item.fabricanteId || null;
+  const imagemUrl = item?.imagemUrl || item?.imagem_url || item?.image_url || item?.foto || item?.foto_url || item?.metadata?.imagem_url || item?.metadata?.image_url || item?.metadata?.foto_url || null;
   if (!fabricanteId) {
-    return { ...item, fabricante_id: null, fabricanteId: null, fabricante_nome: null, fabricante_logo_url: null, regras_comerciais_fabricante: null };
+    return { ...item, fabricante_id: null, fabricanteId: null, fabricante_nome: null, fabricante_logo_url: null, imagemUrl, imagem_url: imagemUrl, image_url: imagemUrl, foto: imagemUrl, foto_url: imagemUrl, regras_comerciais_fabricante: null };
   }
   try {
     const fabricante = await getFabricanteById(fabricanteId, { accountId: options.accountId });
@@ -87,10 +88,15 @@ async function attachFabricanteData(item, options = {}) {
       fabricanteId: fabricante.id || fabricanteId,
       fabricante_nome: fabricante.nome || null,
       fabricante_logo_url: fabricante.logo_url || null,
+      imagemUrl,
+      imagem_url: imagemUrl,
+      image_url: imagemUrl,
+      foto: imagemUrl,
+      foto_url: imagemUrl,
       regras_comerciais_fabricante: regras
     };
   } catch {
-    return { ...item, fabricante_id: fabricanteId, fabricanteId, fabricante_nome: null, fabricante_logo_url: null, regras_comerciais_fabricante: null };
+    return { ...item, fabricante_id: fabricanteId, fabricanteId, fabricante_nome: null, fabricante_logo_url: null, imagemUrl, imagem_url: imagemUrl, image_url: imagemUrl, foto: imagemUrl, foto_url: imagemUrl, regras_comerciais_fabricante: null };
   }
 }
 
@@ -307,6 +313,10 @@ export async function updateProduto(id, data = {}, options = {}) {
   }
 
   const nextAtivo = statusRaw ? statusRaw === 'ativo' : (typeof data.ativo === 'boolean' ? data.ativo : undefined);
+  const nextImageUrl = data.imagemUrl ?? data.imagem_url ?? data.image_url ?? data.foto ?? data.foto_url;
+  const nextMetadata = nextImageUrl !== undefined
+    ? { ...(data.metadata || {}), imagem_url: nextImageUrl || null }
+    : undefined;
   const payload = {
     ...(nome !== undefined ? { nome } : {}),
     ...(data.descricao !== undefined ? { descricao: data.descricao || null } : {}),
@@ -318,8 +328,7 @@ export async function updateProduto(id, data = {}, options = {}) {
     ...(data.preco_promocional !== undefined ? { preco_promocional: Number(data.preco_promocional) } : {}),
     ...(data.icms_percentual !== undefined ? { icms_percentual: Number(data.icms_percentual) } : {}),
     ...(data.video_url !== undefined ? { video_url: data.video_url || null } : {}),
-    ...(data.imagemUrl !== undefined ? { imagemUrl: data.imagemUrl || null } : {}),
-    ...(data.imagem_url !== undefined ? { imagemUrl: data.imagem_url || null } : {}),
+    ...(nextMetadata ? { metadata: nextMetadata, imagemUrl: nextImageUrl || null, imagem_url: nextImageUrl || null, image_url: nextImageUrl || null, foto: nextImageUrl || null, foto_url: nextImageUrl || null } : {}),
     ...(statusRaw ? { status: statusRaw } : {}),
     ...(nextAtivo !== undefined ? { ativo: nextAtivo } : {})
   };
@@ -327,9 +336,19 @@ export async function updateProduto(id, data = {}, options = {}) {
   if (getProdutosRepositoryMode().mode === 'supabase') {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data: updated, error } = await supabase.from('produtos').update(payload).eq('id', id).eq('account_id', accountId).select('*').single();
-    if (error) throw new DatabaseError('Falha ao atualizar produto', { details: error });
-    return attachFabricanteData(updated, { accountId });
+    try {
+      const { data: updated, error } = await supabase.from('produtos').update(payload).eq('id', id).eq('account_id', accountId).select('*').single();
+      if (error) throw error;
+      return attachFabricanteData(updated, { accountId });
+    } catch (error) {
+      console.error('[produtos] update failed', {
+        code: error?.code,
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint
+      });
+      throw new DatabaseError('Falha ao atualizar produto', { details: error });
+    }
   }
 
   const idx = memoryProdutos.findIndex((produto) => produto.id === id && produto.account_id === accountId);
