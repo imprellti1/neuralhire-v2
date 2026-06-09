@@ -350,6 +350,7 @@ export async function updateProduto(id, data = {}, options = {}) {
   }
 
   const nextAtivo = statusRaw ? statusRaw === 'ativo' : (typeof data.ativo === 'boolean' ? data.ativo : undefined);
+  const nextStatus = statusRaw || (nextAtivo !== undefined ? (nextAtivo ? 'ativo' : 'inativo') : undefined);
   const nextImageUrl = data.imagemUrl ?? data.imagem_url ?? data.image_url ?? data.foto ?? data.foto_url;
   const nextMetadata = nextImageUrl !== undefined
     ? { ...(data.metadata || {}), imagem_url: nextImageUrl || null }
@@ -376,7 +377,7 @@ export async function updateProduto(id, data = {}, options = {}) {
       const supabasePayload = normalizeProdutoUpdatePayload(payload);
       const { data: updated, error } = await supabase.from('produtos').update(supabasePayload).eq('id', id).eq('account_id', accountId).select('*').single();
       if (error) throw error;
-      return attachFabricanteData(updated, { accountId });
+      return attachFabricanteData({ ...updated, ...(nextStatus !== undefined ? { status: nextStatus } : {}), ...(nextAtivo !== undefined ? { ativo: nextAtivo } : {}) }, { accountId });
     } catch (error) {
       console.error('[produtos] update failed', {
         code: error?.code,
@@ -390,7 +391,7 @@ export async function updateProduto(id, data = {}, options = {}) {
 
   const idx = memoryProdutos.findIndex((produto) => produto.id === id && produto.account_id === accountId);
   if (idx < 0) throw new NotFoundError('Produto nao encontrado', { domain: 'produtos-catalogo', code: 'PRODUTO_NOT_FOUND' });
-  memoryProdutos[idx] = { ...memoryProdutos[idx], ...payload, updatedAt: new Date().toISOString() };
+  memoryProdutos[idx] = { ...memoryProdutos[idx], ...payload, ...(nextStatus !== undefined ? { status: nextStatus } : {}), ...(nextAtivo !== undefined ? { ativo: nextAtivo } : {}), updatedAt: new Date().toISOString() };
   return attachFabricanteData(await attachCategoriaData(memoryProdutos[idx], { accountId }), { accountId });
 }
 
