@@ -202,53 +202,72 @@ async function upsertStockRecord(record) {
         .from('produto_variacoes')
         .select(PRODUTO_VARIACOES_SELECT_FIELDS)
         .eq('account_id', record.account_id)
-        .eq('id', record.variacao_id)
+        .eq('produto_id', record.produto_id)
+        .eq('nome', record.nome)
+        .eq('grade', record.grade)
         .maybeSingle();
       if (findError) throw new DatabaseError('Falha ao consultar estoque', { details: findError });
 
-      const previousQuantidade = Number(existing?.estoque_atual || 0);
-      if (existing && previousQuantidade === nextQuantidade) {
-        return { row: existing, created: false, movement: null };
+      const conflictPayload = {
+        account_id: record.account_id,
+        produto_id: record.produto_id,
+        sku: record.sku || null,
+        nome: record.nome || null,
+        valor: record.valor || null,
+        cor: record.cor || null,
+        grade: record.grade || null,
+        estoque_atual: nextQuantidade,
+        ativo: true
+      };
+
+      if (existing?.id) {
+        const previousQuantidade = Number(existing?.estoque_atual || 0);
+        if (previousQuantidade === nextQuantidade) {
+          return { row: existing, created: false, movement: null };
+        }
+        const { data: updatedVariation, error: updateError } = await supabase
+          .from('produto_variacoes')
+          .update(conflictPayload)
+          .eq('id', existing.id)
+          .eq('account_id', record.account_id)
+          .select(PRODUTO_VARIACOES_SELECT_FIELDS)
+          .single();
+        if (updateError) throw updateError;
+
+        const movementPayload = {
+          account_id: record.account_id,
+          produto_id: record.produto_id,
+          variacao_id: updatedVariation.id,
+          fabricante_id: record.fabricante_id,
+          tipo: 'IMPORTACAO_ESTOQUE',
+          quantidade: nextQuantidade - previousQuantidade,
+          saldo_anterior: previousQuantidade,
+          saldo_posterior: nextQuantidade,
+          origem: record.origem || 'IMPORTACAO_XLSX',
+          arquivo_origem: record.arquivo_origem || null,
+          import_batch_id: record.import_batch_id || null,
+          observacao: null
+        };
+        const { error: movementError } = await supabase.from('produto_variacao_movimentos').insert(movementPayload);
+        if (movementError) throw movementError;
+        return { row: updatedVariation, created: false };
       }
 
-      const { data: updatedVariation, error: updateError } = await supabase
+      const { data: upsertedVariation, error: upsertError } = await supabase
         .from('produto_variacoes')
-        .update({ estoque_atual: nextQuantidade })
-        .eq('id', record.variacao_id)
-        .eq('account_id', record.account_id)
+        .upsert(conflictPayload, { onConflict: 'account_id,produto_id,nome,grade' })
         .select(PRODUTO_VARIACOES_SELECT_FIELDS)
         .single();
-      if (updateError) {
-        if (updateError.code === 'PGRST116') {
-          const { data: insertedVariation, error: insertError } = await supabase
-            .from('produto_variacoes')
-            .insert({
-              account_id: record.account_id,
-              produto_id: record.produto_id,
-              sku: record.sku || null,
-              nome: record.nome || null,
-              valor: record.valor || null,
-              cor: record.cor || null,
-              grade: record.grade || null,
-              estoque_atual: nextQuantidade,
-              ativo: true
-            })
-            .select(PRODUTO_VARIACOES_SELECT_FIELDS)
-            .single();
-          if (insertError) throw insertError;
-          return { row: insertedVariation, created: true };
-        }
-        throw updateError;
-      }
+      if (upsertError) throw upsertError;
 
       const movementPayload = {
         account_id: record.account_id,
         produto_id: record.produto_id,
-        variacao_id: record.variacao_id,
+        variacao_id: upsertedVariation.id,
         fabricante_id: record.fabricante_id,
         tipo: 'IMPORTACAO_ESTOQUE',
-        quantidade: nextQuantidade - previousQuantidade,
-        saldo_anterior: previousQuantidade,
+        quantidade: nextQuantidade,
+        saldo_anterior: 0,
         saldo_posterior: nextQuantidade,
         origem: record.origem || 'IMPORTACAO_XLSX',
         arquivo_origem: record.arquivo_origem || null,
@@ -257,7 +276,7 @@ async function upsertStockRecord(record) {
       };
       const { error: movementError } = await supabase.from('produto_variacao_movimentos').insert(movementPayload);
       if (movementError) throw movementError;
-      return { row: updatedVariation, created: false };
+      return { row: upsertedVariation, created: true };
     }
     const key = makeStockKey(record);
     const index = memoryStocks.findIndex((stock) => makeStockKey(stock) === key);

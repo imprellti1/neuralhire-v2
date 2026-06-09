@@ -213,7 +213,7 @@ export function getProdutosImportTests() {
       }
     },
     {
-      name: 'importacao cria produto, variacao e estoque idempotente',
+      name: 'importacao repetida atualiza estoque sem duplicar variacao',
       run: async () => {
         __resetMemoryProdutosForTests();
         __resetMemoryProductEditorForTests();
@@ -228,10 +228,15 @@ export function getProdutosImportTests() {
         assert.equal(first.body.ok, true);
         const memoryAfterFirst = await __dumpImportMemory();
         assert.equal((memoryAfterFirst.batches || []).length > 0, true);
+        const firstUniqueKeys = new Set(memoryAfterFirst.stocks.map((stock) => `${stock.account_id}::${stock.produto_id}::${stock.nome}::${stock.grade}`));
+        assert.equal(firstUniqueKeys.size, memoryAfterFirst.stocks.length);
         const second = await call(app, { method: 'POST', url: '/produtos/importar-estoque', role: 'admin', accountId: 'acc-import-2', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
         assert.equal(second.res.statusCode, 200);
         const memoryAfterSecond = await __dumpImportMemory();
         assert.equal(memoryAfterSecond.batches.length >= memoryAfterFirst.batches.length, true);
+        const secondUniqueKeys = new Set(memoryAfterSecond.stocks.map((stock) => `${stock.account_id}::${stock.produto_id}::${stock.nome}::${stock.grade}`));
+        assert.equal(secondUniqueKeys.size, memoryAfterSecond.stocks.length);
+        assert.equal(memoryAfterSecond.stocks.length, memoryAfterFirst.stocks.length);
         assert.equal(second.body.batch.status === 'completed' || second.body.batch.status === 'completed_with_warnings', true);
       }
     },
