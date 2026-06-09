@@ -478,7 +478,6 @@ function buildVariationPayloadFromItem(item = {}, parentId, accountId, fabricant
     valor: cor || '',
     cor,
     grade,
-    tamanho: grade,
     estoque_atual: estoque,
     ativo
   };
@@ -600,7 +599,7 @@ async function upsertVariacao(accountId, produtoId, parsed, grade) {
   const variations = await listVariations(produtoId, { accountId });
   const cor = parsed.cor || parsed.variacao_nome || null;
   const existing = variations.find((v) => String(v.cor || '') === String(cor || '') && String(v.grade || '') === String(grade));
-  const payload = { sku: `${parsed.codigo_erp || parsed.nome_produto}-${grade}`, nome, valor: cor || '', cor, preco: 0, ativo: true, multiplo_venda: 1, grade, tamanho: grade };
+  const payload = { sku: `${parsed.codigo_erp || parsed.nome_produto}-${grade}`, nome, valor: cor || '', cor, preco: 0, ativo: true, multiplo_venda: 1, grade };
   if (existing) return { item: await updateVariation(produtoId, existing.id, payload, { accountId }), created: false };
   return { item: await createVariation(produtoId, payload, { accountId }), created: true };
 }
