@@ -1022,7 +1022,17 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
       const { error } = await supabase
         .from('produto_variacoes')
         .upsert(variationsToUpsert, { onConflict: 'account_id,produto_id,nome,grade' });
-      if (error) throw new DatabaseError('Falha ao gravar variacoes em lote', { details: error });
+      if (error) {
+        console.error('[produtos-import] bulk variations error', {
+          code: error?.code,
+          message: error?.message,
+          details: error?.details,
+          hint: error?.hint,
+          count: variationsToUpsert?.length,
+          sample: variationsToUpsert?.slice(0, 3)
+        });
+        throw new DatabaseError('Falha ao gravar variacoes em lote', { details: error });
+      }
       summary.estoques_atualizados += variationsToUpsert.length;
     } else {
       summary.estoques_atualizados += variationsToUpsert.length;
