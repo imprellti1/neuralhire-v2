@@ -473,7 +473,6 @@ function buildVariationPayloadFromItem(item = {}, parentId, accountId, fabricant
   return {
     account_id: accountId,
     produto_id: parentId,
-    fabricante_id: fabricanteId,
     sku: `${String(item.codigo_erp || item.sku || item.nome_produto || 'SKU').trim()}-${grade || 'UNI'}`,
     nome,
     valor: cor || '',
