@@ -54,11 +54,12 @@ function splitDescricaoProduto(descricao = '') {
   if (!raw) return null;
   const parts = raw.split(' - ').map((part) => part.trim()).filter(Boolean);
   if (!parts.length) return null;
-  if (parts.length === 1) return { codigo_erp: parts[0], nome_produto: parts[0], variacao_nome: null };
+  if (parts.length === 1) return { codigo_erp: parts[0], nome_produto: parts[0], cor: null, variacao_nome: null };
   return {
     codigo_erp: parts[0],
-    nome_produto: parts.length >= 3 ? parts[1] : parts[parts.length - 1],
-    variacao_nome: parts.length >= 3 ? parts.slice(2).join(' - ') : null
+    nome_produto: parts.length >= 3 ? parts.slice(1, -1).join(' - ') : parts[1],
+    cor: parts.length >= 3 ? parts[parts.length - 1] : null,
+    variacao_nome: parts.length >= 3 ? parts[parts.length - 1] : null
   };
 }
 
@@ -308,7 +309,7 @@ function buildImportIdentity(row, headers) {
   const codigo = parsed?.codigo_erp || String(sku || description || '').trim() || null;
   const nome = parsed?.nome_produto || String(description || sku || '').trim() || null;
   return {
-    parsed: parsed || { codigo_erp: codigo, nome_produto: nome, variacao_nome: null },
+    parsed: parsed || { codigo_erp: codigo, nome_produto: nome, cor: null, variacao_nome: null },
     codigo,
     nome,
     categoria: columns.categoryIndex >= 0 ? String(row[headers[columns.categoryIndex]] || '').trim() || null : null,
@@ -320,18 +321,21 @@ function buildImportIdentity(row, headers) {
 
 function buildVariationsFromRow(row, headers, parsed, columns) {
   const variations = [];
-  let totalGrades = 0;
   for (const grade of VARIATION_HEADERS) {
     const index = columns.variationIndexes.get(grade.toUpperCase());
     if (index === undefined) continue;
     const quantity = toQuantity(row[headers[index]]);
     if (quantity === null || quantity < 0) continue;
-    totalGrades += quantity;
-    if (quantity === 0) continue;
-    const baseName = parsed.variacao_nome || 'PADRAO';
-    variations.push({ nome: grade === 'UNI' ? baseName : `${baseName} / ${grade}`, grade, quantidade: quantity });
+    const cor = parsed.cor || parsed.variacao_nome || null;
+    const baseName = cor || 'PADRAO';
+    variations.push({
+      nome: grade === 'UNI' ? baseName : `${baseName} / ${grade}`,
+      grade,
+      cor,
+      quantidade: quantity
+    });
   }
-  return { variations, totalGrades };
+  return { variations };
 }
 
 async function findProductByIdentity(accountId, fabricanteId, identity) {
@@ -377,10 +381,11 @@ async function upsertProdutoPai(accountId, fabricanteId, identity) {
 }
 
 async function upsertVariacao(accountId, produtoId, parsed, grade) {
-  const nome = grade === 'UNI' ? parsed.variacao_nome || 'UNI' : `${parsed.variacao_nome || 'PADRAO'} / ${grade}`;
+  const nome = grade === 'UNI' ? parsed.cor || parsed.variacao_nome || 'UNI' : `${parsed.cor || parsed.variacao_nome || 'PADRAO'} / ${grade}`;
   const variations = await listVariations(produtoId, { accountId });
-  const existing = variations.find((v) => String(v.nome) === String(nome) && String(v.grade || '') === String(grade));
-  const payload = { sku: `${parsed.codigo_erp || parsed.nome_produto}-${grade}`, nome, valor: parsed.variacao_nome || '', cor: parsed.variacao_nome || '', preco: 0, ativo: true, multiplo_venda: 1, grade, tamanho: grade };
+  const cor = parsed.cor || parsed.variacao_nome || null;
+  const existing = variations.find((v) => String(v.cor || '') === String(cor || '') && String(v.grade || '') === String(grade));
+  const payload = { sku: `${parsed.codigo_erp || parsed.nome_produto}-${grade}`, nome, valor: cor || '', cor, preco: 0, ativo: true, multiplo_venda: 1, grade, tamanho: grade };
   if (existing) return { item: await updateVariation(produtoId, existing.id, payload, { accountId }), created: false };
   return { item: await createVariation(produtoId, payload, { accountId }), created: true };
 }
@@ -414,17 +419,16 @@ export async function previewImportXlsx({ accountId, fabricanteId, fileName, buf
       errors.push(buildPreviewErrorRow(index + 2, 'A planilha precisa conter ao menos uma coluna de produto/nome/descrição.', row));
       return;
     }
-    const { variations, totalGrades } = buildVariationsFromRow(row, parsedWorkbook.headers, identity.parsed, identity.columns);
-    if (identity.estoque !== null && identity.estoque !== totalGrades) divergences += 1;
+    const { variations } = buildVariationsFromRow(row, parsedWorkbook.headers, identity.parsed, identity.columns);
     totalValid += 1;
     if (sampleRows.length < MAX_PREVIEW_ROWS) {
       sampleRows.push({
         codigo_erp: identity.parsed.codigo_erp,
         nome_produto: identity.parsed.nome_produto,
         variacao_nome: identity.parsed.variacao_nome,
+        cor: identity.parsed.cor || null,
         categoria: identity.categoria,
-        total: identity.estoque,
-        totalGrades,
+        variations,
         variationsCount: variations.length,
         hasStock: variations.some((variation) => variation.quantidade > 0),
         raw: row
@@ -520,7 +524,7 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
           sku: variationUpsert.item.sku || null,
           nome: variationUpsert.item.nome || null,
           valor: variationUpsert.item.valor || null,
-          cor: variationUpsert.item.cor || null,
+          cor: variation.cor || variationUpsert.item.cor || null,
           grade: variationUpsert.item.grade || null,
           tamanho: variationUpsert.item.tamanho || null,
           quantidade: variation.quantidade,

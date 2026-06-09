@@ -77,6 +77,46 @@ export function getProdutosImportTests() {
         assert.equal(out.body.totalRows, 1);
         assert.equal(out.body.totalValid, 1);
         assert.equal(out.body.sheetName, 'Planilha Produtos');
+        assert.equal(out.body.sampleRows?.[0]?.variations?.some((variation) => variation.grade === 'P' && variation.quantidade === 1), true);
+      }
+    },
+    {
+      name: 'preview e import ignoram Total e processam UNI',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryProductEditorForTests();
+        const app = createApiApp();
+        const fabricante = await createFabricante({ nome: 'Fab Total UNI', cnpj: '82345678000188' }, { accountId: 'acc-total-uni' });
+        const base64 = createXlsxBase64([{ Descricao: '750100001 - TOALHA BANHÃO 90cm X 1,60m MASTER - BRANCO', UNI: '2025', Total: '2025' }]);
+        const preview = await call(app, { method: 'POST', url: '/produtos/importar-estoque/preview', role: 'admin', accountId: 'acc-total-uni', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
+        assert.equal(preview.res.statusCode, 200);
+        assert.equal(preview.body.sampleRows?.[0]?.variationsCount, 1);
+        assert.equal(preview.body.sampleRows?.[0]?.variations?.[0]?.grade, 'UNI');
+        assert.equal(preview.body.sampleRows?.[0]?.variations?.[0]?.quantidade, 2025);
+        assert.equal(preview.body.sampleRows?.[0]?.variations?.some((variation) => variation.grade === 'Total'), false);
+
+        const out = await call(app, { method: 'POST', url: '/produtos/importar-estoque', role: 'admin', accountId: 'acc-total-uni', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
+        assert.equal(out.res.statusCode, 200);
+        const memory = await __dumpImportMemory();
+        assert.equal(memory.stocks.some((stock) => stock.quantidade === 2025), true);
+        assert.equal(memory.stocks.some((stock) => String(stock.grade || '') === 'Total'), false);
+      }
+    },
+    {
+      name: 'importacao cria varias grades e ignora Total',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryProductEditorForTests();
+        const app = createApiApp();
+        const fabricante = await createFabricante({ nome: 'Fab Grades', cnpj: '72345678000188' }, { accountId: 'acc-grades' });
+        const base64 = createXlsxBase64([{ Descricao: '750100002 - TOALHA BANHÃO 90cm X 1,60m MASTER - AZUL', P: '2', M: '3', Total: '5' }]);
+        const out = await call(app, { method: 'POST', url: '/produtos/importar-estoque', role: 'admin', accountId: 'acc-grades', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
+        assert.equal(out.res.statusCode, 200);
+        const memory = await __dumpImportMemory();
+        const grades = memory.stocks.map((stock) => ({ grade: stock.grade, quantidade: stock.quantidade }));
+        assert.equal(grades.some((item) => item.grade === 'P' && item.quantidade === 2), true);
+        assert.equal(grades.some((item) => item.grade === 'M' && item.quantidade === 3), true);
+        assert.equal(grades.some((item) => item.grade === 'Total'), false);
       }
     },
     {
@@ -163,15 +203,18 @@ export function getProdutosImportTests() {
       }
     },
     {
-      name: 'divergencia de total registrada',
+      name: 'preview ignora Total e mostra grades explodidas',
       run: async () => {
         __resetMemoryProdutosForTests();
         __resetMemoryProductEditorForTests();
         const app = createApiApp();
-        const fabricante = await createFabricante({ nome: 'Fab Divergencia', cnpj: '72345678000199' }, { accountId: 'acc-div' });
-        const base64 = createXlsxBase64([{ Descricao: '750100002 - TOALHA BANHÃO 90cm X 1,60m MASTER - CINZA', P: '1', M: '1', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Estoque: '5' }]);
+        const fabricante = await createFabricante({ nome: 'Fab Preview Grades', cnpj: '72345678000199' }, { accountId: 'acc-div' });
+        const base64 = createXlsxBase64([{ Descricao: '750100002 - TOALHA BANHÃO 90cm X 1,60m MASTER - CINZA', P: '1', M: '1', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Total: '2' }]);
         const out = await call(app, { method: 'POST', url: '/produtos/importar-estoque/preview', role: 'admin', accountId: 'acc-div', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
-        assert.equal(out.body.divergences > 0, true);
+        assert.equal(out.res.statusCode, 200);
+        assert.equal(out.body.sampleRows?.[0]?.variations?.some((variation) => variation.grade === 'Total'), false);
+        assert.equal(out.body.sampleRows?.[0]?.variations?.some((variation) => variation.grade === 'P' && variation.quantidade === 1), true);
+        assert.equal(out.body.sampleRows?.[0]?.variations?.some((variation) => variation.grade === 'M' && variation.quantidade === 1), true);
       }
     },
     {
