@@ -1,7 +1,7 @@
 import { auditSummary, fixProduct, getAuditProduct, linkFabricante, listAuditProducts } from './product-audit.repository.js';
 
 export async function getAuditSummary(context) {
-  return auditSummary({ accountId: context.accountId });
+  return auditSummary({ accountId: context.accountId, filters: context.query || {} });
 }
 
 export async function getAuditProducts(context) {

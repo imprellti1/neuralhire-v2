@@ -56,16 +56,83 @@ function buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet) {
   return issues;
 }
 
-export async function auditSummary(options = {}) {
-  const accountId = options.accountId || null;
-  assertAccountId(accountId);
-  const produtos = (await listProdutos({}, { accountId })).items || [];
-  const fabricantes = (await listFabricantes({}, { accountId })).items || [];
-  void fabricantes;
+function getIssueSeverity(issue) {
+  if (['duplicate_sku', 'missing_factory', 'missing_fabricante', 'missing_variation', 'missing_variations'].includes(issue)) return 'high';
+  if (['invalid_price', 'zero_stock', 'estoque_zerado'].includes(issue)) return 'medium';
+  if (['missing_image', 'missing_category', 'inactive_product'].includes(issue)) return 'low';
+  return 'low';
+}
 
+function getSeverityScore(issue) {
+  const severity = getIssueSeverity(issue);
+  if (severity === 'high') return 3;
+  if (severity === 'medium') return 2;
+  return 1;
+}
+
+function getProductSeverity(item) {
+  const issues = Array.isArray(item.issues) ? item.issues : [];
+  return issues.reduce((max, issue) => Math.max(max, getSeverityScore(issue)), 0);
+}
+
+function normalizeFilters(filters = {}) {
+  return {
+    issue: filters.issue ? String(filters.issue) : '',
+    fabricanteId: filters.fabricanteId ? String(filters.fabricanteId) : '',
+    status: filters.status ? String(filters.status) : '',
+    search: filters.search ? String(filters.search) : ''
+  };
+}
+
+function applyFilters(items, filters = {}) {
+  let filtered = items;
+  if (filters.issue) filtered = filtered.filter((item) => item.issues.includes(filters.issue));
+  if (filters.fabricanteId) filtered = filtered.filter((item) => item.fabricanteId === filters.fabricanteId);
+  if (filters.status) filtered = filtered.filter((item) => String(item.status || '').toLowerCase() === String(filters.status).toLowerCase());
+  if (filters.search) {
+    const q = String(filters.search).toLowerCase();
+    filtered = filtered.filter((item) => [item.nome, item.sku, item.categoria, item.fabricanteNome].some((value) => String(value || '').toLowerCase().includes(q)));
+  }
+  return filtered;
+}
+
+function buildSummary(items) {
+  const summary = {
+    totalProdutos: items.length,
+    comProblemas: 0,
+    semFabrica: 0,
+    semImagem: 0,
+    semCategoria: 0,
+    duplicados: 0,
+    inativos: 0,
+    estoqueZerado: 0,
+    criticos: 0,
+    medios: 0,
+    leves: 0
+  };
+
+  for (const item of items) {
+    const issues = Array.isArray(item.issues) ? item.issues : [];
+    if (issues.length) summary.comProblemas += 1;
+    if (issues.includes('missing_fabricante') || issues.includes('missing_factory') || issues.includes('missing_fabricante')) summary.semFabrica += 1;
+    if (issues.includes('missing_image')) summary.semImagem += 1;
+    if (issues.includes('missing_category')) summary.semCategoria += 1;
+    if (issues.includes('duplicate_sku') || issues.includes('duplicate_name') || issues.includes('duplicated')) summary.duplicados += 1;
+    if (issues.includes('inactive_product')) summary.inativos += 1;
+    if (issues.includes('zero_stock') || issues.includes('estoque_zerado')) summary.estoqueZerado += 1;
+    const severity = getProductSeverity(item);
+    if (severity >= 3) summary.criticos += 1;
+    else if (severity === 2) summary.medios += 1;
+    else if (severity === 1) summary.leves += 1;
+  }
+
+  return summary;
+}
+
+function buildAuditContext(products, accountId) {
   const skuCounts = new Map();
   const nameCounts = new Map();
-  for (const item of produtos) {
+  for (const item of products) {
     const sku = String(item.sku || '').trim().toLowerCase();
     const name = String(item.nome || '').trim().toLowerCase();
     if (sku) skuCounts.set(sku, (skuCounts.get(sku) || 0) + 1);
@@ -74,35 +141,23 @@ export async function auditSummary(options = {}) {
 
   const duplicateSkuSet = new Set([...skuCounts.entries()].filter(([, count]) => count > 1).map(([key]) => key));
   const duplicateNameSet = new Set([...nameCounts.entries()].filter(([, count]) => count > 1).map(([key]) => key));
-  const issues = new Map();
-
-  const summary = {
-    totalProducts: produtos.length,
-    withFabricante: 0,
-    withoutFabricante: 0,
-    withImage: 0,
-    withoutImage: 0,
-    withCategory: 0,
-    withoutCategory: 0,
-    duplicates: 0,
-    inactive: 0,
-    zeroStock: 0,
-    issues: []
+  const audited = products.map((item) => ({ ...item, issues: buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet) }));
+  return {
+    audited,
+    applyFilters: (filters) => applyFilters(audited, filters),
+    buildSummary: (items) => buildSummary(items)
   };
+}
 
-  for (const item of produtos) {
-    const itemIssues = buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet);
-    if (extractFabricanteId(item, accountId)) summary.withFabricante += 1; else summary.withoutFabricante += 1;
-    if (item.imagemUrl || item.imagem_url) summary.withImage += 1; else summary.withoutImage += 1;
-    if (item.categoria) summary.withCategory += 1; else summary.withoutCategory += 1;
-    if (itemIssues.includes('duplicate_sku') || itemIssues.includes('duplicate_name')) summary.duplicates += 1;
-    if (itemIssues.includes('inactive_product')) summary.inactive += 1;
-    if (itemIssues.includes('zero_stock')) summary.zeroStock += 1;
-    for (const issue of itemIssues) issues.set(issue, (issues.get(issue) || 0) + 1);
-  }
-
-  summary.issues = [...issues.entries()].map(([type, count]) => ({ type, count })).sort((a, b) => a.type.localeCompare(b.type));
-  return summary;
+export async function auditSummary(options = {}) {
+  const { filters = {} } = options;
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  const produtos = (await listProdutos({}, { accountId })).items || [];
+  const context = buildAuditContext(produtos, accountId);
+  const normalizedFilters = normalizeFilters(filters);
+  const filtered = context.applyFilters(normalizedFilters);
+  return context.buildSummary(filtered);
 }
 
 export async function listAuditProducts(filters = {}, options = {}) {
@@ -119,29 +174,27 @@ export async function listAuditProducts(filters = {}, options = {}) {
       fabricanteNome: fabricanteId ? fabricanteById.get(fabricanteId)?.nome || '-' : '-'
     };
   });
-  const skuCounts = new Map();
-  const nameCounts = new Map();
-  for (const item of products) {
-    const sku = String(item.sku || '').trim().toLowerCase();
-    const name = String(item.nome || '').trim().toLowerCase();
-    if (sku) skuCounts.set(sku, (skuCounts.get(sku) || 0) + 1);
-    if (name) nameCounts.set(name, (nameCounts.get(name) || 0) + 1);
-  }
-  const duplicateSkuSet = new Set([...skuCounts.entries()].filter(([, count]) => count > 1).map(([key]) => key));
-  const duplicateNameSet = new Set([...nameCounts.entries()].filter(([, count]) => count > 1).map(([key]) => key));
-
-  let filtered = products.map((item) => ({ ...item, issues: buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet) }));
-  if (filters.issue) filtered = filtered.filter((item) => item.issues.includes(filters.issue));
-  if (filters.fabricanteId) filtered = filtered.filter((item) => item.fabricanteId === filters.fabricanteId);
-  if (filters.status) filtered = filtered.filter((item) => String(item.status || '').toLowerCase() === String(filters.status).toLowerCase());
-  if (filters.search) {
-    const q = String(filters.search).toLowerCase();
-    filtered = filtered.filter((item) => [item.nome, item.sku, item.categoria, item.fabricanteNome].some((value) => String(value || '').toLowerCase().includes(q)));
-  }
+  const context = buildAuditContext(products, accountId);
+  const normalizedFilters = normalizeFilters(filters);
+  const filtered = context.applyFilters(normalizedFilters);
+  const issueItems = filtered
+    .filter((item) => (item.issues || []).length > 0)
+    .slice()
+    .sort((a, b) => {
+      const severityDiff = getProductSeverity(b) - getProductSeverity(a);
+      if (severityDiff) return severityDiff;
+      const issueDiff = (b.issues?.length || 0) - (a.issues?.length || 0);
+      if (issueDiff) return issueDiff;
+      return String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR');
+    });
   const page = Math.max(1, Number(filters.page || 1));
   const limit = Math.min(100, Math.max(1, Number(filters.limit || 20)));
-  const total = filtered.length;
-  return { items: filtered.slice((page - 1) * limit, (page - 1) * limit + limit), total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
+  const total = issueItems.length;
+  return {
+    items: issueItems.slice((page - 1) * limit, (page - 1) * limit + limit),
+    pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) },
+    summary: context.buildSummary(filtered)
+  };
 }
 
 export async function getAuditProduct(productId, options = {}) {

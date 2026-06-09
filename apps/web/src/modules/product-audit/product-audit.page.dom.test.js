@@ -8,8 +8,7 @@ test('product audit page renders kpis, table and actions', async () => {
   const root = document.getElementById('root');
   const apiClient = {
     get: async (url) => {
-      if (url === '/product-audit/summary') return { totalProducts: 1, withFabricante: 0, withoutFabricante: 1, withImage: 0, withoutImage: 1, withCategory: 0, withoutCategory: 1, duplicates: 0, inactive: 0, zeroStock: 1, issues: [] };
-      if (url === '/product-audit/products') return { items: [{ id: 'p1', nome: 'Produto A', sku: 'SKU1', fabricanteNome: '-', categoria: '-', preco: 10, estoque: 0, status: 'ativo', issues: ['missing_fabricante'] }] };
+      if (url === '/product-audit/products') return { items: [{ id: 'p1', nome: 'Produto A', sku: 'SKU1', fabricanteNome: '-', categoria: '-', preco: 10, estoque: 0, status: 'ativo', issues: ['missing_fabricante'] }], pagination: { page: 1, limit: 20, total: 1, totalPages: 1 }, summary: { totalProdutos: 1, comProblemas: 1, semFabrica: 1, semImagem: 0, semCategoria: 0, duplicados: 0, inativos: 0, estoqueZerado: 1 } };
       if (url === '/fabricantes') return { items: [{ id: 'f1', nome: 'Fab 1' }] };
       if (url === '/product-audit/products/p1') return { id: 'p1', nome: 'Produto A', issues: ['missing_fabricante'] };
       return {};
@@ -19,5 +18,9 @@ test('product audit page renders kpis, table and actions', async () => {
   renderProductAuditPage(root, { apiClient });
   await flush();
   assert.ok(root.textContent.includes('Auditoria de Produtos'));
+  assert.ok(root.textContent.includes('Sem fábrica'));
+  assert.ok(root.textContent.includes('Produtos com problema'));
+  assert.ok(root.textContent.includes('Ver Produto'));
+  assert.ok(root.textContent.includes('Editar Produto'));
   teardownFrontendDom(dom);
 });
