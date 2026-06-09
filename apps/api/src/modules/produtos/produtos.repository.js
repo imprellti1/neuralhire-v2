@@ -62,13 +62,36 @@ function getProdutoFabricanteId(data = {}) {
   return undefined;
 }
 
+const PRODUTOS_UPDATE_SUPABASE_FIELDS = new Set([
+  'codigo',
+  'sku',
+  'nome',
+  'descricao',
+  'categoria_id',
+  'categoria',
+  'marca',
+  'fabricante_id',
+  'ean',
+  'ncm',
+  'preco',
+  'preco_promocional',
+  'icms_percentual',
+  'video_url',
+  'metadata',
+  'custo',
+  'estoque',
+  'unidade',
+  'ativo',
+  'tags'
+]);
+
 function normalizeProdutoUpdatePayload(payload = {}) {
-  const normalized = { ...payload };
-  delete normalized.fabricanteId;
-  delete normalized.imagemUrl;
-  delete normalized.image_url;
-  delete normalized.foto;
-  delete normalized.foto_url;
+  const normalized = {};
+  for (const [key, value] of Object.entries(payload || {})) {
+    if (PRODUTOS_UPDATE_SUPABASE_FIELDS.has(key)) {
+      normalized[key] = value;
+    }
+  }
   return normalized;
 }
 
@@ -342,8 +365,7 @@ export async function updateProduto(id, data = {}, options = {}) {
     ...(data.preco_promocional !== undefined ? { preco_promocional: Number(data.preco_promocional) } : {}),
     ...(data.icms_percentual !== undefined ? { icms_percentual: Number(data.icms_percentual) } : {}),
     ...(data.video_url !== undefined ? { video_url: data.video_url || null } : {}),
-    ...(nextMetadata ? { metadata: nextMetadata, imagemUrl: nextImageUrl || null, imagem_url: nextImageUrl || null, image_url: nextImageUrl || null, foto: nextImageUrl || null, foto_url: nextImageUrl || null } : {}),
-    ...(statusRaw ? { status: statusRaw } : {}),
+    ...(nextMetadata ? { metadata: nextMetadata } : {}),
     ...(nextAtivo !== undefined ? { ativo: nextAtivo } : {})
   };
 

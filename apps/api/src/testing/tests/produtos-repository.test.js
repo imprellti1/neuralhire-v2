@@ -27,6 +27,7 @@ export function getProdutosRepositoryTests() {
           nome: 'Produto X',
           fabricante_id: 'fab-1',
           fabricanteId: 'fab-1',
+          status: 'ativo',
           imagemUrl: 'https://img.example/x.png',
           imagem_url: 'https://img.example/x.png',
           image_url: 'https://img.example/x.png',
@@ -36,6 +37,7 @@ export function getProdutosRepositoryTests() {
         });
         assertEqual(payload.fabricante_id, 'fab-1');
         assertEqual(Object.prototype.hasOwnProperty.call(payload, 'fabricanteId'), false);
+        assertEqual(Object.prototype.hasOwnProperty.call(payload, 'status'), false);
         assertEqual(Object.prototype.hasOwnProperty.call(payload, 'imagemUrl'), false);
         assertEqual(Object.prototype.hasOwnProperty.call(payload, 'image_url'), false);
         assertEqual(Object.prototype.hasOwnProperty.call(payload, 'foto'), false);
