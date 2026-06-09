@@ -862,38 +862,97 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
       return { ok: true, batch: { ...summary, status: finalStatus, erros: summary.erros } };
     }
 
-    const productsUpsertPayload = productsToWrite.map(({ payload }) => ({
-      ...payload,
-      ativo: false
-    }));
-    let savedProducts = [];
-    if (mode() === 'supabase' && productsUpsertPayload.length) {
-      const { data, error } = await supabase
-        .from('produtos')
-        .upsert(productsUpsertPayload, { onConflict: 'account_id,fabricante_id,sku' })
-        .select('*');
-      if (error) {
-        console.error('[produtos-import] bulk products error', {
-          code: error?.code,
-          message: error?.message,
-          details: error?.details,
-          hint: error?.hint,
-          count: productsUpsertPayload?.length,
-          sample: productsUpsertPayload?.slice(0, 3)
-        });
-        throw new DatabaseError('Falha ao gravar produtos em lote', { details: error });
-      }
-      savedProducts = data || [];
-    }
     const savedProductMap = new Map();
-    for (const product of savedProducts) savedProductMap.set(normalizeKey(product.sku), product);
+    if (mode() === 'supabase') {
+      const existingBySku = new Map();
+      for (const product of existingProducts) {
+        const key = normalizeKey(product.sku);
+        if (!key) continue;
+        if (existingBySku.has(key)) {
+          console.warn('[produtos-import] duplicated product sku on import', {
+            accountId,
+            fabricanteId,
+            sku: product.sku || null,
+            keptId: existingBySku.get(key)?.id || null,
+            duplicatedId: product.id || null
+          });
+          continue;
+        }
+        existingBySku.set(key, product);
+      }
 
-    for (let i = 0; i < productsToWrite.length; i += 1) {
-      const entry = productsToWrite[i];
-      const saved = savedProductMap.get(normalizeKey(entry.payload.sku)) || entry.existing || null;
-      if (!saved?.id) continue;
-      entry.saved = saved;
-      summary[entry.existing ? 'produtos_atualizados' : 'produtos_criados'] += 1;
+      const entriesToInsert = [];
+      for (const entry of productsToWrite) {
+        const skuKey = normalizeKey(entry.payload.sku);
+        const existing = existingBySku.get(skuKey) || null;
+        entry.existing = existing;
+        if (existing?.id) {
+          const { data, error } = await supabase
+            .from('produtos')
+            .update(entry.payload)
+            .eq('id', existing.id)
+            .select('id, sku, account_id, fabricante_id, codigo, nome, descricao, categoria, categoria_id, estoque, ativo, preco')
+            .single();
+          if (error) {
+            console.error('[produtos-import] bulk products update error', {
+              code: error?.code,
+              message: error?.message,
+              details: error?.details,
+              hint: error?.hint,
+              productId: existing.id,
+              sku: entry.payload?.sku || null
+            });
+            throw new DatabaseError('Falha ao gravar produtos em lote', { details: error });
+          }
+          const saved = data || existing;
+          entry.saved = saved;
+          if (saved?.sku) savedProductMap.set(normalizeKey(saved.sku), saved);
+          summary.produtos_atualizados += 1;
+        } else {
+          entriesToInsert.push(entry);
+        }
+      }
+
+      if (entriesToInsert.length) {
+        const insertPayloads = entriesToInsert.map((entry) => entry.payload);
+        const { data, error } = await supabase
+          .from('produtos')
+          .insert(insertPayloads)
+          .select('id, sku, account_id, fabricante_id, codigo, nome, descricao, categoria, categoria_id, estoque, ativo, preco');
+        if (error) {
+          console.error('[produtos-import] bulk products insert error', {
+            code: error?.code,
+            message: error?.message,
+            details: error?.details,
+            hint: error?.hint,
+            count: insertPayloads?.length,
+            sample: insertPayloads?.slice(0, 3)
+          });
+          throw new DatabaseError('Falha ao gravar produtos em lote', { details: error });
+        }
+        for (const product of data || []) {
+          if (product?.sku) savedProductMap.set(normalizeKey(product.sku), product);
+        }
+        for (const entry of entriesToInsert) {
+          const saved = savedProductMap.get(normalizeKey(entry.payload.sku)) || null;
+          if (!saved?.id) continue;
+          entry.saved = saved;
+          summary.produtos_criados += 1;
+        }
+      }
+    } else {
+      for (const entry of productsToWrite) {
+        let item = entry.existing || null;
+        if (item?.id) {
+          item = await updateProduto(item.id, entry.payload, { accountId });
+          summary.produtos_atualizados += 1;
+        } else {
+          item = await createProduto(entry.payload, { accountId });
+          summary.produtos_criados += 1;
+        }
+        entry.saved = item;
+        if (item?.sku) savedProductMap.set(normalizeKey(item.sku), item);
+      }
     }
 
     const allProductIds = productsToWrite.map((entry) => entry.saved?.id).filter(Boolean);
