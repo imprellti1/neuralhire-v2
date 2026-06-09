@@ -771,7 +771,6 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
         categoria: category.categoria,
         categoria_id: category.categoria_id,
         estoque: totalStock,
-        status: 'ativo',
         ativo: false,
         preco: Number.isFinite(firstItem.preco) && firstItem.preco > 0 ? firstItem.preco : existing?.preco ?? 0
       };
