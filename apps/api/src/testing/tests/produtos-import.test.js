@@ -93,6 +93,7 @@ export function getProdutosImportTests() {
         assert.equal(preview.body.sampleRows?.[0]?.variationsCount, 1);
         assert.equal(preview.body.sampleRows?.[0]?.variations?.[0]?.grade, 'UNI');
         assert.equal(preview.body.sampleRows?.[0]?.variations?.[0]?.quantidade, 2025);
+        assert.equal(preview.body.sampleRows?.[0]?.total, 2025);
         assert.equal(preview.body.sampleRows?.[0]?.variations?.some((variation) => variation.grade === 'Total'), false);
 
         const out = await call(app, { method: 'POST', url: '/produtos/importar-estoque', role: 'admin', accountId: 'acc-total-uni', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
@@ -100,6 +101,28 @@ export function getProdutosImportTests() {
         const memory = await __dumpImportMemory();
         assert.equal(memory.stocks.some((stock) => stock.quantidade === 2025), true);
         assert.equal(memory.stocks.some((stock) => String(stock.grade || '') === 'Total'), false);
+      }
+    },
+    {
+      name: 'preview reflete estoque real por grade',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryProductEditorForTests();
+        const app = createApiApp();
+        const fabricante = await createFabricante({ nome: 'Fab Preview Real', cnpj: '82345678000177' }, { accountId: 'acc-preview-real' });
+        const base64 = createXlsxBase64([
+          { Descricao: '750100001 - TOALHA BANHÃO 90cm X 1,60m MASTER - BRANCO', UNI: '2025', Total: '2025' },
+          { Descricao: '750100001 - TOALHA BANHÃO 90cm X 1,60m MASTER - LINHO', UNI: '3', Total: '3' },
+          { Descricao: '750100001 - TOALHA BANHÃO 90cm X 1,60m MASTER - ROSA CRISTAL', UNI: '0', Total: '0' }
+        ]);
+        const out = await call(app, { method: 'POST', url: '/produtos/importar-estoque/preview', role: 'admin', accountId: 'acc-preview-real', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
+        assert.equal(out.res.statusCode, 200);
+        assert.equal(out.body.sampleRows?.[0]?.variations?.[0]?.quantidade, 2025);
+        assert.equal(out.body.sampleRows?.[0]?.total, 2025);
+        assert.equal(out.body.sampleRows?.[1]?.variations?.[0]?.quantidade, 3);
+        assert.equal(out.body.sampleRows?.[1]?.total, 3);
+        assert.equal(out.body.sampleRows?.[2]?.variations?.[0]?.quantidade, 0);
+        assert.equal(out.body.sampleRows?.[2]?.total, 0);
       }
     },
     {

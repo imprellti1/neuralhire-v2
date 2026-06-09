@@ -335,7 +335,8 @@ function buildVariationsFromRow(row, headers, parsed, columns) {
       quantidade: quantity
     });
   }
-  return { variations };
+  const totalStock = variations.reduce((sum, variation) => sum + Number(variation.quantidade || 0), 0);
+  return { variations, totalStock };
 }
 
 async function findProductByIdentity(accountId, fabricanteId, identity) {
@@ -419,7 +420,7 @@ export async function previewImportXlsx({ accountId, fabricanteId, fileName, buf
       errors.push(buildPreviewErrorRow(index + 2, 'A planilha precisa conter ao menos uma coluna de produto/nome/descrição.', row));
       return;
     }
-    const { variations } = buildVariationsFromRow(row, parsedWorkbook.headers, identity.parsed, identity.columns);
+    const { variations, totalStock } = buildVariationsFromRow(row, parsedWorkbook.headers, identity.parsed, identity.columns);
     totalValid += 1;
     if (sampleRows.length < MAX_PREVIEW_ROWS) {
       sampleRows.push({
@@ -428,6 +429,8 @@ export async function previewImportXlsx({ accountId, fabricanteId, fileName, buf
         variacao_nome: identity.parsed.variacao_nome,
         cor: identity.parsed.cor || null,
         categoria: identity.categoria,
+        total: totalStock,
+        totalStock,
         variations,
         variationsCount: variations.length,
         hasStock: variations.some((variation) => variation.quantidade > 0),
