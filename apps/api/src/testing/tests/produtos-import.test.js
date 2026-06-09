@@ -8,6 +8,7 @@ import { __resetMemoryProdutosForTests } from '../../modules/produtos/produtos.r
 import { __resetMemoryProductEditorForTests } from '../../modules/product-editor/product-editor.repository.js';
 import { __dumpImportMemory } from '../../modules/produtos/produtos-import.repository.js';
 import { __getProdutoVariacoesSelectFieldsForTests } from '../../modules/produtos/produtos-import.repository.js';
+import { __buildVariationIdentityForTests } from '../../modules/produtos/produtos-import.repository.js';
 import { parseJsonBody } from '../../core/body-parser.js';
 
 function parseBody(res) {
@@ -64,6 +65,21 @@ function createMultipartRequest({ accountId, role, fields = {}, file = null }) {
 
 export function getProdutosImportTests() {
   return [
+    {
+      name: 'identidade canonica da variacao usa nome e grade da constraint',
+      run: async () => {
+        const identity = __buildVariationIdentityForTests({
+          account_id: 'acc-x',
+          produto_id: 'prod-x',
+          nome: 'BRANCO / P',
+          grade: 'P'
+        });
+        assert.equal(identity.accountId, 'acc-x');
+        assert.equal(identity.produtoId, 'prod-x');
+        assert.equal(identity.nome, 'BRANCO / P');
+        assert.equal(identity.grade, 'P');
+      }
+    },
     {
       name: 'upsertStockRecord usa somente colunas reais de produto_variacoes',
       run: async () => {
@@ -237,6 +253,7 @@ export function getProdutosImportTests() {
         const secondUniqueKeys = new Set(memoryAfterSecond.stocks.map((stock) => `${stock.account_id}::${stock.produto_id}::${stock.nome}::${stock.grade}`));
         assert.equal(secondUniqueKeys.size, memoryAfterSecond.stocks.length);
         assert.equal(memoryAfterSecond.stocks.length, memoryAfterFirst.stocks.length);
+        assert.equal(memoryAfterSecond.stocks.some((stock) => stock.nome === 'BRANCO / P' && stock.grade === 'P'), true);
         assert.equal(second.body.batch.status === 'completed' || second.body.batch.status === 'completed_with_warnings', true);
       }
     },

@@ -189,6 +189,19 @@ function makeStockKey(record) {
   return [record.account_id, record.produto_id, record.variacao_id, record.fabricante_id].join('::');
 }
 
+function buildVariationIdentity(record = {}) {
+  const accountId = String(record.account_id || '').trim();
+  const produtoId = String(record.produto_id || '').trim();
+  const grade = String(record.grade || record.tamanho || '').trim();
+  const nome = String(record.nome || '').trim() || (grade ? grade : '');
+  return {
+    accountId,
+    produtoId,
+    nome,
+    grade
+  };
+}
+
 async function upsertStockRecord(record) {
   try {
     if (mode() === 'supabase') {
@@ -198,24 +211,31 @@ async function upsertStockRecord(record) {
         throw new BadRequestError('Quantidade de estoque invalida', { domain: 'produtos-import', code: 'INVALID_STOCK_QUANTITY' });
       }
 
+      const variationIdentity = buildVariationIdentity(record);
+      const lookup = {
+        accountId: variationIdentity.accountId,
+        produtoId: variationIdentity.produtoId,
+        nome: variationIdentity.nome,
+        grade: variationIdentity.grade
+      };
       const { data: existing, error: findError } = await supabase
         .from('produto_variacoes')
         .select(PRODUTO_VARIACOES_SELECT_FIELDS)
-        .eq('account_id', record.account_id)
-        .eq('produto_id', record.produto_id)
-        .eq('nome', record.nome)
-        .eq('grade', record.grade)
+        .eq('account_id', variationIdentity.accountId)
+        .eq('produto_id', variationIdentity.produtoId)
+        .eq('nome', variationIdentity.nome)
+        .eq('grade', variationIdentity.grade)
         .maybeSingle();
       if (findError) throw new DatabaseError('Falha ao consultar estoque', { details: findError });
 
       const conflictPayload = {
-        account_id: record.account_id,
-        produto_id: record.produto_id,
+        account_id: variationIdentity.accountId,
+        produto_id: variationIdentity.produtoId,
         sku: record.sku || null,
-        nome: record.nome || null,
+        nome: variationIdentity.nome || null,
         valor: record.valor || null,
         cor: record.cor || null,
-        grade: record.grade || null,
+        grade: variationIdentity.grade || null,
         estoque_atual: nextQuantidade,
         ativo: true
       };
@@ -229,7 +249,7 @@ async function upsertStockRecord(record) {
           .from('produto_variacoes')
           .update(conflictPayload)
           .eq('id', existing.id)
-          .eq('account_id', record.account_id)
+          .eq('account_id', variationIdentity.accountId)
           .select(PRODUTO_VARIACOES_SELECT_FIELDS)
           .single();
         if (updateError) throw updateError;
@@ -253,6 +273,7 @@ async function upsertStockRecord(record) {
         return { row: updatedVariation, created: false };
       }
 
+      console.error('[produtos-import] existingVariationLookup', lookup);
       const { data: upsertedVariation, error: upsertError } = await supabase
         .from('produto_variacoes')
         .upsert(conflictPayload, { onConflict: 'account_id,produto_id,nome,grade' })
@@ -288,6 +309,14 @@ async function upsertStockRecord(record) {
     memoryStocks.push(row);
     return { row, created: true };
   } catch (error) {
+    if (error?.code === '23505') {
+      console.error('[produtos-import] insertVariationPayload', {
+        accountId: record.account_id || null,
+        produtoId: record.produto_id || null,
+        nome: record.nome || null,
+        grade: record.grade || null
+      });
+    }
     console.error('[produtos-import] stock upsert failed', {
       code: error?.code,
       message: error?.message,
@@ -680,6 +709,10 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
 
 export function splitDescricaoProdutoExport(descricao = '') {
   return splitDescricaoProduto(descricao);
+}
+
+export function __buildVariationIdentityForTests(record = {}) {
+  return buildVariationIdentity(record);
 }
 
 export async function __dumpImportMemory() {
