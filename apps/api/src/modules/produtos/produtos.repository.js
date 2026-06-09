@@ -6,6 +6,7 @@ import { getFabricanteById } from '../fabricantes/fabricantes.repository.js';
 import { getProdutoCategoriaById } from '../produto-categorias/produto-categorias.repository.js';
 
 const memoryProdutos = [];
+const PRODUTO_VARIACOES_SELECT_FIELDS = 'id, account_id, produto_id, sku, nome, valor, cor, grade, estoque_atual, ativo, preco, preco_promocional, imagemUrl, imagem_url, imagem_principal_url, created_at, updated_at';
 
 function assertAccountId(accountId) {
   if (!accountId) {
@@ -178,6 +179,10 @@ export function getProdutosRepositoryMode() {
   };
 }
 
+export function __getProdutoVariacoesSelectFieldsForTests() {
+  return PRODUTO_VARIACOES_SELECT_FIELDS;
+}
+
 export async function listProdutos(filters = {}, options = {}) {
   const { page, limit } = normalizePagination(filters);
   const accountId = options.accountId || null;
@@ -231,6 +236,43 @@ export async function getProdutoById(id, options = {}) {
   const item = memoryProdutos.find((produto) => produto.id === id && produto.account_id === accountId);
   if (!item) throw new NotFoundError('Produto nao encontrado', { domain: 'produtos-catalogo', code: 'PRODUTO_NOT_FOUND' });
   return attachFabricanteData(await attachCategoriaData(item, { accountId }), { accountId });
+}
+
+function normalizeProdutoVariacao(item = {}) {
+  const imagemUrl = item.imagemUrl || item.imagem_url || item.imagem_principal_url || null;
+  return {
+    ...item,
+    imagemUrl,
+    imagem_url: imagemUrl,
+    imagem_principal_url: item.imagem_principal_url || imagemUrl,
+    estoqueAtual: Number(item.estoque_atual || 0),
+    ativo: Boolean(item.ativo),
+    cor: item.cor || null,
+    tamanho: item.grade || null
+  };
+}
+
+export async function listProdutoVariacoes(produtoId, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  await getProdutoById(produtoId, { accountId });
+
+  const repositoryMode = getProdutosRepositoryMode();
+  debugRepository('listProdutoVariacoes', { repositoryMode, accountId, produtoId });
+
+  if (repositoryMode.mode !== 'supabase') return [];
+
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new DatabaseError('Supabase indisponivel');
+
+  const { data, error } = await supabase
+    .from('produto_variacoes')
+    .select(PRODUTO_VARIACOES_SELECT_FIELDS)
+    .eq('account_id', accountId)
+    .eq('produto_id', produtoId)
+    .order('created_at', { ascending: true });
+  if (error) throw new DatabaseError('Falha ao listar variacoes do produto', { details: error });
+  return (data || []).map(normalizeProdutoVariacao);
 }
 
 export async function searchProdutos(query, options = {}) {

@@ -4,6 +4,7 @@ import {
   getProdutoById,
   getProdutosRepositoryMode,
   listProdutos,
+  listProdutoVariacoes,
   searchProdutos
   ,updateProduto
 } from './produtos.repository.js';
@@ -40,6 +41,13 @@ export async function getProduto(context = {}) {
   const id = context.params?.id;
   const item = await getProdutoById(id, { accountId });
   return { ok: true, repositoryMode: getProdutosRepositoryMode(), item };
+}
+
+export async function getProdutoVariacoes(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const produtoId = context.params?.produtoId || context.params?.id;
+  const items = await listProdutoVariacoes(produtoId, { accountId });
+  return { ok: true, repositoryMode: getProdutosRepositoryMode(), items };
 }
 
 export async function searchProdutosHandler(context = {}) {

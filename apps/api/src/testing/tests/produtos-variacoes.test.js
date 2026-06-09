@@ -1,0 +1,51 @@
+import assert from 'node:assert/strict';
+import { createApiApp } from '../../app.js';
+import { createTestRequest } from '../create-test-request.js';
+import { createTestResponse } from '../create-test-response.js';
+import { __resetMemoryProdutosForTests, createProduto, listProdutoVariacoes } from '../../modules/produtos/produtos.repository.js';
+
+function parseBody(res) {
+  try { return JSON.parse(res.body || '{}'); } catch { return {}; }
+}
+
+function call(app, { method, url, role, accountId, body }) {
+  const headers = {};
+  if (role) headers['x-test-role'] = role;
+  if (accountId) headers['x-test-account-id'] = accountId;
+  let payload;
+  if (body !== undefined) {
+    headers['content-type'] = 'application/json';
+    payload = JSON.stringify(body);
+  }
+  const req = createTestRequest({ method, url, headers, body: payload });
+  const res = createTestResponse();
+  return app(req, res).then(() => ({ res, body: parseBody(res) }));
+}
+
+export function getProdutosVariacoesTests() {
+  return [
+    {
+      name: 'listProdutoVariacoes respeita tenant e produto',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        const created = await createProduto({ nome: 'Produto V', sku: 'SKU-V' }, { accountId: 'acc-a' });
+        const items = await listProdutoVariacoes(created.id, { accountId: 'acc-a' });
+        assert.equal(Array.isArray(items), true);
+        assert.equal(items.length, 0);
+        await assert.rejects(() => listProdutoVariacoes(created.id, { accountId: 'acc-b' }));
+      }
+    },
+    {
+      name: 'GET /produtos/:id/variacoes existe e responde no Produto 360',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        const app = createApiApp();
+        const created = await call(app, { method: 'POST', url: '/produtos', role: 'admin', accountId: 'acc-a', body: { nome: 'Produto API', sku: 'SKU-API' } });
+        const out = await call(app, { method: 'GET', url: `/produtos/${created.body.item.id}/variacoes`, role: 'admin', accountId: 'acc-a' });
+        assert.equal(out.res.statusCode, 200);
+        assert.equal(out.body.ok, true);
+        assert.equal(Array.isArray(out.body.items), true);
+      }
+    }
+  ];
+}
