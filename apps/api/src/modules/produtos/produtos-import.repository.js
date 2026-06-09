@@ -166,9 +166,31 @@ async function createBatchRecord(payload) {
 async function updateBatchRecord(batchId, patch = {}) {
   if (mode() === 'supabase') {
     const supabase = getSupabaseClient();
-    const { data, error } = await supabase.from('produto_import_batches').update(patch).eq('id', batchId).select('*').single();
-    if (error) throw new DatabaseError('Falha ao atualizar batch', { details: error });
-    return data;
+    try {
+      const { data, error } = await supabase.from('produto_import_batches').update(patch).eq('id', batchId).select('*').single();
+      if (error) {
+        console.error('[produtos-import] updateBatchRecord failed', {
+          batchId,
+          payload: patch,
+          error
+        });
+        throw new DatabaseError('Falha ao atualizar batch', { details: error });
+      }
+      return data;
+    } catch (error) {
+      console.error('[produtos-import] updateBatchRecord failed', {
+        batchId,
+        payload: patch,
+        error: {
+          message: error?.message || String(error),
+          code: error?.code || null,
+          details: error?.details || null,
+          hint: error?.hint || null,
+          stack: error?.stack || null
+        }
+      });
+      throw error;
+    }
   }
   const index = memoryBatches.findIndex((batch) => batch.id === batchId);
   if (index < 0) return null;
@@ -813,7 +835,20 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
         }
       }
       const finalStatus = summary.erros.length || summary.divergencias ? 'completed_with_warnings' : 'completed';
-      await updateBatchRecord(batch.id, { ...summary, status: finalStatus, erros: summary.erros.length, updated_at: new Date().toISOString() });
+      await updateBatchRecord(batch.id, { ...summary, status: finalStatus, erros: summary.erros.length, updated_at: new Date().toISOString() }).catch((error) => {
+        console.error('[produtos-import] batch close failed after successful import', {
+          batchId: batch.id,
+          payload: { ...summary, status: finalStatus, erros: summary.erros.length, updated_at: new Date().toISOString() },
+          error: {
+            message: error?.message || String(error),
+            code: error?.code || null,
+            details: error?.details || null,
+            hint: error?.hint || null,
+            stack: error?.stack || null
+          }
+        });
+        return null;
+      });
       console.info('[produtos-import] import done', {
         batchId: batch.id,
         totalLines: summary.total_linhas,
@@ -934,7 +969,20 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
     }
 
     const finalStatus = summary.erros.length || summary.divergencias ? 'completed_with_warnings' : 'completed';
-    await updateBatchRecord(batch.id, { ...summary, status: finalStatus, erros: summary.erros.length, updated_at: new Date().toISOString() });
+    await updateBatchRecord(batch.id, { ...summary, status: finalStatus, erros: summary.erros.length, updated_at: new Date().toISOString() }).catch((error) => {
+      console.error('[produtos-import] batch close failed after successful import', {
+        batchId: batch.id,
+        payload: { ...summary, status: finalStatus, erros: summary.erros.length, updated_at: new Date().toISOString() },
+        error: {
+          message: error?.message || String(error),
+          code: error?.code || null,
+          details: error?.details || null,
+          hint: error?.hint || null,
+          stack: error?.stack || null
+        }
+      });
+      return null;
+    });
     console.info('[produtos-import] import done', {
       batchId: batch.id,
       totalLines: summary.total_linhas,
