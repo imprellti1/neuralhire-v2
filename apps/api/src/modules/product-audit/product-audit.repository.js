@@ -37,16 +37,24 @@ function normalizeStatusValue(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function normalizeActiveFlag(value) {
+  if (value === true || value === 1 || value === '1') return true;
+  if (value === false || value === 0 || value === '0') return false;
+  return null;
+}
+
 function hasActiveIndicator(item = {}) {
   const status = normalizeStatusValue(item.status);
   const commercial = normalizeStatusValue(item.status_comercial || item.statusComercial);
-  return status === 'ativo' || commercial === 'ativo' || item.ativo === true;
+  const activeFlag = normalizeActiveFlag(item.ativo);
+  return status === 'ativo' || commercial === 'ativo' || activeFlag === true;
 }
 
 function hasInactiveIndicator(item = {}) {
   const status = normalizeStatusValue(item.status);
   const commercial = normalizeStatusValue(item.status_comercial || item.statusComercial);
-  return status === 'inativo' || commercial === 'inativo' || item.ativo === false;
+  const activeFlag = normalizeActiveFlag(item.ativo);
+  return status === 'inativo' || commercial === 'inativo' || activeFlag === false;
 }
 
 function isInactiveProduct(item = {}) {

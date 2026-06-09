@@ -82,17 +82,19 @@ export function getProductAuditTests() {
       __loadMemoryProdutos([
         { id: 'p1', account_id: 'acc-1', nome: 'Ativo sem imagem', sku: 'SKU1', categoria: 'Cat', preco: 10, estoque: 1, status_comercial: 'ativo', status: undefined, ativo: undefined, imagemUrl: null, variacoes: [{ id: 'v1', sku: 'SKU1-1', estoque: 1 }] },
         { id: 'p2', account_id: 'acc-1', nome: 'Ativo sem categoria', sku: 'SKU2', categoria: null, preco: 10, estoque: 1, ativo: true, imagemUrl: 'img', variacoes: [{ id: 'v2', sku: 'SKU2-1', estoque: 1 }] },
+        { id: 'p4', account_id: 'acc-1', nome: 'Ativo numérico', sku: 'SKU4', categoria: 'Cat', preco: 10, estoque: 1, ativo: 1, imagemUrl: 'img', variacoes: [{ id: 'v4', sku: 'SKU4-1', estoque: 1 }] },
         { id: 'p3', account_id: 'acc-1', nome: 'Inativo claro', sku: 'SKU3', categoria: 'Cat', preco: 10, estoque: 1, status: 'inativo', imagemUrl: 'img', variacoes: [{ id: 'v3', sku: 'SKU3-1', estoque: 1 }] }
       ]);
       const defaultResult = await listAuditProducts({}, { accountId: 'acc-1' });
       assert.equal(defaultResult.pagination.total, 2);
-      assert.equal(defaultResult.summary.totalProdutos, 2);
+      assert.equal(defaultResult.summary.totalProdutos, 3);
       assert.equal(defaultResult.summary.comProblemas, 2);
       assert.equal(defaultResult.summary.semImagem, 1);
       assert.equal(defaultResult.summary.semCategoria, 1);
       assert.equal(defaultResult.summary.inativos, 0);
       assert.equal(defaultResult.items.some((item) => item.id === 'p1'), true);
       assert.equal(defaultResult.items.some((item) => item.id === 'p2'), true);
+      assert.equal(defaultResult.items.some((item) => item.id === 'p4'), false);
       assert.equal(defaultResult.items.some((item) => item.id === 'p3'), false);
 
       const inactiveResult = await listAuditProducts({ status: 'inativo' }, { accountId: 'acc-1' });
@@ -106,10 +108,11 @@ export function getProductAuditTests() {
       reset();
       __loadMemoryProdutos([
         { id: 'p1', account_id: 'acc-1', nome: 'Ativo A', sku: 'SKU10', categoria: null, preco: 10, estoque: 0, status: 'ativo', imagemUrl: null, variacoes: [] },
-        { id: 'p2', account_id: 'acc-1', nome: 'Ativo B', sku: 'SKU11', categoria: 'Cat', preco: 0, estoque: 1, status_comercial: 'ativo', variacoes: [{ id: 'v2', sku: 'SKU11-1', estoque: 1 }] }
+        { id: 'p2', account_id: 'acc-1', nome: 'Ativo B', sku: 'SKU11', categoria: 'Cat', preco: 0, estoque: 1, status_comercial: 'ativo', variacoes: [{ id: 'v2', sku: 'SKU11-1', estoque: 1 }] },
+        { id: 'p3', account_id: 'acc-1', nome: 'Ativo C', sku: 'SKU12', categoria: 'Cat', preco: 10, estoque: 1, ativo: 1, imagemUrl: 'img', variacoes: [{ id: 'v3', sku: 'SKU12-1', estoque: 1 }] }
       ]);
       const summary = await auditSummary({ accountId: 'acc-1' });
-      assert.equal(summary.totalProdutos, 2);
+      assert.equal(summary.totalProdutos, 3);
       assert.equal(summary.comProblemas, 2);
       assert.equal(summary.semImagem, 1);
       assert.equal(summary.semCategoria, 1);
