@@ -6,7 +6,7 @@ import { getFabricanteById } from '../fabricantes/fabricantes.repository.js';
 import { getProdutoCategoriaById } from '../produto-categorias/produto-categorias.repository.js';
 
 const memoryProdutos = [];
-const PRODUTO_VARIACOES_SELECT_FIELDS = 'id, account_id, produto_id, sku, nome, valor, cor, grade, estoque_atual, ativo, preco, preco_promocional, imagemUrl, imagem_url, imagem_principal_url, created_at, updated_at';
+const PRODUTO_VARIACOES_SELECT_FIELDS = 'id, account_id, produto_id, sku, nome, valor, cor, grade, estoque_atual, preco, preco_promocional, multiplo_venda, ativo, imagem_url, imagem_path, created_at, updated_at';
 
 function assertAccountId(accountId) {
   if (!accountId) {
@@ -239,12 +239,12 @@ export async function getProdutoById(id, options = {}) {
 }
 
 function normalizeProdutoVariacao(item = {}) {
-  const imagemUrl = item.imagemUrl || item.imagem_url || item.imagem_principal_url || null;
+  const imagemUrl = item.imagem_url || null;
   return {
     ...item,
     imagemUrl,
     imagem_url: imagemUrl,
-    imagem_principal_url: item.imagem_principal_url || imagemUrl,
+    imagem_path: item.imagem_path || null,
     estoqueAtual: Number(item.estoque_atual || 0),
     ativo: Boolean(item.ativo),
     cor: item.cor || null,
