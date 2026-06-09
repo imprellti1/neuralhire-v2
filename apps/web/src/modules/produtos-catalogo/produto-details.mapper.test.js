@@ -25,6 +25,9 @@ function run() {
   assert.equal(produto.precoFormatado.includes('R$'), true);
   assert.equal(mapProdutoDetailsData({ item: { id: 'p2', nome: 'A', ativo: false } }).status, 'inativo');
   assert.equal(mapProdutoDetailsData({ item: { id: 'p3', nome: 'A' } }).status, 'desconhecido');
+  const detailed = mapProdutoDetailsData({ item: { id: 'p4', nome: 'Produto', variacoes: [{ sku: 'V1', estoque_atual: 3, cor: 'Azul', grade: 'U', preco: 10 }] } });
+  assert.equal(detailed.estoqueTotalVariacoes, 3);
+  assert.equal(detailed.variacoes[0].atributos.includes('Azul'), true);
 
   assert.equal(mapProdutoUpdatePayload({ nome: 'A', preco: '129,90', status: 'ativo' }).preco, 129.9);
   assert.equal(mapProdutoUpdatePayload({ nome: 'A', preco: '129.90', status: 'ativo' }).preco, 129.9);

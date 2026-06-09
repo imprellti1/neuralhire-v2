@@ -177,6 +177,7 @@ export async function listAuditProducts(filters = {}, options = {}) {
   const context = buildAuditContext(products, accountId);
   const normalizedFilters = normalizeFilters(filters);
   const filtered = context.applyFilters(normalizedFilters);
+  const summary = context.buildSummary(filtered);
   const issueItems = filtered
     .filter((item) => (item.issues || []).length > 0)
     .slice()
@@ -190,10 +191,11 @@ export async function listAuditProducts(filters = {}, options = {}) {
   const page = Math.max(1, Number(filters.page || 1));
   const limit = Math.min(100, Math.max(1, Number(filters.limit || 20)));
   const total = issueItems.length;
+  const totalPages = Math.ceil(total / limit);
   return {
     items: issueItems.slice((page - 1) * limit, (page - 1) * limit + limit),
-    pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) },
-    summary: context.buildSummary(filtered)
+    pagination: { page, limit, total, totalPages },
+    summary
   };
 }
 

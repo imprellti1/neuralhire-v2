@@ -35,6 +35,61 @@ function normalizePrice(rawValue) {
   return Number(normalized);
 }
 
+function normalizeText(value, fallback = '-') {
+  const text = String(value ?? '').trim();
+  return text || fallback;
+}
+
+function normalizeVariationStatus(rawStatus, ativo) {
+  const status = normalizeStatus(rawStatus, ativo);
+  if (['ativo', 'inativo'].includes(status)) return status;
+  return ativo === false ? 'inativo' : 'ativo';
+}
+
+function extractVariationAttribute(value) {
+  const text = String(value ?? '').trim();
+  return text && text !== '-' ? text : '';
+}
+
+export function normalizeProdutoVariations(response = {}) {
+  const candidates = [
+    response?.variacoes,
+    response?.variations,
+    response?.item?.variacoes,
+    response?.item?.variations,
+    response?.item?.variacoes_produto,
+    response?.item?.variations_produto
+  ];
+  const rawItems = candidates.find((value) => Array.isArray(value)) || [];
+  return rawItems.map((item, index) => {
+    const status = normalizeVariationStatus(item?.status, item?.ativo);
+    const estoque = item?.estoque_atual ?? item?.estoqueAtual ?? item?.estoque ?? item?.saldo_estoque ?? item?.stock ?? 0;
+    const updatedAt = asDate(item?.updated_at || item?.updatedAt || item?.atualizado_em || item?.created_at || item?.createdAt);
+    const attributes = [
+      extractVariationAttribute(item?.cor || item?.color),
+      extractVariationAttribute(item?.grade || item?.tamanho || item?.size),
+      extractVariationAttribute(item?.atributo || item?.atributos),
+    ].filter(Boolean);
+    return {
+      id: item?.id || `${index}`,
+      sku: normalizeText(item?.sku || item?.codigo || item?.codigo_erp || item?.referencia, '-'),
+      atributos: attributes,
+      estoque: Number(estoque || 0),
+      preco: Number(item?.preco ?? item?.preco_unitario ?? item?.valor ?? 0),
+      precoFormatado: fmtBrl(item?.preco ?? item?.preco_unitario ?? item?.valor ?? 0),
+      status,
+      statusComercial: normalizeVariationStatus(item?.status_comercial || item?.statusComercial || item?.status, item?.ativo),
+      updatedAt,
+      updatedAtFormatado: fmtDate(updatedAt),
+      raw: item
+    };
+  });
+}
+
+export function sumProdutoVariationsStock(variations = []) {
+  return (Array.isArray(variations) ? variations : []).reduce((sum, variation) => sum + Number(variation?.estoque || 0), 0);
+}
+
 export function mapProdutoDetailsData(response = {}) {
   const item = response?.item || response || {};
   if (!item?.id) return { id: null };
@@ -58,6 +113,8 @@ export function mapProdutoDetailsData(response = {}) {
     fabricanteLogoUrl: item?.fabricante_logo_url || item?.fabricante?.logo_url || null,
     fabricanteCnpj: item?.fabricante?.cnpj || item?.fabricante_cnpj || null,
     regrasComerciaisFabricante: item?.regras_comerciais_fabricante || item?.fabricante?.regras_comerciais_fabricante || null,
+    variacoes: normalizeProdutoVariations(response),
+    estoqueTotalVariacoes: sumProdutoVariationsStock(normalizeProdutoVariations(response)),
     criadoEm,
     atualizadoEm,
     criadoEmFormatado: fmtDate(criadoEm),

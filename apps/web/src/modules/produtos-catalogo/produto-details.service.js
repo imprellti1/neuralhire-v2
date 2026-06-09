@@ -2,7 +2,16 @@ import { mapProdutoDetailsData, mapProdutoUpdatePayload, mapProdutoUsageData } f
 
 export async function fetchProdutoDetailsData(apiClient, produtoId) {
   const response = await apiClient.get(`/produtos/${produtoId}`);
-  return mapProdutoDetailsData(response);
+  let enriched = response;
+  if (!Array.isArray(response?.item?.variacoes) && !Array.isArray(response?.item?.variations) && !Array.isArray(response?.variacoes) && !Array.isArray(response?.variations)) {
+    try {
+      const variationsResponse = await apiClient.get(`/produtos/${produtoId}/variacoes`);
+      enriched = { ...response, variacoes: Array.isArray(variationsResponse?.items) ? variationsResponse.items : variationsResponse?.variacoes };
+    } catch {
+      enriched = response;
+    }
+  }
+  return mapProdutoDetailsData(enriched);
 }
 
 export async function fetchProdutoImagens(apiClient, produtoId) {

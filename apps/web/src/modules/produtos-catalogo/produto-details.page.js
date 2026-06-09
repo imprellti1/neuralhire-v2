@@ -8,6 +8,17 @@ function statusClass(status) {
   return 'is-unk';
 }
 function brl(value) { return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+function formatPtBrNumber(value) { return Number(value || 0).toLocaleString('pt-BR'); }
+function normalizeStatusLabel(status, ativo) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'ativo' || ativo === true) return 'ativo';
+  if (s === 'inativo' || ativo === false) return 'inativo';
+  return s || 'desconhecido';
+}
+function renderVariationAttributes(variation) {
+  const values = (variation?.atributos || []).filter(Boolean);
+  return values.length ? values.join(' | ') : '-';
+}
 const USAGE_STEP = 5;
 
 export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
@@ -58,10 +69,16 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     .nhpd-wrap{max-width:1280px;width:100%;margin:0 auto}.nhpd-panel{background:#fff;border:1px solid #dbe4f2;border-radius:16px;padding:20px;box-shadow:0 8px 24px rgba(16,34,68,.06)}
     .nhpd-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:14px}.nhpd-title{font-size:30px;font-weight:700;letter-spacing:-.02em}.nhpd-sub{color:#61708f;font-size:14px;margin-top:6px}
     .nhpd-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:14px}.nhpd-card{border:1px solid #e5ecf8;border-radius:14px;padding:16px;background:#fff}
+    .nhpd-left-col,.nhpd-right-col,.nhpd-variation-section{display:grid;gap:14px}.nhpd-variation-section{margin-top:2px}
     .nhpd-dl{display:grid;grid-template-columns:160px 1fr;gap:10px 12px;margin:0}.nhpd-dt{color:#5e6f93;font-weight:600}.nhpd-dd{margin:0}
     .nhpd-badge{display:inline-block;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:700}.nhpd-badge.is-ok{background:#ecfdf3;color:#047857}.nhpd-badge.is-off{background:#fff7ed;color:#b45309}.nhpd-badge.is-unk{background:#eef2ff;color:#3730a3}
     .nhpd-btn{height:38px;border:1px solid #d4deee;border-radius:10px;padding:0 12px;background:#fff;cursor:pointer}.nhpd-btn.primary{background:#1f56dc;color:#fff;border-color:#1f56dc}.nhpd-btn[disabled]{opacity:.6;cursor:not-allowed}
     .nhpd-state{padding:24px;text-align:center;color:#607091}.nhpd-field{display:grid;gap:6px;margin-bottom:10px}.nhpd-field input,.nhpd-field select,.nhpd-field textarea{height:38px;border:1px solid #d4deee;border-radius:10px;padding:0 10px}.nhpd-field textarea{height:90px;padding:10px;resize:vertical}
+    .nhpd-fabricante{display:flex;align-items:center;gap:14px}.nhpd-fabricante-logo{width:78px;height:78px;border:1px solid #e5ecf8;border-radius:18px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#f8fbff;flex:0 0 auto}.nhpd-fabricante-logo img{width:100%;height:100%;object-fit:contain;padding:8px}.nhpd-fabricante-name{font-size:18px;font-weight:700;line-height:1.2}
+    .nhpd-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.nhpd-section-head h3{margin:0;font-size:20px}.nhpd-collapse{width:36px;height:36px;border-radius:10px;border:1px solid #d4deee;background:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+    .nhpd-table-wrap{overflow:auto}.nhpd-table{width:100%;border-collapse:collapse;min-width:820px}.nhpd-table th,.nhpd-table td{padding:10px 12px;border-bottom:1px solid #edf2f8;text-align:left;vertical-align:top;font-size:13px}.nhpd-table th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#61708f;white-space:nowrap}.nhpd-table td{color:#1e2b44}.nhpd-table .is-center{text-align:center}
+    .nhpd-footer{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px;color:#5e6f93;font-size:13px}
+    .nhpd-stock{font-variant-numeric:tabular-nums;font-weight:700}
     .nhpd-usage-head{display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:10px}.nhpd-filter{height:32px;border:1px solid #d4deee;border-radius:8px;padding:0 8px;background:#fff}
     .nhpd-kpi{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-bottom:10px}.nhpd-kpi div{border:1px solid #e5ecf8;border-radius:10px;padding:8px;font-size:12px;color:#61708f}.nhpd-kpi strong{display:block;font-size:16px;color:#0f172a}
     .nhpd-kpi small{display:block;margin-top:4px;font-size:11px}.nhpd-kpi small.positive{color:#047857}.nhpd-kpi small.negative{color:#b42318}.nhpd-kpi small.neutral,.nhpd-kpi small.new{color:#61708f}
@@ -100,18 +117,39 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     if (state.error) return '<section class="nhpd-panel nhpd-state" role="alert" aria-live="assertive">Não foi possível carregar o produto.<br/><br/><button id="nhpd-retry" class="nhpd-btn" aria-label="Tentar carregar o produto novamente">Tentar novamente</button></section>';
     if (state.notFound || !state.data?.id) return '<section class="nhpd-panel nhpd-state">Produto não encontrado.</section>';
     const d = state.data;
+    const variations = Array.isArray(d.variacoes) ? d.variacoes : [];
+    const stockTotal = Number.isFinite(Number(d.estoqueTotalVariacoes)) ? Number(d.estoqueTotalVariacoes) : 0;
+    const variationRows = variations.map((variation) => `<tr>
+      <td>${variation.sku}</td>
+      <td>${renderVariationAttributes(variation)}</td>
+      <td class="nhpd-stock">${formatPtBrNumber(variation.estoque)}</td>
+      <td>${variation.precoFormatado}</td>
+      <td><span class="nhpd-badge ${statusClass(variation.status)}">${variation.status}</span></td>
+      <td>${normalizeStatusLabel(variation.statusComercial, variation.status === 'ativo')}</td>
+      <td>${variation.updatedAtFormatado}</td>
+    </tr>`).join('');
     return `<section class="nhpd-panel">
       <div class="nhpd-head">
         <div><div class="nhpd-title">${d.nomeExibicao}</div><div class="nhpd-sub">${d.sku !== '-' ? `SKU ${d.sku}` : `ID ${d.idTecnicoAbreviado}`} • ${d.categoria}</div><div style="margin-top:10px"><span class="nhpd-badge ${statusClass(d.status)}">${d.status}</span></div></div>
         <div style="display:flex;gap:8px"><button id="nhpd-back" class="nhpd-btn" aria-label="Voltar para lista de produtos">Voltar</button><button id="nhpd-edit" class="nhpd-btn primary" aria-label="Editar Produto" ${state.saving ? 'disabled' : ''}>Editar Produto</button></div>
       </div>
       <div class="nhpd-grid">
-        ${state.editing ? renderEditForm() : `<article class="nhpd-card"><h3>Resumo do Produto</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Nome</dt><dd class="nhpd-dd">${d.nomeExibicao}</dd><dt class="nhpd-dt">SKU</dt><dd class="nhpd-dd">${d.sku}</dd><dt class="nhpd-dt">Categoria</dt><dd class="nhpd-dd">${d.categoria}</dd><dt class="nhpd-dt">Status</dt><dd class="nhpd-dd">${d.status}</dd><dt class="nhpd-dt">Descrição</dt><dd class="nhpd-dd">${d.descricao}</dd></dl></article>`}
-        <article class="nhpd-card"><h3>Fábrica vinculada</h3>${d.fabricanteId ? `<div style="display:flex;gap:12px;align-items:center;margin-bottom:10px">${d.fabricanteLogoUrl ? `<img src="${d.fabricanteLogoUrl}" alt="Logo da fábrica" style="width:64px;height:48px;object-fit:contain;border:1px solid #e5ecf8;border-radius:10px;padding:4px;background:#fff"/>` : '<div style="width:64px;height:48px;border:1px solid #e5ecf8;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#61708f">Sem logo</div>'}<div><strong>${d.fabricanteNome || 'Sem nome'}</strong><div style="color:#61708f;font-size:13px">${d.regrasComerciaisFabricante?.responsavel_comercial_nome || 'Sem responsável comercial'}</div></div></div><dl class="nhpd-dl"><dt class="nhpd-dt">CNPJ</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante?.cnpj || d.fabricanteCnpj || '-'}</dd><dt class="nhpd-dt">Pedido mínimo</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante ? brl(d.regrasComerciaisFabricante.pedido_minimo) : '-'}</dd><dt class="nhpd-dt">Duplicata mínima</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante ? brl(d.regrasComerciaisFabricante.duplicata_minima) : '-'}</dd><dt class="nhpd-dt">Comissão padrão</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante ? `${Number(d.regrasComerciaisFabricante.comissao_padrao || 0)}%` : '-'}</dd><dt class="nhpd-dt">Condição de pagamento</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante?.condicoes_pagamento?.[0]?.prazo || '-'}</dd><dt class="nhpd-dt">Bonificação</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante ? (d.regrasComerciaisFabricante.aceita_bonificacao ? 'Sim' : 'Não') : '-'}</dd><dt class="nhpd-dt">Consignação</dt><dd class="nhpd-dd">${d.regrasComerciaisFabricante ? (d.regrasComerciaisFabricante.aceita_consignacao ? 'Sim' : 'Não') : '-'}</dd></dl>` : '<div class="nhpd-state">Sem fábrica vinculada.</div>'}</article>
-        <article class="nhpd-card"><h3>Preço e Comercial</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Preço atual</dt><dd class="nhpd-dd">${d.precoFormatado}</dd><dt class="nhpd-dt">Status comercial</dt><dd class="nhpd-dd">${d.status}</dd><dt class="nhpd-dt">Ativo/Inativo</dt><dd class="nhpd-dd">${d.ativo ? 'Ativo' : 'Inativo'}</dd></dl></article>
-        <article class="nhpd-card"><h3>Imagens</h3>${renderImagesBlock()}</article>
-        <article class="nhpd-card"><h3>Auditoria</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Criado em</dt><dd class="nhpd-dd">${d.criadoEmFormatado}</dd><dt class="nhpd-dt">Atualizado em</dt><dd class="nhpd-dd">${d.atualizadoEmFormatado}</dd><dt class="nhpd-dt">ID técnico</dt><dd class="nhpd-dd">${d.idTecnicoAbreviado}</dd></dl></article>
-        <article class="nhpd-card"><h3>Uso em Pedidos / Histórico comercial</h3>${renderUsageBlock()}</article>
+        <div class="nhpd-left-col">
+          ${state.editing ? renderEditForm() : `<article class="nhpd-card"><h3>Resumo do Produto</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Nome</dt><dd class="nhpd-dd">${d.nomeExibicao}</dd><dt class="nhpd-dt">SKU</dt><dd class="nhpd-dd">${d.sku}</dd><dt class="nhpd-dt">Categoria</dt><dd class="nhpd-dd">${d.categoria}</dd><dt class="nhpd-dt">Status</dt><dd class="nhpd-dd">${d.status}</dd><dt class="nhpd-dt">Descrição</dt><dd class="nhpd-dd">${d.descricao}</dd><dt class="nhpd-dt">Estoque total (todas as variações)</dt><dd class="nhpd-dd">${formatPtBrNumber(stockTotal)}</dd></dl></article>`}
+          <article class="nhpd-card"><h3>Preço e Comercial</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Preço atual</dt><dd class="nhpd-dd">${d.precoFormatado}</dd><dt class="nhpd-dt">Status comercial</dt><dd class="nhpd-dd">${d.status}</dd><dt class="nhpd-dt">Ativo/Inativo</dt><dd class="nhpd-dd">${d.ativo ? 'Ativo' : 'Inativo'}</dd></dl></article>
+        </div>
+        <div class="nhpd-right-col">
+          <article class="nhpd-card"><h3>Fábrica vinculada</h3>${d.fabricanteId ? `<div class="nhpd-fabricante">${d.fabricanteLogoUrl ? `<div class="nhpd-fabricante-logo"><img src="${d.fabricanteLogoUrl}" alt="Logo da fábrica"/></div>` : '<div class="nhpd-fabricante-logo" aria-hidden="true"></div>'}<div class="nhpd-fabricante-name">${d.fabricanteNome || 'Sem nome'}</div></div>` : '<div class="nhpd-state">Sem fábrica vinculada.</div>'}</article>
+          <article class="nhpd-card"><h3>Imagens</h3>${renderImagesBlock()}</article>
+        </div>
+        <article class="nhpd-card" style="grid-column:1 / -1"><h3>Uso em Pedidos / Histórico comercial</h3>${renderUsageBlock()}</article>
+        <article class="nhpd-card nhpd-variation-section" style="grid-column:1 / -1">
+          <div class="nhpd-section-head">
+            <h3>Variações do Produto</h3>
+            <button id="nhpd-variations-toggle" class="nhpd-collapse" aria-label="${state.variationsExpanded ? 'Recolher variações do produto' : 'Expandir variações do produto'}" aria-expanded="${state.variationsExpanded ? 'true' : 'false'}">${state.variationsExpanded ? '▾' : '▸'}</button>
+          </div>
+          ${state.variationsExpanded ? `<div class="nhpd-table-wrap">${variations.length ? `<table class="nhpd-table"><thead><tr><th>SKU Variação</th><th>Atributos</th><th>Estoque</th><th>Preço</th><th>Status</th><th>Status Comercial</th><th>Atualizado em</th></tr></thead><tbody>${variationRows}</tbody></table>` : '<div class="nhpd-state">Nenhuma variação cadastrada.</div>'}<div class="nhpd-footer"><div>Total de variações: ${variations.length}</div></div></div>` : `<div class="nhpd-footer"><div>Total de variações: ${variations.length}</div></div>`}
+        </article>
       </div>
     </section>`;
   }
@@ -204,6 +242,8 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     if (back) back.onclick = () => { window.location.hash = '#/produtos'; };
     const edit = root.querySelector('#nhpd-edit');
     if (edit) edit.onclick = () => { state.editing = true; state.fieldErrors = {}; state.feedbackMessage = ''; state.form = createProdutoEditForm(state.data); render(); };
+    const variationsToggle = root.querySelector('#nhpd-variations-toggle');
+    if (variationsToggle) variationsToggle.onclick = () => { state.variationsExpanded = !state.variationsExpanded; render(); };
     const usageRetry = root.querySelector('#nhpd-usage-retry');
     if (usageRetry) usageRetry.onclick = () => loadUsage();
     const usagePeriod = root.querySelector('#nhpd-usage-period');

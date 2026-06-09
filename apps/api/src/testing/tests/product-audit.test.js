@@ -74,6 +74,25 @@ export function getProductAuditTests() {
       assert.equal(result.items[0].nome, 'Produto A');
       assert.equal(result.items[1].nome, 'Produto B');
       assert.equal(result.items[2].nome, 'Produto C');
+    } },
+    { name: 'list paginates items while keeping full summary', run: async () => {
+      reset();
+      __loadMemoryProdutos(Array.from({ length: 25 }, (_, idx) => ({
+        id: `p${idx + 1}`,
+        account_id: 'acc-1',
+        nome: `Produto ${String(idx + 1).padStart(2, '0')}`,
+        sku: `SKU${idx + 1}`,
+        categoria: 'Cat',
+        preco: 10,
+        estoque: 5,
+        status: 'ativo'
+      })));
+      const result = await listAuditProducts({ page: 1, limit: 20 }, { accountId: 'acc-1' });
+      assert.equal(result.items.length, 20);
+      assert.equal(result.pagination.total, 25);
+      assert.equal(result.pagination.totalPages, 2);
+      assert.equal(result.summary.totalProdutos, 25);
+      assert.equal(result.summary.comProblemas, 25);
     } }
   ];
 }

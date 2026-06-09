@@ -8,10 +8,6 @@ export async function fetchProductAuditProducts(apiClient, params = {}) {
   return mapProductAuditItemsData(await apiClient.get('/product-audit/products', params));
 }
 
-export async function fetchProductAuditProductsWithSummary(apiClient, params = {}) {
-  return mapProductAuditItemsData(await apiClient.get('/product-audit/products', params));
-}
-
 export async function fetchProductAuditDetail(apiClient, id) {
   return apiClient.get(`/product-audit/products/${id}`);
 }

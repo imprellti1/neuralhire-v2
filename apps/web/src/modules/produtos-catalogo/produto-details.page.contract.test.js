@@ -23,6 +23,10 @@ function run() {
   assert.equal(has("const blob = new Blob([`\\uFEFF${csv}`]"), true, 'Fluxo de exportação CSV não encontrado');
   assert.equal(has('Fábrica vinculada'), true, 'Card de fábrica vinculada não encontrado');
   assert.equal(has('nhpd-fabricante_id'), true, 'Select de fábrica não encontrado');
+  assert.equal(has('Variações do Produto'), true, 'Seção de variações não encontrada');
+  assert.equal(has('nhpd-variations-toggle'), true, 'Toggle de variações não encontrado');
+  assert.equal(has('Estoque total (todas as variações)'), true, 'Resumo de estoque total não encontrado');
+  assert.equal(has('Auditoria'), false, 'Card de auditoria não deveria existir');
 }
 
 run();

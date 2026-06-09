@@ -21,6 +21,7 @@ export function createProdutoDetailsState() {
       status: 'todos'
     },
     usageVisibleCount: 5,
-    usageDrillDown: null
+    usageDrillDown: null,
+    variationsExpanded: true
   };
 }
