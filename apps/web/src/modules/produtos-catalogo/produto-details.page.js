@@ -1,6 +1,6 @@
 import { createProdutoDetailsState } from './produto-details.state.js';
 import { applyProdutoUsageDrillDown, applyProdutoUsageFilters, createProdutoEditForm, mapProdutoUsageCsvContent, mapProdutoUsageCsvFilename, mapProdutoUsageCsvRows, validateProdutoEditForm } from './produto-details.mapper.js';
-import { fetchProdutoDetailsData, fetchProdutoUsageData, updateProduto, uploadProdutoVariacaoImagem } from './produto-details.service.js';
+import { fetchProdutoDetailsData, fetchProdutoImagens, fetchProdutoUsageData, updateProduto, uploadProdutoImagem, uploadProdutoVariacaoImagem } from './produto-details.service.js';
 
 function statusClass(status) {
   if (status === 'ativo') return 'is-ok';
@@ -19,8 +19,8 @@ function formatVariationField(value) {
   const text = String(value ?? '').trim();
   return text || '-';
 }
-function renderVariationImageCell(variation = {}) {
-  const src = variation.imagemUrl || variation.imagem_url || variation.raw?.imagemUrl || variation.raw?.imagem_url || variation.raw?.imagemPrincipalUrl || variation.raw?.imagem_principal_url || null;
+function renderVariationImageCell(variation = {}, fallbackSrc = null) {
+  const src = variation.imagemUrl || variation.imagem_url || variation.raw?.imagemUrl || variation.raw?.imagem_url || variation.raw?.imagemPrincipalUrl || variation.raw?.imagem_principal_url || fallbackSrc || null;
   return src ? `<img src="${src}" alt="Imagem da variação" class="nhpd-variation-image" />` : '<div class="nhpd-variation-image nhpd-variation-placeholder" aria-hidden="true"></div>';
 }
 const USAGE_STEP = 5;
@@ -87,6 +87,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     .nhpd-variation-image{width:60px;height:60px;object-fit:cover;border-radius:12px;border:1px solid #dbe4f2;background:#f8fbff}
     .nhpd-variation-placeholder{display:block;background:linear-gradient(135deg,#f8fbff,#eef4ff)}
     .nhpd-image-picker{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .nhpd-product-image{width:100%;max-height:280px;object-fit:cover;border-radius:14px;border:1px solid #e5ecf8;background:#f8fbff}
     @media (max-width:1024px){.nhpd-grid{grid-template-columns:1fr}.nhpd-title{font-size:24px}.nhpd-dl{grid-template-columns:1fr}.nhpd-kpi{grid-template-columns:1fr 1fr}}
     `;
     document.head.appendChild(style);
@@ -116,8 +117,9 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     const d = state.data;
     const variations = Array.isArray(d.variacoes) ? d.variacoes : [];
     const stockTotal = Number.isFinite(Number(d.estoqueTotalVariacoes)) ? Number(d.estoqueTotalVariacoes) : 0;
+    const productFallbackImage = state.productImages?.find((image) => image?.principal)?.url || d.imagemUrl || d.imagem_url || null;
     const variationRows = variations.map((variation) => `<tr>
-      <td>${renderVariationImageCell(variation)}</td>
+      <td>${renderVariationImageCell(variation, productFallbackImage)}</td>
       <td>${formatVariationField(variation.sku)}</td>
       <td>${formatVariationField(variation.cor)}</td>
       <td>${formatVariationField(variation.tamanho)}</td>
@@ -138,7 +140,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
         </div>
         <div class="nhpd-right-col">
           <article class="nhpd-card"><h3>Fábrica vinculada</h3>${d.fabricanteId ? `<div class="nhpd-fabricante">${d.fabricanteLogoUrl ? `<div class="nhpd-fabricante-logo"><img src="${d.fabricanteLogoUrl}" alt="Logo da fábrica"/></div>` : '<div class="nhpd-fabricante-logo" aria-hidden="true"></div>'}<div class="nhpd-fabricante-name">${d.fabricanteNome || 'Sem nome'}</div></div>` : '<div class="nhpd-state">Sem fábrica vinculada.</div>'}</article>
-          <article class="nhpd-card"><h3>Imagem do Produto</h3>${renderProductImageBlock(d, variations)}</article>
+          <article class="nhpd-card"><h3>Imagem do Produto</h3>${renderProductImageBlock(d)}</article>
         </div>
         <article class="nhpd-card" style="grid-column:1 / -1"><h3>Uso em Pedidos / Histórico comercial</h3>${renderUsageBlock()}</article>
         <article class="nhpd-card nhpd-variation-section" style="grid-column:1 / -1">
@@ -152,10 +154,10 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     </section>`;
   }
 
-  function renderProductImageBlock(product, variations = []) {
-    const variationWithImage = variations.find((variation) => variation.imagemUrl || variation.imagem_url);
-    const primary = product.imagemUrl || product.imagem_url || variationWithImage?.imagemUrl || variationWithImage?.imagem_url || null;
-    return `<div style="display:grid;gap:10px"><div>${primary ? `<img src="${primary}" alt="Imagem principal do produto" style="width:100%;max-height:280px;object-fit:cover;border-radius:14px;border:1px solid #e5ecf8;object-fit:cover" />` : '<div class="nhpd-state">Sem imagem cadastrada.</div>'}</div><div class="nhpd-sub">Fallback para a imagem principal do produto quando a variação ainda não tem imagem própria.</div></div>`;
+  function renderProductImageBlock(product) {
+    const primary = state.productImages?.find((image) => image?.principal) || state.productImages?.[0] || null;
+    const primaryUrl = primary?.url || product.imagemUrl || product.imagem_url || null;
+    return `<div style="display:grid;gap:10px"><div>${primaryUrl ? `<img src="${primaryUrl}" alt="Imagem principal do produto" class="nhpd-product-image" />` : '<div class="nhpd-state">Sem imagem cadastrada.</div>'}</div><div class="nhpd-image-picker"><input type="file" id="nhpd-product-file" accept="image/jpeg,image/png,image/webp" ${state.saving ? 'disabled' : ''}/><button class="nhpd-btn primary js-product-image-upload" ${state.saving ? 'disabled' : ''}>Alterar Imagem do Produto</button></div><div class="nhpd-sub">Imagem exclusiva do produto pai. Não é preenchida a partir de variações.</div></div>`;
   }
 
   function renderUsageBlock() {
@@ -279,6 +281,32 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
         render();
       }
     });
+    root.querySelectorAll('.js-product-image-upload').forEach((btn) => btn.onclick = async () => {
+      const file = root.querySelector('#nhpd-product-file')?.files?.[0];
+      if (!file) return;
+      if (file.size > MAX_IMAGE_BYTES) {
+        state.feedbackMessage = 'A imagem ultrapassa o limite de 25MB.';
+        render();
+        return;
+      }
+      state.saving = true;
+      state.feedbackMessage = '';
+      render();
+      try {
+        const formData = new FormData();
+        formData.append('upload', file, file.name);
+        formData.append('principal', 'true');
+        await uploadProdutoImagem(apiClient, produtoId, formData);
+        state.feedbackMessage = 'Imagem do produto atualizada com sucesso.';
+        await load({ preserveMessages: true, feedbackMessage: 'Imagem do produto atualizada com sucesso.' });
+      } catch (error) {
+        const code = error?.body?.error?.code || error?.code;
+        state.feedbackMessage = code === 'PAYLOAD_TOO_LARGE' ? 'A imagem ultrapassa o limite de 25MB.' : error?.body?.error?.message || error?.message || 'Não foi possível enviar a imagem.';
+      } finally {
+        state.saving = false;
+        render();
+      }
+    });
     function exportUsageCsv(mode) {
       const u = applyProdutoUsageFilters(state.usage, state.usageFilters);
       const baseRows = applyProdutoUsageDrillDown(u.pedidosRecentes || [], state.usageDrillDown, u.agrupamentoTemporal);
@@ -342,6 +370,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     render();
     try {
       state.data = await fetchProdutoDetailsData(apiClient, produtoId);
+      state.productImages = await fetchProdutoImagens(apiClient, produtoId).catch(() => []);
       state.form = createProdutoEditForm(state.data);
       if (!state?.data?.id) state.notFound = true;
       if (options.feedbackMessage) state.feedbackMessage = options.feedbackMessage;

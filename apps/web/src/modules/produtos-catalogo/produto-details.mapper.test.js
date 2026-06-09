@@ -31,6 +31,9 @@ function run() {
   assert.equal(detailed.estoqueTotalVariacoes, 3);
   assert.equal(detailed.variacoes[0].cor, 'Azul');
   assert.equal(detailed.variacoes[0].tamanho, 'U');
+  const separatedImages = mapProdutoDetailsData({ item: { id: 'p4b', nome: 'Produto', imagem_url: 'https://img.test/produto-a.jpg', variacoes: [{ sku: 'V1', imagem_url: 'https://img.test/variacao-b.jpg', estoque_atual: 1 }] } });
+  assert.equal(separatedImages.imagemUrl, 'https://img.test/produto-a.jpg');
+  assert.equal(separatedImages.variacoes[0].imagemUrl, 'https://img.test/variacao-b.jpg');
   const directArray = mapProdutoDetailsData({ id: 'p5', nome: 'Produto 5', sku: 'S5', categoria: 'Cat', variations: [{ id: 'v1', sku: 'V1', tamanho: 'M', estoqueAtual: 4, preco: 10, status_comercial: 'ativo', updatedAt: '2026-05-01T00:00:00.000Z' }] });
   assert.equal(directArray.variacoes.length, 1);
   assert.equal(directArray.variacoes[0].estoqueAtual, 4);

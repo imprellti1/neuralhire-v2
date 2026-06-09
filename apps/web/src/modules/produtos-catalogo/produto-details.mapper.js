@@ -72,6 +72,10 @@ function normalizeVariationStatus(rawStatus, ativo) {
   return ativo === false ? 'inativo' : 'ativo';
 }
 
+function pickImageUrl(item = {}) {
+  return item?.imagemUrl || item?.imagem_url || item?.image_url || item?.foto_url || item?.foto || null;
+}
+
 export function normalizeProdutoVariations(response = {}) {
   const candidates = [
     response?.variacoes,
@@ -105,7 +109,7 @@ export function normalizeProdutoVariations(response = {}) {
       status,
       ativo: status === 'ativo',
       statusComercial: normalizeVariationStatus(item?.status_comercial || item?.statusComercial || item?.status, item?.ativo),
-      imagemUrl: item?.imagemUrl || item?.imagem_url || item?.image_url || item?.foto_url || item?.foto || null,
+      imagemUrl: pickImageUrl(item),
       updatedAt,
       updatedAtFormatado: fmtDate(updatedAt),
       raw: item
@@ -128,6 +132,7 @@ export function mapProdutoDetailsData(response = {}) {
   return {
     id: item.id,
     nomeExibicao,
+    imagemUrl: pickImageUrl(item),
     sku: item?.sku || '-',
     categoria: item?.categoria_nome || item?.categoria || '-',
     descricao: normalizeDescription(item?.descricao, nomeExibicao),
