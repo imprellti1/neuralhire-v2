@@ -53,23 +53,6 @@ function normalizeArrayResponse(response = {}) {
   return response?.items || response?.data || [];
 }
 
-function normalizeVariationAttributes(item = {}) {
-  const candidates = [
-    item?.atributos,
-    item?.attributes,
-    item?.atributo,
-    item?.atributo_nome,
-    item?.nome,
-    item?.valor,
-    item?.grade,
-    item?.tamanho,
-    item?.cor
-  ];
-  return candidates
-    .map((value) => String(value ?? '').trim())
-    .filter((value) => value && value !== '-');
-}
-
 function pickVariationStock(item = {}) {
   const candidates = [item?.estoque_atual, item?.estoqueAtual, item?.estoque, item?.saldo_estoque, item?.stock];
   for (const value of candidates) {
@@ -87,11 +70,6 @@ function normalizeVariationStatus(rawStatus, ativo) {
   const status = normalizeStatus(rawStatus, ativo);
   if (['ativo', 'inativo'].includes(status)) return status;
   return ativo === false ? 'inativo' : 'ativo';
-}
-
-function extractVariationAttribute(value) {
-  const text = String(value ?? '').trim();
-  return text && text !== '-' ? text : '';
 }
 
 export function normalizeProdutoVariations(response = {}) {
@@ -115,13 +93,11 @@ export function normalizeProdutoVariations(response = {}) {
     const status = normalizeVariationStatus(item?.status, item?.ativo);
     const estoque = pickVariationStock(item);
     const updatedAt = asDate(pickVariationUpdatedAt(item));
-    const attributes = normalizeVariationAttributes(item);
     return {
       id: item?.id || `${index}`,
       sku: normalizeText(item?.sku || item?.codigo || item?.codigo_erp || item?.referencia, '-'),
       cor: item?.cor || item?.color || null,
       tamanho: item?.tamanho || item?.grade || item?.size || null,
-      atributos: attributes,
       estoqueAtual: Number(estoque || 0),
       estoque: Number(estoque || 0),
       preco: Number(item?.preco ?? item?.preco_unitario ?? item?.valor ?? 0),

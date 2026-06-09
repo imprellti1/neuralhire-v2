@@ -29,7 +29,8 @@ function run() {
   assert.equal(mapProdutoDetailsData({ item: { id: 'p3c', nome: 'A', descricao: 'Descrição real' } }).descricao, 'Descrição real');
   const detailed = mapProdutoDetailsData({ item: { id: 'p4', nome: 'Produto', variacoes: [{ sku: 'V1', estoque_atual: 3, cor: 'Azul', grade: 'U', preco: 10 }] } });
   assert.equal(detailed.estoqueTotalVariacoes, 3);
-  assert.equal(detailed.variacoes[0].atributos.includes('Azul'), true);
+  assert.equal(detailed.variacoes[0].cor, 'Azul');
+  assert.equal(detailed.variacoes[0].tamanho, 'U');
   const directArray = mapProdutoDetailsData({ id: 'p5', nome: 'Produto 5', sku: 'S5', categoria: 'Cat', variations: [{ id: 'v1', sku: 'V1', tamanho: 'M', estoqueAtual: 4, preco: 10, status_comercial: 'ativo', updatedAt: '2026-05-01T00:00:00.000Z' }] });
   assert.equal(directArray.variacoes.length, 1);
   assert.equal(directArray.variacoes[0].estoqueAtual, 4);

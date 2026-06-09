@@ -15,9 +15,9 @@ function normalizeStatusLabel(status, ativo) {
   if (s === 'inativo' || ativo === false) return 'inativo';
   return s || 'desconhecido';
 }
-function renderVariationAttributes(variation) {
-  const values = (variation?.atributos || []).filter(Boolean);
-  return values.length ? values.join(' | ') : '-';
+function formatVariationField(value) {
+  const text = String(value ?? '').trim();
+  return text || '-';
 }
 const USAGE_STEP = 5;
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
@@ -121,8 +121,9 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     const variations = Array.isArray(d.variacoes) ? d.variacoes : [];
     const stockTotal = Number.isFinite(Number(d.estoqueTotalVariacoes)) ? Number(d.estoqueTotalVariacoes) : 0;
     const variationRows = variations.map((variation) => `<tr>
-      <td>${variation.sku}</td>
-      <td>${renderVariationAttributes(variation)}</td>
+      <td>${formatVariationField(variation.sku)}</td>
+      <td>${formatVariationField(variation.cor)}</td>
+      <td>${formatVariationField(variation.tamanho)}</td>
       <td class="nhpd-stock">${formatPtBrNumber(variation.estoque)}</td>
       <td>${variation.precoFormatado}</td>
       <td><span class="nhpd-badge ${statusClass(variation.status)}">${variation.status}</span></td>
@@ -149,7 +150,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
             <h3>Variações do Produto</h3>
             <button id="nhpd-variations-toggle" class="nhpd-collapse" aria-label="${state.variationsExpanded ? 'Recolher variações do produto' : 'Expandir variações do produto'}" aria-expanded="${state.variationsExpanded ? 'true' : 'false'}">${state.variationsExpanded ? '▾' : '▸'}</button>
           </div>
-          ${state.variationsExpanded ? `<div class="nhpd-table-wrap">${variations.length ? `<table class="nhpd-table"><thead><tr><th>SKU Variação</th><th>Atributos</th><th>Estoque</th><th>Preço</th><th>Status</th><th>Status Comercial</th><th>Atualizado em</th></tr></thead><tbody>${variationRows}</tbody></table>` : '<div class="nhpd-state">Nenhuma variação cadastrada.</div>'}<div class="nhpd-footer"><div>Total de variações: ${variations.length}</div></div></div>` : `<div class="nhpd-footer"><div>Total de variações: ${variations.length}</div></div>`}
+          ${state.variationsExpanded ? `<div class="nhpd-table-wrap">${variations.length ? `<table class="nhpd-table"><thead><tr><th>SKU Variação</th><th>Cor</th><th>Grade</th><th>Estoque</th><th>Preço</th><th>Status</th><th>Status Comercial</th><th>Atualizado em</th></tr></thead><tbody>${variationRows}</tbody></table>` : '<div class="nhpd-state">Nenhuma variação cadastrada.</div>'}<div class="nhpd-footer"><div>Total de variações: ${variations.length}</div></div></div>` : `<div class="nhpd-footer"><div>Total de variações: ${variations.length}</div></div>`}
         </article>
       </div>
     </section>`;
