@@ -218,6 +218,17 @@ async function upsertStockRecord(record) {
         nome: variationIdentity.nome,
         grade: variationIdentity.grade
       };
+      console.log('[existingVariationLookup]', lookup);
+      console.log('[existingVariationSelect]', {
+        table: 'produto_variacoes',
+        select: PRODUTO_VARIACOES_SELECT_FIELDS,
+        filters: {
+          account_id: variationIdentity.accountId,
+          produto_id: variationIdentity.produtoId,
+          nome: variationIdentity.nome,
+          grade: variationIdentity.grade
+        }
+      });
       const { data: existing, error: findError } = await supabase
         .from('produto_variacoes')
         .select(PRODUTO_VARIACOES_SELECT_FIELDS)
@@ -227,6 +238,10 @@ async function upsertStockRecord(record) {
         .eq('grade', variationIdentity.grade)
         .maybeSingle();
       if (findError) throw new DatabaseError('Falha ao consultar estoque', { details: findError });
+      console.log('[existingVariationFound]', {
+        found: !!existing,
+        id: existing?.id
+      });
 
       const conflictPayload = {
         account_id: variationIdentity.accountId,
@@ -273,7 +288,7 @@ async function upsertStockRecord(record) {
         return { row: updatedVariation, created: false };
       }
 
-      console.error('[produtos-import] existingVariationLookup', lookup);
+      console.log('[insertVariationPayload]', conflictPayload);
       const { data: upsertedVariation, error: upsertError } = await supabase
         .from('produto_variacoes')
         .upsert(conflictPayload, { onConflict: 'account_id,produto_id,nome,grade' })
