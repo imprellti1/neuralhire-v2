@@ -246,21 +246,33 @@ export async function createProduto(data, options = {}) {
     preco_promocional: Number.isFinite(data.preco_promocional) ? data.preco_promocional : null,
     icms_percentual: Number.isFinite(data.icms_percentual) ? data.icms_percentual : 0,
     video_url: data.video_url || null,
-    imagemUrl: data.imagemUrl || data.imagem_url || null,
+    metadata: {
+      ...(data.metadata || {}),
+      ...(data.imagemUrl || data.imagem_url ? { imagem_url: data.imagemUrl || data.imagem_url || null } : {})
+    },
     custo: Number.isFinite(data.custo) ? data.custo : null,
     estoque: Number.isFinite(data.estoque) ? data.estoque : 0,
     unidade: data.unidade || 'UN',
     ativo: typeof data.ativo === 'boolean' ? data.ativo : true,
-    tags: Array.isArray(data.tags) ? data.tags : [],
-    metadata: data.metadata || {}
+    tags: Array.isArray(data.tags) ? data.tags : []
   };
 
   if (repositoryMode.mode === 'supabase') {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data: inserted, error } = await supabase.from('produtos').insert(payload).select('*').single();
-    if (error) throw new DatabaseError('Falha ao criar produto', { details: error });
-    return attachFabricanteData(inserted, { accountId });
+    try {
+      const { data: inserted, error } = await supabase.from('produtos').insert(payload).select('*').single();
+      if (error) throw error;
+      return attachFabricanteData(inserted, { accountId });
+    } catch (error) {
+      console.error('[produtos] create failed', {
+        code: error?.code,
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint
+      });
+      throw new DatabaseError('Falha ao criar produto', { details: error });
+    }
   }
 
   const item = { id: randomUUID(), ...payload, createdAt: new Date().toISOString() };
