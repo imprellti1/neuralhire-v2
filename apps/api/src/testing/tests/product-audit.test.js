@@ -80,10 +80,10 @@ export function getProductAuditTests() {
     { name: 'active normalization keeps problem products in default audit and excludes inactive products', run: async () => {
       reset();
       __loadMemoryProdutos([
-        { id: 'p1', account_id: 'acc-1', nome: 'Ativo sem imagem', sku: 'SKU1', categoria: 'Cat', preco: 10, estoque: 1, status_comercial: 'ativo', status: undefined, ativo: undefined, imagemUrl: null, variacoes: [{ id: 'v1', sku: 'SKU1-1', estoque: 1 }] },
+        { id: 'p1', account_id: 'acc-1', nome: 'Ativo sem imagem', sku: 'SKU1', categoria: 'Cat', preco: 10, estoque: 1, ativo: 1, imagemUrl: null, variacoes: [{ id: 'v1', sku: 'SKU1-1', estoque: 1 }] },
         { id: 'p2', account_id: 'acc-1', nome: 'Ativo sem categoria', sku: 'SKU2', categoria: null, preco: 10, estoque: 1, ativo: true, imagemUrl: 'img', variacoes: [{ id: 'v2', sku: 'SKU2-1', estoque: 1 }] },
         { id: 'p4', account_id: 'acc-1', nome: 'Ativo numérico', sku: 'SKU4', categoria: 'Cat', preco: 10, estoque: 1, ativo: 1, imagemUrl: 'img', variacoes: [{ id: 'v4', sku: 'SKU4-1', estoque: 1 }] },
-        { id: 'p3', account_id: 'acc-1', nome: 'Inativo claro', sku: 'SKU3', categoria: 'Cat', preco: 10, estoque: 1, status: 'inativo', imagemUrl: 'img', variacoes: [{ id: 'v3', sku: 'SKU3-1', estoque: 1 }] }
+        { id: 'p3', account_id: 'acc-1', nome: 'Inativo claro', sku: 'SKU3', categoria: 'Cat', preco: 10, estoque: 1, ativo: 0, imagemUrl: 'img', variacoes: [{ id: 'v3', sku: 'SKU3-1', estoque: 1 }] }
       ]);
       const defaultResult = await listAuditProducts({}, { accountId: 'acc-1' });
       assert.equal(defaultResult.pagination.total, 2);
@@ -107,8 +107,8 @@ export function getProductAuditTests() {
     { name: 'summary keeps active issues visible for default audit and does not zero out cards', run: async () => {
       reset();
       __loadMemoryProdutos([
-        { id: 'p1', account_id: 'acc-1', nome: 'Ativo A', sku: 'SKU10', categoria: null, preco: 10, estoque: 0, status: 'ativo', imagemUrl: null, variacoes: [] },
-        { id: 'p2', account_id: 'acc-1', nome: 'Ativo B', sku: 'SKU11', categoria: 'Cat', preco: 0, estoque: 1, status_comercial: 'ativo', variacoes: [{ id: 'v2', sku: 'SKU11-1', estoque: 1 }] },
+        { id: 'p1', account_id: 'acc-1', nome: 'Ativo A', sku: 'SKU10', categoria: null, preco: 10, estoque: 0, ativo: true, imagemUrl: null, variacoes: [] },
+        { id: 'p2', account_id: 'acc-1', nome: 'Ativo B', sku: 'SKU11', categoria: 'Cat', preco: 0, estoque: 1, ativo: 'true', variacoes: [{ id: 'v2', sku: 'SKU11-1', estoque: 1 }] },
         { id: 'p3', account_id: 'acc-1', nome: 'Ativo C', sku: 'SKU12', categoria: 'Cat', preco: 10, estoque: 1, ativo: 1, imagemUrl: 'img', variacoes: [{ id: 'v3', sku: 'SKU12-1', estoque: 1 }] }
       ]);
       const summary = await auditSummary({ accountId: 'acc-1' });
@@ -120,12 +120,38 @@ export function getProductAuditTests() {
       assert.equal(summary.criticos >= 1, true);
       assert.equal(summary.leves >= 1, true);
     } },
+    { name: 'schema real active flag with no status fields appears in default audit', run: async () => {
+      reset();
+      __loadMemoryProdutos([
+        { id: 'p1', account_id: 'acc-1', nome: 'Real Ativo', sku: 'SKU_REAL_1', categoria: null, preco: 10, estoque: 1, ativo: 1, imagemUrl: null, variacoes: [{ id: 'v1', sku: 'SKU_REAL_1-1', estoque: 1 }] }
+      ]);
+      const result = await listAuditProducts({}, { accountId: 'acc-1' });
+      assert.equal(result.pagination.total, 1);
+      assert.equal(result.summary.totalProdutos, 1);
+      assert.equal(result.summary.comProblemas, 1);
+      assert.equal(result.summary.semImagem, 1);
+      assert.equal(result.summary.semCategoria, 1);
+      assert.equal(result.items[0].id, 'p1');
+    } },
+    { name: 'schema real inactive flag appears only in inactive audit', run: async () => {
+      reset();
+      __loadMemoryProdutos([
+        { id: 'p1', account_id: 'acc-1', nome: 'Real Inativo', sku: 'SKU_REAL_2', categoria: 'Cat', preco: 10, estoque: 1, ativo: 0, imagemUrl: 'img', variacoes: [{ id: 'v1', sku: 'SKU_REAL_2-1', estoque: 1 }] }
+      ]);
+      const defaultResult = await listAuditProducts({}, { accountId: 'acc-1' });
+      assert.equal(defaultResult.pagination.total, 0);
+      assert.equal(defaultResult.summary.totalProdutos, 0);
+      const inactiveResult = await listAuditProducts({ status: 'inativo' }, { accountId: 'acc-1' });
+      assert.equal(inactiveResult.pagination.total, 1);
+      assert.equal(inactiveResult.summary.totalProdutos, 1);
+      assert.equal(inactiveResult.items[0].id, 'p1');
+    } },
     { name: 'list orders by severity, issue count and name', run: async () => {
       reset();
       __loadMemoryProdutos([
-        { id: 'p1', account_id: 'acc-1', nome: 'Produto C', sku: 'SKU1', categoria: null, preco: 10, estoque: 5, status: 'ativo', variacoes: [] },
-        { id: 'p2', account_id: 'acc-1', nome: 'Produto A', sku: 'SKU2', categoria: 'Cat', preco: 0, estoque: 0, status: 'ativo' },
-        { id: 'p3', account_id: 'acc-1', nome: 'Produto B', sku: 'SKU3', categoria: 'Cat', preco: 0, estoque: 0, status: 'ativo' }
+        { id: 'p1', account_id: 'acc-1', nome: 'Produto C', sku: 'SKU1', categoria: null, preco: 10, estoque: 5, ativo: true, variacoes: [] },
+        { id: 'p2', account_id: 'acc-1', nome: 'Produto A', sku: 'SKU2', categoria: 'Cat', preco: 0, estoque: 0, ativo: true },
+        { id: 'p3', account_id: 'acc-1', nome: 'Produto B', sku: 'SKU3', categoria: 'Cat', preco: 0, estoque: 0, ativo: true }
       ]);
       const result = await listAuditProducts({}, { accountId: 'acc-1' });
       assert.equal(result.items[0].nome, 'Produto A');
@@ -142,7 +168,7 @@ export function getProductAuditTests() {
         categoria: 'Cat',
         preco: 10,
         estoque: 5,
-        status: 'ativo'
+        ativo: true
       })));
       const result = await listAuditProducts({ page: 1, limit: 20 }, { accountId: 'acc-1' });
       assert.equal(result.items.length, 20);

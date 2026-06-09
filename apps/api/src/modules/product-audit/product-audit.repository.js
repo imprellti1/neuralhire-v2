@@ -39,31 +39,28 @@ function normalizeStatusValue(value) {
 
 function normalizeActiveFlag(value) {
   if (value === true || value === 1 || value === '1') return true;
+  if (String(value || '').trim().toLowerCase() === 'true') return true;
   if (value === false || value === 0 || value === '0') return false;
+  if (String(value || '').trim().toLowerCase() === 'false') return false;
   return null;
 }
 
 function hasActiveIndicator(item = {}) {
-  const status = normalizeStatusValue(item.status);
-  const commercial = normalizeStatusValue(item.status_comercial || item.statusComercial);
   const activeFlag = normalizeActiveFlag(item.ativo);
-  return status === 'ativo' || commercial === 'ativo' || activeFlag === true;
+  return activeFlag === true;
 }
 
 function hasInactiveIndicator(item = {}) {
-  const status = normalizeStatusValue(item.status);
-  const commercial = normalizeStatusValue(item.status_comercial || item.statusComercial);
   const activeFlag = normalizeActiveFlag(item.ativo);
-  return status === 'inativo' || commercial === 'inativo' || activeFlag === false;
+  return activeFlag === false;
 }
 
 function isInactiveProduct(item = {}) {
-  if (hasActiveIndicator(item)) return false;
   return hasInactiveIndicator(item);
 }
 
 function isActiveProduct(item = {}) {
-  return hasActiveIndicator(item) || !isInactiveProduct(item);
+  return hasActiveIndicator(item);
 }
 
 function buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet) {
