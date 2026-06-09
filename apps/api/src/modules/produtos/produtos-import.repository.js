@@ -462,7 +462,7 @@ function getParentNameFromItem(item = {}) {
   return String(item.nome_produto || item.nome || item.codigo_erp || '').trim() || null;
 }
 
-function buildVariationPayloadFromItem(item = {}, parentId, accountId, fabricanteId, fileName, batchId) {
+function buildVariationPayloadFromItem(item = {}, parentId, accountId, fabricanteId) {
   const grade = String(item.grade || item.tamanho || '').trim() || null;
   const cor = String(item.cor || item.variacao_nome || '').trim() || null;
   const nome = grade === 'UNI'
@@ -481,10 +481,7 @@ function buildVariationPayloadFromItem(item = {}, parentId, accountId, fabricant
     grade,
     tamanho: grade,
     estoque_atual: estoque,
-    ativo,
-    origem: 'IMPORTACAO_XLSX',
-    arquivo_origem: fileName || null,
-    import_batch_id: batchId
+    ativo
   };
 }
 
@@ -1000,7 +997,7 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
         const variationName = grade === 'UNI'
           ? (cor || 'UNI')
           : `${cor || 'PADRAO'} / ${grade}`;
-        const variationPayload = buildVariationPayloadFromItem(item, productId, accountId, fabricanteId, fileName, batch.id);
+        const variationPayload = buildVariationPayloadFromItem(item, productId, accountId, fabricanteId);
         const variationKey = buildVariationLookupKey(accountId, productId, variationName, grade);
         const existingVariation = variationMap.get(variationKey) || null;
         if (existingVariation) {
