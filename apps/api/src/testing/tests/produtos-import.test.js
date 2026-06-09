@@ -7,6 +7,7 @@ import { createFabricante } from '../../modules/fabricantes/fabricantes.reposito
 import { __resetMemoryProdutosForTests } from '../../modules/produtos/produtos.repository.js';
 import { __resetMemoryProductEditorForTests } from '../../modules/product-editor/product-editor.repository.js';
 import { __dumpImportMemory } from '../../modules/produtos/produtos-import.repository.js';
+import { __getProdutoVariacoesSelectFieldsForTests } from '../../modules/produtos/produtos-import.repository.js';
 import { parseJsonBody } from '../../core/body-parser.js';
 
 function parseBody(res) {
@@ -63,6 +64,15 @@ function createMultipartRequest({ accountId, role, fields = {}, file = null }) {
 
 export function getProdutosImportTests() {
   return [
+    {
+      name: 'upsertStockRecord usa somente colunas reais de produto_variacoes',
+      run: async () => {
+        const fields = __getProdutoVariacoesSelectFieldsForTests();
+        assert.equal(fields.includes('tamanho'), false);
+        assert.equal(fields.includes('grade'), true);
+        assert.equal(fields.includes('estoque_atual'), true);
+      }
+    },
     {
       name: 'preview de XLSX valido sem exigir ag-grid',
       run: async () => {

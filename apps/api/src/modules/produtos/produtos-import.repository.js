@@ -16,6 +16,7 @@ const VARIATION_HEADERS = ['P', 'M', 'G', 'GG', '35-36', '37-38', '39-40', '41-4
 const STOCK_HEADER_HINTS = ['estoque', 'quantidade', 'qtd', 'saldo'];
 const CATEGORY_HEADER_HINTS = ['categoria', 'grupo'];
 const PRICE_HEADER_HINTS = ['preco', 'preço', 'valor'];
+const PRODUTO_VARIACOES_SELECT_FIELDS = 'id, account_id, produto_id, sku, nome, valor, cor, grade, estoque_atual';
 
 function assertAccountId(accountId) {
   if (!accountId) throw new ForbiddenError('Contexto de tenant obrigatorio', { code: 'TENANT_REQUIRED', domain: 'produtos-import' });
@@ -199,7 +200,7 @@ async function upsertStockRecord(record) {
 
       const { data: existing, error: findError } = await supabase
         .from('produto_variacoes')
-        .select('id, account_id, produto_id, sku, nome, valor, cor, grade, tamanho, estoque_atual')
+        .select(PRODUTO_VARIACOES_SELECT_FIELDS)
         .eq('account_id', record.account_id)
         .eq('id', record.variacao_id)
         .maybeSingle();
@@ -215,7 +216,7 @@ async function upsertStockRecord(record) {
         .update({ estoque_atual: nextQuantidade })
         .eq('id', record.variacao_id)
         .eq('account_id', record.account_id)
-        .select('id, account_id, produto_id, sku, nome, valor, cor, grade, tamanho, estoque_atual')
+        .select(PRODUTO_VARIACOES_SELECT_FIELDS)
         .single();
       if (updateError) {
         if (updateError.code === 'PGRST116') {
@@ -229,11 +230,10 @@ async function upsertStockRecord(record) {
               valor: record.valor || null,
               cor: record.cor || null,
               grade: record.grade || null,
-              tamanho: record.tamanho || null,
               estoque_atual: nextQuantidade,
               ativo: true
             })
-            .select('id, account_id, produto_id, sku, nome, valor, cor, grade, tamanho, estoque_atual')
+            .select(PRODUTO_VARIACOES_SELECT_FIELDS)
             .single();
           if (insertError) throw insertError;
           return { row: insertedVariation, created: true };
@@ -431,6 +431,10 @@ async function upsertVariacao(accountId, produtoId, parsed, grade) {
 
 function buildPreviewErrorRow(rowIndex, message, row) {
   return { row: rowIndex, message, raw: row };
+}
+
+export function __getProdutoVariacoesSelectFieldsForTests() {
+  return PRODUTO_VARIACOES_SELECT_FIELDS;
 }
 
 export async function previewImportXlsx({ accountId, fabricanteId, fileName, buffer }) {
