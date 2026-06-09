@@ -219,6 +219,33 @@ async function confirmVariationFromDatabase(supabase, variationIdentity) {
   return data || null;
 }
 
+async function ensureVariationInDatabase(supabase, record, variationIdentity) {
+  const conflictPayload = {
+    account_id: variationIdentity.accountId,
+    produto_id: variationIdentity.produtoId,
+    sku: record.sku || null,
+    nome: variationIdentity.nome || null,
+    valor: record.valor || null,
+    cor: record.cor || null,
+    grade: variationIdentity.grade || null,
+    estoque_atual: 0,
+    ativo: true
+  };
+
+  const { error: upsertError } = await supabase
+    .from('produto_variacoes')
+    .upsert(conflictPayload, { onConflict: 'account_id,produto_id,nome,grade' })
+    .select('id')
+    .maybeSingle();
+  if (upsertError) throw upsertError;
+
+  const confirmedVariation = await confirmVariationFromDatabase(supabase, variationIdentity);
+  if (!confirmedVariation?.id) {
+    throw new BadRequestError('Falha ao confirmar variação de estoque.', { domain: 'produtos-import', code: 'VARIACAO_ESTOQUE_NAO_CONFIRMADA' });
+  }
+  return confirmedVariation;
+}
+
 async function findExistingVariationsForProduct(supabase, accountId, produtoId) {
   const { data, error } = await supabase
     .from('produto_variacoes')
@@ -234,7 +261,25 @@ async function findExistingVariationsForProduct(supabase, accountId, produtoId) 
   return map;
 }
 
-async function upsertStockRecord(record, existingVariation) {
+async function recalculateProductAvailability(supabase, accountId, produtoId) {
+  const { data, error } = await supabase
+    .from('produto_variacoes')
+    .select('id, ativo, estoque_atual')
+    .eq('account_id', accountId)
+    .eq('produto_id', produtoId);
+  if (error) throw new DatabaseError('Falha ao consultar disponibilidade do produto', { details: error });
+  const variations = data || [];
+  const hasAvailableVariation = variations.some((variation) => Boolean(variation?.ativo) && Number(variation?.estoque_atual || 0) >= 10);
+  const { error: updateError } = await supabase
+    .from('produtos')
+    .update({ ativo: hasAvailableVariation })
+    .eq('id', produtoId)
+    .eq('account_id', accountId);
+  if (updateError) throw new DatabaseError('Falha ao atualizar disponibilidade do produto', { details: updateError });
+  return hasAvailableVariation;
+}
+
+async function upsertStockRecord(record, confirmedVariation) {
   try {
     if (mode() === 'supabase') {
       const supabase = getSupabaseClient();
@@ -243,110 +288,32 @@ async function upsertStockRecord(record, existingVariation) {
         throw new BadRequestError('Quantidade de estoque invalida', { domain: 'produtos-import', code: 'INVALID_STOCK_QUANTITY' });
       }
 
-      const variationIdentity = buildVariationIdentity(record);
-      const conflictPayload = {
-        account_id: variationIdentity.accountId,
-        produto_id: variationIdentity.produtoId,
-        sku: record.sku || null,
-        nome: variationIdentity.nome || null,
-        valor: record.valor || null,
-        cor: record.cor || null,
-        grade: variationIdentity.grade || null,
-        estoque_atual: nextQuantidade,
-        ativo: true
-      };
-
-      const logVariationConfirmationFailure = async ({ upsertResult = null, lookupResult = null } = {}) => {
-        console.error('[produtos-import] VARIACAO_ESTOQUE_NAO_CONFIRMADA', {
-          produtoId: record.produto_id || null,
-          sku: record.sku || null,
-          nome_produto: record.nome || null,
-          cor: record.cor || null,
-          grade: record.grade || null,
-          variationPayload: conflictPayload,
-          account_id: record.account_id || null,
-          fabricante_id: record.fabricante_id || null,
-          existingVariation: existingVariation || null,
-          upsertResult,
-          lookupResult
-        });
-      };
-
-      if (existingVariation?.id) {
-        const previousQuantidade = Number(existingVariation?.estoque_atual || 0);
-        if (previousQuantidade === nextQuantidade) {
-          return { row: existingVariation, created: false, movement: null };
-        }
-        const { data: updatedVariation, error: updateError } = await supabase
-          .from('produto_variacoes')
-          .update(conflictPayload)
-          .eq('id', existingVariation.id)
-          .eq('account_id', variationIdentity.accountId)
-          .select(PRODUTO_VARIACOES_SELECT_FIELDS)
-          .maybeSingle();
-        if (updateError) throw updateError;
-        const lookupResult = updatedVariation ? null : await confirmVariationFromDatabase(supabase, variationIdentity);
-        const resolvedUpdatedVariation = updatedVariation || lookupResult || existingVariation;
-        if (!resolvedUpdatedVariation?.id) {
-          await logVariationConfirmationFailure({
-            upsertResult: updatedVariation || null,
-            lookupResult
-          });
-          throw new BadRequestError('Falha ao confirmar variação de estoque.', { domain: 'produtos-import', code: 'VARIACAO_ESTOQUE_NAO_CONFIRMADA' });
-        }
-
-        const movementPayload = {
-          account_id: record.account_id,
-          produto_id: record.produto_id,
-          variacao_id: resolvedUpdatedVariation.id,
-          fabricante_id: record.fabricante_id,
-          tipo: 'IMPORTACAO_ESTOQUE',
-          quantidade: nextQuantidade - previousQuantidade,
-          saldo_anterior: previousQuantidade,
-          saldo_posterior: nextQuantidade,
-          origem: record.origem || 'IMPORTACAO_XLSX',
-          arquivo_origem: record.arquivo_origem || null,
-          import_batch_id: record.import_batch_id || null,
-          observacao: null
-        };
-        const { error: movementError } = await supabase.from('produto_variacao_movimentos').insert(movementPayload);
-        if (movementError) throw movementError;
-        return { row: resolvedUpdatedVariation, created: false };
-      }
-
-      const { data: upsertedVariation, error: upsertError } = await supabase
-        .from('produto_variacoes')
-        .upsert(conflictPayload, { onConflict: 'account_id,produto_id,nome,grade' })
-        .select(PRODUTO_VARIACOES_SELECT_FIELDS)
-        .maybeSingle();
-      if (upsertError) throw upsertError;
-      const lookupResult = upsertedVariation ? null : await confirmVariationFromDatabase(supabase, variationIdentity);
-      const resolvedUpsertedVariation = upsertedVariation || lookupResult;
-      if (!resolvedUpsertedVariation?.id) {
-        await logVariationConfirmationFailure({
-          upsertResult: upsertedVariation || null,
-          lookupResult
-        });
+      if (!confirmedVariation?.id) {
         throw new BadRequestError('Falha ao confirmar variação de estoque.', { domain: 'produtos-import', code: 'VARIACAO_ESTOQUE_NAO_CONFIRMADA' });
       }
 
-      const movementPayload = {
-        account_id: record.account_id,
-        produto_id: record.produto_id,
-        variacao_id: resolvedUpsertedVariation.id,
-        fabricante_id: record.fabricante_id,
-        tipo: 'IMPORTACAO_ESTOQUE',
-        quantidade: nextQuantidade,
-        saldo_anterior: 0,
-        saldo_posterior: nextQuantidade,
-        origem: record.origem || 'IMPORTACAO_XLSX',
-        arquivo_origem: record.arquivo_origem || null,
-        import_batch_id: record.import_batch_id || null,
-        observacao: null
-      };
-      const { error: movementError } = await supabase.from('produto_variacao_movimentos').insert(movementPayload);
-      if (movementError) throw movementError;
-      return { row: resolvedUpsertedVariation, created: true };
+      const previousQuantidade = Number(confirmedVariation?.estoque_atual || 0);
+      const desiredActive = nextQuantidade >= 10;
+      if (previousQuantidade === nextQuantidade && Boolean(confirmedVariation?.ativo) === desiredActive) {
+        return { row: confirmedVariation, created: false };
+      }
+      const { data: updatedVariation, error: updateError } = await supabase
+        .from('produto_variacoes')
+        .update({
+          estoque_atual: nextQuantidade,
+          ativo: desiredActive
+        })
+        .eq('id', confirmedVariation.id)
+        .eq('account_id', confirmedVariation.account_id || record.account_id || null)
+        .select(PRODUTO_VARIACOES_SELECT_FIELDS)
+        .maybeSingle();
+      if (updateError) throw updateError;
+      const lookupResult = updatedVariation ? null : await confirmVariationFromDatabase(supabase, buildVariationIdentity(record));
+      const resolvedUpdatedVariation = updatedVariation || lookupResult || confirmedVariation;
+      if (!resolvedUpdatedVariation?.id) {
+        throw new BadRequestError('Falha ao confirmar variação de estoque.', { domain: 'produtos-import', code: 'VARIACAO_ESTOQUE_NAO_CONFIRMADA' });
+      }
+      return { row: resolvedUpdatedVariation, created: false };
     }
     const key = makeStockKey(record);
     const index = memoryStocks.findIndex((stock) => makeStockKey(stock) === key);
@@ -723,42 +690,61 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
       }
 
       for (const item of group.items) {
+        const variationName = item.grade === 'UNI'
+          ? (item.cor || item.variacao_nome || 'UNI')
+          : `${item.cor || item.variacao_nome || 'PADRAO'} / ${item.grade}`;
         const variationIdentity = buildVariationIdentity({
           account_id: accountId,
           produto_id: productId,
-          nome: item.cor || item.variacao_nome || item.grade || null,
+          nome: variationName,
           grade: item.grade || item.tamanho || null,
           tamanho: item.tamanho || item.grade || null
         });
         const variationKey = buildVariationMapKey(variationIdentity);
-        let variationUpsert = variationCache.get(variationKey);
-        if (!variationUpsert) {
-          variationUpsert = await upsertVariacao(accountId, productUpsert.item.id, group.identity.parsed, item.grade);
-          variationCache.set(variationKey, variationUpsert);
-          summary[variationUpsert.created ? 'variacoes_criadas' : 'variacoes_atualizadas'] += 1;
-          variationMap.set(variationKey, variationUpsert.item);
+        let confirmedVariation = variationCache.get(variationKey) || variationMap.get(variationKey) || null;
+        if (!confirmedVariation?.id) {
+          const preExistingVariation = await ensureVariationInDatabase(getSupabaseClient(), {
+            account_id: accountId,
+            produto_id: productId,
+            sku: `${item.codigo_erp || item.sku || item.nome || variationName}-${item.grade || 'UNI'}`,
+            nome: variationName,
+            valor: item.cor || item.variacao_nome || '',
+            cor: item.cor || item.variacao_nome || null,
+            grade: item.grade || item.tamanho || null
+          }, variationIdentity);
+          confirmedVariation = preExistingVariation;
+          summary.variacoes_criadas += 1;
+          variationCache.set(variationKey, confirmedVariation);
+          variationMap.set(variationKey, confirmedVariation);
+        }
+        if (!confirmedVariation?.id) {
+          throw new BadRequestError('Falha ao confirmar variação de estoque.', { domain: 'produtos-import', code: 'VARIACAO_ESTOQUE_NAO_CONFIRMADA' });
         }
         const stockResult = await upsertStockRecord({
           account_id: accountId,
-          produto_id: productUpsert.item.id,
-          variacao_id: variationUpsert.item.id,
+          produto_id: productId,
+          variacao_id: confirmedVariation.id,
           fabricante_id: fabricanteId,
-          sku: variationUpsert.item.sku || null,
-          nome: variationUpsert.item.nome || null,
-          valor: variationUpsert.item.valor || null,
-          cor: item.cor || variationUpsert.item.cor || null,
-          grade: item.grade || variationUpsert.item.grade || null,
-          tamanho: item.tamanho || variationUpsert.item.tamanho || null,
+          sku: confirmedVariation.sku || null,
+          nome: confirmedVariation.nome || variationName || null,
+          valor: confirmedVariation.valor || null,
+          cor: item.cor || confirmedVariation.cor || null,
+          grade: item.grade || confirmedVariation.grade || null,
+          tamanho: item.tamanho || confirmedVariation.tamanho || null,
           quantidade: item.estoque,
           origem: 'IMPORTACAO_XLSX',
           arquivo_origem: fileName || null,
           import_batch_id: batch.id
-        }, variationMap.get(variationKey));
+        }, confirmedVariation);
         if (variationMap) {
-          variationMap.set(variationKey, stockResult?.row || variationMap.get(variationKey));
+          variationMap.set(variationKey, stockResult?.row || confirmedVariation);
         }
         summary.estoques_atualizados += 1;
         variationsProcessed += 1;
+      }
+
+      if (mode() === 'supabase' && productId) {
+        await recalculateProductAvailability(getSupabaseClient(), accountId, productId);
       }
 
       summary.linhas_processadas += group.rows.length;
