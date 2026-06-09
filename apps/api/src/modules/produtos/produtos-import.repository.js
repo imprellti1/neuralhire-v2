@@ -286,7 +286,7 @@ async function upsertStockRecord(record, existingVariation) {
           .maybeSingle();
         if (updateError) throw updateError;
         const lookupResult = updatedVariation ? null : await confirmVariationFromDatabase(supabase, variationIdentity);
-        const resolvedUpdatedVariation = updatedVariation || lookupResult;
+        const resolvedUpdatedVariation = updatedVariation || lookupResult || existingVariation;
         if (!resolvedUpdatedVariation?.id) {
           await logVariationConfirmationFailure({
             upsertResult: updatedVariation || null,
