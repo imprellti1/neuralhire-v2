@@ -206,6 +206,19 @@ function buildVariationMapKey({ accountId, produtoId, nome, grade }) {
   return [accountId, produtoId, nome, grade].map((value) => String(value || '').trim()).join('::');
 }
 
+async function confirmVariationFromDatabase(supabase, variationIdentity) {
+  const { data, error } = await supabase
+    .from('produto_variacoes')
+    .select(PRODUTO_VARIACOES_SELECT_FIELDS)
+    .eq('account_id', variationIdentity.accountId)
+    .eq('produto_id', variationIdentity.produtoId)
+    .eq('nome', variationIdentity.nome)
+    .eq('grade', variationIdentity.grade)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
 async function findExistingVariationsForProduct(supabase, accountId, produtoId) {
   const { data, error } = await supabase
     .from('produto_variacoes')
@@ -256,7 +269,10 @@ async function upsertStockRecord(record, existingVariation) {
           .select(PRODUTO_VARIACOES_SELECT_FIELDS)
           .maybeSingle();
         if (updateError) throw updateError;
-        const resolvedUpdatedVariation = updatedVariation || existingVariation;
+        const resolvedUpdatedVariation = updatedVariation || await confirmVariationFromDatabase(supabase, variationIdentity);
+        if (!resolvedUpdatedVariation?.id) {
+          throw new BadRequestError('Falha ao confirmar variação de estoque.', { domain: 'produtos-import', code: 'VARIACAO_ESTOQUE_NAO_CONFIRMADA' });
+        }
 
         const movementPayload = {
           account_id: record.account_id,
@@ -277,17 +293,16 @@ async function upsertStockRecord(record, existingVariation) {
         return { row: resolvedUpdatedVariation, created: false };
       }
 
-      console.log('[insertVariationPayload]', conflictPayload);
       const { data: upsertedVariation, error: upsertError } = await supabase
         .from('produto_variacoes')
         .upsert(conflictPayload, { onConflict: 'account_id,produto_id,nome,grade' })
         .select(PRODUTO_VARIACOES_SELECT_FIELDS)
         .maybeSingle();
       if (upsertError) throw upsertError;
-      const resolvedUpsertedVariation = upsertedVariation || {
-        ...conflictPayload,
-        id: record.variacao_id || null
-      };
+      const resolvedUpsertedVariation = upsertedVariation || await confirmVariationFromDatabase(supabase, variationIdentity);
+      if (!resolvedUpsertedVariation?.id) {
+        throw new BadRequestError('Falha ao confirmar variação de estoque.', { domain: 'produtos-import', code: 'VARIACAO_ESTOQUE_NAO_CONFIRMADA' });
+      }
 
       const movementPayload = {
         account_id: record.account_id,
