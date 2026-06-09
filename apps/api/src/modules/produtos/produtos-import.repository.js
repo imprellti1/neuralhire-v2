@@ -256,6 +256,22 @@ async function upsertStockRecord(record, existingVariation) {
         ativo: true
       };
 
+      const logVariationConfirmationFailure = async ({ upsertResult = null, lookupResult = null } = {}) => {
+        console.error('[produtos-import] VARIACAO_ESTOQUE_NAO_CONFIRMADA', {
+          produtoId: record.produto_id || null,
+          sku: record.sku || null,
+          nome_produto: record.nome || null,
+          cor: record.cor || null,
+          grade: record.grade || null,
+          variationPayload: conflictPayload,
+          account_id: record.account_id || null,
+          fabricante_id: record.fabricante_id || null,
+          existingVariation: existingVariation || null,
+          upsertResult,
+          lookupResult
+        });
+      };
+
       if (existingVariation?.id) {
         const previousQuantidade = Number(existingVariation?.estoque_atual || 0);
         if (previousQuantidade === nextQuantidade) {
@@ -269,8 +285,13 @@ async function upsertStockRecord(record, existingVariation) {
           .select(PRODUTO_VARIACOES_SELECT_FIELDS)
           .maybeSingle();
         if (updateError) throw updateError;
-        const resolvedUpdatedVariation = updatedVariation || await confirmVariationFromDatabase(supabase, variationIdentity);
+        const lookupResult = updatedVariation ? null : await confirmVariationFromDatabase(supabase, variationIdentity);
+        const resolvedUpdatedVariation = updatedVariation || lookupResult;
         if (!resolvedUpdatedVariation?.id) {
+          await logVariationConfirmationFailure({
+            upsertResult: updatedVariation || null,
+            lookupResult
+          });
           throw new BadRequestError('Falha ao confirmar variação de estoque.', { domain: 'produtos-import', code: 'VARIACAO_ESTOQUE_NAO_CONFIRMADA' });
         }
 
@@ -299,8 +320,13 @@ async function upsertStockRecord(record, existingVariation) {
         .select(PRODUTO_VARIACOES_SELECT_FIELDS)
         .maybeSingle();
       if (upsertError) throw upsertError;
-      const resolvedUpsertedVariation = upsertedVariation || await confirmVariationFromDatabase(supabase, variationIdentity);
+      const lookupResult = upsertedVariation ? null : await confirmVariationFromDatabase(supabase, variationIdentity);
+      const resolvedUpsertedVariation = upsertedVariation || lookupResult;
       if (!resolvedUpsertedVariation?.id) {
+        await logVariationConfirmationFailure({
+          upsertResult: upsertedVariation || null,
+          lookupResult
+        });
         throw new BadRequestError('Falha ao confirmar variação de estoque.', { domain: 'produtos-import', code: 'VARIACAO_ESTOQUE_NAO_CONFIRMADA' });
       }
 
