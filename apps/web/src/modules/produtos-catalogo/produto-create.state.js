@@ -8,6 +8,7 @@ export function createProdutoCreateState() {
       preco: '',
       preco_promocional: '',
       icms_percentual: '',
+      multiplo_venda: '1',
       video_url: '',
       descricao: '',
       status: 'ativo'

@@ -5,6 +5,12 @@ function normalizePrice(rawValue) {
   return Number(normalized);
 }
 
+function normalizeMultiploVenda(rawValue) {
+  if (rawValue === undefined || rawValue === null || rawValue === '') return 1;
+  const value = Number(rawValue);
+  return Number.isInteger(value) && value >= 1 ? value : NaN;
+}
+
 export function mapProdutoCreatePayload(form = {}) {
   const preco = normalizePrice(form.preco);
   const status = String(form.status || 'ativo').trim().toLowerCase() === 'inativo' ? 'inativo' : 'ativo';
@@ -17,6 +23,7 @@ export function mapProdutoCreatePayload(form = {}) {
     preco,
     preco_promocional: Number.isFinite(Number(form.preco_promocional)) ? Number(form.preco_promocional) : undefined,
     icms_percentual: Number.isFinite(Number(form.icms_percentual)) ? Number(form.icms_percentual) : undefined,
+    multiplo_venda: normalizeMultiploVenda(form.multiplo_venda),
     video_url: String(form.video_url || '').trim() || undefined,
     preco_unitario: preco,
     status,
@@ -31,5 +38,10 @@ export function validateProdutoCreateForm(form = {}) {
   if (!String(form.preco || '').trim()) fieldErrors.preco = 'Preço é obrigatório.';
   else if (!Number.isFinite(preco)) fieldErrors.preco = 'Preço inválido. Use 129,90 ou 129.90.';
   else if (preco <= 0) fieldErrors.preco = 'Preço deve ser maior que zero.';
+  const multiploVenda = String(form.multiplo_venda || '').trim();
+  if (multiploVenda) {
+    const normalized = normalizeMultiploVenda(multiploVenda);
+    if (!Number.isFinite(normalized)) fieldErrors.multiplo_venda = 'Múltiplo de venda deve ser um inteiro maior ou igual a 1.';
+  }
   return fieldErrors;
 }

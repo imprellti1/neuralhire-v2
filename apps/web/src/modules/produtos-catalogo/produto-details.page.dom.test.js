@@ -21,6 +21,7 @@ test('produto 360 mantém o layout e o toggle de variações', async () => {
             categoria: 'Cat',
             descricao: 'Produto A',
             preco: 10,
+            multiplo_venda: 3,
             status: 'ativo',
             ativo: true,
             fabricante_id: 'fab-1',
@@ -80,6 +81,7 @@ test('produto 360 mantém o layout e o toggle de variações', async () => {
   assert.doesNotMatch(bodyText, /Descrição\s*Produto A/);
   assert.doesNotMatch(bodyText, /Ativo\/Inativo/);
   assert.match(bodyText, /Estoque total \(todas as variações\)\s*8/);
+  assert.match(bodyText, /Múltiplo de venda\s*3 unidades por variação/);
   assert.match(bodyText, /Variações do Produto/);
   assert.match(bodyText, /SKU1-01/);
   assert.match(bodyText, /SKU1-02/);

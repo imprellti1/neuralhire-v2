@@ -8,6 +8,7 @@ export function makeProduto(overrides = {}) {
     sku: 'S1',
     categoria: 'Cat',
     preco: 10,
+    multiplo_venda: 1,
     status: 'ativo',
     descricao: 'Produto de teste',
     created_at: DEFAULT_DATE_CREATED,

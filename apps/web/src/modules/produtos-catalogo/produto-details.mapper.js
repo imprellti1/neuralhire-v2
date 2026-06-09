@@ -35,6 +35,12 @@ function normalizePrice(rawValue) {
   return Number(normalized);
 }
 
+function normalizeMultiploVenda(rawValue) {
+  if (rawValue === undefined || rawValue === null || rawValue === '') return 1;
+  const value = Number(rawValue);
+  return Number.isInteger(value) && value >= 1 ? value : NaN;
+}
+
 function normalizeText(value, fallback = '-') {
   const text = String(value ?? '').trim();
   return text || fallback;
@@ -106,6 +112,7 @@ export function normalizeProdutoVariations(response = {}) {
       estoque: Number(estoque || 0),
       preco: Number(item?.preco ?? item?.preco_unitario ?? item?.valor ?? 0),
       precoFormatado: fmtBrl(item?.preco ?? item?.preco_unitario ?? item?.valor ?? 0),
+      multiploVenda: normalizeMultiploVenda(item?.multiplo_venda ?? item?.multiploVenda),
       status,
       ativo: status === 'ativo',
       statusComercial: normalizeVariationStatus(item?.status_comercial || item?.statusComercial || item?.status, item?.ativo),
@@ -140,6 +147,7 @@ export function mapProdutoDetailsData(response = {}) {
     ativo: status === 'ativo',
     preco: Number(item?.preco ?? item?.preco_unitario ?? 0),
     precoFormatado: fmtBrl(item?.preco ?? item?.preco_unitario ?? 0),
+    multiploVenda: normalizeMultiploVenda(item?.multiplo_venda ?? item?.multiploVenda),
     fabricanteId: item?.fabricante_id || item?.fabricanteId || null,
     fabricanteNome: item?.fabricante_nome || item?.fabricante?.nome || null,
     fabricanteLogoUrl: item?.fabricante_logo_url || item?.fabricante?.logo_url || null,
@@ -168,6 +176,7 @@ export function createProdutoEditForm(data = {}) {
     preco: Number.isFinite(Number(data?.preco)) ? String(Number(data.preco).toFixed(2)).replace('.', ',') : '',
     preco_promocional: Number.isFinite(Number(data?.preco_promocional)) ? String(Number(data.preco_promocional).toFixed(2)).replace('.', ',') : '',
     icms_percentual: Number.isFinite(Number(data?.icms_percentual)) ? String(Number(data.icms_percentual).toFixed(2)).replace('.', ',') : '',
+    multiplo_venda: Number.isInteger(Number(data?.multiploVenda ?? data?.multiplo_venda)) && Number(data?.multiploVenda ?? data?.multiplo_venda) >= 1 ? String(Math.trunc(Number(data?.multiploVenda ?? data?.multiplo_venda))) : '1',
     video_url: data?.video_url || '',
     descricao: data?.descricao || '',
     status: data?.status === 'inativo' ? 'inativo' : 'ativo',
@@ -181,6 +190,8 @@ export function validateProdutoEditForm(form = {}) {
   const preco = normalizePrice(form.preco);
   if (!String(form.preco || '').trim()) fieldErrors.preco = 'Preço é obrigatório.';
   else if (!Number.isFinite(preco) || preco <= 0) fieldErrors.preco = 'Preço deve ser maior que zero.';
+  const multiploVenda = normalizeMultiploVenda(form.multiplo_venda);
+  if (String(form.multiplo_venda || '').trim() && !Number.isFinite(multiploVenda)) fieldErrors.multiplo_venda = 'Múltiplo de venda deve ser um inteiro maior ou igual a 1.';
   const status = String(form.status || '').toLowerCase();
   if (status !== 'ativo' && status !== 'inativo') fieldErrors.status = 'Status deve ser ativo ou inativo.';
   return fieldErrors;
@@ -198,6 +209,7 @@ export function mapProdutoUpdatePayload(form = {}) {
     preco,
     preco_promocional: normalizePrice(form.preco_promocional),
     icms_percentual: normalizePrice(form.icms_percentual),
+    multiplo_venda: normalizeMultiploVenda(form.multiplo_venda),
     video_url: String(form.video_url || '').trim() || undefined,
     preco_unitario: preco,
     status,

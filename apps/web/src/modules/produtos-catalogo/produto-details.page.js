@@ -101,6 +101,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
       <label class="nhpd-field">Categoria<select id="nhpd-categoria_id" ${state.saving ? 'disabled' : ''}><option value="">Selecione...</option>${(state.categorias || []).map((cat) => `<option value="${cat.id}" ${String(state.form.categoria_id || '') === String(cat.id) ? 'selected' : ''}>${cat.parent_id ? `↳ ${cat.nome}` : cat.nome}</option>`).join('')}</select></label>
       <label class="nhpd-field">Fábrica<select id="nhpd-fabricante_id" ${state.saving ? 'disabled' : ''}><option value="">Sem fábrica vinculada</option>${(state.fabricantes || []).map((fab) => `<option value="${fab.id}" ${String(state.form.fabricante_id || '') === String(fab.id) ? 'selected' : ''}>${fab.nome || '-'}</option>`).join('')}</select>${state.fabricantesError ? `<span class="nhpd-ferr">${state.fabricantesError}</span>` : ''}</label>
       <label class="nhpd-field">Preço à vista<input id="nhpd-preco" value="${state.form.preco || ''}" ${state.saving ? 'disabled' : ''}/>${state.fieldErrors.preco ? `<span class="nhpd-ferr">${state.fieldErrors.preco}</span>` : ''}</label>
+      <label class="nhpd-field">Múltiplo de venda<input id="nhpd-multiplo_venda" type="number" min="1" step="1" value="${state.form.multiplo_venda || '1'}" ${state.saving ? 'disabled' : ''}/><small>Quantidade obrigatória por variação/cor. Ex.: 3 = vender 3, 6, 9, 12...</small>${state.fieldErrors.multiplo_venda ? `<span class="nhpd-ferr">${state.fieldErrors.multiplo_venda}</span>` : ''}</label>
       <label class="nhpd-field">Preço promocional<input id="nhpd-preco_promocional" value="${state.form.preco_promocional || ''}" ${state.saving ? 'disabled' : ''}/></label>
       <label class="nhpd-field">ICMS %<input id="nhpd-icms_percentual" value="${state.form.icms_percentual || ''}" ${state.saving ? 'disabled' : ''}/></label>
       <label class="nhpd-field">Video URL<input id="nhpd-video_url" value="${state.form.video_url || ''}" ${state.saving ? 'disabled' : ''}/></label>
@@ -136,7 +137,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
       <div class="nhpd-grid">
         <div class="nhpd-left-col">
           ${state.editing ? renderEditForm() : `<article class="nhpd-card"><h3>Resumo do Produto</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Nome</dt><dd class="nhpd-dd">${d.nomeExibicao}</dd><dt class="nhpd-dt">SKU</dt><dd class="nhpd-dd">${d.sku}</dd><dt class="nhpd-dt">Categoria</dt><dd class="nhpd-dd">${d.categoria}</dd><dt class="nhpd-dt">Status</dt><dd class="nhpd-dd">${d.status}</dd>${d.descricao ? `<dt class="nhpd-dt">Descrição</dt><dd class="nhpd-dd">${d.descricao}</dd>` : ''}<dt class="nhpd-dt">Estoque total (todas as variações)</dt><dd class="nhpd-dd">${formatPtBrNumber(stockTotal)}</dd></dl></article>`}
-          <article class="nhpd-card"><h3>Preço e Comercial</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Preço atual</dt><dd class="nhpd-dd">${d.precoFormatado}</dd><dt class="nhpd-dt">Status comercial</dt><dd class="nhpd-dd">${d.status}</dd></dl></article>
+          <article class="nhpd-card"><h3>Preço e Comercial</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Preço atual</dt><dd class="nhpd-dd">${d.precoFormatado}</dd><dt class="nhpd-dt">Múltiplo de venda</dt><dd class="nhpd-dd">${Number.isFinite(Number(d.multiploVenda)) ? `${Number(d.multiploVenda)} ${Number(d.multiploVenda) === 1 ? 'unidade por variação' : 'unidades por variação'}` : '1 unidade por variação'}</dd><dt class="nhpd-dt">Status comercial</dt><dd class="nhpd-dd">${d.status}</dd></dl></article>
         </div>
         <div class="nhpd-right-col">
           <article class="nhpd-card"><h3>Fábrica vinculada</h3>${d.fabricanteId ? `<div class="nhpd-fabricante">${d.fabricanteLogoUrl ? `<div class="nhpd-fabricante-logo"><img src="${d.fabricanteLogoUrl}" alt="Logo da fábrica"/></div>` : '<div class="nhpd-fabricante-logo" aria-hidden="true"></div>'}<div class="nhpd-fabricante-name">${d.fabricanteNome || 'Sem nome'}</div></div>` : '<div class="nhpd-state">Sem fábrica vinculada.</div>'}</article>
@@ -200,7 +201,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
   }
 
   function bindEditHandlers() {
-    const fields = ['nome', 'sku', 'preco', 'preco_promocional', 'icms_percentual', 'video_url', 'descricao'];
+    const fields = ['nome', 'sku', 'preco', 'multiplo_venda', 'preco_promocional', 'icms_percentual', 'video_url', 'descricao'];
     fields.forEach((field) => {
       const el = root.querySelector(`#nhpd-${field}`);
       if (el) el.oninput = (e) => { state.form[field] = e.target.value || ''; };

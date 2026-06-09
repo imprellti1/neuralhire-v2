@@ -87,6 +87,7 @@ const PRODUTOS_UPDATE_SUPABASE_FIELDS = new Set([
   'preco',
   'preco_promocional',
   'icms_percentual',
+  'multiplo_venda',
   'video_url',
   'metadata',
   'custo',
@@ -104,6 +105,22 @@ function normalizeProdutoUpdatePayload(payload = {}) {
     }
   }
   return normalized;
+}
+
+function normalizeMultiploVenda(value, { required = false } = {}) {
+  if (value === undefined) return 1;
+  if (value === null || value === '') throw new BadRequestError('Multiplo de venda invalido', { code: 'VALIDATION_ERROR', domain: 'produtos-catalogo' });
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric) || numeric < 1) {
+    throw new BadRequestError('Multiplo de venda invalido', { code: 'VALIDATION_ERROR', domain: 'produtos-catalogo' });
+  }
+  return numeric;
+}
+
+function pickMultiploVenda(data = {}) {
+  if (Object.prototype.hasOwnProperty.call(data, 'multiplo_venda')) return data.multiplo_venda;
+  if (Object.prototype.hasOwnProperty.call(data, 'multiploVenda')) return data.multiploVenda;
+  return undefined;
 }
 
 export function __normalizeProdutoUpdatePayloadForTests(payload = {}) {
@@ -459,6 +476,7 @@ export async function createProduto(data, options = {}) {
     preco: Number.isFinite(data.preco) ? data.preco : 0,
     preco_promocional: Number.isFinite(data.preco_promocional) ? data.preco_promocional : null,
     icms_percentual: Number.isFinite(data.icms_percentual) ? data.icms_percentual : 0,
+    multiplo_venda: normalizeMultiploVenda(pickMultiploVenda(data)),
     video_url: data.video_url || null,
     metadata: {
       ...(data.metadata || {}),
@@ -513,6 +531,8 @@ export async function updateProduto(id, data = {}, options = {}) {
   if (nome !== undefined && nome.length < 2) {
     throw new BadRequestError('Nome invalido', { code: 'VALIDATION_ERROR', domain: 'produtos-catalogo' });
   }
+  const multiploVendaRaw = pickMultiploVenda(data);
+  const multiploVenda = multiploVendaRaw !== undefined ? normalizeMultiploVenda(multiploVendaRaw, { required: true }) : undefined;
 
   let fabricanteId;
   if (Object.prototype.hasOwnProperty.call(data, 'fabricante_id') || Object.prototype.hasOwnProperty.call(data, 'fabricanteId')) {
@@ -536,6 +556,7 @@ export async function updateProduto(id, data = {}, options = {}) {
     ...(precoRaw !== undefined ? { preco: Number(precoRaw) } : {}),
     ...(data.preco_promocional !== undefined ? { preco_promocional: Number(data.preco_promocional) } : {}),
     ...(data.icms_percentual !== undefined ? { icms_percentual: Number(data.icms_percentual) } : {}),
+    ...(multiploVenda !== undefined ? { multiplo_venda: multiploVenda } : {}),
     ...(data.video_url !== undefined ? { video_url: data.video_url || null } : {}),
     ...(nextMetadata ? { metadata: nextMetadata } : {}),
     ...(nextAtivo !== undefined ? { ativo: nextAtivo } : {})

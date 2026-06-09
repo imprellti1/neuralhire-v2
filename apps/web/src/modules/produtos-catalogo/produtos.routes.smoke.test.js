@@ -19,6 +19,7 @@ test('produtos: listagem/criacao/detalhe/edicao + contrato + snapshot', async ()
   await flush();
   dispatchInput(document.querySelector('#nome'), 'Produto X');
   dispatchInput(document.querySelector('#preco'), '20,00');
+  dispatchInput(document.querySelector('#multiplo_venda'), '3');
   document.querySelector('#nhpr-save').click();
   await flush(); await flush();
   window.location.hash = '#/produtos/p1';
@@ -35,6 +36,8 @@ test('produtos: listagem/criacao/detalhe/edicao + contrato + snapshot', async ()
   assert.ok(post); assert.ok(patch);
   assertProdutoPostPayload(post.body);
   assertProdutoPatchPayload(patch.body);
+  assert.equal(post.body.multiplo_venda, 3);
+  assert.equal(patch.body.multiplo_venda, 1);
   assert.doesNotThrow(() => assertNoSensitiveTransportFields());
   assertTransportSnapshot('produtos', calls);
   teardownFrontendDom(dom);

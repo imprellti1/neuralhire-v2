@@ -63,6 +63,22 @@ export function getProdutosRepositoryTests() {
       }
     },
     {
+      name: 'createProduto define multiplo_venda padrao 1',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        const item = await createProduto({ nome: 'Produto Default' }, { accountId });
+        assertEqual(item.multiplo_venda, 1);
+      }
+    },
+    {
+      name: 'createProduto aceita multiplo_venda valido',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        const item = await createProduto({ nome: 'Produto M', multiplo_venda: 3 }, { accountId });
+        assertEqual(item.multiplo_venda, 3);
+      }
+    },
+    {
       name: 'createProduto aceita fabricante valido',
       run: async () => {
         __resetMemoryProdutosForTests();
@@ -96,12 +112,39 @@ export function getProdutosRepositoryTests() {
       }
     },
     {
+      name: 'listProdutos e getProdutoById retornam multiplo_venda',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        const created = await createProduto({ nome: 'Produto Lista', multiplo_venda: 4 }, { accountId });
+        const listed = await listProdutos({}, { accountId });
+        assertEqual(listed.items[0].multiplo_venda, 4);
+        const found = await getProdutoById(created.id, { accountId });
+        assertEqual(found.multiplo_venda, 4);
+      }
+    },
+    {
       name: 'getProdutoById funciona',
       run: async () => {
         __resetMemoryProdutosForTests();
         const created = await createProduto({ nome: 'Produto ID' }, { accountId });
         const found = await getProdutoById(created.id, { accountId });
         assertEqual(found.id, created.id);
+        assertEqual(found.multiplo_venda, 1);
+      }
+    },
+    {
+      name: 'createProduto rejeita multiplo_venda invalido',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        for (const value of [0, -1, 1.5, 'abc', null]) {
+          let threw = false;
+          try {
+            await createProduto({ nome: 'Produto X', multiplo_venda: value }, { accountId });
+          } catch {
+            threw = true;
+          }
+          assertEqual(threw, true, `Esperava rejeicao para multiplo_venda=${String(value)}`);
+        }
       }
     },
     {

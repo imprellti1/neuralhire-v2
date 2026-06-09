@@ -77,6 +77,7 @@ export function renderProdutoCreatePage(root, { apiClient }) {
           </div>
           <div>
             <label class="nhpr-field">Preço *<input id="preco" placeholder="129,90" value="${f.preco}" ${state.loading ? 'disabled' : ''}/>${state.fieldErrors.preco ? `<span class="nhpr-ferr">${state.fieldErrors.preco}</span>` : ''}</label>
+            <label class="nhpr-field">Múltiplo de venda<input id="multiplo_venda" type="number" min="1" step="1" value="${f.multiplo_venda || '1'}" ${state.loading ? 'disabled' : ''}/><small>Quantidade obrigatória por variação/cor. Ex.: 3 = vender 3, 6, 9, 12...</small>${state.fieldErrors.multiplo_venda ? `<span class="nhpr-ferr">${state.fieldErrors.multiplo_venda}</span>` : ''}</label>
             <label class="nhpr-field">Preço promocional<input id="preco_promocional" value="${f.preco_promocional || ''}" ${state.loading ? 'disabled' : ''}/></label>
             <label class="nhpr-field">ICMS %<input id="icms_percentual" value="${f.icms_percentual || ''}" ${state.loading ? 'disabled' : ''}/></label>
             <label class="nhpr-field">Video URL<input id="video_url" value="${f.video_url || ''}" ${state.loading ? 'disabled' : ''}/></label>
@@ -95,7 +96,7 @@ export function renderProdutoCreatePage(root, { apiClient }) {
 
     root.querySelector('#nhpr-back').onclick = () => { window.location.hash = '#/produtos'; };
     root.querySelector('#nhpr-cancel').onclick = () => { window.location.hash = '#/produtos'; };
-    ['nome', 'sku', 'preco', 'descricao'].forEach((id) => {
+    ['nome', 'sku', 'preco', 'multiplo_venda', 'descricao'].forEach((id) => {
       const el = root.querySelector(`#${id}`);
       if (el) el.oninput = (e) => { state.form[id] = e.target.value || ''; };
     });
