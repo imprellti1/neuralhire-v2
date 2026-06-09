@@ -448,7 +448,17 @@ async function findProductByIdentity(accountId, fabricanteId, identity) {
 }
 
 async function upsertProdutoPai(accountId, fabricanteId, identity) {
-  const existing = await findProductByIdentity(accountId, fabricanteId, identity);
+  const search = String(identity.codigo || identity.nome || '').trim();
+  console.log('[produtos-import] search start', {
+    accountId,
+    fabricanteId,
+    search
+  });
+  const result = await listProdutos({ search, page: 1, limit: 100 }, { accountId });
+  console.log('[produtos-import] search result count', {
+    count: result?.items?.length || 0
+  });
+  const existing = (result.items || []).find((item) => String(item.fabricante_id || '') === String(fabricanteId) && [item.sku, item.codigo, item.nome].some((value) => String(value || '').trim() === search)) || null;
   const categoria = await resolveCategoriaForProduto(accountId, identity.categoria);
   const basePayload = {
     fabricante_id: fabricanteId,
@@ -470,8 +480,28 @@ async function upsertProdutoPai(accountId, fabricanteId, identity) {
     ...basePayload,
     ...(Number.isFinite(identity.preco) && identity.preco > 0 ? { preco: identity.preco } : {})
   };
-  if (existing) return { item: await updateProduto(existing.id, updatePayload, { accountId }), created: false };
-  return { item: await createProduto(createPayload, { accountId }), created: true };
+  if (existing) {
+    console.log('[produtos-import] create/update start', {
+      action: 'update',
+      produtoId: existing.id
+    });
+    const item = await updateProduto(existing.id, updatePayload, { accountId });
+    console.log('[produtos-import] create/update done', {
+      action: 'update',
+      produtoId: item?.id || existing.id
+    });
+    return { item, created: false };
+  }
+  console.log('[produtos-import] create/update start', {
+    action: 'create',
+    produtoId: null
+  });
+  const item = await createProduto(createPayload, { accountId });
+  console.log('[produtos-import] create/update done', {
+    action: 'create',
+    produtoId: item?.id || null
+  });
+  return { item, created: true };
 }
 
 async function upsertVariacao(accountId, produtoId, parsed, grade) {
@@ -650,13 +680,32 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
 
   try {
     let processedParents = 0;
+    let variationsProcessed = 0;
     for (const [parentKey, group] of groupedItems.entries()) {
+      console.log('[produtos-import] parent start', {
+        index: processedParents + 1,
+        totalParents: groupedItems.size,
+        sku: group.identity.codigo || group.identity.parsed?.codigo_erp || null,
+        nome: group.identity.nome || group.identity.parsed?.nome_produto || null,
+        variationsCount: group.items.length
+      });
       let productUpsert = productCache.get(parentKey);
       if (!productUpsert) {
         productUpsert = await upsertProdutoPai(accountId, fabricanteId, group.identity);
         productCache.set(parentKey, productUpsert);
         summary[productUpsert.created ? 'produtos_criados' : 'produtos_atualizados'] += 1;
       }
+      console.log('[produtos-import] parent upserted', {
+        index: processedParents + 1,
+        produtoId: productUpsert?.item?.id || null,
+        sku: productUpsert?.item?.sku || null
+      });
+
+      console.log('[produtos-import] variations start', {
+        index: processedParents + 1,
+        produtoId: productUpsert?.item?.id || null,
+        count: group.items.length
+      });
 
       for (const item of group.items) {
         const variationKey = [productUpsert.item.id, item.cor || item.variacao_nome || item.grade || '', item.grade || item.tamanho || '']
@@ -685,15 +734,16 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
           import_batch_id: batch.id
         });
         summary.estoques_atualizados += 1;
+        variationsProcessed += 1;
       }
 
       summary.linhas_processadas += group.rows.length;
       processedParents += 1;
-      if (processedParents % 100 === 0 || processedParents % 250 === 0) {
+      if (processedParents % 25 === 0) {
         console.info('[produtos-import] import progress', {
-          processedParents,
+          parentsProcessed: processedParents,
           totalParents: groupedItems.size,
-          linesProcessed: summary.linhas_processadas
+          variationsProcessed
         });
       }
     }
