@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import xlsx from 'xlsx';
 import { createApiApp } from '../../app.js';
 import { createTestRequest } from '../create-test-request.js';
 import { createTestResponse } from '../create-test-response.js';
@@ -64,17 +64,19 @@ function createMultipartRequest({ accountId, role, fields = {}, file = null }) {
 export function getProdutosImportTests() {
   return [
     {
-      name: 'preview de XLSX valido',
+      name: 'preview de XLSX valido sem exigir ag-grid',
       run: async () => {
         __resetMemoryProdutosForTests();
         __resetMemoryProductEditorForTests();
         const app = createApiApp();
         const fabricante = await createFabricante({ nome: 'Fab Import', cnpj: '92345678000199' }, { accountId: 'acc-import' });
-        const base64 = createXlsxBase64([{ 'Descrição': '750100001 - TOALHA BANHÃO 90cm X 1,60m MASTER - BRANCO', P: '1', M: '0', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Total: '1' }]);
+        const base64 = createXlsxBase64([{ Produto: '750100001 - TOALHA BANHÃO 90cm X 1,60m MASTER - BRANCO', P: '1', M: '0', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Estoque: '1' }], 'Planilha Produtos');
         const out = await call(app, { method: 'POST', url: '/produtos/importar-estoque/preview', role: 'admin', accountId: 'acc-import', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
         assert.equal(out.res.statusCode, 200);
         assert.equal(out.body.ok, true);
-        assert.equal(out.body.totalRows >= 0, true);
+        assert.equal(out.body.totalRows, 1);
+        assert.equal(out.body.totalValid, 1);
+        assert.equal(out.body.sheetName, 'Planilha Produtos');
       }
     },
     {
@@ -84,7 +86,7 @@ export function getProdutosImportTests() {
         __resetMemoryProductEditorForTests();
         const app = createApiApp();
         const fabricante = await createFabricante({ nome: 'Fab Multipart', cnpj: '92345678000198' }, { accountId: 'acc-multipart' });
-        const base64 = createXlsxBase64([{ 'Descrição': '750100001 - TOALHA BANHÃO 90cm X 1,60m MASTER - BRANCO', P: '1', M: '0', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Total: '1' }]);
+        const base64 = createXlsxBase64([{ Nome: '750100001 - TOALHA BANHÃO 90cm X 1,60m MASTER - BRANCO', P: '1', M: '0', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Qtd: '1' }]);
         const xlsxBuffer = Buffer.from(base64, 'base64');
         const multipart = createMultipartBody({
           fields: { fabricante_id: fabricante.id },
@@ -145,8 +147,8 @@ export function getProdutosImportTests() {
         const app = createApiApp();
         const fabricante = await createFabricante({ nome: 'Fab Import 2', cnpj: '82345678000199' }, { accountId: 'acc-import-2' });
         const base64 = createXlsxBase64([
-          { 'Descrição': '750100001 - TOALHA BANHÃO 90cm X 1,60m MASTER - BRANCO', P: '1', M: '0', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Total: '1' },
-          { 'Descrição': '750100001 - TOALHA BANHÃO 90cm X 1,60m MASTER - BRANCO', P: '0', M: '1', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Total: '1' }
+          { Descricao: '750100001 - TOALHA BANHÃO 90cm X 1,60m MASTER - BRANCO', P: '1', M: '0', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Estoque: '1' },
+          { Descricao: '750100001 - TOALHA BANHÃO 90cm X 1,60m MASTER - BRANCO', P: '0', M: '1', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Estoque: '1' }
         ]);
         const first = await call(app, { method: 'POST', url: '/produtos/importar-estoque', role: 'admin', accountId: 'acc-import-2', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
         assert.equal(first.res.statusCode, 200);
@@ -167,9 +169,19 @@ export function getProdutosImportTests() {
         __resetMemoryProductEditorForTests();
         const app = createApiApp();
         const fabricante = await createFabricante({ nome: 'Fab Divergencia', cnpj: '72345678000199' }, { accountId: 'acc-div' });
-        const base64 = createXlsxBase64([{ 'Descrição': '750100002 - TOALHA BANHÃO 90cm X 1,60m MASTER - CINZA', P: '1', M: '1', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Total: '5' }]);
+        const base64 = createXlsxBase64([{ Descricao: '750100002 - TOALHA BANHÃO 90cm X 1,60m MASTER - CINZA', P: '1', M: '1', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Estoque: '5' }]);
         const out = await call(app, { method: 'POST', url: '/produtos/importar-estoque/preview', role: 'admin', accountId: 'acc-div', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
         assert.equal(out.body.divergences > 0, true);
+      }
+    },
+    {
+      name: 'erro amigavel para planilha invalida',
+      run: async () => {
+        const app = createApiApp();
+        const fabricante = await createFabricante({ nome: 'Fab Invalido', cnpj: '52345678000199' }, { accountId: 'acc-invalid' });
+        const out = await call(app, { method: 'POST', url: '/produtos/importar-estoque/preview', role: 'admin', accountId: 'acc-invalid', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'broken.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64: Buffer.from('nao-e-xlsx').toString('base64') } } });
+        assert.equal(out.res.statusCode, 400);
+        assert.match(out.body?.error?.message || '', /Nao foi possivel ler a planilha|Não foi possível ler a planilha|A planilha precisa conter ao menos uma coluna de produto\/nome\/descrição/);
       }
     },
     {
@@ -180,7 +192,7 @@ export function getProdutosImportTests() {
           file: {
             fileName: 'Estoque_288.xlsx',
             mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            content: Buffer.from(createXlsxBase64([{ 'Descrição': '750100003 - TOALHA - AZUL', P: '1', M: '0', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Total: '1' }]), 'base64')
+            content: Buffer.from(createXlsxBase64([{ Descricao: '750100003 - TOALHA - AZUL', P: '1', M: '0', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Estoque: '1' }]), 'base64')
           }
         });
         const req = createTestRequest({
@@ -205,46 +217,17 @@ export function getProdutosImportTests() {
       run: async () => {
         const app = createApiApp();
         const fabricante = await createFabricante({ nome: 'Fab Tenant', cnpj: '62345678000199' }, { accountId: 'acc-tenant-a' });
-        const base64 = createXlsxBase64([{ 'Descrição': '750100003 - TOALHA - AZUL', P: '1', M: '0', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Total: '1' }]);
+        const base64 = createXlsxBase64([{ Descricao: '750100003 - TOALHA - AZUL', P: '1', M: '0', G: '0', GG: '0', '35-36': '0', '37-38': '0', '39-40': '0', '41-42': '0', '43-44': '0', UNI: '0', Estoque: '1' }]);
         const out = await call(app, { method: 'POST', url: '/produtos/importar-estoque', role: 'admin', accountId: 'acc-tenant-b', body: { fabricante_id: fabricante.id, arquivo: { fileName: 'Estoque_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
         assert.equal([400, 403, 404].includes(out.res.statusCode), true);
       }
     }
   ];
 }
-function createXlsxBase64(rows) {
-  const payload = JSON.stringify(rows);
-  const script = String.raw`
-import base64, json, sys, zipfile, io
-rows = json.loads(sys.argv[1])
-cols = ['Descrição','P','M','G','GG','35-36','37-38','39-40','41-42','43-44','UNI','Total']
-def col_name(idx):
-    n=idx+1
-    out=''
-    while n:
-        n, rem = divmod(n-1, 26)
-        out = chr(65+rem) + out
-    return out
-def cell(ref, v):
-    return f'<c r="{ref}" t="inlineStr"><is><t>{v}</t></is></c>'
-sheet_rows = ['<row r="1">' + ''.join(cell(f"{col_name(i)}1", c) for i, c in enumerate(cols)) + '</row>']
-for r_idx, row in enumerate(rows, start=2):
-    sheet_rows.append('<row r="%d">' % r_idx + ''.join(cell(f"{col_name(i)}{r_idx}", row.get(c, '')) for i, c in enumerate(cols)) + '</row>')
-sheet = '<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>' + ''.join(sheet_rows) + '</sheetData></worksheet>'
-wb = '<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="ag-grid" sheetId="1" r:id="rId1"/></sheets></workbook>'
-rels = '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>'
-ct = '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'
-root_rels = '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'
-buf = io.BytesIO()
-with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
-    z.writestr('[Content_Types].xml', ct)
-    z.writestr('_rels/.rels', root_rels)
-    z.writestr('xl/workbook.xml', wb)
-    z.writestr('xl/_rels/workbook.xml.rels', rels)
-    z.writestr('xl/worksheets/sheet1.xml', sheet)
-print(base64.b64encode(buf.getvalue()).decode())
-`;
-  const out = spawnSync('python', ['-c', script, payload], { encoding: 'utf8' });
-  if (out.status !== 0) throw new Error(out.stderr || out.stdout);
-  return out.stdout.trim();
+
+function createXlsxBase64(rows, sheetName = 'Sheet1') {
+  const ws = xlsx.utils.json_to_sheet(rows);
+  const wb = xlsx.utils.book_new();
+  xlsx.utils.book_append_sheet(wb, ws, sheetName);
+  return xlsx.write(wb, { type: 'base64', bookType: 'xlsx' });
 }

@@ -15,4 +15,10 @@ export function registerProdutosImportRoutes(router) {
     domain: 'produtos-catalogo',
     handler: asyncHandler(async (req, res, context) => sendSuccess(res, await executeProdutosImportHandler(context)))
   });
+  router.registerRoute({
+    method: 'POST',
+    path: '/produtos/importar-estoque/executar',
+    domain: 'produtos-catalogo',
+    handler: asyncHandler(async (req, res, context) => sendSuccess(res, await executeProdutosImportHandler(context)))
+  });
 }
