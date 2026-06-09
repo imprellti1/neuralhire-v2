@@ -407,14 +407,6 @@ async function upsertProdutoPai(accountId, fabricanteId, identity) {
     ...basePayload,
     ...(Number.isFinite(identity.preco) && identity.preco > 0 ? { preco: identity.preco } : {})
   };
-  console.info('[produtos-import] create produto payload', {
-    nome: createPayload.nome,
-    sku: createPayload.sku,
-    fabricante_id: createPayload.fabricante_id,
-    categoria_id: createPayload.categoria_id,
-    hasPreco: createPayload.preco != null,
-    status: createPayload.status
-  });
   if (existing) return { item: await updateProduto(existing.id, updatePayload, { accountId }), created: false };
   return { item: await createProduto(createPayload, { accountId }), created: true };
 }
@@ -531,11 +523,38 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
   assertAccountId(accountId);
   await ensureFabricante(accountId, fabricanteId);
   const parsedWorkbook = await parseImportWorkbook(buffer);
-  const preview = await previewImportXlsx({ accountId, fabricanteId, fileName, buffer });
-  const batch = await updateBatchRecord(preview.batchId, {
-    status: 'processing',
-    arquivo_nome: fileName || null,
+  console.info('[produtos-import] import start', {
+    fileName: fileName || null,
+    totalLines: parsedWorkbook.dataRows.length
+  });
+
+  const groupedItems = new Map();
+  for (const row of parsedWorkbook.dataRows) {
+    const identity = buildImportIdentity(row, parsedWorkbook.headers);
+    if (!identity.parsed?.codigo_erp && !identity.parsed?.nome_produto) continue;
+    const { variations, items } = buildNormalizedItemsFromRow(row, parsedWorkbook.headers, identity.parsed, identity.columns);
+    const parentKey = [fabricanteId, identity.codigo || identity.parsed?.codigo_erp || '', identity.nome || identity.parsed?.nome_produto || '']
+      .map((value) => String(value || '').trim().toLowerCase())
+      .join('::');
+    if (!groupedItems.has(parentKey)) {
+      groupedItems.set(parentKey, { identity, rows: [], items: [], variations: [] });
+    }
+    const group = groupedItems.get(parentKey);
+    group.rows.push(row);
+    group.items.push(...items);
+    group.variations.push(...variations);
+  }
+
+  console.info('[produtos-import] import totals', {
+    totalLines: parsedWorkbook.dataRows.length,
+    totalParents: groupedItems.size
+  });
+
+  const batch = await createBatchRecord({
+    account_id: accountId,
     fabricante_id: fabricanteId,
+    arquivo_nome: fileName || null,
+    status: 'processing',
     total_linhas: parsedWorkbook.dataRows.length,
     linhas_processadas: 0,
     produtos_criados: 0,
@@ -543,9 +562,13 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
     variacoes_criadas: 0,
     variacoes_atualizadas: 0,
     estoques_atualizados: 0,
-    erros: 0
+    erros: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
   });
 
+  const productCache = new Map();
+  const variationCache = new Map();
   const summary = {
     batchId: batch.id,
     arquivo_nome: fileName || null,
@@ -558,25 +581,30 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
     variacoes_criadas: 0,
     variacoes_atualizadas: 0,
     estoques_atualizados: 0,
-    divergencias: preview.divergences || 0,
+    divergencias: 0,
     erros: []
   };
 
   try {
-    for (const row of parsedWorkbook.dataRows) {
-      const identity = buildImportIdentity(row, parsedWorkbook.headers);
-      if (!identity.parsed?.codigo_erp && !identity.parsed?.nome_produto) {
-        summary.erros.push({ linha: summary.linhas_processadas + 2, message: 'A planilha precisa conter ao menos uma coluna de produto/nome/descrição.' });
-        continue;
+    let processedParents = 0;
+    for (const [parentKey, group] of groupedItems.entries()) {
+      let productUpsert = productCache.get(parentKey);
+      if (!productUpsert) {
+        productUpsert = await upsertProdutoPai(accountId, fabricanteId, group.identity);
+        productCache.set(parentKey, productUpsert);
+        summary[productUpsert.created ? 'produtos_criados' : 'produtos_atualizados'] += 1;
       }
-      const productUpsert = await upsertProdutoPai(accountId, fabricanteId, identity);
-      summary[productUpsert.created ? 'produtos_criados' : 'produtos_atualizados'] += 1;
-      const { variations, items } = buildNormalizedItemsFromRow(row, parsedWorkbook.headers, identity.parsed, identity.columns);
-      for (const [index, item] of items.entries()) {
-        const variation = variations[index];
-        if (!variation) continue;
-        const variationUpsert = await upsertVariacao(accountId, productUpsert.item.id, identity.parsed, variation.grade);
-        summary[variationUpsert.created ? 'variacoes_criadas' : 'variacoes_atualizadas'] += 1;
+
+      for (const item of group.items) {
+        const variationKey = [productUpsert.item.id, item.cor || item.variacao_nome || item.grade || '', item.grade || item.tamanho || '']
+          .map((value) => String(value || '').trim().toLowerCase())
+          .join('::');
+        let variationUpsert = variationCache.get(variationKey);
+        if (!variationUpsert) {
+          variationUpsert = await upsertVariacao(accountId, productUpsert.item.id, group.identity.parsed, item.grade);
+          variationCache.set(variationKey, variationUpsert);
+          summary[variationUpsert.created ? 'variacoes_criadas' : 'variacoes_atualizadas'] += 1;
+        }
         await upsertStockRecord({
           account_id: accountId,
           produto_id: productUpsert.item.id,
@@ -595,12 +623,37 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
         });
         summary.estoques_atualizados += 1;
       }
-      summary.linhas_processadas += 1;
+
+      summary.linhas_processadas += group.rows.length;
+      processedParents += 1;
+      if (processedParents % 100 === 0 || processedParents % 250 === 0) {
+        console.info('[produtos-import] import progress', {
+          processedParents,
+          totalParents: groupedItems.size,
+          linesProcessed: summary.linhas_processadas
+        });
+      }
     }
     const finalStatus = summary.erros.length || summary.divergencias ? 'completed_with_warnings' : 'completed';
     await updateBatchRecord(batch.id, { ...summary, status: finalStatus, erros: summary.erros.length, updated_at: new Date().toISOString() });
+    console.info('[produtos-import] import done', {
+      batchId: batch.id,
+      totalLines: summary.total_linhas,
+      totalParents: groupedItems.size,
+      productsCreated: summary.produtos_criados,
+      productsUpdated: summary.produtos_atualizados,
+      variationsCreated: summary.variacoes_criadas,
+      variationsUpdated: summary.variacoes_atualizadas,
+      stocksUpdated: summary.estoques_atualizados,
+      status: finalStatus
+    });
     return { ok: true, batch: { ...summary, status: finalStatus, erros: summary.erros } };
   } catch (error) {
+    console.error('[produtos-import] import error', {
+      batchId: batch.id,
+      message: error?.message,
+      code: error?.code
+    });
     await updateBatchRecord(batch.id, { status: 'failed', erros: summary.erros.length + 1, updated_at: new Date().toISOString() }).catch(() => null);
     throw error;
   }
