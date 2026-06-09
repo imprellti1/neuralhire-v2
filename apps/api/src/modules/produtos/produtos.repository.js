@@ -307,11 +307,36 @@ async function uploadVariacaoImageToStorage({ accountId, produtoId, variacaoId, 
   return { url: data?.publicUrl || null, storage_path: objectPath };
 }
 
+async function findVariacaoById(accountId, variacaoId) {
+  const repositoryMode = getProdutosRepositoryMode();
+  if (repositoryMode.mode !== 'supabase') {
+    for (const produto of memoryProdutos) {
+      if (produto.account_id !== accountId) continue;
+      const rawVariations = Array.isArray(produto.variacoes) ? produto.variacoes : Array.isArray(produto.variations) ? produto.variations : Array.isArray(produto.produto_variacoes) ? produto.produto_variacoes : [];
+      const match = rawVariations.find((item) => String(item?.id) === String(variacaoId));
+      if (match) return { ...match, produto_id: produto.id };
+    }
+    return null;
+  }
+
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new DatabaseError('Supabase indisponivel');
+  const { data, error } = await supabase
+    .from('produto_variacoes')
+    .select(PRODUTO_VARIACOES_SELECT_FIELDS)
+    .eq('account_id', accountId)
+    .eq('id', variacaoId)
+    .maybeSingle();
+  if (error) throw new DatabaseError('Falha ao buscar variacao', { details: error });
+  return data || null;
+}
+
 async function assertVariacaoScope(accountId, produtoId, variacaoId) {
-  await getProdutoById(produtoId, { accountId });
-  const variacoes = await listProdutoVariacoes(produtoId, { accountId });
-  const match = (variacoes || []).find((item) => String(item.id) === String(variacaoId));
+  const match = await findVariacaoById(accountId, variacaoId);
   if (!match) throw new NotFoundError('Variacao nao encontrada', { domain: 'produtos-catalogo', code: 'VARIACAO_NOT_FOUND' });
+  if (produtoId && String(match.produto_id || '') !== String(produtoId || '')) {
+    throw new NotFoundError('Variacao nao encontrada', { domain: 'produtos-catalogo', code: 'VARIACAO_NOT_FOUND' });
+  }
   return match;
 }
 
@@ -346,21 +371,22 @@ export async function listProdutoVariacoes(produtoId, options = {}) {
 export async function updateProdutoVariacaoImagem(produtoId, variacaoId, upload, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-  await assertVariacaoScope(accountId, produtoId, variacaoId);
+  const scopedVariation = await assertVariacaoScope(accountId, produtoId, variacaoId);
   const supabase = getSupabaseClient();
   if (!supabase) {
-    const idx = memoryProdutos.findIndex((produto) => produto.id === produtoId && produto.account_id === accountId);
-    if (idx < 0) throw new NotFoundError('Produto nao encontrado', { domain: 'produtos-catalogo', code: 'PRODUTO_NOT_FOUND' });
     const normalized = normalizeVariationImageUpload(upload);
     const updatedVariation = normalizeProdutoVariacao({
-      ...(await assertVariacaoScope(accountId, produtoId, variacaoId)),
+      ...scopedVariation,
       imagem_url: `memory://${accountId}/${produtoId}/${variacaoId}/${safeName(normalized.fileName)}`,
       imagem_path: `memory/${accountId}/${produtoId}/${variacaoId}/${safeName(normalized.fileName)}`
     });
-    const product = memoryProdutos[idx];
-    const rawVariations = Array.isArray(product.variacoes) ? product.variacoes : Array.isArray(product.variations) ? product.variations : Array.isArray(product.produto_variacoes) ? product.produto_variacoes : [];
-    const nextVariations = rawVariations.map((variation) => String(variation.id) === String(variacaoId) ? { ...variation, imagem_url: updatedVariation.imagem_url, imagem_path: updatedVariation.imagem_path } : variation);
-    memoryProdutos[idx] = { ...product, variacoes: nextVariations, variations: nextVariations, produto_variacoes: nextVariations, updatedAt: new Date().toISOString() };
+    const idx = memoryProdutos.findIndex((produto) => produto.account_id === accountId && String(produto.id) === String(scopedVariation.produto_id || produtoId));
+    if (idx >= 0) {
+      const product = memoryProdutos[idx];
+      const rawVariations = Array.isArray(product.variacoes) ? product.variacoes : Array.isArray(product.variations) ? product.variations : Array.isArray(product.produto_variacoes) ? product.produto_variacoes : [];
+      const nextVariations = rawVariations.map((variation) => String(variation.id) === String(variacaoId) ? { ...variation, imagem_url: updatedVariation.imagem_url, imagem_path: updatedVariation.imagem_path } : variation);
+      memoryProdutos[idx] = { ...product, variacoes: nextVariations, variations: nextVariations, produto_variacoes: nextVariations, updatedAt: new Date().toISOString() };
+    }
     return updatedVariation;
   }
   const uploaded = await uploadVariacaoImageToStorage({ accountId, produtoId, variacaoId, upload });

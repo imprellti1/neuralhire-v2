@@ -11,8 +11,8 @@ function brl(value) { return Number(value || 0).toLocaleString('pt-BR', { style:
 function formatPtBrNumber(value) { return Number(value || 0).toLocaleString('pt-BR'); }
 function normalizeStatusLabel(status, ativo) {
   const s = String(status || '').toLowerCase();
-  if (s === 'ativo' || ativo === true) return 'ativo';
-  if (s === 'inativo' || ativo === false) return 'inativo';
+  if (s === 'ativo' || ativo === true) return 'Ativa';
+  if (s === 'inativo' || ativo === false) return 'Inativa';
   return s || 'desconhecido';
 }
 function formatVariationField(value) {
@@ -21,7 +21,7 @@ function formatVariationField(value) {
 }
 function renderVariationImageCell(variation = {}) {
   const src = variation.imagemUrl || variation.imagem_url || variation.raw?.imagemUrl || variation.raw?.imagem_url || variation.raw?.imagemPrincipalUrl || variation.raw?.imagem_principal_url || null;
-  return src ? `<img src="${src}" alt="Imagem da variação" style="width:60px;height:60px;object-fit:cover;border-radius:12px;border:1px solid #dbe4f2;background:#f8fbff" />` : '<div style="width:60px;height:60px;border-radius:12px;border:1px solid #dbe4f2;background:#f8fbff"></div>';
+  return src ? `<img src="${src}" alt="Imagem da variação" class="nhpd-variation-image" />` : '<div class="nhpd-variation-image nhpd-variation-placeholder" aria-hidden="true"></div>';
 }
 const USAGE_STEP = 5;
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
@@ -85,6 +85,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     .nhpd-chart-tip{font-size:12px;color:#334155;margin:-2px 0 8px}
     .nhpd-ferr{font-size:12px;color:#b42318}.nhpd-msg{padding:10px;border-radius:10px;font-size:13px;margin-bottom:10px;background:#ecfdf3;color:#047857}
     .nhpd-variation-image{width:60px;height:60px;object-fit:cover;border-radius:12px;border:1px solid #dbe4f2;background:#f8fbff}
+    .nhpd-variation-placeholder{display:block;background:linear-gradient(135deg,#f8fbff,#eef4ff)}
     .nhpd-image-picker{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     @media (max-width:1024px){.nhpd-grid{grid-template-columns:1fr}.nhpd-title{font-size:24px}.nhpd-dl{grid-template-columns:1fr}.nhpd-kpi{grid-template-columns:1fr 1fr}}
     `;
@@ -122,9 +123,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
       <td>${formatVariationField(variation.tamanho)}</td>
       <td class="nhpd-stock">${formatPtBrNumber(variation.estoque)}</td>
       <td>${variation.precoFormatado}</td>
-      <td><span class="nhpd-badge ${statusClass(variation.status)}">${variation.status}</span></td>
-      <td>${normalizeStatusLabel(variation.statusComercial, variation.status === 'ativo')}</td>
-      <td>${variation.updatedAtFormatado}</td>
+      <td><span class="nhpd-badge ${statusClass(variation.status)}">${normalizeStatusLabel(variation.status, variation.ativo)}</span></td>
       <td><div class="nhpd-image-picker"><input type="file" id="nhpd-file-${variation.id}" accept="image/jpeg,image/png,image/webp" ${state.saving ? 'disabled' : ''}/><button class="nhpd-btn primary js-variation-image-upload" data-variacao-id="${variation.id}" ${state.saving ? 'disabled' : ''}>Alterar Imagem</button></div></td>
     </tr>`).join('');
     return `<section class="nhpd-panel">
@@ -147,14 +146,15 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
             <h3>Variações do Produto</h3>
             <button id="nhpd-variations-toggle" class="nhpd-collapse" aria-label="${state.variationsExpanded ? 'Recolher variações do produto' : 'Expandir variações do produto'}" aria-expanded="${state.variationsExpanded ? 'true' : 'false'}">${state.variationsExpanded ? '▾' : '▸'}</button>
           </div>
-          ${state.variationsExpanded ? `<div class="nhpd-table-wrap">${variations.length ? `<table class="nhpd-table"><thead><tr><th>Imagem</th><th>SKU Variação</th><th>Cor</th><th>Grade</th><th>Estoque</th><th>Preço</th><th>Status</th><th>Status Comercial</th><th>Atualizado em</th><th>Ação</th></tr></thead><tbody>${variationRows}</tbody></table>` : '<div class="nhpd-state">Nenhuma variação cadastrada.</div>'}<div class="nhpd-footer"><div>Total de variações: ${variations.length}</div></div></div>` : `<div class="nhpd-footer"><div>Total de variações: ${variations.length}</div></div>`}
+          ${state.variationsExpanded ? `<div class="nhpd-table-wrap">${variations.length ? `<table class="nhpd-table"><thead><tr><th>Imagem</th><th>SKU Variação</th><th>Cor</th><th>Grade</th><th>Estoque</th><th>Preço</th><th>Status</th><th>Ação</th></tr></thead><tbody>${variationRows}</tbody></table>` : '<div class="nhpd-state">Nenhuma variação cadastrada.</div>'}<div class="nhpd-footer"><div>Total de variações: ${variations.length}</div></div></div>` : `<div class="nhpd-footer"><div>Total de variações: ${variations.length}</div></div>`}
         </article>
       </div>
     </section>`;
   }
 
   function renderProductImageBlock(product, variations = []) {
-    const primary = product.imagemUrl || product.imagem_url || variations.find((variation) => variation.imagemUrl || variation.imagem_url)?.imagemUrl || variations.find((variation) => variation.imagemUrl || variation.imagem_url)?.imagem_url || null;
+    const variationWithImage = variations.find((variation) => variation.imagemUrl || variation.imagem_url);
+    const primary = product.imagemUrl || product.imagem_url || variationWithImage?.imagemUrl || variationWithImage?.imagem_url || null;
     return `<div style="display:grid;gap:10px"><div>${primary ? `<img src="${primary}" alt="Imagem principal do produto" style="width:100%;max-height:280px;object-fit:cover;border-radius:14px;border:1px solid #e5ecf8;object-fit:cover" />` : '<div class="nhpd-state">Sem imagem cadastrada.</div>'}</div><div class="nhpd-sub">Fallback para a imagem principal do produto quando a variação ainda não tem imagem própria.</div></div>`;
   }
 

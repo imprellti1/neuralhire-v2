@@ -103,7 +103,9 @@ export function normalizeProdutoVariations(response = {}) {
       preco: Number(item?.preco ?? item?.preco_unitario ?? item?.valor ?? 0),
       precoFormatado: fmtBrl(item?.preco ?? item?.preco_unitario ?? item?.valor ?? 0),
       status,
+      ativo: status === 'ativo',
       statusComercial: normalizeVariationStatus(item?.status_comercial || item?.statusComercial || item?.status, item?.ativo),
+      imagemUrl: item?.imagemUrl || item?.imagem_url || item?.image_url || item?.foto_url || item?.foto || null,
       updatedAt,
       updatedAtFormatado: fmtDate(updatedAt),
       raw: item
