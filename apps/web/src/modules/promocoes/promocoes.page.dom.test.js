@@ -65,6 +65,146 @@ test('promoções: formulário alterna entre todas variações e específicas', 
   teardownFrontendDom(dom);
 });
 
+test('promoções: nome permanece ao alterar desconto individual', async () => {
+  const dom = setupFrontendDom('#/x');
+  const apiClient = {
+    get: async (path, params = {}) => {
+      if (path === '/promocoes') return { items: [], total: 0 };
+      if (path === '/produtos/search') return { items: [{ id: 'prod-1', nome: 'Produto A', sku: 'SKU-A' }] };
+      if (path === '/produtos/prod-1') return { item: { id: 'prod-1', nome: 'Produto A', sku: 'SKU-A', preco: 21.1 } };
+      if (path === '/produtos/prod-1/variacoes') return { items: [{ id: 'var-1', sku: 'VAR1', cor: 'Azul', grade: 'G', preco: 0 }] };
+      return { items: [], total: 0 };
+    },
+    post: async () => ({ ok: true, item: { id: 'promo-2' } })
+  };
+  await renderPromocoesPage(document.body, { apiClient });
+  await flush();
+  document.querySelector('#nhp-create-first')?.click();
+  await flush();
+  document.querySelector('#nhp-nome').value = 'Promo Nome';
+  document.querySelector('#nhp-nome').dispatchEvent(new Event('input', { bubbles: true }));
+  await flush();
+  document.querySelector('#nhp-produto-search-open')?.click();
+  await flush();
+  document.querySelector('#nhp-product-search').value = 'Produto';
+  document.querySelector('#nhp-product-search').dispatchEvent(new Event('input', { bubbles: true }));
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await flush();
+  document.querySelector('.nhp-product-row')?.click();
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await flush();
+  document.querySelector('#nhp-escopo-specific')?.click();
+  await flush();
+  const discount = document.querySelector('.nhp-variacao-percentual');
+  discount.value = '12';
+  discount.dispatchEvent(new Event('input', { bubbles: true }));
+  await flush();
+  assert.equal(document.querySelector('#nhp-nome')?.value, 'Promo Nome');
+  teardownFrontendDom(dom);
+});
+
+test('promoções: botão salvar libera com variacao individual válida sem desconto global', async () => {
+  const dom = setupFrontendDom('#/x');
+  const apiClient = {
+    get: async (path, params = {}) => {
+      if (path === '/promocoes') return { items: [], total: 0 };
+      if (path === '/produtos/search') return { items: [{ id: 'prod-1', nome: 'Produto A', sku: 'SKU-A' }] };
+      if (path === '/produtos/prod-1') return { item: { id: 'prod-1', nome: 'Produto A', sku: 'SKU-A', preco: 21.1 } };
+      if (path === '/produtos/prod-1/variacoes') return { items: [{ id: 'var-1', sku: 'VAR1', cor: 'Azul', grade: 'G', preco: 0 }] };
+      return { items: [], total: 0 };
+    },
+    post: async () => ({ ok: true, item: { id: 'promo-2' } })
+  };
+  await renderPromocoesPage(document.body, { apiClient });
+  await flush();
+  document.querySelector('#nhp-create-first')?.click();
+  await flush();
+  let nome = document.querySelector('#nhp-nome');
+  nome.value = 'Promo';
+  nome.dispatchEvent(new Event('input', { bubbles: true }));
+  await flush();
+  let dataInicio = document.querySelector('#nhp-data_inicio');
+  dataInicio.value = '2026-06-01';
+  dataInicio.dispatchEvent(new Event('input', { bubbles: true }));
+  await flush();
+  let dataFim = document.querySelector('#nhp-data_fim');
+  dataFim.value = '2026-06-30';
+  dataFim.dispatchEvent(new Event('input', { bubbles: true }));
+  await flush();
+  document.querySelector('#nhp-produto-search-open')?.click();
+  await flush();
+  document.querySelector('#nhp-product-search').value = 'Produto';
+  document.querySelector('#nhp-product-search').dispatchEvent(new Event('input', { bubbles: true }));
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await flush();
+  document.querySelector('.nhp-product-row')?.click();
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await flush();
+  document.querySelector('#nhp-escopo-specific')?.click();
+  await flush();
+  const checkbox = document.querySelector('.nhp-variacao-check');
+  checkbox.checked = true;
+  checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+  const discount = document.querySelector('.nhp-variacao-percentual');
+  discount.value = '12';
+  discount.dispatchEvent(new Event('input', { bubbles: true }));
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  await flush();
+  assert.equal(document.querySelector('#nhp-save')?.disabled, false);
+  teardownFrontendDom(dom);
+});
+
+test('promoções: botão salvar exige desconto global em todas as variações', async () => {
+  const dom = setupFrontendDom('#/x');
+  const apiClient = {
+    get: async (path, params = {}) => {
+      if (path === '/promocoes') return { items: [], total: 0 };
+      if (path === '/produtos/search') return { items: [{ id: 'prod-1', nome: 'Produto A', sku: 'SKU-A' }] };
+      if (path === '/produtos/prod-1') return { item: { id: 'prod-1', nome: 'Produto A', sku: 'SKU-A', preco: 21.1 } };
+      if (path === '/produtos/prod-1/variacoes') return { items: [{ id: 'var-1', sku: 'VAR1', cor: 'Azul', grade: 'G', preco: 0 }] };
+      return { items: [], total: 0 };
+    },
+    post: async () => ({ ok: true, item: { id: 'promo-2' } })
+  };
+  await renderPromocoesPage(document.body, { apiClient });
+  await flush();
+  document.querySelector('#nhp-create-first')?.click();
+  await flush();
+  document.querySelector('#nhp-nome').value = 'Promo';
+  document.querySelector('#nhp-nome').dispatchEvent(new Event('input', { bubbles: true }));
+  document.querySelector('#nhp-data_inicio').value = '2026-06-01';
+  document.querySelector('#nhp-data_inicio').dispatchEvent(new Event('input', { bubbles: true }));
+  document.querySelector('#nhp-data_fim').value = '2026-06-30';
+  document.querySelector('#nhp-data_fim').dispatchEvent(new Event('input', { bubbles: true }));
+  document.querySelector('#nhp-produto-search-open')?.click();
+  await flush();
+  document.querySelector('#nhp-product-search').value = 'Produto';
+  document.querySelector('#nhp-product-search').dispatchEvent(new Event('input', { bubbles: true }));
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await flush();
+  document.querySelector('.nhp-product-row')?.click();
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await flush();
+  document.querySelector('#nhp-escopo-all')?.click();
+  await flush();
+  assert.equal(document.querySelector('#nhp-save')?.disabled, true);
+  const percentual = document.querySelector('#nhp-percentual_desconto');
+  percentual.value = '10';
+  percentual.dispatchEvent(new Event('input', { bubbles: true }));
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await flush();
+  assert.equal(document.querySelector('#nhp-save')?.disabled, false);
+  teardownFrontendDom(dom);
+});
+
 test('promoções: modal de produtos abre, busca e seleciona produto', async () => {
   const dom = setupFrontendDom('#/x');
   const apiClient = {

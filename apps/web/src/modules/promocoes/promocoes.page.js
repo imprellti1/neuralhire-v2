@@ -199,7 +199,7 @@ function renderForm(state) {
   const globalPercentual = state.form.percentual_desconto ?? '';
   const selectedCount = variacoes.filter((variacao) => variacao.selecionada).length;
   const hasValidSpecificDiscount = variacoes.some((variacao) => variacao.selecionada && Number.isFinite(Number(variacao.percentualDesconto)) && Number(variacao.percentualDesconto) > 0);
-  const saveDisabled = !(state.form.produto?.id || state.form.produto_id) || !state.form.nome || !state.form.data_inicio || !state.form.data_fim || (showSpecific ? !(normalizeDiscount(globalPercentual) || hasValidSpecificDiscount) : !normalizeDiscount(globalPercentual));
+  const saveDisabled = !(state.form.produto?.id || state.form.produto_id) || !String(state.form.nome || '').trim() || !state.form.data_inicio || !state.form.data_fim || !String(state.form.status || '').trim() || (showSpecific ? !(normalizeDiscount(globalPercentual) || hasValidSpecificDiscount) : !normalizeDiscount(globalPercentual));
   return `<section class="nhp-panel nhp-form">
     <div>
       <h2 style="margin:0;font-size:20px">Formulário</h2>
@@ -209,6 +209,7 @@ function renderForm(state) {
       <article class="nhp-form-card">
         <h3>Dados da promoção</h3>
         <label class="nhp-field">Nome da promoção<input id="nhp-nome" class="nhp-input" value="${state.form.nome || ''}"></label>
+        <label class="nhp-field">Descrição<textarea id="nhp-descricao" class="nhp-textarea">${state.form.descricao || ''}</textarea></label>
         <label class="nhp-field">Status<select id="nhp-status" class="nhp-select"><option value="ativa" ${String(state.form.status || 'ativa') === 'ativa' ? 'selected' : ''}>Ativa</option><option value="agendada" ${String(state.form.status || '') === 'agendada' ? 'selected' : ''}>Agendada</option><option value="encerrada" ${String(state.form.status || '') === 'encerrada' ? 'selected' : ''}>Encerrada</option><option value="inativa" ${String(state.form.status || '') === 'inativa' ? 'selected' : ''}>Inativa</option></select></label>
       </article>
       <article class="nhp-form-card">
@@ -300,6 +301,21 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
   function syncFormFromRadio() {
     const specific = root.querySelector('#nhp-escopo-specific');
     state.form.aplicar_em_todas_variacoes = !specific || !specific.checked ? true : false;
+  }
+
+  function syncTextFieldsToState() {
+    const nome = root.querySelector('#nhp-nome');
+    const descricao = root.querySelector('#nhp-descricao');
+    const dataInicio = root.querySelector('#nhp-data_inicio');
+    const dataFim = root.querySelector('#nhp-data_fim');
+    const status = root.querySelector('#nhp-status');
+    const percentual = root.querySelector('#nhp-percentual_desconto');
+    if (nome) state.form.nome = nome.value || '';
+    if (descricao) state.form.descricao = descricao.value || '';
+    if (dataInicio) state.form.data_inicio = dataInicio.value || '';
+    if (dataFim) state.form.data_fim = dataFim.value || '';
+    if (status) state.form.status = status.value || 'ativa';
+    if (percentual) state.form.percentual_desconto = percentual.value || '';
   }
 
   function captureFocusState() {
@@ -458,6 +474,7 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
           ...state.form,
           id: selected.id,
           nome: selected.nome || '',
+          descricao: selected.descricao || '',
           produto_id: selected.produto_id || '',
           produto: selected.produto || selected.produtoNome ? { id: selected.produto_id || '', nome: selected.produto || selected.produtoNome } : (selected.produto_id ? { id: selected.produto_id, nome: selected.produto_nome || selected.produto || '' } : null),
           percentual_desconto: selected.percentual_desconto ?? '',
@@ -475,8 +492,9 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
     if (state.formOpen) {
       root.querySelector('#nhp-cancel')?.addEventListener('click', () => { state.formOpen = false; render(); });
       root.querySelector('#nhp-save')?.addEventListener('click', async () => {
+        syncTextFieldsToState();
         syncFormFromRadio();
-        const globalPercentual = normalizeDiscount(root.querySelector('#nhp-percentual_desconto')?.value);
+        const globalPercentual = normalizeDiscount(state.form.percentual_desconto);
         const variacoes = Array.from(root.querySelectorAll('.nhp-variacao-check')).map((checkbox) => {
           const variacaoId = checkbox.getAttribute('data-variacao-id');
           const percentual = normalizeDiscount(root.querySelector(`.nhp-variacao-percentual[data-variacao-id="${variacaoId}"]`)?.value);
@@ -487,11 +505,12 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
         const canSaveSpecific = state.form.aplicar_em_todas_variacoes === false ? ((Number.isFinite(globalPercentual) && globalPercentual > 0) || hasValidSpecificDiscount) : (Number.isFinite(globalPercentual) && globalPercentual > 0);
         if (!canSaveSpecific) return;
         const payload = {
-          nome: root.querySelector('#nhp-nome')?.value || '',
+          nome: state.form.nome || '',
+          descricao: state.form.descricao || '',
           produto_id: state.form.produto?.id || state.form.produto_id || '',
-          data_inicio: root.querySelector('#nhp-data_inicio')?.value || '',
-          data_fim: root.querySelector('#nhp-data_fim')?.value || '',
-          status: root.querySelector('#nhp-status')?.value || 'ativa',
+          data_inicio: state.form.data_inicio || '',
+          data_fim: state.form.data_fim || '',
+          status: state.form.status || 'ativa',
           aplicar_em_todas_variacoes: state.form.aplicar_em_todas_variacoes !== false,
           variacoesSelecionadas: state.form.aplicar_em_todas_variacoes === false ? selectedVariacoes.map((item) => ({
             variacaoId: item.variacaoId,
@@ -506,6 +525,26 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
       });
       root.querySelector('#nhp-escopo-all')?.addEventListener('change', () => { state.form.aplicar_em_todas_variacoes = true; render(); });
       root.querySelector('#nhp-escopo-specific')?.addEventListener('change', () => { state.form.aplicar_em_todas_variacoes = false; render(); });
+      root.querySelector('#nhp-nome')?.addEventListener('input', (event) => {
+        state.form.nome = event.target.value || '';
+        render();
+      });
+      root.querySelector('#nhp-descricao')?.addEventListener('input', (event) => {
+        state.form.descricao = event.target.value || '';
+        render();
+      });
+      root.querySelector('#nhp-data_inicio')?.addEventListener('input', (event) => {
+        state.form.data_inicio = event.target.value || '';
+        render();
+      });
+      root.querySelector('#nhp-data_fim')?.addEventListener('input', (event) => {
+        state.form.data_fim = event.target.value || '';
+        render();
+      });
+      root.querySelector('#nhp-status')?.addEventListener('change', (event) => {
+        state.form.status = event.target.value || 'ativa';
+        render();
+      });
       root.querySelector('#nhp-percentual_desconto')?.addEventListener('input', (event) => {
         state.form.percentual_desconto = event.target.value || '';
         const global = normalizeDiscount(event.target.value);
