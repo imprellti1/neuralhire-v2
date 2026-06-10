@@ -2,11 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { env } from '../../config/env.js';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
-import { getProdutoById, getProdutosRepositoryMode, listProdutos, updateProduto, __dumpMemoryProdutos, __getProdutoVariacoesSelectFieldsForTests } from '../produtos/produtos.repository.js';
+import { getProdutoById, getProdutosRepositoryMode, listProdutoVariacoes, listProdutos, updateProduto, __dumpMemoryProdutos, __getProdutoVariacoesSelectFieldsForTests } from '../produtos/produtos.repository.js';
 import { listFabricantes, getFabricanteById } from '../fabricantes/fabricantes.repository.js';
 
 const memoryLinks = [];
+const auditCache = new Map();
 const PRODUTO_VARIACOES_SELECT_FIELDS = __getProdutoVariacoesSelectFieldsForTests();
+const AUDIT_CACHE_TTL_MS = 45 * 1000;
 
 function assertAccountId(accountId) {
   if (!accountId) {
@@ -17,6 +19,40 @@ function assertAccountId(accountId) {
 function debugRepository(action, payload) {
   if (env.NODE_ENV === 'production') return;
   console.debug(`[product-audit.repository] ${action}`, payload);
+}
+
+function nowMs() {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
+function trace(label, startedAt) {
+  console.info(`[perf] ${label}`, `${Math.max(0, Math.round(nowMs() - startedAt))}ms`);
+}
+
+function getCacheKey(accountId, suffix) {
+  return `${accountId}:${suffix}`;
+}
+
+function readCache(accountId, suffix) {
+  const key = getCacheKey(accountId, suffix);
+  const entry = auditCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    auditCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function writeCache(accountId, suffix, value) {
+  auditCache.set(getCacheKey(accountId, suffix), { value, expiresAt: Date.now() + AUDIT_CACHE_TTL_MS });
+  return value;
+}
+
+function invalidateCache(accountId) {
+  for (const key of auditCache.keys()) {
+    if (key.startsWith(`${accountId}:`)) auditCache.delete(key);
+  }
 }
 
 function getLink(accountId, productId) {
@@ -209,12 +245,14 @@ function buildAuditContext(products, accountId) {
 }
 
 async function fetchAllAuditVariations(accountId) {
+  const cached = readCache(accountId, 'variations');
+  if (cached) return cached;
   const repositoryMode = getProdutosRepositoryMode();
   if (repositoryMode.mode !== 'supabase') {
-    return __dumpMemoryProdutos().flatMap((produto) => {
+    return writeCache(accountId, 'variations', __dumpMemoryProdutos().flatMap((produto) => {
       const variations = getProductVariations(produto);
       return variations.map((variation) => ({ ...variation, produto_id: produto.id, account_id: produto.account_id }));
-    });
+    }));
   }
 
   const supabase = getSupabaseClient();
@@ -239,10 +277,12 @@ async function fetchAllAuditVariations(accountId) {
     page += 1;
   } while (page <= totalPages);
 
-  return items;
+  return writeCache(accountId, 'variations', items);
 }
 
 async function fetchAllAuditProducts(accountId) {
+  const cached = readCache(accountId, 'products');
+  if (cached) return cached;
   const pageSize = 100;
   let page = 1;
   let totalPages = 1;
@@ -255,26 +295,32 @@ async function fetchAllAuditProducts(accountId) {
     page += 1;
   } while (page <= totalPages);
 
-  return items;
+  return writeCache(accountId, 'products', items);
 }
 
 export async function auditSummary(options = {}) {
   const { filters = {} } = options;
   const accountId = options.accountId || null;
   assertAccountId(accountId);
+  const startedAt = nowMs();
   const produtos = await fetchAllAuditProducts(accountId);
   const normalizedFilters = normalizeFilters(filters);
   const context = buildAuditContext(filterByStatus(produtos, normalizedFilters.status), accountId);
   const filtered = context.applyFilters(normalizedFilters);
-  return context.buildSummary(filtered.filter((item) => (item.issues || []).length > 0));
+  const summary = context.buildSummary(filtered.filter((item) => (item.issues || []).length > 0));
+  trace('product_audit_summary_ms', startedAt);
+  return summary;
 }
 
 export async function listAuditProducts(filters = {}, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
+  const startedAt = nowMs();
   const response = await fetchAllAuditProducts(accountId);
-  const fabricantes = await listFabricantes({}, { accountId });
+  const fabricantes = readCache(accountId, 'fabricantes') || writeCache(accountId, 'fabricantes', await listFabricantes({}, { accountId }));
+  const variationsStartedAt = nowMs();
   const variations = await fetchAllAuditVariations(accountId);
+  trace('product_audit_variations_ms', variationsStartedAt);
   const variationsByProductId = new Map();
   for (const variation of variations) {
     const productId = variation.produto_id || variation.product_id || variation.productId || null;
@@ -301,6 +347,7 @@ export async function listAuditProducts(filters = {}, options = {}) {
   const context = buildAuditContext(filterByStatus(products, normalizedFilters.status), accountId);
   const filtered = context.applyFilters(normalizedFilters);
   const summary = context.buildSummary(filtered.filter((item) => (item.issues || []).length > 0));
+  trace('product_audit_summary_ms', startedAt);
   const issueItems = filtered
     .filter((item) => (item.issues || []).length > 0)
     .slice()
@@ -325,12 +372,13 @@ export async function listAuditProducts(filters = {}, options = {}) {
 export async function getAuditProduct(productId, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
+  const startedAt = nowMs();
   const produto = await getProdutoById(productId, { accountId });
-  const variations = await fetchAllAuditVariations(accountId);
   const productVariations = getProductVariations(produto);
-  const mergedVariations = productVariations.length ? productVariations : variations.filter((variation) => String(variation.produto_id || variation.product_id || variation.productId || '') === String(productId));
+  const mergedVariations = productVariations.length ? productVariations : await listProdutoVariacoes(productId, { accountId }).catch(() => []);
+  trace('product_audit_variations_ms', startedAt);
   const fabricanteId = extractFabricanteId(produto, accountId);
-  const fabricantes = await listFabricantes({}, { accountId });
+  const fabricantes = readCache(accountId, 'fabricantes') || writeCache(accountId, 'fabricantes', await listFabricantes({}, { accountId }));
   const fabricanteNome = fabricanteId ? (fabricantes.items || [])
     .filter((item) => String(item.account_id || item.accountId || '') === String(accountId))
     .find((item) => item.id === fabricanteId)?.nome || '-' : '-';
@@ -340,7 +388,10 @@ export async function getAuditProduct(productId, options = {}) {
     fabricanteId,
     fabricanteNome
   };
-  return { ...item, issues: buildIssues(item, accountId, new Set(), new Set()) };
+  const result = { ...item, issues: buildIssues(item, accountId, new Set(), new Set()) };
+  trace('product_audit_images_ms', startedAt);
+  trace('product_audit_total_ms', startedAt);
+  return result;
 }
 
 export async function linkFabricante(productId, fabricanteId, options = {}) {
@@ -349,6 +400,7 @@ export async function linkFabricante(productId, fabricanteId, options = {}) {
   await getProdutoById(productId, { accountId });
   if (fabricanteId) await getFabricanteById(fabricanteId, { accountId });
   setLink(accountId, productId, fabricanteId || null);
+  invalidateCache(accountId);
   debugRepository('linkFabricante', { accountId, productId, fabricanteId });
   return getAuditProduct(productId, { accountId });
 }
@@ -367,6 +419,7 @@ export async function fixProduct(productId, data = {}, options = {}) {
   if (Object.keys(payload).length) {
     await updateProduto(productId, payload, { accountId });
   }
+  invalidateCache(accountId);
   return getAuditProduct(productId, { accountId });
 }
 

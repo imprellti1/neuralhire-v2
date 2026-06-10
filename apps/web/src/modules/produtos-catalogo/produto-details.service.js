@@ -1,5 +1,11 @@
 import { mapProdutoDetailsData, mapProdutoUpdatePayload, mapProdutoUsageData } from './produto-details.mapper.js';
 
+function markDuration(label, startedAt) {
+  if (typeof performance === 'undefined') return;
+  const duration = Math.max(0, Math.round(performance.now() - startedAt));
+  console.info(`[perf] ${label}`, `${duration}ms`);
+}
+
 async function tryGet(apiClient, paths) {
   let lastError = null;
   for (const path of paths) {
@@ -13,6 +19,7 @@ async function tryGet(apiClient, paths) {
 }
 
 export async function fetchProdutoDetailsData(apiClient, produtoId) {
+  const detailsStartedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const response = await tryGet(apiClient, [
     `/produtos/${produtoId}`,
     `/product-editor/products/${produtoId}`
@@ -26,13 +33,19 @@ export async function fetchProdutoDetailsData(apiClient, produtoId) {
     response?.item?.produtoVariacoes
   ].some((value) => Array.isArray(value) && value.length > 0);
 
-  if (hasVariations) return mapProdutoDetailsData(response);
+  if (hasVariations) {
+    markDuration('product_details_fetch_produto_ms', detailsStartedAt);
+    return mapProdutoDetailsData(response);
+  }
 
+  const variationsStartedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const variationsResponse = await tryGet(apiClient, [
     `/produtos/${produtoId}/variacoes`,
     `/product-editor/products/${produtoId}`,
     `/product-editor/products/${produtoId}/variations`
   ]).catch(() => null);
+  markDuration('product_details_fetch_variacoes_ms', variationsStartedAt);
+  markDuration('product_details_fetch_produto_ms', detailsStartedAt);
 
   const normalizedVariations = Array.isArray(variationsResponse)
     ? variationsResponse
@@ -80,7 +93,7 @@ export async function updateProduto(apiClient, produtoId, form) {
 }
 
 export async function fetchProdutoUsageData(apiClient, produtoId) {
-  const list = await apiClient.get('/pedidos', { page: 1, limit: 200 });
+  const list = await apiClient.get('/pedidos', { page: 1, limit: 50 });
   const pedidos = Array.isArray(list?.items) ? list.items : [];
   const hydrated = await Promise.all(pedidos.map(async (pedido) => {
     if (Array.isArray(pedido?.itens) && pedido.itens.length) return pedido;
@@ -92,4 +105,17 @@ export async function fetchProdutoUsageData(apiClient, produtoId) {
     }
   }));
   return mapProdutoUsageData(produtoId, hydrated);
+}
+
+export async function fetchProdutoUsageDataWithMetrics(apiClient, produtoId, logger = console) {
+  const startedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  logger.info?.('[perf] product_details_fetch_pedidos_ms:start', { produtoId });
+  try {
+    const result = await fetchProdutoUsageData(apiClient, produtoId);
+    markDuration('product_details_fetch_pedidos_ms', startedAt);
+    return result;
+  } catch (error) {
+    markDuration('product_details_fetch_pedidos_ms', startedAt);
+    throw error;
+  }
 }

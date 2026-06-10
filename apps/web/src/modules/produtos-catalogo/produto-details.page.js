@@ -1,6 +1,6 @@
 import { createProdutoDetailsState } from './produto-details.state.js';
 import { applyProdutoUsageDrillDown, applyProdutoUsageFilters, createProdutoEditForm, mapProdutoUsageCsvContent, mapProdutoUsageCsvFilename, mapProdutoUsageCsvRows, validateProdutoEditForm } from './produto-details.mapper.js';
-import { fetchProdutoDetailsData, fetchProdutoImagens, fetchProdutoUsageData, updateProduto, uploadProdutoImagem, uploadProdutoVariacaoImagem } from './produto-details.service.js';
+import { fetchProdutoDetailsData, fetchProdutoImagens, fetchProdutoUsageDataWithMetrics, updateProduto, uploadProdutoImagem, uploadProdutoVariacaoImagem } from './produto-details.service.js';
 import { getProductAuditIssueLabel, getProductAuditIssueTooltip } from '../product-audit/product-audit.mapper.js';
 
 function statusClass(status) {
@@ -29,6 +29,12 @@ const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 
 export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
   const state = createProdutoDetailsState();
+
+  function logPerf(label, startedAt) {
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const duration = Math.max(0, Math.round(now - startedAt));
+    console.info(`[perf] ${label}`, `${duration}ms`);
+  }
 
   async function loadFabricantes() {
     state.fabricantesLoading = true;
@@ -238,8 +244,8 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
       state.saving = true; render();
       try {
         await updateProduto(apiClient, produtoId, state.form);
-        await load({ preserveMessages: true, feedbackMessage: 'Produto atualizado com sucesso.' });
         state.editing = false;
+        await refreshPostSave('Produto atualizado com sucesso.');
       } catch (error) {
         state.error = error?.body?.error?.message || error?.message || 'Não foi possível atualizar o produto.';
       } finally {
@@ -286,8 +292,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
         const formData = new FormData();
         formData.append('upload', file, file.name);
         await uploadProdutoVariacaoImagem(apiClient, variacaoId, formData);
-        state.feedbackMessage = 'Imagem da variação atualizada com sucesso.';
-        await load({ preserveMessages: true, feedbackMessage: 'Imagem da variação atualizada com sucesso.' });
+        await refreshPostSave('Imagem da variação atualizada com sucesso.');
       } catch (error) {
         const code = error?.body?.error?.code || error?.code;
         state.feedbackMessage = code === 'PAYLOAD_TOO_LARGE' ? 'A imagem ultrapassa o limite de 25MB.' : error?.body?.error?.message || error?.message || 'Não foi possível enviar a imagem.';
@@ -312,8 +317,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
         formData.append('upload', file, file.name);
         formData.append('principal', 'true');
         await uploadProdutoImagem(apiClient, produtoId, formData);
-        state.feedbackMessage = 'Imagem do produto atualizada com sucesso.';
-        await load({ preserveMessages: true, feedbackMessage: 'Imagem do produto atualizada com sucesso.' });
+        await refreshPostSave('Imagem do produto atualizada com sucesso.');
       } catch (error) {
         const code = error?.body?.error?.code || error?.code;
         state.feedbackMessage = code === 'PAYLOAD_TOO_LARGE' ? 'A imagem ultrapassa o limite de 25MB.' : error?.body?.error?.message || error?.message || 'Não foi possível enviar a imagem.';
@@ -384,18 +388,21 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     if (!options.preserveMessages) state.feedbackMessage = '';
     render();
     try {
-      state.data = await fetchProdutoDetailsData(apiClient, produtoId);
-      state.auditIssues = [];
-      try {
-        const audit = await apiClient.get(`/product-audit/products/${produtoId}`);
-        state.auditIssues = Array.isArray(audit?.issues) ? audit.issues : [];
-      } catch {
-        state.auditIssues = [];
-      }
-      state.productImages = await fetchProdutoImagens(apiClient, produtoId).catch(() => []);
+      const started = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      console.info('[perf] product_details_load_started', { produtoId });
+      const detailsPromise = fetchProdutoDetailsData(apiClient, produtoId);
+      const auditPromise = apiClient.get(`/product-audit/products/${produtoId}`).catch(() => null);
+      const imagesPromise = fetchProdutoImagens(apiClient, produtoId).catch(() => []);
+      const [details, audit, images] = await Promise.allSettled([detailsPromise, auditPromise, imagesPromise]);
+      state.data = details.status === 'fulfilled' ? details.value : null;
+      state.auditIssues = audit.status === 'fulfilled' && Array.isArray(audit.value?.issues) ? audit.value.issues : [];
+      state.productImages = images.status === 'fulfilled' ? images.value : [];
       state.form = createProdutoEditForm(state.data);
       if (!state?.data?.id) state.notFound = true;
       if (options.feedbackMessage) state.feedbackMessage = options.feedbackMessage;
+      logPerf('product_details_fetch_produto_ms', started);
+      if (audit.status === 'fulfilled') logPerf('product_details_fetch_audit_ms', started);
+      if (images.status === 'fulfilled') logPerf('product_details_fetch_imagens_ms', started);
       loadFabricantes();
       loadCategorias();
       loadUsage();
@@ -404,15 +411,32 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
       else state.error = true;
     } finally {
       state.loading = false;
+      console.info('[perf] product_details_load_finished', { produtoId });
       render();
     }
   }
 
   async function loadUsage() {
     state.usageLoading = true; state.usageError = false; render();
-    try { state.usage = await fetchProdutoUsageData(apiClient, produtoId); state.usageDrillDown = null; }
+    try { state.usage = await fetchProdutoUsageDataWithMetrics(apiClient, produtoId); state.usageDrillDown = null; }
     catch { state.usageError = true; }
     finally { state.usageLoading = false; render(); }
+  }
+
+  async function refreshPostSave(message) {
+    const [details, audit, images] = await Promise.allSettled([
+      fetchProdutoDetailsData(apiClient, produtoId),
+      apiClient.get(`/product-audit/products/${produtoId}`).catch(() => null),
+      fetchProdutoImagens(apiClient, produtoId).catch(() => [])
+    ]);
+    if (details.status === 'fulfilled') {
+      state.data = details.value;
+      state.form = createProdutoEditForm(state.data);
+    }
+    if (audit.status === 'fulfilled' && Array.isArray(audit.value?.issues)) state.auditIssues = audit.value.issues;
+    if (images.status === 'fulfilled') state.productImages = images.value;
+    if (message) state.feedbackMessage = message;
+    render();
   }
 
   render();
