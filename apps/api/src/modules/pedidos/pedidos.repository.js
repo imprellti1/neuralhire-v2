@@ -80,7 +80,7 @@ export async function listPedidos(filters = {}, options = {}) {
     if (scopedFilters.owner_user_id) query = query.eq('owner_user_id', scopedFilters.owner_user_id);
     const from = (page - 1) * limit; const { data, error, count } = await query.range(from, from + limit - 1); if (error) throw new DatabaseError('Falha ao listar pedidos', { details: error });
     const total = count || 0;
-    const enrichedItems = await enrichPedidosWithClienteNome(data || [], accountId);
+    const enrichedItems = await enrichPedidosWithClienteNome(data || [], accountId).catch(() => (data || []).map((item) => ({ ...item, cliente_nome: null })));
     return { items: enrichedItems, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
   let items = memoryPedidos.filter((i) => i.account_id === accountId); if (scopedFilters.status) items = items.filter((i) => i.status === scopedFilters.status); if (scopedFilters.cliente_id) items = items.filter((i) => i.cliente_id === scopedFilters.cliente_id); if (scopedFilters.owner_user_id) items = items.filter((i) => i.owner_user_id === scopedFilters.owner_user_id);

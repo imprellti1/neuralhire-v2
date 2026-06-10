@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { env } from '../../config/env.js';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
+import { listProdutoImagens } from '../produto-imagens/produto-imagens.repository.js';
 import { getProdutoById, getProdutosRepositoryMode, listProdutoVariacoes, listProdutos, updateProduto, __dumpMemoryProdutos, __getProdutoVariacoesSelectFieldsForTests } from '../produtos/produtos.repository.js';
 import { listFabricantes, getFabricanteById } from '../fabricantes/fabricantes.repository.js';
 
@@ -53,6 +54,10 @@ function invalidateCache(accountId) {
   for (const key of auditCache.keys()) {
     if (key.startsWith(`${accountId}:`)) auditCache.delete(key);
   }
+}
+
+export function invalidateProductAuditCache(accountId) {
+  invalidateCache(accountId);
 }
 
 function getLink(accountId, productId) {
@@ -117,11 +122,19 @@ function getProductVariations(item = {}) {
   return (raw || []).map(normalizeVariation);
 }
 
-function buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet) {
+function getImageFromProductImages(item = {}, imagesByProductId = new Map()) {
+  const directImage = item.imagemUrl || item.imagem_url || item.image_url || item.foto || item.foto_url || null;
+  if (directImage) return directImage;
+  const productImages = imagesByProductId.get(String(item.id || '')) || [];
+  const principal = productImages.find((image) => image?.principal) || productImages[0] || null;
+  return principal?.url || null;
+}
+
+function buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet, imagesByProductId = new Map()) {
   const issues = [];
   const fabricanteId = extractFabricanteId(item, accountId);
   if (!fabricanteId) issues.push('missing_fabricante');
-  if (!item.imagemUrl && !item.imagem_url) issues.push('missing_image');
+  if (!getImageFromProductImages(item, imagesByProductId)) issues.push('missing_image');
   if (!String(item.sku || '').trim()) issues.push('missing_sku');
   if (!String(item.nome || '').trim()) issues.push('missing_name');
   if (!String(item.categoria || '').trim()) issues.push('missing_category');
@@ -224,7 +237,7 @@ function buildSummary(items) {
   return summary;
 }
 
-function buildAuditContext(products, accountId) {
+function buildAuditContext(products, accountId, imagesByProductId = new Map()) {
   const skuCounts = new Map();
   const nameCounts = new Map();
   for (const item of products) {
@@ -236,7 +249,7 @@ function buildAuditContext(products, accountId) {
 
   const duplicateSkuSet = new Set([...skuCounts.entries()].filter(([, count]) => count > 1).map(([key]) => key));
   const duplicateNameSet = new Set([...nameCounts.entries()].filter(([, count]) => count > 1).map(([key]) => key));
-  const audited = products.map((item) => ({ ...item, variacoes: getProductVariations(item), issues: buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet) }));
+  const audited = products.map((item) => ({ ...item, variacoes: getProductVariations(item), issues: buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet, imagesByProductId) }));
   return {
     audited,
     applyFilters: (filters) => applyFilters(audited, filters),
@@ -298,14 +311,64 @@ async function fetchAllAuditProducts(accountId) {
   return writeCache(accountId, 'products', items);
 }
 
+async function fetchAllAuditImages(accountId) {
+  const cached = readCache(accountId, 'images');
+  if (cached) return cached;
+  const repositoryMode = getProdutosRepositoryMode();
+  if (repositoryMode.mode !== 'supabase') {
+    const map = new Map();
+    for (const produto of __dumpMemoryProdutos()) {
+      const images = [];
+      const directImage = produto.imagemUrl || produto.imagem_url || produto.image_url || produto.foto || produto.foto_url || null;
+      if (directImage) images.push({ url: directImage, principal: true });
+      if (images.length) map.set(String(produto.id || ''), images);
+    }
+    return writeCache(accountId, 'images', map);
+  }
+
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new DatabaseError('Supabase indisponivel');
+  const pageSize = 100;
+  let page = 1;
+  let totalPages = 1;
+  const items = [];
+
+  do {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    const { data, error, count } = await supabase
+      .from('produto_imagens')
+      .select('id, account_id, produto_id, variacao_id, url, principal, ordem, created_at', { count: 'exact' })
+      .eq('account_id', accountId)
+      .order('principal', { ascending: false })
+      .order('ordem', { ascending: true })
+      .range(from, to);
+    if (error) throw new DatabaseError('Falha ao listar imagens da auditoria', { details: error });
+    items.push(...(data || []));
+    totalPages = Math.max(1, Math.ceil((count || 0) / pageSize));
+    page += 1;
+  } while (page <= totalPages);
+
+  const map = new Map();
+  for (const image of items) {
+    const productId = String(image.produto_id || '');
+    if (!productId) continue;
+    const list = map.get(productId) || [];
+    list.push(image);
+    map.set(productId, list);
+  }
+  return writeCache(accountId, 'images', map);
+}
+
 export async function auditSummary(options = {}) {
   const { filters = {} } = options;
   const accountId = options.accountId || null;
   assertAccountId(accountId);
   const startedAt = nowMs();
   const produtos = await fetchAllAuditProducts(accountId);
+  const imagesByProductId = await fetchAllAuditImages(accountId);
   const normalizedFilters = normalizeFilters(filters);
-  const context = buildAuditContext(filterByStatus(produtos, normalizedFilters.status), accountId);
+  const context = buildAuditContext(filterByStatus(produtos, normalizedFilters.status), accountId, imagesByProductId);
   const filtered = context.applyFilters(normalizedFilters);
   const summary = context.buildSummary(filtered.filter((item) => (item.issues || []).length > 0));
   trace('product_audit_summary_ms', startedAt);
@@ -318,6 +381,7 @@ export async function listAuditProducts(filters = {}, options = {}) {
   const startedAt = nowMs();
   const response = await fetchAllAuditProducts(accountId);
   const fabricantes = readCache(accountId, 'fabricantes') || writeCache(accountId, 'fabricantes', await listFabricantes({}, { accountId }));
+  const imagesByProductId = await fetchAllAuditImages(accountId);
   const variationsStartedAt = nowMs();
   const variations = await fetchAllAuditVariations(accountId);
   trace('product_audit_variations_ms', variationsStartedAt);
@@ -344,7 +408,7 @@ export async function listAuditProducts(filters = {}, options = {}) {
     };
   });
   const normalizedFilters = normalizeFilters(filters);
-  const context = buildAuditContext(filterByStatus(products, normalizedFilters.status), accountId);
+  const context = buildAuditContext(filterByStatus(products, normalizedFilters.status), accountId, imagesByProductId);
   const filtered = context.applyFilters(normalizedFilters);
   const summary = context.buildSummary(filtered.filter((item) => (item.issues || []).length > 0));
   trace('product_audit_summary_ms', startedAt);
@@ -374,6 +438,7 @@ export async function getAuditProduct(productId, options = {}) {
   assertAccountId(accountId);
   const startedAt = nowMs();
   const produto = await getProdutoById(productId, { accountId });
+  const imagesByProductId = await fetchAllAuditImages(accountId);
   const productVariations = getProductVariations(produto);
   const mergedVariations = productVariations.length ? productVariations : await listProdutoVariacoes(productId, { accountId }).catch(() => []);
   trace('product_audit_variations_ms', startedAt);
@@ -384,6 +449,7 @@ export async function getAuditProduct(productId, options = {}) {
     .find((item) => item.id === fabricanteId)?.nome || '-' : '-';
   const item = {
     ...produto,
+    imagemUrl: getImageFromProductImages(produto, imagesByProductId),
     variacoes: mergedVariations,
     fabricanteId,
     fabricanteNome
