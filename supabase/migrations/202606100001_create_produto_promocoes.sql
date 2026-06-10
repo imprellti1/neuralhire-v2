@@ -19,6 +19,7 @@ create table if not exists public.produto_promocao_variacoes (
   promocao_id uuid not null,
   produto_id uuid not null,
   variacao_id uuid not null,
+  percentual_desconto numeric null,
   created_at timestamptz not null default now()
 );
 
@@ -30,4 +31,3 @@ create index if not exists idx_produto_promocao_variacoes_account_id on public.p
 create index if not exists idx_produto_promocao_variacoes_produto_id on public.produto_promocao_variacoes (produto_id);
 create index if not exists idx_produto_promocao_variacoes_promocao_id on public.produto_promocao_variacoes (promocao_id);
 create index if not exists idx_produto_promocao_variacoes_variacao_id on public.produto_promocao_variacoes (variacao_id);
-

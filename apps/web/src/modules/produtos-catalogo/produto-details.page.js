@@ -31,7 +31,9 @@ function getVariationBasePrice(variation = {}, product = {}) {
 function getVariationPromoPrice(variation = {}, product = {}, promocoes = []) {
   const activePromocao = promocoes.find((promocao) => promocao.ativaAgora && (promocao.aplicar_em_todas_variacoes || (Array.isArray(promocao.variacoesSelecionadas) && promocao.variacoesSelecionadas.some((item) => String(item.id) === String(variation.id)))));
   if (!activePromocao) return null;
-  return calculatePrecoPromocional(getVariationBasePrice(variation, product), activePromocao.percentual_desconto);
+  const selectedVariation = Array.isArray(activePromocao.variacoesSelecionadas) ? activePromocao.variacoesSelecionadas.find((item) => String(item.variacao_id || item.variacaoId || item.id) === String(variation.id)) : null;
+  const percentual = selectedVariation?.percentual_desconto ?? activePromocao.percentual_desconto;
+  return calculatePrecoPromocional(getVariationBasePrice(variation, product), percentual);
 }
 function renderVariationImageCell(variation = {}, fallbackSrc = null) {
   const src = variation.imagemUrl || variation.imagem_url || variation.raw?.imagemUrl || variation.raw?.imagem_url || variation.raw?.imagemPrincipalUrl || variation.raw?.imagem_principal_url || fallbackSrc || null;

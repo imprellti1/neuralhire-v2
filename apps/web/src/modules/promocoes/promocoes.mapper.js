@@ -9,7 +9,7 @@ export function mapPromocoesData(response) {
   const items = Array.isArray(response?.items) ? response.items : [];
   return { items: items.map((item) => ({
     ...item,
-    variacoesSelecionadas: Array.isArray(item.variacoesSelecionadas) ? item.variacoesSelecionadas : []
+    variacoesSelecionadas: Array.isArray(item.variacoesSelecionadas) ? item.variacoesSelecionadas : [],
+    percentual_desconto: item.percentual_desconto === null || item.percentual_desconto === undefined ? null : Number(item.percentual_desconto)
   })) };
 }
-

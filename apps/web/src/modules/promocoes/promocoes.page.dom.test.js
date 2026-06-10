@@ -64,3 +64,88 @@ test('promoções: formulário alterna entre todas variações e específicas', 
   assert.match(document.body.textContent, /Variações específicas/);
   teardownFrontendDom(dom);
 });
+
+test('promoções: modal de produtos abre, busca e seleciona produto', async () => {
+  const dom = setupFrontendDom('#/x');
+  const apiClient = {
+    get: async (path, params = {}) => {
+      if (path === '/promocoes') return { items: [], total: 0 };
+      if (path === '/produtos/search') {
+        const q = params.q || params.search || '';
+        return { items: q ? [{ id: 'prod-1', nome: 'Produto A', sku: 'SKU-A', categoria_nome: 'Categoria', fabricante_nome: 'Fábrica' }] : [] };
+      }
+      if (path === '/produtos/prod-1/variacoes') return { items: [{ id: 'var-1', sku: 'VAR1', cor: 'Azul', grade: 'G', preco: 100 }] };
+      return { items: [], total: 0 };
+    },
+    post: async () => ({ ok: true, item: { id: 'promo-2' } })
+  };
+  await renderPromocoesPage(document.body, { apiClient });
+  await flush();
+  document.querySelector('#nhp-create-first')?.click();
+  await flush();
+  document.querySelector('#nhp-produto-search-open')?.click();
+  await flush();
+  const search = document.querySelector('#nhp-product-search');
+  search.value = 'Produto';
+  search.dispatchEvent(new Event('input', { bubbles: true }));
+  await flush();
+  assert.match(document.body.textContent, /Produto A/);
+  document.querySelector('.nhp-product-row')?.click();
+  await flush();
+  assert.equal(document.querySelector('#nhp-produto_display')?.value, 'Produto A • SKU-A');
+  document.querySelector('#nhp-escopo-specific')?.click();
+  await flush();
+  assert.match(document.body.textContent, /VAR1/);
+  teardownFrontendDom(dom);
+});
+
+test('promoções: payload envia variacoesSelecionadas como objetos', async () => {
+  const dom = setupFrontendDom('#/x');
+  let lastPayload = null;
+  const apiClient = {
+    get: async (path, params = {}) => {
+      if (path === '/promocoes') return { items: [], total: 0 };
+      if (path === '/produtos/search') return { items: [{ id: 'prod-1', nome: 'Produto A', sku: 'SKU-A' }] };
+      if (path === '/produtos/prod-1/variacoes') return { items: [{ id: 'var-1', sku: 'VAR1', cor: 'Azul', grade: 'G', preco: 100 }] };
+      return { items: [], total: 0 };
+    },
+    post: async (_path, payload) => { lastPayload = payload; return { ok: true, item: { id: 'promo-3' } }; }
+  };
+  await renderPromocoesPage(document.body, { apiClient });
+  await flush();
+  document.querySelector('#nhp-create-first')?.click();
+  await flush();
+  document.querySelector('#nhp-produto-search-open')?.click();
+  await flush();
+  document.querySelector('#nhp-product-search').value = 'Produto';
+  document.querySelector('#nhp-product-search').dispatchEvent(new Event('input', { bubbles: true }));
+  await flush();
+  document.querySelector('.nhp-product-row')?.click();
+  await flush();
+  await flush();
+  document.querySelector('#nhp-nome').value = 'Promo';
+  document.querySelector('#nhp-data_inicio').value = '2026-06-01';
+  document.querySelector('#nhp-data_fim').value = '2026-06-30';
+  document.querySelector('#nhp-percentual_desconto').value = '10';
+  const specificRadio = document.querySelector('#nhp-escopo-specific');
+  specificRadio.checked = true;
+  specificRadio.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+  await flush();
+  const checkbox = document.querySelector('.nhp-variacao-check');
+  checkbox.checked = true;
+  checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+  const discount = document.querySelector('.nhp-variacao-percentual');
+  discount.value = '12';
+  discount.dispatchEvent(new Event('input', { bubbles: true }));
+  await flush();
+  const saveButton = document.querySelector('#nhp-save');
+  saveButton.dispatchEvent(new Event('click', { bubbles: true }));
+  await flush();
+  await flush();
+  assert.ok(Array.isArray(lastPayload.variacoesSelecionadas));
+  assert.equal(lastPayload.variacoesSelecionadas[0].variacaoId, 'var-1');
+  assert.equal(lastPayload.variacoesSelecionadas[0].percentualDesconto, 12);
+  teardownFrontendDom(dom);
+});

@@ -1,0 +1,135 @@
+import assert from 'node:assert/strict';
+import { createApiApp } from '../../app.js';
+import { createTestRequest } from '../create-test-request.js';
+import { createTestResponse } from '../create-test-response.js';
+import { __loadMemoryProdutos, __resetMemoryProdutosForTests, createProduto } from '../../modules/produtos/produtos.repository.js';
+import { __resetMemoryPromocoesForTests, calcularPrecoPromocional, isPromocaoAtiva } from '../../modules/promocoes/promocoes.repository.js';
+
+async function call(app, { method, url, accountId, body }) {
+  const headers = { 'x-test-role': 'admin', 'x-test-account-id': accountId };
+  if (body) headers['content-type'] = 'application/json';
+  const req = createTestRequest({ method, url, headers, body: body ? JSON.stringify(body) : null });
+  const res = createTestResponse();
+  await app(req, res);
+  return { res, body: JSON.parse(res.body || '{}') };
+}
+
+export function getPromocoesTests() {
+  return [
+    {
+      name: 'cria promocao para todas as variacoes e lista por produto',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryPromocoesForTests();
+        const app = createApiApp();
+        const produto = await createProduto({ nome: 'Produto Promo', preco: 100, variacoes: [{ id: 'v1', produto_id: 'produto-1', account_id: 'acc-promo', preco: 80, ativo: true }] }, { accountId: 'acc-promo' });
+        const created = await call(app, { method: 'POST', url: '/promocoes', accountId: 'acc-promo', body: { produto_id: produto.id, nome: 'Black Friday', percentual_desconto: 10, data_inicio: '2026-06-01', data_fim: '2026-06-30', aplicar_em_todas_variacoes: true } });
+        assert.equal(created.res.statusCode, 200);
+        assert.equal(created.body.item.ativaAgora, true);
+        const list = await call(app, { method: 'GET', url: `/produtos/${produto.id}/promocoes`, accountId: 'acc-promo' });
+        assert.equal(list.body.items.length, 1);
+      }
+    },
+    {
+      name: 'cria promocao de variacoes especificas com desconto individual e prevalencia por variacao',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryPromocoesForTests();
+        const app = createApiApp();
+        const produto = { id: 'produto-3', account_id: 'acc-promo-3', nome: 'Produto Promo 3', preco: 100, variacoes: [{ id: 'v10', produto_id: 'produto-3', account_id: 'acc-promo-3', preco: 80, ativo: true }, { id: 'v11', produto_id: 'produto-3', account_id: 'acc-promo-3', preco: 70, ativo: true }] };
+        __loadMemoryProdutos([produto]);
+        const created = await call(app, {
+          method: 'POST',
+          url: '/promocoes',
+          accountId: 'acc-promo-3',
+          body: {
+            produto_id: produto.id,
+            nome: 'Só variações',
+            data_inicio: '2026-06-01',
+            data_fim: '2026-06-30',
+            aplicar_em_todas_variacoes: false,
+            variacoesSelecionadas: [
+              { variacaoId: 'v10', percentualDesconto: 12 },
+              { variacaoId: 'v11', percentualDesconto: 8 }
+            ]
+          }
+        });
+        assert.equal(created.res.statusCode, 200);
+        assert.equal(created.body.item.variacoesSelecionadas.length, 2);
+        assert.equal(created.body.item.variacoesSelecionadas[0].percentual_desconto, 12);
+        const list = await call(app, { method: 'GET', url: `/produtos/${produto.id}/promocoes`, accountId: 'acc-promo-3' });
+        assert.equal(list.body.items[0].variacoesSelecionadas[0].percentual_desconto, 12);
+      }
+    },
+    {
+      name: 'rejeita variacoes especificas sem desconto global e sem desconto individual',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryPromocoesForTests();
+        const app = createApiApp();
+        const produto = { id: 'produto-4', account_id: 'acc-promo-4', nome: 'Produto Promo 4', variacoes: [{ id: 'v20', produto_id: 'produto-4', account_id: 'acc-promo-4', preco: 80, ativo: true }] };
+        __loadMemoryProdutos([produto]);
+        const invalid = await call(app, {
+          method: 'POST',
+          url: '/promocoes',
+          accountId: 'acc-promo-4',
+          body: {
+            produto_id: produto.id,
+            nome: 'Inválida',
+            percentual_desconto: null,
+            data_inicio: '2026-06-01',
+            data_fim: '2026-06-30',
+            aplicar_em_todas_variacoes: false,
+            variacoesSelecionadas: [{ variacaoId: 'v20', percentualDesconto: null }]
+          }
+        });
+        assert.equal(invalid.res.statusCode, 422);
+      }
+    },
+    {
+      name: 'rejeita percentual e periodo invalidos',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryPromocoesForTests();
+        const app = createApiApp();
+        const produto = await createProduto({ nome: 'Produto Promo 2' }, { accountId: 'acc-promo-2' });
+        const invalidPercent = await call(app, { method: 'POST', url: '/promocoes', accountId: 'acc-promo-2', body: { produto_id: produto.id, nome: 'X', percentual_desconto: 0, data_inicio: '2026-06-01', data_fim: '2026-06-30' } });
+        assert.equal(invalidPercent.res.statusCode, 422);
+        const invalidDate = await call(app, { method: 'POST', url: '/promocoes', accountId: 'acc-promo-2', body: { produto_id: produto.id, nome: 'X', percentual_desconto: 10, data_inicio: '2026-07-01', data_fim: '2026-06-30' } });
+        assert.equal(invalidDate.res.statusCode, 422);
+      }
+    },
+    {
+      name: 'rejeita percentual individual invalido e ignora account_id do body',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryPromocoesForTests();
+        const app = createApiApp();
+        const produto = { id: 'produto-5', account_id: 'acc-promo-5', nome: 'Produto Promo 5', variacoes: [{ id: 'v30', produto_id: 'produto-5', account_id: 'acc-promo-5', preco: 80, ativo: true }] };
+        __loadMemoryProdutos([produto]);
+        const invalid = await call(app, {
+          method: 'POST',
+          url: '/promocoes',
+          accountId: 'acc-promo-5',
+          body: {
+            produto_id: produto.id,
+            nome: 'Inválida',
+            data_inicio: '2026-06-01',
+            data_fim: '2026-06-30',
+            aplicar_em_todas_variacoes: false,
+            variacoesSelecionadas: [{ variacaoId: 'v30', percentualDesconto: 0 }]
+          }
+        });
+        assert.equal(invalid.res.statusCode, 422);
+      }
+    },
+    {
+      name: 'calcula preco promocional e ativa agora',
+      run: async () => {
+        assert.equal(calcularPrecoPromocional(100, 15), 85);
+        assert.equal(isPromocaoAtiva({ status: 'ativo', data_inicio: '2026-06-01', data_fim: '2026-06-30' }, new Date('2026-06-10')), true);
+        assert.equal(isPromocaoAtiva({ status: 'inativo', data_inicio: '2026-06-01', data_fim: '2026-06-30' }, new Date('2026-06-10')), false);
+      }
+    }
+  ];
+}
