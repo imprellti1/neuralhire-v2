@@ -148,6 +148,44 @@ export function getProductAuditTests() {
       assert.ok(!p3.issues.includes('missing_variations'));
       assert.ok(p4.issues.includes('missing_image'));
     } },
+    { name: 'variation image via produto_imagens resolves missing_variation_image and stock zero is ignored', run: async () => {
+      reset();
+      const accountId = 'acc-product-audit-variation-image';
+      __loadMemoryProdutos([
+        {
+          id: 'p1',
+          account_id: accountId,
+          nome: 'Produto com imagem em variação',
+          sku: 'SKU-V1',
+          categoria: 'Cat',
+          preco: 10,
+          estoque: 5,
+          ativo: true,
+          imagemUrl: 'pai.jpg',
+          variacoes: [
+            { id: 'v1', produto_id: 'p1', sku: 'SKU-V1-1', estoque_atual: 0, ativo: true },
+            { id: 'v2', produto_id: 'p1', sku: 'SKU-V1-2', estoque_atual: 2, ativo: true }
+          ],
+          produto_imagens: [
+            { id: 'img-1', produto_id: 'p1', variacao_id: 'v1', url: 'https://img.test/var-v1.jpg', principal: true },
+            { id: 'img-2', produto_id: 'p1', variacao_id: 'v2', url: 'https://img.test/var-v2.jpg', principal: true }
+          ]
+        }
+      ]);
+
+      const result = await listAuditProducts({}, { accountId });
+      assert.equal(result.items.length, 1);
+      const item = result.items[0];
+      assert.equal(item.id, 'p1');
+      assert.equal(item.issues.includes('variation_without_image'), false);
+      assert.equal(item.issues.includes('variation_without_stock'), false);
+      assert.equal(item.issues.includes('zero_stock'), false);
+
+      const detail = await getAuditProduct('p1', { accountId });
+      assert.equal(detail.issues.includes('variation_without_image'), false);
+      assert.equal(detail.issues.includes('variation_without_stock'), false);
+      assert.equal(detail.issues.includes('zero_stock'), false);
+    } },
     { name: 'resolved issues disappear from audit list', run: async () => {
       reset();
       const accountId = 'acc-product-audit-resolved';
@@ -178,7 +216,6 @@ export function getProductAuditTests() {
       assert.equal(summary.semFabrica, 1);
       assert.equal(summary.semImagem, 1);
       assert.equal(summary.semCategoria, 1);
-      assert.equal(summary.estoqueZerado, 1);
       assert.equal(summary.criticos, 1);
       assert.equal(summary.leves, 0);
     } },
@@ -266,7 +303,7 @@ export function getProductAuditTests() {
       assert.equal(result.summary.comProblemas, 30);
       assert.equal(result.summary.semImagem, 1);
       assert.equal(result.summary.semCategoria, 10);
-      assert.equal(result.summary.estoqueZerado, 5);
+      assert.equal(result.summary.estoqueZerado, 0);
     } }
   ];
 }

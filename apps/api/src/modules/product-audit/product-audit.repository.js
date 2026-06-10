@@ -130,6 +130,18 @@ function getImageFromProductImages(item = {}, imagesByProductId = new Map()) {
   return principal?.url || null;
 }
 
+function getVariationImageFromProductImages(variation = {}, imagesByProductId = new Map()) {
+  const directImage = variation.imagemUrl || variation.imagem_url || variation.image_url || variation.foto || variation.foto_url || null;
+  if (directImage) return directImage;
+  const variationId = String(variation.id || '');
+  if (!variationId) return null;
+  for (const images of imagesByProductId.values()) {
+    const match = (images || []).find((image) => String(image?.variacao_id || image?.variation_id || '') === variationId);
+    if (match?.url) return match.url;
+  }
+  return null;
+}
+
 function buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet, imagesByProductId = new Map()) {
   const issues = [];
   const fabricanteId = extractFabricanteId(item, accountId);
@@ -144,11 +156,9 @@ function buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet, imagesB
   if (duplicateSkuSet.has(String(item.sku || '').trim().toLowerCase()) && String(item.sku || '').trim()) issues.push('duplicate_sku');
   if (duplicateNameSet.has(String(item.nome || '').trim().toLowerCase()) && String(item.nome || '').trim()) issues.push('duplicate_name');
   if (isInactiveProduct(item)) issues.push('inactive_product');
-  if (Number(item.estoque || 0) <= 0) issues.push('zero_stock');
   const variacoes = getProductVariations(item).filter((variacao) => normalizeActiveValue(variacao.ativo ?? variacao.active ?? variacao.status) !== false);
   if (variacoes.length) {
-    if (variacoes.some((v) => !v?.imagemUrl && !v?.imagem_url)) issues.push('variation_without_image');
-    if (variacoes.some((v) => Number(v?.estoque_atual ?? v?.estoque ?? v?.stock ?? 0) <= 0)) issues.push('variation_without_stock');
+    if (variacoes.some((v) => !getVariationImageFromProductImages(v, imagesByProductId))) issues.push('variation_without_image');
   }
   if (!variacoes.length) issues.push('missing_variations');
   return issues;
@@ -321,6 +331,14 @@ async function fetchAllAuditImages(accountId) {
       const images = [];
       const directImage = produto.imagemUrl || produto.imagem_url || produto.image_url || produto.foto || produto.foto_url || null;
       if (directImage) images.push({ url: directImage, principal: true });
+      const embeddedImages = Array.isArray(produto.produto_imagens) ? produto.produto_imagens : Array.isArray(produto.imagens) ? produto.imagens : [];
+      for (const image of embeddedImages) {
+        if (!image) continue;
+        images.push({
+          ...image,
+          url: image.url || image.imagemUrl || image.imagem_url || image.image_url || image.foto_url || image.foto || null
+        });
+      }
       if (images.length) map.set(String(produto.id || ''), images);
     }
     return writeCache(accountId, 'images', map);
@@ -454,7 +472,7 @@ export async function getAuditProduct(productId, options = {}) {
     fabricanteId,
     fabricanteNome
   };
-  const result = { ...item, issues: buildIssues(item, accountId, new Set(), new Set()) };
+  const result = { ...item, issues: buildIssues(item, accountId, new Set(), new Set(), imagesByProductId) };
   trace('product_audit_images_ms', startedAt);
   trace('product_audit_total_ms', startedAt);
   return result;
