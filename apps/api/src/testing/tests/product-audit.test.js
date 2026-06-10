@@ -164,9 +164,11 @@ export function getProductAuditTests() {
           imagemUrl: 'pai.jpg',
           variacoes: [
             { id: 'v1', produto_id: 'p1', sku: 'SKU-V1-1', estoque_atual: 0, ativo: true },
-            { id: 'v2', produto_id: 'p1', sku: 'SKU-V1-2', estoque_atual: 2, ativo: true }
+            { id: 'v2', produto_id: 'p1', sku: 'SKU-V1-2', estoque_atual: 2, ativo: true },
+            { id: 'v3', produto_id: 'p1', sku: 'SKU-V1-3', estoque_atual: 1, ativo: true, imagem_url: 'https://img.test/var-v3.jpg' }
           ],
           produto_imagens: [
+            { id: 'img-pai', produto_id: 'p1', variacao_id: null, url: 'https://img.test/pai.jpg', principal: true },
             { id: 'img-1', produto_id: 'p1', variacao_id: 'v1', url: 'https://img.test/var-v1.jpg', principal: true },
             { id: 'img-2', produto_id: 'p1', variacao_id: 'v2', url: 'https://img.test/var-v2.jpg', principal: true }
           ]
@@ -185,6 +187,7 @@ export function getProductAuditTests() {
       assert.equal(detail.issues.includes('variation_without_image'), false);
       assert.equal(detail.issues.includes('variation_without_stock'), false);
       assert.equal(detail.issues.includes('zero_stock'), false);
+      assert.equal(detail.imagemUrl, 'https://img.test/pai.jpg');
     } },
     { name: 'resolved issues disappear from audit list', run: async () => {
       reset();

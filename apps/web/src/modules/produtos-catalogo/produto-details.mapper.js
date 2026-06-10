@@ -83,6 +83,8 @@ function pickImageUrl(item = {}) {
 }
 
 export function normalizeProdutoVariations(response = {}) {
+  const parentPrice = Number(response?.item?.preco ?? response?.item?.preco_unitario ?? response?.preco ?? response?.preco_unitario ?? 0);
+  const fallbackPrice = Number.isFinite(parentPrice) && parentPrice > 0 ? parentPrice : 0;
   const candidates = [
     response?.variacoes,
     response?.variations,
@@ -103,6 +105,8 @@ export function normalizeProdutoVariations(response = {}) {
     const status = normalizeVariationStatus(item?.status, item?.ativo);
     const estoque = pickVariationStock(item);
     const updatedAt = asDate(pickVariationUpdatedAt(item));
+    const ownPrice = Number(item?.preco ?? item?.preco_unitario ?? item?.valor ?? NaN);
+    const effectivePrice = Number.isFinite(ownPrice) && ownPrice > 0 ? ownPrice : fallbackPrice;
     return {
       id: item?.id || `${index}`,
       sku: normalizeText(item?.sku || item?.codigo || item?.codigo_erp || item?.referencia, '-'),
@@ -110,8 +114,8 @@ export function normalizeProdutoVariations(response = {}) {
       tamanho: item?.tamanho || item?.grade || item?.size || null,
       estoqueAtual: Number(estoque || 0),
       estoque: Number(estoque || 0),
-      preco: Number(item?.preco ?? item?.preco_unitario ?? item?.valor ?? 0),
-      precoFormatado: fmtBrl(item?.preco ?? item?.preco_unitario ?? item?.valor ?? 0),
+      preco: effectivePrice,
+      precoFormatado: fmtBrl(effectivePrice),
       multiploVenda: normalizeMultiploVenda(item?.multiplo_venda ?? item?.multiploVenda),
       status,
       ativo: status === 'ativo',

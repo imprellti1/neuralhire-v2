@@ -134,12 +134,19 @@ function getVariationImageFromProductImages(variation = {}, imagesByProductId = 
   const directImage = variation.imagemUrl || variation.imagem_url || variation.image_url || variation.foto || variation.foto_url || null;
   if (directImage) return directImage;
   const variationId = String(variation.id || '');
-  if (!variationId) return null;
+  const productId = String(variation.produto_id || variation.product_id || variation.productId || '');
+  let fallbackImage = null;
   for (const images of imagesByProductId.values()) {
+    const principal = (images || []).find((image) => image?.principal) || (images || [])[0] || null;
+    if (!fallbackImage && principal?.url) fallbackImage = principal.url;
+    if (!variationId) continue;
     const match = (images || []).find((image) => String(image?.variacao_id || image?.variation_id || '') === variationId);
     if (match?.url) return match.url;
+    if (productId && (images || []).some((image) => String(image?.produto_id || '') === productId) && principal?.url) {
+      fallbackImage = fallbackImage || principal.url;
+    }
   }
-  return null;
+  return fallbackImage;
 }
 
 function buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet, imagesByProductId = new Map()) {

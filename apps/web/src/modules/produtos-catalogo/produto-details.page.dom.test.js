@@ -20,7 +20,7 @@ test('produto 360 mantém o layout e o toggle de variações', async () => {
             sku: 'SKU1',
             categoria: 'Cat',
             descricao: 'Produto A',
-            preco: 10,
+            preco: 21.1,
             multiplo_venda: 3,
             status: 'ativo',
             ativo: true,
@@ -59,7 +59,7 @@ test('produto 360 mantém o layout e o toggle de variações', async () => {
             created_at: '2026-01-01T00:00:00.000Z',
             updated_at: '2026-05-01T00:00:00.000Z',
             variations: [
-              { id: 'v1', sku: 'SKU1-01', cor: 'Azul', grade: 'P', estoque_atual: 2, preco: 10, status: 'ativo', status_comercial: 'ativo', updated_at: '2026-05-03T00:00:00.000Z' },
+              { id: 'v1', sku: 'SKU1-01', cor: 'Azul', grade: 'P', estoque_atual: 2, preco: 0, status: 'ativo', status_comercial: 'ativo', updated_at: '2026-05-03T00:00:00.000Z' },
               { id: 'v2', sku: 'SKU1-02', cor: 'Azul', grade: 'M', estoqueAtual: 2, preco: 12, status: 'ativo', status_comercial: 'ativo', updated_at: '2026-05-04T00:00:00.000Z' },
               { id: 'v3', sku: 'SKU1-03', cor: 'Azul', grade: 'G', estoque: 2, preco: 12, status: 'ativo', status_comercial: 'ativo', updated_at: '2026-05-05T00:00:00.000Z' },
               { id: 'v4', sku: 'SKU1-04', cor: 'Azul', grade: 'GG', estoque: 2, preco: 12, status: 'ativo', status_comercial: 'ativo', updated_at: '2026-05-06T00:00:00.000Z' }
@@ -98,6 +98,7 @@ test('produto 360 mantém o layout e o toggle de variações', async () => {
   assert.match(bodyText, /SKU1-02/);
   assert.match(bodyText, /SKU1-03/);
   assert.match(bodyText, /SKU1-04/);
+  assert.match(bodyText, /R\$\s*21,10/);
   assert.ok(root.querySelector('.nhpd-audit-issue[title]'));
 
   const toggle = root.querySelector('#nhpd-variations-toggle');
