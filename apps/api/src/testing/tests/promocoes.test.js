@@ -17,6 +17,33 @@ async function call(app, { method, url, accountId, body }) {
 export function getPromocoesTests() {
   return [
     {
+      name: 'smoke registra rotas de promocoes',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryPromocoesForTests();
+        const app = createApiApp();
+        const produto = await createProduto({ nome: 'Produto Smoke', preco: 100 }, { accountId: 'acc-promo-smoke' });
+
+        const list = await call(app, { method: 'GET', url: '/promocoes', accountId: 'acc-promo-smoke' });
+        assert.notEqual(list.res.statusCode, 404);
+
+        const created = await call(app, {
+          method: 'POST',
+          url: '/promocoes',
+          accountId: 'acc-promo-smoke',
+          body: {
+            produto_id: produto.id,
+            nome: 'Smoke Promo',
+            percentual_desconto: 10,
+            data_inicio: '2026-06-01',
+            data_fim: '2026-06-30',
+            aplicar_em_todas_variacoes: true
+          }
+        });
+        assert.notEqual(created.res.statusCode, 404);
+      }
+    },
+    {
       name: 'cria promocao para todas as variacoes e lista por produto',
       run: async () => {
         __resetMemoryProdutosForTests();
