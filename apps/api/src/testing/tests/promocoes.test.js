@@ -44,6 +44,32 @@ export function getPromocoesTests() {
       }
     },
     {
+      name: 'permite promocao por variacao sem percentual global',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryPromocoesForTests();
+        const app = createApiApp();
+        const produto = { id: 'produto-6', account_id: 'acc-promo-6', nome: 'Produto Promo 6', variacoes: [{ id: 'v40', produto_id: 'produto-6', account_id: 'acc-promo-6', preco: 80, ativo: true }] };
+        __loadMemoryProdutos([produto]);
+        const created = await call(app, {
+          method: 'POST',
+          url: '/promocoes',
+          accountId: 'acc-promo-6',
+          body: {
+            produto_id: produto.id,
+            nome: 'Sem global',
+            data_inicio: '2026-06-01',
+            data_fim: '2026-06-30',
+            aplicar_em_todas_variacoes: false,
+            variacoesSelecionadas: [{ variacaoId: 'v40', percentualDesconto: 9 }]
+          }
+        });
+        assert.equal(created.res.statusCode, 200);
+        assert.equal(created.body.item.percentual_desconto, null);
+        assert.equal(created.body.item.variacoesSelecionadas[0].percentual_desconto, 9);
+      }
+    },
+    {
       name: 'cria promocao para todas as variacoes e lista por produto',
       run: async () => {
         __resetMemoryProdutosForTests();

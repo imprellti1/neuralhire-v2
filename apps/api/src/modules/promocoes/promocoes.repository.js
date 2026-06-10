@@ -42,9 +42,10 @@ function attachMeta(promocao, variacoes = []) {
 }
 
 function normalizeRow(row) {
+  const rawPercentual = row.percentual_desconto;
   return {
     ...row,
-    percentual_desconto: Number(row.percentual_desconto),
+    percentual_desconto: rawPercentual === null || rawPercentual === undefined || rawPercentual === '' ? null : Number(rawPercentual),
     aplicar_em_todas_variacoes: Boolean(row.aplicar_em_todas_variacoes)
   };
 }
@@ -133,6 +134,17 @@ function buildVariacaoLinks({ accountId, promocaoId, produtoId, selectedVariacoe
   }));
 }
 
+function throwSupabasePromocaoError(message, error, context = {}) {
+  console.error(`[promocoes] ${message}`, {
+    code: error?.code || null,
+    message: error?.message || null,
+    details: error?.details || null,
+    hint: error?.hint || null,
+    context
+  });
+  throw new DatabaseError(message, { details: error });
+}
+
 export function getPromocoesRepositoryMode() {
   return { mode: isSupabaseConfigured() ? 'supabase' : 'memory' };
 }
@@ -194,10 +206,11 @@ export async function createPromocao(data, options = {}) {
   if (getPromocoesRepositoryMode().mode === 'supabase') {
     const supabase = getSupabaseClient();
     const { data: inserted, error } = await supabase.from('produto_promocoes').insert(payload).select('*').single();
-    if (error) throw new DatabaseError('Falha ao criar promocao', { details: error });
+    if (error) throwSupabasePromocaoError('Falha ao criar promocao', error, { table: 'produto_promocoes', payload });
     if (!aplicarEmTodasVariacoes) {
       const links = buildVariacaoLinks({ accountId, promocaoId: inserted.id, produtoId, selectedVariacoes: selectedVariacoesPayload, percentualGlobal: percentual ?? null });
-      await supabase.from('produto_promocao_variacoes').insert(links);
+      const { error: linkError } = await supabase.from('produto_promocao_variacoes').insert(links);
+      if (linkError) throwSupabasePromocaoError('Falha ao criar variacoes da promocao', linkError, { table: 'produto_promocao_variacoes', links });
     }
     return attachMeta(normalizeRow(inserted), selectedVariacoesPayload.map((item) => ({ variacao_id: item.variacaoId, percentual_desconto: item.percentualDesconto })));
   }
