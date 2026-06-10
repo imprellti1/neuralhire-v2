@@ -60,6 +60,10 @@ export function invalidateProductAuditCache(accountId) {
   invalidateCache(accountId);
 }
 
+export function __resetProductAuditCacheForTests() {
+  auditCache.clear();
+}
+
 function getLink(accountId, productId) {
   return memoryLinks.find((item) => item.account_id === accountId && item.product_id === productId) || null;
 }
@@ -123,11 +127,13 @@ function getProductVariations(item = {}) {
 }
 
 function getImageFromProductImages(item = {}, imagesByProductId = new Map()) {
-  const directImage = item.imagemUrl || item.imagem_url || item.image_url || item.foto || item.foto_url || null;
-  if (directImage) return directImage;
   const productImages = imagesByProductId.get(String(item.id || '')) || [];
-  const principal = productImages.find((image) => image?.principal) || productImages[0] || null;
-  return principal?.url || null;
+  const mainImage = productImages.find((image) => image?.principal && !String(image?.variacao_id || image?.variation_id || '').trim()) || null;
+  if (mainImage?.url) return mainImage.url;
+  const firstProductImage = productImages.find((image) => !String(image?.variacao_id || image?.variation_id || '').trim()) || null;
+  if (firstProductImage?.url) return firstProductImage.url;
+  const directImage = item.imagemUrl || item.imagem_url || item.image_url || item.foto || item.foto_url || null;
+  return directImage;
 }
 
 function getVariationImageFromProductImages(variation = {}, imagesByProductId = new Map()) {

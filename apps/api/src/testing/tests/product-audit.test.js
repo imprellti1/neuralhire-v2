@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { __loadMemoryProdutos, __resetMemoryProdutosForTests } from '../../modules/produtos/produtos.repository.js';
 import { __loadMemoryFabricantes, __resetMemoryFabricantesForTests } from '../../modules/fabricantes/fabricantes.repository.js';
-import { __dumpMemoryProductAuditLinks, __resetMemoryProductAuditForTests, auditSummary, fixProduct, getAuditProduct, listAuditProducts, linkFabricante } from '../../modules/product-audit/product-audit.repository.js';
+import { __dumpMemoryProductAuditLinks, __resetMemoryProductAuditForTests, __resetProductAuditCacheForTests, auditSummary, fixProduct, getAuditProduct, listAuditProducts, linkFabricante } from '../../modules/product-audit/product-audit.repository.js';
 
 function reset() {
   __resetMemoryProdutosForTests();
   __resetMemoryFabricantesForTests();
   __resetMemoryProductAuditForTests();
+  __resetProductAuditCacheForTests();
 }
 
 export function getProductAuditTests() {
@@ -150,10 +151,14 @@ export function getProductAuditTests() {
     } },
     { name: 'variation image via produto_imagens resolves missing_variation_image and stock zero is ignored', run: async () => {
       reset();
-      const accountId = 'acc-product-audit-variation-image';
+      const accountId = 'acc-product-audit-variation-image-unique';
+      const productId = 'p-audit-variation-image-unique';
+      const variationId1 = 'v-audit-variation-image-unique-1';
+      const variationId2 = 'v-audit-variation-image-unique-2';
+      const variationId3 = 'v-audit-variation-image-unique-3';
       __loadMemoryProdutos([
         {
-          id: 'p1',
+          id: productId,
           account_id: accountId,
           nome: 'Produto com imagem em variação',
           sku: 'SKU-V1',
@@ -161,16 +166,16 @@ export function getProductAuditTests() {
           preco: 10,
           estoque: 5,
           ativo: true,
-          imagemUrl: 'pai.jpg',
+          imagemUrl: null,
           variacoes: [
-            { id: 'v1', produto_id: 'p1', sku: 'SKU-V1-1', estoque_atual: 0, ativo: true },
-            { id: 'v2', produto_id: 'p1', sku: 'SKU-V1-2', estoque_atual: 2, ativo: true },
-            { id: 'v3', produto_id: 'p1', sku: 'SKU-V1-3', estoque_atual: 1, ativo: true, imagem_url: 'https://img.test/var-v3.jpg' }
+            { id: variationId1, produto_id: productId, sku: 'SKU-V1-1', estoque_atual: 0, ativo: true },
+            { id: variationId2, produto_id: productId, sku: 'SKU-V1-2', estoque_atual: 2, ativo: true },
+            { id: variationId3, produto_id: productId, sku: 'SKU-V1-3', estoque_atual: 1, ativo: true, imagem_url: 'https://img.test/var-v3.jpg' }
           ],
           produto_imagens: [
-            { id: 'img-pai', produto_id: 'p1', variacao_id: null, url: 'https://img.test/pai.jpg', principal: true },
-            { id: 'img-1', produto_id: 'p1', variacao_id: 'v1', url: 'https://img.test/var-v1.jpg', principal: true },
-            { id: 'img-2', produto_id: 'p1', variacao_id: 'v2', url: 'https://img.test/var-v2.jpg', principal: true }
+            { id: 'img-pai-unique', produto_id: productId, variacao_id: null, url: 'https://img.test/pai.jpg', principal: true },
+            { id: 'img-1-unique', produto_id: productId, variacao_id: variationId1, url: 'https://img.test/var-v1.jpg', principal: true },
+            { id: 'img-2-unique', produto_id: productId, variacao_id: variationId2, url: 'https://img.test/var-v2.jpg', principal: true }
           ]
         }
       ]);
@@ -178,12 +183,12 @@ export function getProductAuditTests() {
       const result = await listAuditProducts({}, { accountId });
       assert.equal(result.items.length, 1);
       const item = result.items[0];
-      assert.equal(item.id, 'p1');
+      assert.equal(item.id, productId);
       assert.equal(item.issues.includes('variation_without_image'), false);
       assert.equal(item.issues.includes('variation_without_stock'), false);
       assert.equal(item.issues.includes('zero_stock'), false);
 
-      const detail = await getAuditProduct('p1', { accountId });
+      const detail = await getAuditProduct(productId, { accountId });
       assert.equal(detail.issues.includes('variation_without_image'), false);
       assert.equal(detail.issues.includes('variation_without_stock'), false);
       assert.equal(detail.issues.includes('zero_stock'), false);
