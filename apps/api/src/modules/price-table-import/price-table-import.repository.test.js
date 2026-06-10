@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import xlsx from 'xlsx';
 import { __normalizePriceTableRefForTests, __normalizePriceTableValueForTests, __resetPriceTableImportSessionsForTests, executePriceTableImport, previewPriceTableImport } from './price-table-import.repository.js';
-import { __loadMemoryProdutos, __resetMemoryProdutosForTests } from '../produtos/produtos.repository.js';
+import { __dumpMemoryProdutos, __loadMemoryProdutos, __resetMemoryProdutosForTests } from '../produtos/produtos.repository.js';
 
 function createWorkbook(rows) {
   const ws = xlsx.utils.aoa_to_sheet(rows);
@@ -49,4 +49,34 @@ test('preview e aplicacao de tabela de preco', async () => {
   assert.equal(result.summary.updatedRows, 1);
   const updatedPreview = await previewPriceTableImport({ accountId: 'a1', fileName: 'tabela.xlsx', buffer });
   assert.equal(updatedPreview.items.find((item) => item.ref === '001').status, 'matched_unchanged');
+});
+
+test('atualiza produto pai inativo pela referencia e suporta planilha sem cabeçalho', async () => {
+  __resetMemoryProdutosForTests();
+  __resetPriceTableImportSessionsForTests();
+  __loadMemoryProdutos([
+    { id: 'p10', account_id: 'a1', sku: '870500087', nome: 'TOALHA DE MESA 1,60m x 3,20m GLAMOUR', preco: 0, ativo: false, status: 'inativo' }
+  ]);
+
+  const buffer = createWorkbook([
+    ['870500087', '164,9']
+  ]);
+
+  const preview = await previewPriceTableImport({ accountId: 'a1', fileName: 'tabela-sem-cabecalho.xlsx', buffer });
+  assert.equal(preview.summary.totalRows, 1);
+  assert.equal(preview.items[0].ref, '870500087');
+  assert.equal(preview.items[0].status, 'matched_changed');
+  assert.equal(preview.items[0].currentPrice, 0);
+  assert.equal(preview.items[0].newPrice, 164.9);
+
+  const result = await executePriceTableImport({ accountId: 'a1', importToken: preview.importToken });
+  assert.equal(result.summary.updatedRows, 1);
+  assert.equal(__dumpMemoryProdutos().find((item) => item.id === 'p10').preco, 164.9);
+  const refreshed = (await previewPriceTableImport({
+    accountId: 'a1',
+    fileName: 'tabela-sem-cabecalho.xlsx',
+    buffer
+  })).items[0];
+  assert.equal(refreshed.status, 'matched_unchanged');
+  assert.equal(refreshed.currentPrice, 164.9);
 });

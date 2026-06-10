@@ -57,8 +57,10 @@ function parseWorkbook(buffer) {
   const rows = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '', blankrows: false });
   if (!rows.length) throw new BadRequestError('Nenhuma aba com dados foi encontrada.', { domain: 'price-table-import', code: 'NO_SHEET_WITH_DATA' });
   const headers = rows[0].map((cell) => String(cell ?? '').trim());
-  const dataRows = rows.slice(1).map((row, index) => ({ rowNumber: index + 2, row })).filter((entry) => entry.row.some((cell) => String(cell ?? '').trim()));
-  return { headers, dataRows, sheetName, sheetNames: workbook.SheetNames };
+  const hasRecognizedHeaders = pickHeaderIndex(headers, REF_HEADERS) >= 0 && pickHeaderIndex(headers, PRICE_HEADERS) >= 0;
+  const dataStartIndex = hasRecognizedHeaders ? 1 : 0;
+  const dataRows = rows.slice(dataStartIndex).map((row, index) => ({ rowNumber: index + dataStartIndex + 1, row })).filter((entry) => entry.row.some((cell) => String(cell ?? '').trim()));
+  return { headers, dataRows, sheetName, sheetNames: workbook.SheetNames, hasRecognizedHeaders };
 }
 
 function isChildProduct(product = {}) {
@@ -196,8 +198,8 @@ function buildPreviewItems(rows, products) {
 export async function previewPriceTableImport({ accountId, fileName, buffer }) {
   assertAccountId(accountId);
   const workbook = parseWorkbook(buffer);
-  const refIndex = pickHeaderIndex(workbook.headers, REF_HEADERS);
-  const priceIndex = pickHeaderIndex(workbook.headers, PRICE_HEADERS);
+  const refIndex = workbook.hasRecognizedHeaders ? pickHeaderIndex(workbook.headers, REF_HEADERS) : 0;
+  const priceIndex = workbook.hasRecognizedHeaders ? pickHeaderIndex(workbook.headers, PRICE_HEADERS) : 1;
   if (refIndex < 0 || priceIndex < 0) {
     throw new BadRequestError('A planilha precisa conter colunas de referencia e preco unitario.', { domain: 'price-table-import', code: 'MISSING_COLUMNS' });
   }
