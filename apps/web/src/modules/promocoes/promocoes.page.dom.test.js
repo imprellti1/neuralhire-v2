@@ -25,25 +25,39 @@ test('promoções: lista mostra badges e ações', async () => {
       items: [{
         id: 'promo-1',
         nome: 'Campanha Verão',
-        produto_nome: 'Camiseta Premium',
+        produto: { id: 'prod-1', nome: 'Camiseta Premium', descricao: 'Camiseta premium algodão' },
         percentual_desconto: 15,
         data_inicio: '2026-06-01',
         data_fim: '2026-06-30',
         status: 'ativa',
         aplicar_em_todas_variacoes: false,
         variacoesSelecionadas: [{ id: 'v1' }]
+      }, {
+        id: 'promo-2',
+        nome: 'Liquidação',
+        produto: { id: 'prod-2', nome: 'Calça Jeans', descricao: 'Calça jeans reta' },
+        percentual_desconto: 10,
+        data_inicio: '2026-06-01',
+        data_fim: '2026-06-30',
+        status: 'inativo',
+        aplicar_em_todas_variacoes: true,
+        variacoesSelecionadas: []
       }],
       total: 1
     }),
-    delete: async () => ({ ok: true })
+    delete: async () => ({ ok: true }),
+    patch: async () => ({ ok: true })
   };
   await renderPromocoesPage(document.body, { apiClient });
   await flush();
   assert.match(document.body.textContent, /Campanha Verão/);
   assert.match(document.body.textContent, /Ativa/);
   assert.match(document.body.textContent, /Variações específicas/);
+  assert.match(document.body.textContent, /Camiseta Premium/);
+  assert.doesNotMatch(document.body.textContent, /promo-1/);
   assert.match(document.body.textContent, /Editar/);
   assert.match(document.body.textContent, /Inativar/);
+  assert.match(document.body.textContent, /Ativar/);
   teardownFrontendDom(dom);
 });
 
@@ -238,7 +252,7 @@ test('promoções: modal de produtos abre, busca e seleciona produto', async () 
   await flush();
   await new Promise((resolve) => setTimeout(resolve, 1000));
   await flush();
-  assert.equal(document.querySelector('#nhp-produto_display')?.value, 'Produto A • SKU-A');
+  assert.equal(document.querySelector('#nhp-produto_display')?.value, 'Produto A');
   document.querySelector('#nhp-escopo-specific')?.click();
   await flush();
   assert.match(document.body.textContent, /VAR1/);

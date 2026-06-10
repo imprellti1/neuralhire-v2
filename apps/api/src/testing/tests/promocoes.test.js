@@ -44,6 +44,33 @@ export function getPromocoesTests() {
       }
     },
     {
+      name: 'lista promocoes enriquece dados do produto',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryPromocoesForTests();
+        const app = createApiApp();
+        const produto = await createProduto({ nome: 'Produto Enriquecido', descricao: 'Descricao do produto', preco: 100 }, { accountId: 'acc-promo-enriched' });
+        await call(app, {
+          method: 'POST',
+          url: '/promocoes',
+          accountId: 'acc-promo-enriched',
+          body: {
+            produto_id: produto.id,
+            nome: 'Promo Enriquecida',
+            percentual_desconto: 10,
+            data_inicio: '2026-06-01',
+            data_fim: '2026-06-30',
+            aplicar_em_todas_variacoes: true
+          }
+        });
+        const list = await call(app, { method: 'GET', url: '/promocoes', accountId: 'acc-promo-enriched' });
+        assert.equal(list.body.items[0].produto.id, produto.id);
+        assert.equal(list.body.items[0].produto.nome, 'Produto Enriquecido');
+        assert.equal(list.body.items[0].produto.descricao, 'Descricao do produto');
+        assert.deepEqual(list.body.items[0].produtos, [{ id: produto.id, nome: 'Produto Enriquecido', descricao: 'Descricao do produto' }]);
+      }
+    },
+    {
       name: 'permite promocao por variacao sem percentual global',
       run: async () => {
         __resetMemoryProdutosForTests();

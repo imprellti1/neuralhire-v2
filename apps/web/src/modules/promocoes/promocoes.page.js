@@ -98,7 +98,11 @@ function injectStyles() {
   .nhp-badge.is-inactive{background:#f1f5f9;color:#475569}
   .nhp-badge.is-all{background:#eaf1ff;color:#1d4ed8}
   .nhp-badge.is-specific{background:#eef2ff;color:#4338ca}
+  .nhp-badge.is-product-count{background:#f1f5f9;color:#334155}
   .nhp-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .nhp-item-stack{display:grid;gap:4px}
+  .nhp-item-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .nhp-ellipsis{overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
   .nhp-state{padding:28px;text-align:center;color:#607091}
   .nhp-state-card{display:grid;gap:12px;place-items:center;min-height:260px}
   .nhp-loading .s{height:16px;background:linear-gradient(90deg,#eef2f8,#f9fbff,#eef2f8);background-size:200% 100%;animation:nhp-sh 1.1s infinite;border-radius:8px;margin:8px 0}
@@ -145,9 +149,34 @@ function renderEmptyState(onCreate) {
 }
 
 function formatProductLabel(product = {}) {
-  const nome = String(product?.nome || product?.produto_nome || product?.descricao || '').trim() || 'Produto';
-  const sku = String(product?.sku || product?.codigo || '').trim();
-  return sku ? `${nome} • ${sku}` : nome;
+  return String(product?.nome || product?.produto_nome || product?.descricao || '').trim() || 'Produto';
+}
+
+function getPromocaoProdutos(item = {}) {
+  if (Array.isArray(item?.produtos) && item.produtos.length) return item.produtos;
+  if (item?.produto) return [item.produto];
+  if (item?.produto_id || item?.produto_nome || item?.produto_descricao) {
+    return [{
+      id: item?.produto_id || null,
+      nome: item?.produto_nome || item?.produto || null,
+      descricao: item?.produto_descricao || null
+    }];
+  }
+  return [];
+}
+
+function renderProdutosCell(item = {}) {
+  const produtos = getPromocaoProdutos(item);
+  const primary = produtos[0] || {};
+  const label = formatProductLabel(primary);
+  const countLabel = `${produtos.length || 0} produto${produtos.length === 1 ? '' : 's'}`;
+  return `<div class="nhp-item-stack">
+    <strong>${label}</strong>
+    ${primary.descricao ? `<div class="nhp-muted nhp-ellipsis">${primary.descricao}</div>` : ''}
+    <div class="nhp-item-meta">
+      ${renderBadge(countLabel, 'is-product-count')}
+    </div>
+  </div>`;
 }
 
 function normalizeDiscount(value) {
@@ -262,22 +291,24 @@ function renderList(items) {
     const desconto = toPercent(item?.percentual_desconto);
     const price = Number(item?.preco_base || item?.preco || 0);
     const promoPrice = calculatePrecoPromocional(price, desconto);
+    const status = normalizeStatus(item?.status, item?.ativaAgora);
+    const active = status === 'ativa';
     return `<tr class="nhp-row" data-id="${item?.id || ''}">
-      <td><strong>${item?.nome || '-'}</strong><div class="nhp-muted">${item?.id || ''}</div></td>
-      <td>${item?.produto_nome || item?.produto || item?.produto_id || '-'}</td>
+      <td><strong>${item?.nome || '-'}</strong></td>
+      <td>${renderProdutosCell(item)}</td>
       <td><strong>${desconto}%</strong><div class="nhp-muted">${brl(price)} -> ${brl(promoPrice)}</div></td>
       <td>${formatDate(item?.data_inicio)} a ${formatDate(item?.data_fim)}</td>
-      <td>${renderBadge(statusLabel(item?.status, item?.ativaAgora), statusClass(item?.status, item?.ativaAgora))}</td>
+      <td>${renderBadge(statusLabel(status, item?.ativaAgora), statusClass(status, item?.ativaAgora))}</td>
       <td>${renderBadge(scope, scopeClass(item))}</td>
       <td>
         <div class="nhp-actions">
           <button class="nhp-btn secondary" data-action="edit" data-id="${item?.id || ''}">Editar</button>
-          <button class="nhp-btn secondary" data-action="disable" data-id="${item?.id || ''}">Inativar</button>
+          <button class="nhp-btn secondary" data-action="${active ? 'disable' : 'enable'}" data-id="${item?.id || ''}">${active ? 'Inativar' : 'Ativar'}</button>
         </div>
       </td>
     </tr>`;
   }).join('');
-  return `<section class="nhp-panel"><div class="nhp-table-wrap"><table class="nhp-table"><thead><tr><th>Promoção</th><th>Produto</th><th>Desconto</th><th>Período</th><th>Status</th><th>Escopo</th><th>Ações</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+  return `<section class="nhp-panel"><div class="nhp-table-wrap"><table class="nhp-table"><thead><tr><th>Promoção</th><th>Produtos</th><th>Desconto</th><th>Período</th><th>Status</th><th>Escopo</th><th>Ações</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 
 export function renderPromocoesPage(root, { apiClient } = {}) {
@@ -461,6 +492,14 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
         const id = btn.getAttribute('data-id');
         if (!id) return;
         await deletePromocao(apiClient, id);
+        await load();
+      });
+    });
+    root.querySelectorAll('[data-action="enable"]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id');
+        if (!id) return;
+        await savePromocao(apiClient, { status: 'ativa' }, id);
         await load();
       });
     });

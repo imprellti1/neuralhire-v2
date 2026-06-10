@@ -41,6 +41,36 @@ function attachMeta(promocao, variacoes = []) {
   };
 }
 
+async function attachProdutoData(promocao, accountId) {
+  if (!promocao?.produto_id) {
+    return { ...promocao, produto: promocao?.produto || null, produtos: Array.isArray(promocao?.produtos) ? promocao.produtos : [] };
+  }
+  try {
+    const produto = await getProdutoById(promocao.produto_id, { accountId });
+    const produtoData = {
+      id: produto.id || promocao.produto_id,
+      nome: produto.nome || null,
+      descricao: produto.descricao || null
+    };
+    return {
+      ...promocao,
+      produto: produtoData,
+      produtos: [produtoData]
+    };
+  } catch {
+    const fallbackProduto = {
+      id: promocao.produto_id,
+      nome: promocao.produto_nome || promocao.produto?.nome || null,
+      descricao: promocao.produto_descricao || promocao.produto?.descricao || null
+    };
+    return {
+      ...promocao,
+      produto: fallbackProduto,
+      produtos: Array.isArray(promocao?.produtos) && promocao.produtos.length ? promocao.produtos : [fallbackProduto]
+    };
+  }
+}
+
 function normalizeRow(row) {
   const rawPercentual = row.percentual_desconto;
   return {
@@ -160,9 +190,15 @@ async function loadRows(accountId, produtoId = null) {
     if (error) throw new DatabaseError('Falha ao listar promocoes', { details: error });
     const ids = (data || []).map((p) => p.id);
     const { data: links } = ids.length ? await supabase.from('produto_promocao_variacoes').select('*').eq('account_id', accountId).in('promocao_id', ids) : { data: [] };
-    return (data || []).map((row) => attachMeta(normalizeRow(row), (links || []).filter((l) => l.promocao_id === row.id).map(normalizeVariationLink)));
+    return Promise.all((data || []).map(async (row) => {
+      const promocao = attachMeta(normalizeRow(row), (links || []).filter((l) => l.promocao_id === row.id).map(normalizeVariationLink));
+      return attachProdutoData(promocao, accountId);
+    }));
   }
-  return memoryPromocoes.filter((p) => p.account_id === accountId && (!produtoId || String(p.produto_id) === String(produtoId))).map((p) => attachMeta(normalizeRow(p), memoryPromocaoVariacoes.filter((l) => l.account_id === accountId && l.promocao_id === p.id).map(normalizeVariationLink)));
+  return Promise.all(memoryPromocoes.filter((p) => p.account_id === accountId && (!produtoId || String(p.produto_id) === String(produtoId))).map(async (p) => {
+    const promocao = attachMeta(normalizeRow(p), memoryPromocaoVariacoes.filter((l) => l.account_id === accountId && l.promocao_id === p.id).map(normalizeVariationLink));
+    return attachProdutoData(promocao, accountId);
+  }));
 }
 
 export async function listPromocoes(filters = {}, options = {}) {
