@@ -48,6 +48,7 @@ function injectStyles() {
 export function renderProdutosPage(root, { apiClient }) {
   injectStyles();
   const state = createProdutosState();
+  let searchLoadTimer = null;
 
   function renderTable() {
     if (state.loading) {
@@ -120,7 +121,11 @@ export function renderProdutosPage(root, { apiClient }) {
     if (search) {
       search.oninput = (event) => {
         state.search = event.target.value || '';
-        load(state?.pagination?.page || 1, { preserveLoading: true });
+        if (searchLoadTimer) clearTimeout(searchLoadTimer);
+        searchLoadTimer = setTimeout(() => {
+          searchLoadTimer = null;
+          load(state?.pagination?.page || 1);
+        }, 120);
       };
     }
 

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderProdutosPage } from './produtos.page.js';
-import { flush, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
+import { dispatchInput, flush, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 
 test('listagem de produtos mostra fábrica e fallback', async () => {
   const dom = setupFrontendDom('#/produtos');
@@ -18,5 +18,13 @@ test('listagem de produtos mostra fábrica e fallback', async () => {
   const text = root.textContent;
   assert.match(text, /Fábrica 1/);
   assert.match(text, /Sem fábrica/);
+
+  const search = root.querySelector('#nhp-search');
+  dispatchInput(search, 'to');
+  dispatchInput(search, 'toalha');
+  dispatchInput(search, 'toalha banho');
+  await flush();
+  await flush();
+  assert.equal(root.querySelector('#nhp-search').value, 'toalha banho');
   teardownFrontendDom(dom);
 });

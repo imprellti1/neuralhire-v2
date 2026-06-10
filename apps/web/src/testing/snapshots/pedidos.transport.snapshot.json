@@ -2,9 +2,7 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/pedidos",
@@ -16,9 +14,7 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/pedidos/p1",
@@ -27,9 +23,7 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/pedidos/p1/history",
@@ -38,9 +32,7 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/pedidos/p1",
@@ -49,9 +41,7 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/pedidos/p1/history",

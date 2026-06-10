@@ -121,6 +121,47 @@ export function getProductAuditTests() {
       assert.equal(inactiveResult.summary.inativos, 1);
       assert.equal(inactiveResult.items[0].id, 'p3');
     } },
+    { name: 'variation rules respect active child variations and hide resolved products', run: async () => {
+      reset();
+      const accountId = 'acc-product-audit-variations';
+      __loadMemoryFabricantes([{ id: 'fab-1', account_id: accountId, nome: 'Fabrica 1' }, { id: 'fab-2', account_id: accountId, nome: 'Fabrica 2' }]);
+      __loadMemoryProdutos([
+        { id: 'p1', account_id: accountId, nome: 'Pai sem variação', sku: 'SKU-P1', categoria: 'Cat', preco: 10, estoque: 1, ativo: true, imagemUrl: 'img', variacoes: [] },
+        { id: 'p2', account_id: accountId, nome: 'Pai com variação', sku: 'SKU-P2', categoria: 'Cat', preco: 10, estoque: 1, ativo: true, imagemUrl: 'img', variacoes: [{ id: 'v2', produto_id: 'p2', sku: 'SKU-P2-1', estoque_atual: 2, ativo: true, imagem_url: 'child.jpg' }] },
+        { id: 'p3', account_id: accountId, nome: 'Completo', sku: 'SKU-P3', categoria: 'Cat', preco: 10, estoque: 5, ativo: true, imagemUrl: 'img', variacoes: [{ id: 'v3', produto_id: 'p3', sku: 'SKU-P3-1', estoque_atual: 1, ativo: true, imagem_url: 'child.jpg' }] },
+        { id: 'p4', account_id: accountId, nome: 'Sem imagem', sku: 'SKU-P4', categoria: 'Cat', preco: 10, estoque: 5, ativo: true, variacoes: [{ id: 'v4', produto_id: 'p4', sku: 'SKU-P4-1', estoque_atual: 1, ativo: true, imagem_url: 'child.jpg' }] }
+      ]);
+      await linkFabricante('p2', 'fab-1', { accountId });
+      await linkFabricante('p3', 'fab-2', { accountId });
+      await linkFabricante('p4', 'fab-1', { accountId });
+      const result = await listAuditProducts({}, { accountId });
+      assert.equal(result.items.some((item) => item.id === 'p1'), true);
+      assert.equal(result.items.some((item) => item.id === 'p2'), false);
+      assert.equal(result.items.some((item) => item.id === 'p3'), false);
+      assert.equal(result.items.some((item) => item.id === 'p4'), true);
+      const p1 = await getAuditProduct('p1', { accountId });
+      const p2 = await getAuditProduct('p2', { accountId });
+      const p3 = await getAuditProduct('p3', { accountId });
+      const p4 = await getAuditProduct('p4', { accountId });
+      assert.ok(p1.issues.includes('missing_variations'));
+      assert.ok(!p2.issues.includes('missing_variations'));
+      assert.ok(!p3.issues.includes('missing_variations'));
+      assert.ok(p4.issues.includes('missing_image'));
+    } },
+    { name: 'resolved issues disappear from audit list', run: async () => {
+      reset();
+      const accountId = 'acc-product-audit-resolved';
+      __loadMemoryFabricantes([{ id: 'fab-1', account_id: accountId, nome: 'Fabrica 1' }]);
+      __loadMemoryProdutos([
+        { id: 'p1', account_id: accountId, nome: 'Resolvido', sku: 'SKU1', categoria: 'Cat', preco: 10, estoque: 5, ativo: true, imagemUrl: 'img', variacoes: [{ id: 'v1', produto_id: 'p1', sku: 'SKU1-1', estoque_atual: 1, ativo: true, imagem_url: 'child.jpg' }] }
+      ]);
+      await linkFabricante('p1', 'fab-1', { accountId });
+      const result = await listAuditProducts({}, { accountId });
+      assert.equal(result.pagination.total, 0);
+      assert.equal(result.items.length, 0);
+      assert.equal(result.summary.totalProdutos, 0);
+      assert.equal(result.summary.comProblemas, 0);
+    } },
     { name: 'summary keeps active issues visible for default audit and does not zero out cards', run: async () => {
       reset();
       const accountId = 'acc-product-audit-summary-cards';

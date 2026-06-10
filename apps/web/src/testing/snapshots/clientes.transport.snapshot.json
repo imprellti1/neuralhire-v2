@@ -2,9 +2,7 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/clientes",
@@ -16,9 +14,7 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/clientes",
@@ -30,9 +26,7 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/pedidos",
@@ -44,9 +38,7 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/clientes",
@@ -58,9 +50,7 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/pedidos",
@@ -77,9 +67,7 @@
       "status": "ativo"
     },
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "POST",
     "path": "/clientes",
@@ -88,9 +76,7 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/clientes",
@@ -102,9 +88,7 @@
   {
     "body": null,
     "headers": {
-      "content-type": "application/json",
-      "x-test-account-id": "acc-analytics-001",
-      "x-test-role": "manager"
+      "content-type": "application/json"
     },
     "method": "GET",
     "path": "/pedidos",

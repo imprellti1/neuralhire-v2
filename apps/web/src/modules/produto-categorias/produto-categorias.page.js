@@ -91,6 +91,7 @@ function renderModal(state, items) {
 export async function renderProdutoCategoriasPage(container, { apiClient } = {}) {
   injectStyles();
   const state = { loading: true, error: '', items: [], filters: { search: '', status: '' }, modalOpen: false, editingId: '', form: createForm(), errors: {}, saving: false, message: '', messageType: '' };
+  let searchRenderTimer = null;
 
   async function load() {
     state.loading = true;
@@ -131,7 +132,14 @@ export async function renderProdutoCategoriasPage(container, { apiClient } = {})
     container.innerHTML = `<div class="nhpc-wrap"><section class="nhpc-head"><div><div class="nhpc-title">Categorias de Produto</div><div class="nhpc-sub">Módulo operacional para manter categorias reais, com ativação/inativação e uso nos cadastros de produto.</div></div><div class="nhpc-toolbar"><input id="nhpc-search" class="nhpc-input" placeholder="Buscar por nome ou slug" value="${state.filters.search || ''}"><select id="nhpc-status" class="nhpc-select"><option value="">Todos os status</option><option value="ativo" ${state.filters.status === 'ativo' ? 'selected' : ''}>Ativo</option><option value="inativo" ${state.filters.status === 'inativo' ? 'selected' : ''}>Inativo</option></select><button id="nhpc-new" class="nhpc-btn primary">Nova Categoria</button></div></section><section class="nhpc-card">${state.loading ? '<div class="nhpc-state">Carregando categorias...</div>' : state.error ? `<div class="nhpc-empty"><div class="nhpc-state">${state.error}</div><button id="nhpc-retry" class="nhpc-btn">Tentar novamente</button></div>` : visible.length ? `<div class="nhpc-grid"><table class="nhpc-table"><thead><tr><th>Nome</th><th>Slug</th><th>Categoria pai</th><th>Status</th><th>Descrição</th><th>Ações</th></tr></thead><tbody>${visible.map((item) => `<tr><td>${item.nome || '-'}</td><td>${item.slug || '-'}</td><td>${getParentCategoryName(item, categoriesById)}</td><td><span class="nhpc-badge ${String(item.status) === 'ativo' ? 'ok' : 'off'}">${item.status || '-'}</span></td><td>${item.descricao || '-'}</td><td><button class="nhpc-btn" data-edit="${item.id}">Editar</button> <button class="nhpc-btn danger" data-toggle="${item.id}">${String(item.status) === 'ativo' ? 'Inativar' : 'Ativar'}</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="nhpc-empty"><div class="nhpc-state">Nenhuma categoria encontrada.</div><button id="nhpc-empty-new" class="nhpc-btn primary">Nova Categoria</button></div>`}</section>${renderModal(state, state.items)}</div>`;
 
     const search = container.querySelector('#nhpc-search');
-    if (search) search.oninput = (e) => { state.filters.search = e.target.value || ''; render(); };
+    if (search) search.oninput = (e) => {
+      state.filters.search = e.target.value || '';
+      if (searchRenderTimer) clearTimeout(searchRenderTimer);
+      searchRenderTimer = setTimeout(() => {
+        searchRenderTimer = null;
+        render();
+      }, 120);
+    };
     const status = container.querySelector('#nhpc-status');
     if (status) status.onchange = (e) => { state.filters.status = e.target.value || ''; render(); };
     const retry = container.querySelector('#nhpc-retry');

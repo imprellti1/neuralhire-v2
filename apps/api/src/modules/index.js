@@ -6,6 +6,8 @@ import { clientesModule } from './clientes/clientes.module.js';
 import { registerProdutosRoutes } from './produtos/produtos.routes.js';
 import { registerProdutosImportRoutes } from './produtos/produtos-import.routes.js';
 import { produtosModule } from './produtos/produtos.module.js';
+import { registerPriceTableImportRoutes } from './price-table-import/price-table-import.routes.js';
+import { priceTableImportModule } from './price-table-import/price-table-import.module.js';
 import { registerProdutoCategoriasRoutes } from './produto-categorias/produto-categorias.routes.js';
 import { produtoCategoriasModule } from './produto-categorias/produto-categorias.module.js';
 import { registerPedidosRoutes } from './pedidos/pedidos.routes.js';
@@ -74,13 +76,15 @@ export const registeredModules = [
   accountActivationModule, implementationTrackerModule, customerSuccessModule, customerSuccessAutomationModule,
   customerSuccessTimelineModule, customerRetentionModule, executiveDashboardModule, executivePortfolioAnalyticsModule,
   revenueIntelligenceModule, portfolioDashboardModule, legacyImportModule, customerMemoryModule,
-  whatsappConversationsModule, messageDraftsModule, messageApprovalsModule, approvalIntelligenceModule, whatsappDeliveryModule, commercialAgentModule, fabricantesModule, vendedoresModule
+  whatsappConversationsModule, messageDraftsModule, messageApprovalsModule, approvalIntelligenceModule, whatsappDeliveryModule, commercialAgentModule, fabricantesModule, vendedoresModule,
+  priceTableImportModule
   ,productAuditModule, productEditorModule, produtoImagensModule, auditLogsModule
 ];
 
 export function registerModules(router, options = {}) {
   registerHealthRoutes(router); registerSystemRoutes(router, { registeredModules, globalMiddlewares: options.globalMiddlewares || [] });
   registerClientesRoutes(router); registerProdutosRoutes(router); registerProdutosImportRoutes(router); registerPedidosRoutes(router); registerAnalyticsRoutes(router);
+  registerPriceTableImportRoutes(router);
   registerProdutoCategoriasRoutes(router);
   registerInterestLeadsRoutes(router); registerBillingRoutes(router); registerOnboardingRoutes(router); registerAccountActivationRoutes(router);
   registerImplementationTrackerRoutes(router); registerCustomerSuccessRoutes(router); registerCustomerSuccessAutomationRoutes(router);

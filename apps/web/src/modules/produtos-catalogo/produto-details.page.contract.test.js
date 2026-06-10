@@ -28,7 +28,7 @@ function run() {
   assert.equal(has('Estoque total (todas as variações)'), true, 'Resumo de estoque total não encontrado');
   assert.equal(has('SKU ${d.sku}'), false, 'SKU não deveria aparecer abaixo do título');
   assert.equal(has('Ativo/Inativo'), false, 'Status duplicado não deveria existir');
-  assert.equal(has('Auditoria'), false, 'Card de auditoria não deveria existir');
+  assert.equal(has('Pendências de Auditoria'), true, 'Card de auditoria não encontrado');
 }
 
 run();

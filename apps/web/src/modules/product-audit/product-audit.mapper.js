@@ -9,6 +9,8 @@ const ISSUE_LABELS = {
   missing_fabricante: 'Sem fábrica',
   zero_stock: 'Estoque zerado',
   estoque_zerado: 'Estoque zerado',
+  variation_without_image: 'Variação sem imagem',
+  variation_without_stock: 'Variação sem estoque',
   duplicate_sku: 'Duplicado',
   duplicated: 'Duplicado'
 };
@@ -24,6 +26,8 @@ const ISSUE_TOOLTIPS = {
   missing_fabricante: 'Sem fábrica: não existe vínculo com fabricante.',
   zero_stock: 'Estoque zerado: o estoque está em zero ou negativo.',
   estoque_zerado: 'Estoque zerado: o estoque está em zero ou negativo.',
+  variation_without_image: 'Variação sem imagem: pelo menos uma variação está sem imagem cadastrada.',
+  variation_without_stock: 'Variação sem estoque: pelo menos uma variação está com estoque em zero ou negativo.',
   duplicate_sku: 'SKU duplicado: esse SKU aparece em mais de um produto.',
   duplicated: 'Duplicado: existe outro item repetido no catálogo.'
 };

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { env } from '../../config/env.js';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../core/errors.js';
-import { getProdutoById, listProdutos, updateProduto, __dumpMemoryProdutos } from '../produtos/produtos.repository.js';
+import { getProdutoById, getProdutosRepositoryMode, listProdutos, updateProduto, __dumpMemoryProdutos } from '../produtos/produtos.repository.js';
 import { listFabricantes, getFabricanteById } from '../fabricantes/fabricantes.repository.js';
 
 const memoryLinks = [];
@@ -33,25 +33,26 @@ function extractFabricanteId(item, accountId) {
   return getLink(accountId, item.id)?.fabricante_id || item.fabricanteId || item.fabricante_id || item.metadata?.fabricanteId || null;
 }
 
+function normalizeActiveValue(value) {
+  if (value === true || value === 1 || value === '1') return true;
+  if (value === false || value === 0 || value === '0') return false;
+  const text = String(value || '').trim().toLowerCase();
+  if (text === 'true' || text === 'ativo' || text === 'active') return true;
+  if (text === 'false' || text === 'inativo' || text === 'inactive') return false;
+  return null;
+}
+
 function normalizeStatusValue(value) {
   return String(value || '').trim().toLowerCase();
 }
 
-function normalizeActiveFlag(value) {
-  if (value === true || value === 1 || value === '1') return true;
-  if (String(value || '').trim().toLowerCase() === 'true') return true;
-  if (value === false || value === 0 || value === '0') return false;
-  if (String(value || '').trim().toLowerCase() === 'false') return false;
-  return null;
-}
-
 function hasActiveIndicator(item = {}) {
-  const activeFlag = normalizeActiveFlag(item.ativo);
+  const activeFlag = normalizeActiveValue(item.ativo ?? item.active ?? item.status);
   return activeFlag === true;
 }
 
 function hasInactiveIndicator(item = {}) {
-  const activeFlag = normalizeActiveFlag(item.ativo);
+  const activeFlag = normalizeActiveValue(item.ativo ?? item.active ?? item.status);
   return activeFlag === false;
 }
 
@@ -61,6 +62,21 @@ function isInactiveProduct(item = {}) {
 
 function isActiveProduct(item = {}) {
   return hasActiveIndicator(item);
+}
+
+function normalizeVariation(item = {}) {
+  const active = normalizeActiveValue(item.ativo ?? item.active ?? item.status);
+  return {
+    ...item,
+    ativo: active === null ? true : active,
+    status: item.status || (active === false ? 'inativo' : 'ativo')
+  };
+}
+
+function getProductVariations(item = {}) {
+  const candidates = [item.variacoes, item.variations, item.produto_variacoes, item.produtoVariacoes, item.product_variations];
+  const raw = candidates.find((value) => Array.isArray(value));
+  return (raw || []).map(normalizeVariation);
 }
 
 function buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet) {
@@ -78,11 +94,12 @@ function buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet) {
   if (duplicateNameSet.has(String(item.nome || '').trim().toLowerCase()) && String(item.nome || '').trim()) issues.push('duplicate_name');
   if (isInactiveProduct(item)) issues.push('inactive_product');
   if (Number(item.estoque || 0) <= 0) issues.push('zero_stock');
-  if (Array.isArray(item.variacoes) && item.variacoes.length) {
-    if (item.variacoes.some((v) => !v?.imagemUrl && !v?.imagem_url)) issues.push('variation_without_image');
-    if (item.variacoes.some((v) => Number(v?.estoque || 0) <= 0)) issues.push('variation_without_stock');
+  const variacoes = getProductVariations(item).filter((variacao) => normalizeActiveValue(variacao.ativo ?? variacao.active ?? variacao.status) !== false);
+  if (variacoes.length) {
+    if (variacoes.some((v) => !v?.imagemUrl && !v?.imagem_url)) issues.push('variation_without_image');
+    if (variacoes.some((v) => Number(v?.estoque_atual ?? v?.estoque ?? v?.stock ?? 0) <= 0)) issues.push('variation_without_stock');
   }
-  if (!Array.isArray(item.variacoes) || !item.variacoes.length) issues.push('missing_variations');
+  if (!variacoes.length) issues.push('missing_variations');
   return issues;
 }
 
@@ -181,12 +198,46 @@ function buildAuditContext(products, accountId) {
 
   const duplicateSkuSet = new Set([...skuCounts.entries()].filter(([, count]) => count > 1).map(([key]) => key));
   const duplicateNameSet = new Set([...nameCounts.entries()].filter(([, count]) => count > 1).map(([key]) => key));
-  const audited = products.map((item) => ({ ...item, issues: buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet) }));
+  const audited = products.map((item) => ({ ...item, variacoes: getProductVariations(item), issues: buildIssues(item, accountId, duplicateSkuSet, duplicateNameSet) }));
   return {
     audited,
     applyFilters: (filters) => applyFilters(audited, filters),
     buildSummary: (items) => buildSummary(items)
   };
+}
+
+async function fetchAllAuditVariations(accountId) {
+  const repositoryMode = getProdutosRepositoryMode();
+  if (repositoryMode.mode !== 'supabase') {
+    return __dumpMemoryProdutos().flatMap((produto) => {
+      const variations = getProductVariations(produto);
+      return variations.map((variation) => ({ ...variation, produto_id: produto.id, account_id: produto.account_id }));
+    });
+  }
+
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new DatabaseError('Supabase indisponivel');
+  const pageSize = 100;
+  let page = 1;
+  let totalPages = 1;
+  const items = [];
+
+  do {
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    const { data, error, count } = await supabase
+      .from('produto_variacoes')
+      .select(PRODUTO_VARIACOES_SELECT_FIELDS, { count: 'exact' })
+      .eq('account_id', accountId)
+      .order('created_at', { ascending: true })
+      .range(from, to);
+    if (error) throw new DatabaseError('Falha ao listar variacoes da auditoria', { details: error });
+    items.push(...(data || []).map(normalizeVariation));
+    totalPages = Math.max(1, Math.ceil((count || 0) / pageSize));
+    page += 1;
+  } while (page <= totalPages);
+
+  return items;
 }
 
 async function fetchAllAuditProducts(accountId) {
@@ -221,13 +272,25 @@ export async function listAuditProducts(filters = {}, options = {}) {
   assertAccountId(accountId);
   const response = await fetchAllAuditProducts(accountId);
   const fabricantes = await listFabricantes({}, { accountId });
+  const variations = await fetchAllAuditVariations(accountId);
+  const variationsByProductId = new Map();
+  for (const variation of variations) {
+    const productId = variation.produto_id || variation.product_id || variation.productId || null;
+    if (!productId) continue;
+    const list = variationsByProductId.get(String(productId)) || [];
+    list.push(variation);
+    variationsByProductId.set(String(productId), list);
+  }
   const fabricanteById = new Map((fabricantes.items || [])
     .filter((item) => String(item.account_id || item.accountId || '') === String(accountId))
     .map((item) => [item.id, item]));
   const products = response.map((item) => {
     const fabricanteId = extractFabricanteId(item, accountId);
+    const productVariations = getProductVariations(item);
+    const mergedVariations = productVariations.length ? productVariations : (variationsByProductId.get(String(item.id)) || []);
     return {
       ...item,
+      variacoes: mergedVariations,
       fabricanteId,
       fabricanteNome: fabricanteId ? fabricanteById.get(fabricanteId)?.nome || '-' : '-'
     };
@@ -261,14 +324,21 @@ export async function getAuditProduct(productId, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
   const produto = await getProdutoById(productId, { accountId });
+  const variations = await fetchAllAuditVariations(accountId);
+  const productVariations = getProductVariations(produto);
+  const mergedVariations = productVariations.length ? productVariations : variations.filter((variation) => String(variation.produto_id || variation.product_id || variation.productId || '') === String(productId));
   const fabricanteId = extractFabricanteId(produto, accountId);
   const fabricantes = await listFabricantes({}, { accountId });
   const fabricanteNome = fabricanteId ? (fabricantes.items || [])
     .filter((item) => String(item.account_id || item.accountId || '') === String(accountId))
     .find((item) => item.id === fabricanteId)?.nome || '-' : '-';
-  const detail = await listAuditProducts({ search: produto.nome }, { accountId });
-  const item = (detail.items || []).find((row) => row.id === productId) || { ...produto, fabricanteId, fabricanteNome, issues: buildIssues(produto, accountId, new Set(), new Set()) };
-  return { ...item, fabricanteId, fabricanteNome, issues: item.issues || buildIssues(item, accountId, new Set(), new Set()) };
+  const item = {
+    ...produto,
+    variacoes: mergedVariations,
+    fabricanteId,
+    fabricanteNome
+  };
+  return { ...item, issues: buildIssues(item, accountId, new Set(), new Set()) };
 }
 
 export async function linkFabricante(productId, fabricanteId, options = {}) {

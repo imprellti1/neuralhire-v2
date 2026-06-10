@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderProdutoCategoriasPage } from './produto-categorias.page.js';
-import { flush, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
+import { dispatchInput, flush, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 
 test('rota de categorias renderiza CRUD e usa payload seguro', async () => {
   const dom = setupFrontendDom('#/produto-categorias');
@@ -30,5 +30,13 @@ test('rota de categorias renderiza CRUD e usa payload seguro', async () => {
   assert.deepEqual(Object.keys(post[2]).sort(), ['descricao', 'nome', 'parent_id', 'status']);
   assert.equal(post[2][['account', 'id'].join('_')], undefined);
   assert.equal(post[2][['tenant', 'id'].join('_')], undefined);
+
+  const search = root.querySelector('#nhpc-search');
+  dispatchInput(search, 'to');
+  dispatchInput(search, 'toa');
+  dispatchInput(search, 'toalha banho');
+  await flush();
+  await flush();
+  assert.equal(root.querySelector('#nhpc-search').value, 'toalha banho');
   teardownFrontendDom(dom);
 });

@@ -1,6 +1,7 @@
 import { createProdutoDetailsState } from './produto-details.state.js';
 import { applyProdutoUsageDrillDown, applyProdutoUsageFilters, createProdutoEditForm, mapProdutoUsageCsvContent, mapProdutoUsageCsvFilename, mapProdutoUsageCsvRows, validateProdutoEditForm } from './produto-details.mapper.js';
 import { fetchProdutoDetailsData, fetchProdutoImagens, fetchProdutoUsageData, updateProduto, uploadProdutoImagem, uploadProdutoVariacaoImagem } from './produto-details.service.js';
+import { getProductAuditIssueLabel, getProductAuditIssueTooltip } from '../product-audit/product-audit.mapper.js';
 
 function statusClass(status) {
   if (status === 'ativo') return 'is-ok';
@@ -88,6 +89,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     .nhpd-variation-placeholder{display:block;background:linear-gradient(135deg,#f8fbff,#eef4ff)}
     .nhpd-image-picker{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
     .nhpd-product-image{width:100%;max-height:280px;object-fit:cover;border-radius:14px;border:1px solid #e5ecf8;background:#f8fbff}
+    .nhpd-audit-issues{display:flex;flex-wrap:wrap;gap:6px}.nhpd-audit-issue{display:inline-flex;align-items:center;max-width:100%;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:700;line-height:1.2;white-space:normal;overflow:visible;word-break:break-word;background:#eff6ff;color:#1d4ed8}.nhpd-audit-issue.is-high{background:#fff1f2;color:#b42318}.nhpd-audit-issue.is-medium{background:#fff7ed;color:#c2410c}.nhpd-audit-issue.is-low{background:#eff6ff;color:#1d4ed8}
     @media (max-width:1024px){.nhpd-grid{grid-template-columns:1fr}.nhpd-title{font-size:24px}.nhpd-dl{grid-template-columns:1fr}.nhpd-kpi{grid-template-columns:1fr 1fr}}
     `;
     document.head.appendChild(style);
@@ -143,6 +145,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
           <article class="nhpd-card"><h3>Fábrica vinculada</h3>${d.fabricanteId ? `<div class="nhpd-fabricante">${d.fabricanteLogoUrl ? `<div class="nhpd-fabricante-logo"><img src="${d.fabricanteLogoUrl}" alt="Logo da fábrica"/></div>` : '<div class="nhpd-fabricante-logo" aria-hidden="true"></div>'}<div class="nhpd-fabricante-name">${d.fabricanteNome || 'Sem nome'}</div></div>` : '<div class="nhpd-state">Sem fábrica vinculada.</div>'}</article>
           <article class="nhpd-card"><h3>Imagem do Produto</h3>${renderProductImageBlock(d)}</article>
         </div>
+        <article class="nhpd-card" style="grid-column:1 / -1"><h3>Pendências de Auditoria</h3>${renderAuditIssuesBlock()}</article>
         <article class="nhpd-card" style="grid-column:1 / -1"><h3>Uso em Pedidos / Histórico comercial</h3>${renderUsageBlock()}</article>
         <article class="nhpd-card nhpd-variation-section" style="grid-column:1 / -1">
           <div class="nhpd-section-head">
@@ -159,6 +162,17 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     const primary = state.productImages?.find((image) => image?.principal) || state.productImages?.[0] || null;
     const primaryUrl = primary?.url || product.imagemUrl || product.imagem_url || null;
     return `<div style="display:grid;gap:10px"><div>${primaryUrl ? `<img src="${primaryUrl}" alt="Imagem principal do produto" class="nhpd-product-image" />` : '<div class="nhpd-state">Sem imagem cadastrada.</div>'}</div><div class="nhpd-image-picker"><input type="file" id="nhpd-product-file" accept="image/jpeg,image/png,image/webp" ${state.saving ? 'disabled' : ''}/><button class="nhpd-btn primary js-product-image-upload" ${state.saving ? 'disabled' : ''}>Alterar Imagem do Produto</button></div><div class="nhpd-sub">Imagem exclusiva do produto pai. Não é preenchida a partir de variações.</div></div>`;
+  }
+
+  function renderAuditIssuesBlock() {
+    const issues = Array.isArray(state.auditIssues) ? state.auditIssues : [];
+    if (!issues.length) return '<div class="nhpd-state">Sem pendências de auditoria.</div>';
+    return `<div class="nhpd-audit-issues">${issues.map((issue) => {
+      const tooltip = getProductAuditIssueTooltip(issue);
+      const label = getProductAuditIssueLabel(issue);
+      const severity = ['duplicate_sku', 'missing_factory', 'missing_fabricante', 'missing_variation', 'missing_variations'].includes(issue) ? 'high' : ['invalid_price', 'zero_stock', 'estoque_zerado'].includes(issue) ? 'medium' : 'low';
+      return `<span class="nhpd-audit-issue is-${severity}" title="${tooltip}" aria-label="${tooltip}">${label}</span>`;
+    }).join(' ')}</div>`;
   }
 
   function renderUsageBlock() {
@@ -371,6 +385,13 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     render();
     try {
       state.data = await fetchProdutoDetailsData(apiClient, produtoId);
+      state.auditIssues = [];
+      try {
+        const audit = await apiClient.get(`/product-audit/products/${produtoId}`);
+        state.auditIssues = Array.isArray(audit?.issues) ? audit.issues : [];
+      } catch {
+        state.auditIssues = [];
+      }
       state.productImages = await fetchProdutoImagens(apiClient, produtoId).catch(() => []);
       state.form = createProdutoEditForm(state.data);
       if (!state?.data?.id) state.notFound = true;

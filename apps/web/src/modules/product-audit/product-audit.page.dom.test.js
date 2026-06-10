@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { renderProductAuditPage } from './product-audit.page.js';
-import { setupFrontendDom, teardownFrontendDom, flush } from '../../testing/frontend-test-helpers.js';
+import { dispatchInput, setupFrontendDom, teardownFrontendDom, flush } from '../../testing/frontend-test-helpers.js';
 
 test('product audit page renders kpis, table and actions', async () => {
   const dom = setupFrontendDom('#/product-audit');
@@ -55,7 +55,13 @@ test('product audit page renders kpis, table and actions', async () => {
   assert.ok(root.textContent.includes('Produtos com problema'));
   assert.ok(root.querySelector('#nha-fabricante-filter'));
   assert.equal(root.textContent.includes('Fábrica'), true);
+  assert.ok(root.querySelector('#nha-issue'));
+  assert.ok(root.querySelector('#nha-status-filter'));
   assert.equal(root.querySelector('th:nth-child(4)')?.textContent, 'Categoria');
+  const issueChip = root.querySelector('.nha-issue-chip');
+  assert.ok(issueChip);
+  assert.ok(issueChip.getAttribute('title'));
+  assert.ok(issueChip.getAttribute('aria-label'));
   assert.ok(root.querySelector('[aria-label="Ver produto"]'));
   assert.ok(root.querySelector('[aria-label="Editar produto"]'));
   assert.equal(root.textContent.includes('Selecione um produto para ver os detalhes da auditoria'), false);
@@ -135,9 +141,13 @@ test('product audit page renders pagination and resets page on filter change', a
   root.querySelector('#nha-next').click();
   await flush();
   assert.equal(calls.at(-1).query.page, 2);
-  root.querySelector('#nha-search').value = 'abc';
-  root.querySelector('#nha-search').dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+  const search = root.querySelector('#nha-search');
+  dispatchInput(search, 'to');
+  dispatchInput(search, 'toalha');
+  dispatchInput(search, 'toalha banho');
+  await new Promise((resolve) => setTimeout(resolve, 160));
   await flush();
+  assert.equal(root.querySelector('#nha-search').value, 'toalha banho');
   assert.equal(calls.at(-1).query.page, 1);
   teardownFrontendDom(dom);
 });

@@ -32,6 +32,9 @@ test('produto 360 mantém o layout e o toggle de variações', async () => {
           }
         };
       }
+      if (path === '/product-audit/products/p1') {
+        return { id: 'p1', issues: ['missing_fabricante', 'missing_variations'], fabricanteId: 'fab-1', fabricanteNome: 'Fábrica 1' };
+      }
       if (path === '/produtos/p1/imagens') return { items: [{ id: 'img-1', produto_id: 'p1', variacao_id: null, url: 'https://example.com/img.jpg', storage_path: 'acc/p1/pai/img.jpg', ordem: 0, principal: true, tipo: 'image' }] };
       if (path === '/product-editor/products/p1') {
         return {
@@ -76,17 +79,20 @@ test('produto 360 mantém o layout e o toggle de variações', async () => {
   const bodyText = root.textContent;
   assert.match(bodyText, /Fábrica 1/);
   assert.doesNotMatch(bodyText, /CNPJ|Pedido mínimo|Duplicata mínima|Comissão padrão|Condição de pagamento|Bonificação|Consignação|Vendedor/);
-  assert.doesNotMatch(bodyText, /Auditoria/);
   assert.doesNotMatch(bodyText, /SKU  SKU1 • Cat/);
   assert.doesNotMatch(bodyText, /Descrição\s*Produto A/);
   assert.doesNotMatch(bodyText, /Ativo\/Inativo/);
   assert.match(bodyText, /Estoque total \(todas as variações\)\s*8/);
   assert.match(bodyText, /Múltiplo de venda\s*3 unidades por variação/);
   assert.match(bodyText, /Variações do Produto/);
+  assert.match(bodyText, /Pendências de Auditoria/);
+  assert.match(bodyText, /Sem fábrica/);
+  assert.match(bodyText, /Sem variação/);
   assert.match(bodyText, /SKU1-01/);
   assert.match(bodyText, /SKU1-02/);
   assert.match(bodyText, /SKU1-03/);
   assert.match(bodyText, /SKU1-04/);
+  assert.ok(root.querySelector('.nhpd-audit-issue[title]'));
 
   const toggle = root.querySelector('#nhpd-variations-toggle');
   assert.ok(toggle);
