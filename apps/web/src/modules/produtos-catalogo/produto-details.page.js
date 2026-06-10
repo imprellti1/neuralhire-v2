@@ -2,6 +2,8 @@ import { createProdutoDetailsState } from './produto-details.state.js';
 import { applyProdutoUsageDrillDown, applyProdutoUsageFilters, createProdutoEditForm, mapProdutoUsageCsvContent, mapProdutoUsageCsvFilename, mapProdutoUsageCsvRows, validateProdutoEditForm } from './produto-details.mapper.js';
 import { fetchProdutoDetailsData, fetchProdutoImagens, fetchProdutoUsageDataWithMetrics, updateProduto, uploadProdutoImagem, uploadProdutoVariacaoImagem } from './produto-details.service.js';
 import { getProductAuditIssueLabel, getProductAuditIssueTooltip } from '../product-audit/product-audit.mapper.js';
+import { calculatePrecoPromocional } from '../promocoes/promocoes.mapper.js';
+import { fetchProdutoPromocoesData } from '../promocoes/promocoes.service.js';
 
 function statusClass(status) {
   if (status === 'ativo') return 'is-ok';
@@ -19,6 +21,17 @@ function normalizeStatusLabel(status, ativo) {
 function formatVariationField(value) {
   const text = String(value ?? '').trim();
   return text || '-';
+}
+function getVariationBasePrice(variation = {}, product = {}) {
+  const variationPrice = Number(variation.preco);
+  if (Number.isFinite(variationPrice) && variationPrice > 0) return variationPrice;
+  const productPrice = Number(product.preco);
+  return Number.isFinite(productPrice) ? productPrice : 0;
+}
+function getVariationPromoPrice(variation = {}, product = {}, promocoes = []) {
+  const activePromocao = promocoes.find((promocao) => promocao.ativaAgora && (promocao.aplicar_em_todas_variacoes || (Array.isArray(promocao.variacoesSelecionadas) && promocao.variacoesSelecionadas.some((item) => String(item.id) === String(variation.id)))));
+  if (!activePromocao) return null;
+  return calculatePrecoPromocional(getVariationBasePrice(variation, product), activePromocao.percentual_desconto);
 }
 function renderVariationImageCell(variation = {}, fallbackSrc = null) {
   const src = variation.imagemUrl || variation.imagem_url || variation.raw?.imagemUrl || variation.raw?.imagem_url || variation.raw?.imagemPrincipalUrl || variation.raw?.imagem_principal_url || fallbackSrc || null;
@@ -125,6 +138,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     if (state.notFound || !state.data?.id) return '<section class="nhpd-panel nhpd-state">Produto não encontrado.</section>';
     const d = state.data;
     const variations = Array.isArray(d.variacoes) ? d.variacoes : [];
+    const promocoes = Array.isArray(state.promocoes) ? state.promocoes : [];
     const stockTotal = Number.isFinite(Number(d.estoqueTotalVariacoes)) ? Number(d.estoqueTotalVariacoes) : 0;
     const productFallbackImage = state.productImages?.find((image) => image?.principal)?.url || d.imagemUrl || d.imagem_url || null;
     const variationRows = variations.map((variation) => `<tr>
@@ -133,7 +147,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
       <td>${formatVariationField(variation.cor)}</td>
       <td>${formatVariationField(variation.tamanho)}</td>
       <td class="nhpd-stock">${formatPtBrNumber(variation.estoque)}</td>
-      <td>${variation.precoFormatado}</td>
+      <td>${variation.precoFormatado}${variation.precoPromocionalFormatado ? `<div class="nhpd-sub">Promo: ${variation.precoPromocionalFormatado}</div>` : ''}${getVariationPromoPrice(variation, d, promocoes) !== null ? `<div class="nhpd-sub">Preço promo. ${brl(getVariationPromoPrice(variation, d, promocoes))}</div>` : ''}</td>
       <td><span class="nhpd-badge ${statusClass(variation.status)}">${normalizeStatusLabel(variation.status, variation.ativo)}</span></td>
       <td><div class="nhpd-image-picker"><input type="file" id="nhpd-file-${variation.id}" accept="image/jpeg,image/png,image/webp" ${state.saving ? 'disabled' : ''}/><button class="nhpd-btn primary js-variation-image-upload" data-variacao-id="${variation.id}" ${state.saving ? 'disabled' : ''}>Alterar Imagem</button></div></td>
     </tr>`).join('');
@@ -149,6 +163,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
         </div>
         <div class="nhpd-right-col">
           <article class="nhpd-card"><h3>Fábrica vinculada</h3>${d.fabricanteId ? `<div class="nhpd-fabricante">${d.fabricanteLogoUrl ? `<div class="nhpd-fabricante-logo"><img src="${d.fabricanteLogoUrl}" alt="Logo da fábrica"/></div>` : '<div class="nhpd-fabricante-logo" aria-hidden="true"></div>'}<div class="nhpd-fabricante-name">${d.fabricanteNome || 'Sem nome'}</div></div>` : '<div class="nhpd-state">Sem fábrica vinculada.</div>'}</article>
+          <article class="nhpd-card"><h3>Promoções</h3>${renderPromocoesCard(d, promocoes)}</article>
           <article class="nhpd-card"><h3>Imagem do Produto</h3>${renderProductImageBlock(d)}</article>
         </div>
         <article class="nhpd-card" style="grid-column:1 / -1"><h3>Pendências de Auditoria</h3>${renderAuditIssuesBlock()}</article>
@@ -162,6 +177,12 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
         </article>
       </div>
     </section>`;
+  }
+
+  function renderPromocoesCard(product, promocoes) {
+    if (!promocoes.length) return '<div class="nhpd-state">Sem promoções cadastradas.</div>';
+    const base = Number(product.preco || 0);
+    return `<div class="nhpd-table-wrap"><table class="nhpd-table"><thead><tr><th>Nome</th><th>Desconto</th><th>Período</th><th>Status</th><th>Preço original</th><th>Preço promocional</th></tr></thead><tbody>${promocoes.map((p) => `<tr><td>${p.nome}</td><td>${p.percentual_desconto}%</td><td>${p.data_inicio} a ${p.data_fim}</td><td>${p.ativaAgora ? 'Ativa' : p.status}</td><td>${brl(base)}</td><td>${brl(calculatePrecoPromocional(base, p.percentual_desconto))}</td></tr>`).join('')}</tbody></table></div>`;
   }
 
   function renderProductImageBlock(product) {
@@ -393,10 +414,12 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
       const detailsPromise = fetchProdutoDetailsData(apiClient, produtoId);
       const auditPromise = apiClient.get(`/product-audit/products/${produtoId}`).catch(() => null);
       const imagesPromise = fetchProdutoImagens(apiClient, produtoId).catch(() => []);
-      const [details, audit, images] = await Promise.allSettled([detailsPromise, auditPromise, imagesPromise]);
+      const promocoesPromise = fetchProdutoPromocoesData(apiClient, produtoId).catch(() => ({ items: [] }));
+      const [details, audit, images, promocoes] = await Promise.allSettled([detailsPromise, auditPromise, imagesPromise, promocoesPromise]);
       state.data = details.status === 'fulfilled' ? details.value : null;
       state.auditIssues = audit.status === 'fulfilled' && Array.isArray(audit.value?.issues) ? audit.value.issues : [];
       state.productImages = images.status === 'fulfilled' ? images.value : [];
+      state.promocoes = promocoes.status === 'fulfilled' ? (promocoes.value?.items || []) : [];
       state.form = createProdutoEditForm(state.data);
       if (!state?.data?.id) state.notFound = true;
       if (options.feedbackMessage) state.feedbackMessage = options.feedbackMessage;
