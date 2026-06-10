@@ -8,6 +8,8 @@ export function getHealthStatus() {
     ok: true,
     service: 'neuralhire-api-v2',
     version: '0.1.0',
+    commit: env.GIT_COMMIT || 'unknown',
+    buildTime: env.BUILD_TIME || 'unknown',
     environment: env.NODE_ENV,
     timestamp: new Date().toISOString(),
     uptimeSeconds: Math.floor((Date.now() - startTime) / 1000),
