@@ -69,15 +69,6 @@
       "content-type": "application/json"
     },
     "method": "GET",
-    "path": "/produtos/p1/variacoes",
-    "query": {}
-  },
-  {
-    "body": null,
-    "headers": {
-      "content-type": "application/json"
-    },
-    "method": "GET",
     "path": "/product-audit/products/p1",
     "query": {}
   },
@@ -88,6 +79,15 @@
     },
     "method": "GET",
     "path": "/produtos/p1/imagens",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/produtos/p1/variacoes",
     "query": {}
   },
   {
@@ -122,8 +122,8 @@
     "method": "GET",
     "path": "/pedidos",
     "query": {
-      "limit": "200",
-      "page": "1"
+      "page": "1",
+      "limit": "50"
     }
   },
   {
@@ -162,15 +162,6 @@
       "content-type": "application/json"
     },
     "method": "GET",
-    "path": "/produtos/p1/variacoes",
-    "query": {}
-  },
-  {
-    "body": null,
-    "headers": {
-      "content-type": "application/json"
-    },
-    "method": "GET",
     "path": "/product-audit/products/p1",
     "query": {}
   },
@@ -189,34 +180,7 @@
       "content-type": "application/json"
     },
     "method": "GET",
-    "path": "/fabricantes",
-    "query": {
-      "limit": "100",
-      "page": "1",
-      "status": "ativo"
-    }
-  },
-  {
-    "body": null,
-    "headers": {
-      "content-type": "application/json"
-    },
-    "method": "GET",
-    "path": "/produto-categorias",
-    "query": {
-      "status": "ativo"
-    }
-  },
-  {
-    "body": null,
-    "headers": {
-      "content-type": "application/json"
-    },
-    "method": "GET",
-    "path": "/pedidos",
-    "query": {
-      "limit": "200",
-      "page": "1"
-    }
+    "path": "/produtos/p1/variacoes",
+    "query": {}
   }
 ]
