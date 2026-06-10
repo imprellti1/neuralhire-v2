@@ -125,22 +125,26 @@ export function getPromocoesTests() {
           url: '/promocoes',
           accountId: 'acc-promo-3',
           body: {
-            produto_id: produto.id,
             nome: 'Só variações',
             data_inicio: '2026-06-01',
             data_fim: '2026-06-30',
-            aplicar_em_todas_variacoes: false,
-            variacoesSelecionadas: [
-              { variacaoId: 'v10', percentualDesconto: 12 },
-              { variacaoId: 'v11', percentualDesconto: 8 }
+            produtos: [
+              {
+                produto_id: produto.id,
+                aplicar_em_todas_variacoes: false,
+                percentual_desconto: 10,
+                variacoes: [
+                  { variacao_id: 'v10', percentual_desconto: 12 },
+                  { variacao_id: 'v11', percentual_desconto: 8 }
+                ]
+              }
             ]
           }
         });
         assert.equal(created.res.statusCode, 200);
-        assert.equal(created.body.item.variacoesSelecionadas.length, 2);
-        assert.equal(created.body.item.variacoesSelecionadas[0].percentual_desconto, 12);
         const list = await call(app, { method: 'GET', url: `/produtos/${produto.id}/promocoes`, accountId: 'acc-promo-3' });
-        assert.equal(list.body.items[0].variacoesSelecionadas[0].percentual_desconto, 12);
+        assert.equal(list.body.items[0].produtos[0].variacoes.length, 2);
+        assert.equal(list.body.items[0].produtos[0].variacoes[0].percentual_desconto, 12);
       }
     },
     {
