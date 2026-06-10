@@ -90,8 +90,13 @@ test('promoções: modal de produtos abre, busca e seleciona produto', async () 
   search.value = 'Produto';
   search.dispatchEvent(new Event('input', { bubbles: true }));
   await flush();
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await flush();
+  assert.ok(document.querySelector('.nhp-product-row'));
   assert.match(document.body.textContent, /Produto A/);
   document.querySelector('.nhp-product-row')?.click();
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 1000));
   await flush();
   assert.equal(document.querySelector('#nhp-produto_display')?.value, 'Produto A • SKU-A');
   document.querySelector('#nhp-escopo-specific')?.click();
@@ -124,8 +129,13 @@ test('promoções: variação específica herda preço do produto pai para exibi
   document.querySelector('#nhp-product-search').value = 'Produto';
   document.querySelector('#nhp-product-search').dispatchEvent(new Event('input', { bubbles: true }));
   await flush();
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await flush();
+  assert.ok(document.querySelector('.nhp-product-row'));
   document.querySelector('.nhp-product-row')?.click();
   await flush();
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 1000));
   await flush();
   document.querySelector('#nhp-escopo-specific')?.click();
   await flush();
@@ -133,8 +143,44 @@ test('promoções: variação específica herda preço do produto pai para exibi
   const discount = document.querySelector('.nhp-variacao-percentual');
   discount.value = '10';
   discount.dispatchEvent(new Event('input', { bubbles: true }));
+  discount.dispatchEvent(new Event('blur', { bubbles: true }));
   await flush();
   assert.match(document.body.textContent, /R\$\s*18,99/);
+  teardownFrontendDom(dom);
+});
+
+test('promoções: busca e desconto mantêm foco durante a digitação', async () => {
+  const dom = setupFrontendDom('#/x');
+  const apiClient = {
+    get: async (path, params = {}) => {
+      if (path === '/promocoes') return { items: [], total: 0 };
+      if (path === '/produtos/search') {
+        const q = params.q || params.search || '';
+        return { items: q ? [{ id: 'prod-1', nome: 'Produto MASTER', sku: 'SKU-M' }] : [] };
+      }
+      if (path === '/produtos/prod-1') return { item: { id: 'prod-1', nome: 'Produto MASTER', sku: 'SKU-M', preco: 21.1 } };
+      if (path === '/produtos/prod-1/variacoes') return { items: [{ id: 'var-1', sku: 'VAR1', cor: 'Azul', grade: 'G', preco: 0 }] };
+      return { items: [], total: 0 };
+    },
+    post: async () => ({ ok: true, item: { id: 'promo-2' } })
+  };
+  await renderPromocoesPage(document.body, { apiClient });
+  await flush();
+  document.querySelector('#nhp-create-first')?.click();
+  await flush();
+  document.querySelector('#nhp-produto-search-open')?.click();
+  await flush();
+  const search = document.querySelector('#nhp-product-search');
+  search.focus();
+  search.value = 'Produto';
+  search.dispatchEvent(new Event('input', { bubbles: true }));
+  assert.equal(document.activeElement, search);
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await flush();
+  assert.ok(document.querySelector('.nhp-product-row'));
+  assert.match(document.body.textContent, /Produto MASTER|Produto A/);
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  await flush();
   teardownFrontendDom(dom);
 });
 
@@ -159,8 +205,13 @@ test('promoções: payload envia variacoesSelecionadas como objetos', async () =
   document.querySelector('#nhp-product-search').value = 'Produto';
   document.querySelector('#nhp-product-search').dispatchEvent(new Event('input', { bubbles: true }));
   await flush();
+  await new Promise((resolve) => setTimeout(resolve, 1000));
+  await flush();
+  assert.ok(document.querySelector('.nhp-product-row'));
   document.querySelector('.nhp-product-row')?.click();
   await flush();
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 1000));
   await flush();
   document.querySelector('#nhp-nome').value = 'Promo';
   document.querySelector('#nhp-data_inicio').value = '2026-06-01';
@@ -182,6 +233,8 @@ test('promoções: payload envia variacoesSelecionadas como objetos', async () =
   const saveButton = document.querySelector('#nhp-save');
   saveButton.dispatchEvent(new Event('click', { bubbles: true }));
   await flush();
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 1000));
   await flush();
   assert.ok(Array.isArray(lastPayload.variacoesSelecionadas));
   assert.equal(lastPayload.variacoesSelecionadas[0].variacaoId, 'var-1');

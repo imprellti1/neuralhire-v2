@@ -283,6 +283,8 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
   injectStyles();
   const state = createPromocoesState();
   state.form.variacoes_disponiveis = state.form.variacoes_disponiveis || [];
+  let productSearchTimer = null;
+  let variacaoRenderTimer = null;
 
   function getVariacoesPayload() {
     const variacoes = Array.isArray(state.form.variacoes_disponiveis) ? state.form.variacoes_disponiveis : [];
@@ -300,6 +302,33 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
     state.form.aplicar_em_todas_variacoes = !specific || !specific.checked ? true : false;
   }
 
+  function captureFocusState() {
+    const active = document.activeElement;
+    if (!active || !root.contains(active)) return null;
+    const focusId = active.getAttribute('id');
+    const focusVariationId = active.getAttribute('data-variacao-id');
+    return {
+      id: focusId,
+      variationId: focusVariationId,
+      selectionStart: typeof active.selectionStart === 'number' ? active.selectionStart : null,
+      selectionEnd: typeof active.selectionEnd === 'number' ? active.selectionEnd : null
+    };
+  }
+
+  function restoreFocusState(snapshot) {
+    if (!snapshot) return;
+    let target = null;
+    if (snapshot.id) target = root.querySelector(`[id="${snapshot.id.replace(/"/g, '\\"')}"]`);
+    if (!target && snapshot.variationId) target = root.querySelector(`.nhp-variacao-percentual[data-variacao-id="${snapshot.variationId}"]`);
+    if (!target || typeof target.focus !== 'function') return;
+    target.focus();
+    if (typeof target.setSelectionRange === 'function' && snapshot.selectionStart !== null && snapshot.selectionEnd !== null) {
+      try {
+        target.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
+      } catch {}
+    }
+  }
+
   async function searchProducts(term = '') {
     state.productSearchLoading = true;
     state.productSearchError = '';
@@ -314,6 +343,25 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
       state.productSearchLoading = false;
       render();
     }
+  }
+
+  function scheduleProductSearch(term = '') {
+    clearTimeout(productSearchTimer);
+    const normalizedTerm = String(term || '').trim();
+    state.productSearchTerm = normalizedTerm;
+    if (normalizedTerm.length < 3) {
+      return;
+    }
+    productSearchTimer = setTimeout(() => {
+      searchProducts(normalizedTerm);
+    }, 650);
+  }
+
+  function scheduleVariacaoRender() {
+    clearTimeout(variacaoRenderTimer);
+    variacaoRenderTimer = setTimeout(() => {
+      render();
+    }, 300);
   }
 
   async function loadVariationsForProduct(product) {
@@ -342,6 +390,7 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
   }
 
   function render() {
+    const focusSnapshot = captureFocusState();
     const items = Array.isArray(state.items) ? state.items : [];
     const stats = computeStats(items);
     const formSection = state.formOpen ? renderForm(state) : '';
@@ -381,8 +430,7 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
     });
     root.querySelector('#nhp-product-modal-close')?.addEventListener('click', () => { state.productSearchOpen = false; render(); });
     root.querySelector('#nhp-product-search')?.addEventListener('input', (event) => {
-      state.productSearchTerm = event.target.value || '';
-      searchProducts(state.productSearchTerm);
+      scheduleProductSearch(event.target.value || '');
     });
     root.querySelectorAll('.nhp-product-row').forEach((btn) => {
       btn.addEventListener('click', async () => {
@@ -467,7 +515,7 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
             percentualDesconto: variacao.selecionada && !Number.isFinite(Number(variacao.percentualDesconto)) ? global : variacao.percentualDesconto
           }));
         }
-        render();
+        scheduleVariacaoRender();
       });
       root.querySelectorAll('.nhp-variacao-check').forEach((checkbox) => {
         checkbox.addEventListener('change', (event) => {
@@ -484,10 +532,14 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
           state.form.variacoes_disponiveis = (state.form.variacoes_disponiveis || []).map((variacao) => (
             String(variacao.id) === String(variacaoId) ? { ...variacao, percentualDesconto: event.target.value || '' } : variacao
           ));
+          scheduleVariacaoRender();
+        });
+        input.addEventListener('blur', () => {
           render();
         });
       });
     }
+    restoreFocusState(focusSnapshot);
   }
 
   async function load() {
