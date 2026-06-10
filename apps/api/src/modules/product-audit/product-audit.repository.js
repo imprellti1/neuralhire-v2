@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { env } from '../../config/env.js';
 import { BadRequestError, ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
-import { getProdutoById, getProdutosRepositoryMode, listProdutos, updateProduto, __dumpMemoryProdutos } from '../produtos/produtos.repository.js';
+import { getProdutoById, getProdutosRepositoryMode, listProdutos, updateProduto, __dumpMemoryProdutos, __getProdutoVariacoesSelectFieldsForTests } from '../produtos/produtos.repository.js';
 import { listFabricantes, getFabricanteById } from '../fabricantes/fabricantes.repository.js';
 
 const memoryLinks = [];
+const PRODUTO_VARIACOES_SELECT_FIELDS = __getProdutoVariacoesSelectFieldsForTests();
 
 function assertAccountId(accountId) {
   if (!accountId) {
