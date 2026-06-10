@@ -152,6 +152,12 @@ function formatProductLabel(product = {}) {
   return String(product?.nome || product?.produto_nome || product?.descricao || '').trim() || 'Produto';
 }
 
+function normalizeFormProducts(form = {}) {
+  const products = Array.isArray(form.produtos) ? form.produtos : [];
+  if (products.length) return products;
+  return form.produto ? [{ ...form.produto, produto_id: form.produto.id || form.produto_id || '' }] : [];
+}
+
 function getPromocaoProdutos(item = {}) {
   if (Array.isArray(item?.produtos) && item.produtos.length) return item.produtos;
   if (item?.produto) return [item.produto];
@@ -226,9 +232,10 @@ function renderForm(state) {
   const variacoes = Array.isArray(state.form.variacoes_disponiveis) ? state.form.variacoes_disponiveis : [];
   const produtoPai = state.form.produto || {};
   const globalPercentual = state.form.percentual_desconto ?? '';
+  const produtosSelecionados = normalizeFormProducts(state.form);
   const selectedCount = variacoes.filter((variacao) => variacao.selecionada).length;
   const hasValidSpecificDiscount = variacoes.some((variacao) => variacao.selecionada && Number.isFinite(Number(variacao.percentualDesconto)) && Number(variacao.percentualDesconto) > 0);
-  const saveDisabled = !(state.form.produto?.id || state.form.produto_id) || !String(state.form.nome || '').trim() || !state.form.data_inicio || !state.form.data_fim || !String(state.form.status || '').trim() || (showSpecific ? !(normalizeDiscount(globalPercentual) || hasValidSpecificDiscount) : !normalizeDiscount(globalPercentual));
+  const saveDisabled = !produtosSelecionados.length || !String(state.form.nome || '').trim() || !state.form.data_inicio || !state.form.data_fim || !String(state.form.status || '').trim() || (showSpecific ? !(normalizeDiscount(globalPercentual) || hasValidSpecificDiscount) : !normalizeDiscount(globalPercentual));
   return `<section class="nhp-panel nhp-form">
     <div>
       <h2 style="margin:0;font-size:20px">Formulário</h2>
@@ -257,6 +264,16 @@ function renderForm(state) {
             <button id="nhp-produto-search-open" class="nhp-btn secondary" type="button" aria-label="Abrir busca de produtos">🔍</button>
           </div>
         </label>
+        <div class="nhp-item-stack">
+          <div class="nhp-muted">Produtos na promoção: ${produtosSelecionados.length || 0}</div>
+          ${produtosSelecionados.map((produto) => `<div class="nhp-product-row" style="cursor:default;grid-template-columns:1fr auto" data-product-id="${produto.id}">
+            <div>
+              <strong>${formatProductLabel(produto)}</strong>
+              <span>${produto.descricao || ''}</span>
+            </div>
+            <button type="button" class="nhp-btn secondary nhp-remove-product" data-product-id="${produto.id}">Remover</button>
+          </div>`).join('')}
+        </div>
         <div class="nhp-radio-group" role="radiogroup" aria-label="Escopo da promoção">
           <label class="nhp-radio"><input type="radio" name="nhp-escopo" id="nhp-escopo-all" value="all" ${state.form.aplicar_em_todas_variacoes !== false ? 'checked' : ''}><span><strong>Todas as variações</strong><br/><small class="nhp-muted">Aplica o desconto automaticamente em toda a grade do produto.</small></span></label>
           <label class="nhp-radio"><input type="radio" name="nhp-escopo" id="nhp-escopo-specific" value="specific" ${showSpecific ? 'checked' : ''}><span><strong>Variações específicas</strong><br/><small class="nhp-muted">Selecione ou informe as variações que recebem a promoção.</small></span></label>
@@ -412,8 +429,11 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
   }
 
   async function loadVariationsForProduct(product) {
-    state.form.produto = product;
-    state.form.produto_id = product?.id || '';
+    const exists = Array.isArray(state.form.produtos) && state.form.produtos.some((item) => String(item.id) === String(product?.id));
+    state.form.produtos = Array.isArray(state.form.produtos) ? state.form.produtos.slice() : [];
+    if (!exists && product?.id) state.form.produtos.push(product);
+    state.form.produto = state.form.produtos[0] || product;
+    state.form.produto_id = state.form.produto?.id || '';
     state.productSearchOpen = false;
     state.form.variacoes_disponiveis = [];
     render();
@@ -425,6 +445,7 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
       };
       state.form.produto = resolvedProduct;
       state.form.produto_id = resolvedProduct?.id || product?.id || '';
+      if (!state.form.produtos.some((item) => String(item.id) === String(resolvedProduct.id))) state.form.produtos.push(resolvedProduct);
       const result = await apiClient.get(`/produtos/${product.id}/variacoes`);
       const variacoes = Array.isArray(result?.items) ? result.items : [];
       state.form.variacoes_disponiveis = buildVariacaoState(variacoes, new Map(), normalizeDiscount(state.form.percentual_desconto));
@@ -487,6 +508,16 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
         await loadVariationsForProduct({ id, nome: name });
       });
     });
+    root.querySelectorAll('.nhp-remove-product').forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const id = btn.getAttribute('data-product-id');
+        state.form.produtos = (state.form.produtos || []).filter((produto) => String(produto.id) !== String(id));
+        state.form.produto = state.form.produtos[0] || null;
+        state.form.produto_id = state.form.produto?.id || '';
+        render();
+      });
+    });
     root.querySelectorAll('[data-action="disable"]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-id');
@@ -516,6 +547,7 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
           descricao: selected.descricao || '',
           produto_id: selected.produto_id || '',
           produto: selected.produto || selected.produtoNome ? { id: selected.produto_id || '', nome: selected.produto || selected.produtoNome } : (selected.produto_id ? { id: selected.produto_id, nome: selected.produto_nome || selected.produto || '' } : null),
+          produtos: Array.isArray(selected.produtos) ? selected.produtos : (selected.produto ? [selected.produto] : (selected.produto_id ? [{ id: selected.produto_id, nome: selected.produto_nome || selected.produto || '' }] : [])),
           percentual_desconto: selected.percentual_desconto ?? '',
           data_inicio: selected.data_inicio || '',
           data_fim: selected.data_fim || '',
@@ -547,6 +579,14 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
           nome: state.form.nome || '',
           descricao: state.form.descricao || '',
           produto_id: state.form.produto?.id || state.form.produto_id || '',
+          produtos: (state.form.produtos || []).map((produto) => ({
+            produto_id: produto.id,
+            aplicar_em_todas_variacoes: state.form.aplicar_em_todas_variacoes !== false,
+            percentual_desconto: Number.isFinite(globalPercentual) ? globalPercentual : null,
+            variacoes: produto.id === (state.form.produto?.id || state.form.produto_id || '')
+              ? selectedVariacoes.map((item) => ({ variacaoId: item.variacaoId, percentualDesconto: Number.isFinite(Number(item.percentualDesconto)) ? item.percentualDesconto : null }))
+              : []
+          })),
           data_inicio: state.form.data_inicio || '',
           data_fim: state.form.data_fim || '',
           status: state.form.status || 'ativa',

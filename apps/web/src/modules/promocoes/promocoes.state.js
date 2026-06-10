@@ -16,6 +16,7 @@ export function createPromocoesState() {
       data_fim: '',
       percentual_desconto: '',
       produto_id: '',
+      produtos: [],
       aplicar_em_todas_variacoes: true,
       variacao_ids: [],
       variacoesSelecionadas: [],

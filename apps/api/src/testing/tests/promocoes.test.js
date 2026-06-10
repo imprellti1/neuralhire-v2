@@ -67,7 +67,9 @@ export function getPromocoesTests() {
         assert.equal(list.body.items[0].produto.id, produto.id);
         assert.equal(list.body.items[0].produto.nome, 'Produto Enriquecido');
         assert.equal(list.body.items[0].produto.descricao, 'Descricao do produto');
-        assert.deepEqual(list.body.items[0].produtos, [{ id: produto.id, nome: 'Produto Enriquecido', descricao: 'Descricao do produto' }]);
+        assert.equal(list.body.items[0].produtos[0].id, produto.id);
+        assert.equal(list.body.items[0].produtos[0].nome, 'Produto Enriquecido');
+        assert.equal(list.body.items[0].produtos[0].descricao, 'Descricao do produto');
       }
     },
     {

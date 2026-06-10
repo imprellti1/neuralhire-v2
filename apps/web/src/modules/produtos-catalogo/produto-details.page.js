@@ -29,10 +29,18 @@ function getVariationBasePrice(variation = {}, product = {}) {
   return Number.isFinite(productPrice) ? productPrice : 0;
 }
 function getVariationPromoPrice(variation = {}, product = {}, promocoes = []) {
-  const activePromocao = promocoes.find((promocao) => promocao.ativaAgora && (promocao.aplicar_em_todas_variacoes || (Array.isArray(promocao.variacoesSelecionadas) && promocao.variacoesSelecionadas.some((item) => String(item.id) === String(variation.id)))));
+  const activePromocao = promocoes.find((promocao) => {
+    const produtos = Array.isArray(promocao.produtos) ? promocao.produtos : [];
+    const matchesProduct = produtos.some((produto) => String(produto.id) === String(product.id));
+    const matchesLegacy = String(promocao.produto_id || '') === String(product.id);
+    const matchesVariation = produtos.some((produto) => Array.isArray(produto.variacoes) && produto.variacoes.some((item) => String(item.variacao_id || item.variacaoId || item.id) === String(variation.id)));
+    const matchesLegacyVariation = Array.isArray(promocao.variacoesSelecionadas) && promocao.variacoesSelecionadas.some((item) => String(item.id || item.variacao_id || item.variacaoId) === String(variation.id));
+    return promocao.ativaAgora && (matchesProduct || matchesLegacy) && (promocao.aplicar_em_todas_variacoes || matchesVariation || matchesLegacyVariation);
+  });
   if (!activePromocao) return null;
-  const selectedVariation = Array.isArray(activePromocao.variacoesSelecionadas) ? activePromocao.variacoesSelecionadas.find((item) => String(item.variacao_id || item.variacaoId || item.id) === String(variation.id)) : null;
-  const percentual = selectedVariation?.percentual_desconto ?? activePromocao.percentual_desconto;
+  const productLink = Array.isArray(activePromocao.produtos) ? activePromocao.produtos.find((item) => String(item.id) === String(product.id)) : null;
+  const selectedVariation = productLink && Array.isArray(productLink.variacoes) ? productLink.variacoes.find((item) => String(item.variacao_id || item.variacaoId || item.id) === String(variation.id)) : (Array.isArray(activePromocao.variacoesSelecionadas) ? activePromocao.variacoesSelecionadas.find((item) => String(item.variacao_id || item.variacaoId || item.id) === String(variation.id)) : null);
+  const percentual = selectedVariation?.percentual_desconto ?? productLink?.percentual_desconto ?? activePromocao.percentual_desconto;
   return calculatePrecoPromocional(getVariationBasePrice(variation, product), percentual);
 }
 function renderVariationImageCell(variation = {}, fallbackSrc = null) {

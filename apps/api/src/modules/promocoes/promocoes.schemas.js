@@ -1,5 +1,6 @@
 export const createPromocaoSchema = {
-  produto_id: { required: true, type: 'string', maxLength: 40 },
+  produto_id: { required: false, type: 'string', maxLength: 40 },
+  produtos: { required: false, type: 'array' },
   nome: { required: true, type: 'string', minLength: 2, maxLength: 180 },
   descricao: { required: false, type: 'string', maxLength: 2000 },
   percentual_desconto: { required: false, type: 'number' },
@@ -19,6 +20,7 @@ export const updatePromocaoSchema = {
   data_fim: { required: false, type: 'string', maxLength: 20 },
   status: { required: false, type: 'string', maxLength: 20 },
   aplicar_em_todas_variacoes: { required: false, type: 'boolean' },
+  produtos: { required: false, type: 'array' },
   variacao_ids: { required: false, type: 'array' },
   variacoesSelecionadas: { required: false, type: 'array' }
 };
