@@ -197,10 +197,35 @@ export function getProductAuditTests() {
       })));
       const result = await listAuditProducts({ page: 1, limit: 20 }, { accountId });
       assert.equal(result.items.length, 20);
-      assert.equal(result.pagination.total, 20);
-      assert.equal(result.pagination.totalPages, 1);
-      assert.equal(result.summary.totalProdutos, 20);
-      assert.equal(result.summary.comProblemas, 20);
+      assert.equal(result.pagination.total, 25);
+      assert.equal(result.pagination.totalPages, 2);
+      assert.equal(result.summary.totalProdutos, 25);
+      assert.equal(result.summary.comProblemas, 25);
+    } },
+    { name: 'summary ignores page size and includes all tenant products', run: async () => {
+      reset();
+      const accountId = 'acc-product-audit-global-summary';
+      __loadMemoryProdutos(Array.from({ length: 30 }, (_, idx) => ({
+        id: `p${idx + 1}`,
+        account_id: accountId,
+        nome: `Produto ${String(idx + 1).padStart(2, '0')}`,
+        sku: `SKU${idx + 1}`,
+        categoria: idx < 10 ? null : 'Cat',
+        preco: 10,
+        estoque: idx < 5 ? 0 : 5,
+        ativo: true,
+        imagemUrl: idx === 0 ? null : 'img',
+        variacoes: [{ id: `v${idx + 1}`, sku: `SKU${idx + 1}-1`, estoque: 1, imagemUrl: 'img' }]
+      })));
+      const result = await listAuditProducts({ page: 1, limit: 15 }, { accountId });
+      assert.equal(result.items.length, 15);
+      assert.equal(result.pagination.total, 30);
+      assert.equal(result.pagination.totalPages, 2);
+      assert.equal(result.summary.totalProdutos, 30);
+      assert.equal(result.summary.comProblemas, 30);
+      assert.equal(result.summary.semImagem, 1);
+      assert.equal(result.summary.semCategoria, 10);
+      assert.equal(result.summary.estoqueZerado, 5);
     } }
   ];
 }

@@ -189,28 +189,42 @@ function buildAuditContext(products, accountId) {
   };
 }
 
+async function fetchAllAuditProducts(accountId) {
+  const pageSize = 100;
+  let page = 1;
+  let totalPages = 1;
+  const items = [];
+
+  do {
+    const response = await listProdutos({ page, limit: pageSize }, { accountId });
+    items.push(...(response.items || []));
+    totalPages = Math.max(1, Number(response.totalPages || Math.ceil((response.total || 0) / pageSize) || 1));
+    page += 1;
+  } while (page <= totalPages);
+
+  return items;
+}
+
 export async function auditSummary(options = {}) {
   const { filters = {} } = options;
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-  const produtos = (await listProdutos({}, { accountId })).items || [];
+  const produtos = await fetchAllAuditProducts(accountId);
   const normalizedFilters = normalizeFilters(filters);
-  const statusScopedProducts = filterByStatus(produtos, normalizedFilters.status);
-  const context = buildAuditContext(statusScopedProducts, accountId);
+  const context = buildAuditContext(filterByStatus(produtos, normalizedFilters.status), accountId);
   const filtered = context.applyFilters(normalizedFilters);
-  const issueItems = filtered.filter((item) => (item.issues || []).length > 0);
-  return context.buildSummary(issueItems);
+  return context.buildSummary(filtered.filter((item) => (item.issues || []).length > 0));
 }
 
 export async function listAuditProducts(filters = {}, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-  const response = await listProdutos({}, { accountId });
+  const response = await fetchAllAuditProducts(accountId);
   const fabricantes = await listFabricantes({}, { accountId });
   const fabricanteById = new Map((fabricantes.items || [])
     .filter((item) => String(item.account_id || item.accountId || '') === String(accountId))
     .map((item) => [item.id, item]));
-  const products = (response.items || []).map((item) => {
+  const products = response.map((item) => {
     const fabricanteId = extractFabricanteId(item, accountId);
     return {
       ...item,
@@ -219,11 +233,9 @@ export async function listAuditProducts(filters = {}, options = {}) {
     };
   });
   const normalizedFilters = normalizeFilters(filters);
-  const statusScopedProducts = filterByStatus(products, normalizedFilters.status);
-  const context = buildAuditContext(statusScopedProducts, accountId);
+  const context = buildAuditContext(filterByStatus(products, normalizedFilters.status), accountId);
   const filtered = context.applyFilters(normalizedFilters);
-  const summaryItems = filtered.filter((item) => (item.issues || []).length > 0);
-  const summary = context.buildSummary(summaryItems);
+  const summary = context.buildSummary(filtered.filter((item) => (item.issues || []).length > 0));
   const issueItems = filtered
     .filter((item) => (item.issues || []).length > 0)
     .slice()
