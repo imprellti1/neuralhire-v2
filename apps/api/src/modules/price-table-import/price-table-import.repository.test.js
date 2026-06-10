@@ -141,3 +141,41 @@ test('falha quando update nao persiste o novo preco no banco', async () => {
   assert.equal(result.failed[0].persistedPrice, 0);
   assert.equal(result.failed[0].newPrice, 164.9);
 });
+
+test('retorna parcial quando um update trava ou falha sem pendurar o apply', async () => {
+  __resetMemoryProdutosForTests();
+  __resetPriceTableImportSessionsForTests();
+  __loadMemoryProdutos([
+    { id: 'p30', account_id: 'a1', sku: '100', nome: 'Produto 100', preco: 10, ativo: true, status: 'ativo' },
+    { id: 'p31', account_id: 'a1', sku: '101', nome: 'Produto 101', preco: 11, ativo: true, status: 'ativo' }
+  ]);
+
+  const buffer = createWorkbook([
+    ['100', '15'],
+    ['101', '18']
+  ]);
+
+  const preview = await previewPriceTableImport({ accountId: 'a1', fileName: 'timeout.xlsx', buffer });
+  assert.equal(preview.summary.changedRows, 2);
+
+  const result = await __executePriceTableImportWithDepsForTests(
+    { accountId: 'a1', importToken: preview.importToken },
+    {
+      itemTimeoutMs: 50,
+      async updateProduto(id, payload) {
+        if (id === 'p30') return { id, ...payload };
+        await new Promise(() => {});
+      },
+      async getProdutoById(id) {
+        if (id === 'p30') return { id: 'p30', sku: '100', preco: 15, account_id: 'a1', status: 'ativo' };
+        return { id: 'p31', sku: '101', preco: 11, account_id: 'a1', status: 'ativo' };
+      }
+    }
+  );
+
+  assert.equal(result.summary.updatedRows, 1);
+  assert.equal(result.summary.failedRows, 1);
+  assert.equal(result.updated[0].productId, 'p30');
+  assert.equal(result.failed[0].productId, 'p31');
+  assert.equal(result.failed[0].errorCode, 'TIMEOUT');
+});

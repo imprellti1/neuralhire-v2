@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import xlsx from 'xlsx';
 import { BadRequestError, ForbiddenError } from '../../core/errors.js';
+import { logger } from '../../core/logger.js';
 import { getProdutoById, listProdutos, updateProduto } from '../produtos/produtos.repository.js';
 
 const importSessions = new Map();
+const APPLY_BATCH_SIZE = 8;
+const APPLY_ITEM_TIMEOUT_MS = 15000;
 const REF_HEADERS = ['ref', 'referencia', 'referência', 'sku', 'codigo', 'código', 'codigo_erp', 'cod', 'codigo produto', 'código produto'];
 const PRICE_HEADERS = ['unitarior', 'unitario r', 'unitário r', 'preco', 'preço', 'valor', 'price', 'price r', 'preco unitario', 'preço unitário'];
 
@@ -96,6 +99,31 @@ function getProductRefs(product = {}) {
 
 function getProductLabel(product = {}) {
   return String(product.nome || product.name || product.title || product.sku || product.codigo || product.id || '-').trim() || '-';
+}
+
+function withTimeout(promise, timeoutMs, label) {
+  let timeoutId = null;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      const error = new Error(label || 'Operation timed out');
+      error.code = 'TIMEOUT';
+      reject(error);
+    }, timeoutMs);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
+
+async function runInBatches(items, batchSize, handler) {
+  const results = [];
+  for (let index = 0; index < items.length; index += batchSize) {
+    const batch = items.slice(index, index + batchSize);
+    const batchResults = await Promise.all(batch.map((item) => handler(item)));
+    results.push(...batchResults);
+  }
+  return results;
 }
 
 function getProductMatchDetails(product = {}) {
@@ -266,65 +294,116 @@ async function executePriceTableImportWithDeps({ accountId, importToken }, deps 
   }
   const updateProdutoFn = deps.updateProduto || updateProduto;
   const getProdutoByIdFn = deps.getProdutoById || getProdutoById;
+  const itemTimeoutMs = Number.isFinite(deps.itemTimeoutMs) && deps.itemTimeoutMs > 0 ? Math.floor(deps.itemTimeoutMs) : APPLY_ITEM_TIMEOUT_MS;
+  const batchSize = Number.isFinite(deps.batchSize) && deps.batchSize > 0 ? Math.floor(deps.batchSize) : APPLY_BATCH_SIZE;
   const changedRows = session.rows.filter((item) => item.status === 'matched_changed');
   const updated = [];
   const failed = [];
-  for (const item of changedRows) {
-    const previousPrice = Number(item.currentPrice || 0);
-    try {
-      const result = await updateProdutoFn(item.productId, { preco: item.newPrice }, { accountId });
-      const persisted = await getProdutoByIdFn(item.productId, { accountId });
-      const persistedPrice = Number(persisted?.preco ?? persisted?.preco_unitario ?? 0);
-      if (Number(persistedPrice) !== Number(item.newPrice)) {
-        failed.push({
+  const startedAt = Date.now();
+
+  logger.info('apply_started', {
+    domain: 'price-table-import',
+    accountId,
+    importToken: String(importToken || ''),
+    totalRows: session.rows.length,
+    matched_changed: changedRows.length
+  });
+
+  try {
+    await runInBatches(changedRows, batchSize, async (item) => {
+      const previousPrice = Number(item.currentPrice || 0);
+      const meta = {
+        domain: 'price-table-import',
+        accountId,
+        importToken: String(importToken || ''),
+        ref: item.ref || null,
+        productId: item.productId || null
+      };
+
+      try {
+        const result = await withTimeout(
+          updateProdutoFn(item.productId, { preco: item.newPrice }, { accountId }),
+          itemTimeoutMs,
+          `updateProduto timeout for ${item.productId}`
+        );
+        const persisted = await withTimeout(
+          getProdutoByIdFn(item.productId, { accountId }),
+          itemTimeoutMs,
+          `getProdutoById timeout for ${item.productId}`
+        );
+        const persistedPrice = Number(persisted?.preco ?? persisted?.preco_unitario ?? 0);
+        if (Number(persistedPrice) !== Number(item.newPrice)) {
+          const failure = {
+            productId: item.productId,
+            ref: item.ref,
+            previousPrice,
+            newPrice: item.newPrice,
+            persistedPrice,
+            status: 'update_failed',
+            message: 'Preço não persistiu no banco após o update.'
+          };
+          failed.push(failure);
+          logger.warn('apply_item_failed', { ...meta, status: failure.status, message: failure.message, persistedPrice });
+          return;
+        }
+        updated.push({
+          productId: item.productId,
+          ref: item.ref,
+          previousPrice,
+          newPrice: item.newPrice,
+          persistedPrice,
+          status: 'updated',
+          item: result
+        });
+      } catch (error) {
+        let persistedPrice = null;
+        try {
+          const persisted = await withTimeout(
+            getProdutoByIdFn(item.productId, { accountId }),
+            itemTimeoutMs,
+            `post-failure getProdutoById timeout for ${item.productId}`
+          );
+          persistedPrice = Number(persisted?.preco ?? persisted?.preco_unitario ?? 0);
+        } catch {}
+        const failure = {
           productId: item.productId,
           ref: item.ref,
           previousPrice,
           newPrice: item.newPrice,
           persistedPrice,
           status: 'update_failed',
-          message: 'Preço não persistiu no banco após o update.'
-        });
-        continue;
+          message: error?.message || 'Falha ao atualizar preço.',
+          errorCode: error?.code || null
+        };
+        failed.push(failure);
+        logger.warn('apply_item_failed', { ...meta, status: failure.status, message: failure.message, errorCode: failure.errorCode, persistedPrice });
       }
-      updated.push({
-        productId: item.productId,
-        ref: item.ref,
-        previousPrice,
-        newPrice: item.newPrice,
-        persistedPrice,
-        status: 'updated',
-        item: result
-      });
-    } catch (error) {
-      let persistedPrice = null;
-      try {
-        const persisted = await getProdutoById(item.productId, { accountId });
-        persistedPrice = Number(persisted?.preco ?? persisted?.preco_unitario ?? 0);
-      } catch {}
-      failed.push({
-        productId: item.productId,
-        ref: item.ref,
-        previousPrice,
-        newPrice: item.newPrice,
-        persistedPrice,
-        status: 'update_failed',
-        message: error?.message || 'Falha ao atualizar preço.',
-        errorCode: error?.code || null
-      });
-    }
-  }
-  importSessions.delete(String(importToken || ''));
-  return {
-    ok: true,
-    summary: {
+    });
+
+    const result = {
+      ok: true,
+      summary: {
+        updatedRows: updated.length,
+        failedRows: failed.length,
+        skippedRows: session.rows.length - changedRows.length,
+        durationMs: Date.now() - startedAt
+      },
+      updated,
+      failed
+    };
+
+    logger.info('apply_finished', {
+      domain: 'price-table-import',
+      accountId,
+      importToken: String(importToken || ''),
       updatedRows: updated.length,
       failedRows: failed.length,
-      skippedRows: session.rows.length - changedRows.length
-    },
-    updated,
-    failed
-  };
+      durationMs: result.summary.durationMs
+    });
+    return result;
+  } finally {
+    importSessions.delete(String(importToken || ''));
+  }
 }
 
 export async function executePriceTableImport(params) {
@@ -333,6 +412,10 @@ export async function executePriceTableImport(params) {
 
 export function __executePriceTableImportWithDepsForTests(params, deps) {
   return executePriceTableImportWithDeps(params, deps);
+}
+
+export function __getPriceTableImportApplyDefaultsForTests() {
+  return { APPLY_BATCH_SIZE, APPLY_ITEM_TIMEOUT_MS };
 }
 
 export function __resetPriceTableImportSessionsForTests() {
