@@ -80,3 +80,31 @@ test('atualiza produto pai inativo pela referencia e suporta planilha sem cabeç
   assert.equal(refreshed.status, 'matched_unchanged');
   assert.equal(refreshed.currentPrice, 164.9);
 });
+
+test('bloqueia duplicidade de referencia no cadastro sem aplicar update', async () => {
+  __resetMemoryProdutosForTests();
+  __resetPriceTableImportSessionsForTests();
+  __loadMemoryProdutos([
+    { id: 'p10', account_id: 'a1', sku: '870500087', nome: 'TOALHA DE MESA A', preco: 0, ativo: true, status: 'ativo' },
+    { id: 'p11', account_id: 'a1', sku: '870500087', nome: 'TOALHA DE MESA B', preco: 12, ativo: true, status: 'ativo' }
+  ]);
+
+  const buffer = createWorkbook([
+    ['870500087', '164,9']
+  ]);
+
+  const preview = await previewPriceTableImport({ accountId: 'a1', fileName: 'duplicado.xlsx', buffer });
+  assert.equal(preview.summary.totalRows, 1);
+  assert.equal(preview.summary.matchedRows, 0);
+  assert.equal(preview.summary.invalidRows, 1);
+  assert.equal(preview.items[0].status, 'duplicated_product_ref');
+  assert.equal(preview.items[0].message, 'Mais de um produto encontrado com esta referência. Corrija a duplicidade antes de importar.');
+  assert.deepEqual(preview.items[0].matchedProductIds.sort(), ['p10', 'p11']);
+  assert.deepEqual(preview.items[0].matchedProductNames.sort(), ['TOALHA DE MESA A', 'TOALHA DE MESA B']);
+  assert.equal(preview.items[0].productId, undefined);
+
+  const result = await executePriceTableImport({ accountId: 'a1', importToken: preview.importToken });
+  assert.equal(result.summary.updatedRows, 0);
+  assert.equal(__dumpMemoryProdutos().find((item) => item.id === 'p10').preco, 0);
+  assert.equal(__dumpMemoryProdutos().find((item) => item.id === 'p11').preco, 12);
+});

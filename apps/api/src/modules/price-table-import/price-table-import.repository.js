@@ -94,6 +94,23 @@ function getProductRefs(product = {}) {
   ].map(normalizeRef).filter(Boolean);
 }
 
+function getProductLabel(product = {}) {
+  return String(product.nome || product.name || product.title || product.sku || product.codigo || product.id || '-').trim() || '-';
+}
+
+function getProductMatchDetails(product = {}) {
+  return {
+    id: product.id || null,
+    sku: product.sku || null,
+    nome: getProductLabel(product),
+    account_id: product.account_id || null,
+    parent_id: product.parent_id || product.parentId || product.produto_pai_id || product.produtoPaiId || product.produto_id_pai || product.produtoIdPai || product.produto_id_parent || product.produtoIdParent || null,
+    isChild: isChildProduct(product),
+    preco: Number(product.preco || 0),
+    status: product.status || (product.ativo === false ? 'inativo' : product.ativo === true ? 'ativo' : null)
+  };
+}
+
 async function listAllProdutos(accountId) {
   const collected = [];
   let page = 1;
@@ -107,10 +124,10 @@ async function listAllProdutos(accountId) {
   return collected;
 }
 
-function findProductByRef(products, ref) {
+function findProductsByRef(products, ref) {
   const normalizedRef = normalizeRef(ref);
-  if (!normalizedRef) return null;
-  return products.find((product) => !isChildProduct(product) && getProductRefs(product).includes(normalizedRef)) || null;
+  if (!normalizedRef) return [];
+  return products.filter((product) => !isChildProduct(product) && getProductRefs(product).includes(normalizedRef));
 }
 
 function buildPreviewItems(rows, products) {
@@ -155,14 +172,27 @@ function buildPreviewItems(rows, products) {
       items.push(item);
       continue;
     }
-    const product = findProductByRef(products, ref);
-    if (!product) {
+    const matches = findProductsByRef(products, ref);
+    if (!matches.length) {
       item.status = 'unmatched';
       item.message = 'Produto não encontrado.';
       unmatchedRows += 1;
       items.push(item);
       continue;
     }
+    item.matchedProductIds = matches.map((product) => product.id);
+    item.matchedProductNames = matches.map((product) => getProductLabel(product));
+    item.matchedProductSkus = matches.map((product) => product.sku || product.codigo || product.referencia || product.ref || null);
+    if (matches.length > 1) {
+      item.status = 'duplicated_product_ref';
+      item.message = 'Mais de um produto encontrado com esta referência. Corrija a duplicidade antes de importar.';
+      item.currentPrice = null;
+      item.newPrice = price;
+      invalidRows += 1;
+      items.push(item);
+      continue;
+    }
+    const product = matches[0];
     item.productId = product.id;
     item.productName = product.nome || product.name || null;
     item.currentPrice = Number(product.preco || 0);
