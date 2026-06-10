@@ -53,6 +53,16 @@ function filterItems(items, filters) {
   });
 }
 
+function buildCategoriesById(items) {
+  return new Map((items || []).map((item) => [String(item.id), item]));
+}
+
+function getParentCategoryName(item, categoriesById) {
+  const parentId = item?.parent_id || item?.categoria_pai_id;
+  if (!parentId) return 'Sem pai';
+  return categoriesById.get(String(parentId))?.nome || 'Categoria não encontrada';
+}
+
 function buildParentOptions(items, currentId, selectedId) {
   return (items || [])
     .filter((item) => String(item.id) !== String(currentId || ''))
@@ -117,7 +127,8 @@ export async function renderProdutoCategoriasPage(container, { apiClient } = {})
 
   function render() {
     const visible = filterItems(state.items, state.filters);
-    container.innerHTML = `<div class="nhpc-wrap"><section class="nhpc-head"><div><div class="nhpc-title">Categorias de Produto</div><div class="nhpc-sub">Módulo operacional para manter categorias reais, com ativação/inativação e uso nos cadastros de produto.</div></div><div class="nhpc-toolbar"><input id="nhpc-search" class="nhpc-input" placeholder="Buscar por nome ou slug" value="${state.filters.search || ''}"><select id="nhpc-status" class="nhpc-select"><option value="">Todos os status</option><option value="ativo" ${state.filters.status === 'ativo' ? 'selected' : ''}>Ativo</option><option value="inativo" ${state.filters.status === 'inativo' ? 'selected' : ''}>Inativo</option></select><button id="nhpc-new" class="nhpc-btn primary">Nova Categoria</button></div></section><section class="nhpc-card">${state.loading ? '<div class="nhpc-state">Carregando categorias...</div>' : state.error ? `<div class="nhpc-empty"><div class="nhpc-state">${state.error}</div><button id="nhpc-retry" class="nhpc-btn">Tentar novamente</button></div>` : visible.length ? `<div class="nhpc-grid"><table class="nhpc-table"><thead><tr><th>Nome</th><th>Slug</th><th>Categoria pai</th><th>Status</th><th>Descrição</th><th>Criado em</th><th>Atualizado em</th><th>Ações</th></tr></thead><tbody>${visible.map((item) => `<tr><td>${item.nome || '-'}</td><td>${item.slug || '-'}</td><td>${item.parent_nome || (item.parent_id ? item.parent_id : 'Sem pai')}</td><td><span class="nhpc-badge ${String(item.status) === 'ativo' ? 'ok' : 'off'}">${item.status || '-'}</span></td><td>${item.descricao || '-'}</td><td>${item.created_at || '-'}</td><td>${item.updated_at || '-'}</td><td><button class="nhpc-btn" data-edit="${item.id}">Editar</button> <button class="nhpc-btn danger" data-toggle="${item.id}">${String(item.status) === 'ativo' ? 'Inativar' : 'Ativar'}</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="nhpc-empty"><div class="nhpc-state">Nenhuma categoria encontrada.</div><button id="nhpc-empty-new" class="nhpc-btn primary">Nova Categoria</button></div>`}</section>${renderModal(state, state.items)}</div>`;
+    const categoriesById = buildCategoriesById(state.items);
+    container.innerHTML = `<div class="nhpc-wrap"><section class="nhpc-head"><div><div class="nhpc-title">Categorias de Produto</div><div class="nhpc-sub">Módulo operacional para manter categorias reais, com ativação/inativação e uso nos cadastros de produto.</div></div><div class="nhpc-toolbar"><input id="nhpc-search" class="nhpc-input" placeholder="Buscar por nome ou slug" value="${state.filters.search || ''}"><select id="nhpc-status" class="nhpc-select"><option value="">Todos os status</option><option value="ativo" ${state.filters.status === 'ativo' ? 'selected' : ''}>Ativo</option><option value="inativo" ${state.filters.status === 'inativo' ? 'selected' : ''}>Inativo</option></select><button id="nhpc-new" class="nhpc-btn primary">Nova Categoria</button></div></section><section class="nhpc-card">${state.loading ? '<div class="nhpc-state">Carregando categorias...</div>' : state.error ? `<div class="nhpc-empty"><div class="nhpc-state">${state.error}</div><button id="nhpc-retry" class="nhpc-btn">Tentar novamente</button></div>` : visible.length ? `<div class="nhpc-grid"><table class="nhpc-table"><thead><tr><th>Nome</th><th>Slug</th><th>Categoria pai</th><th>Status</th><th>Descrição</th><th>Ações</th></tr></thead><tbody>${visible.map((item) => `<tr><td>${item.nome || '-'}</td><td>${item.slug || '-'}</td><td>${getParentCategoryName(item, categoriesById)}</td><td><span class="nhpc-badge ${String(item.status) === 'ativo' ? 'ok' : 'off'}">${item.status || '-'}</span></td><td>${item.descricao || '-'}</td><td><button class="nhpc-btn" data-edit="${item.id}">Editar</button> <button class="nhpc-btn danger" data-toggle="${item.id}">${String(item.status) === 'ativo' ? 'Inativar' : 'Ativar'}</button></td></tr>`).join('')}</tbody></table></div>` : `<div class="nhpc-empty"><div class="nhpc-state">Nenhuma categoria encontrada.</div><button id="nhpc-empty-new" class="nhpc-btn primary">Nova Categoria</button></div>`}</section>${renderModal(state, state.items)}</div>`;
 
     const search = container.querySelector('#nhpc-search');
     if (search) search.oninput = (e) => { state.filters.search = e.target.value || ''; render(); };
