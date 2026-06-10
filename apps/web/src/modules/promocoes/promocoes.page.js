@@ -1,5 +1,5 @@
 import { createPromocoesState } from './promocoes.state.js';
-import { calculatePrecoPromocional, mapPromocoesData } from './promocoes.mapper.js';
+import { calculatePrecoPromocional, mapPromocoesData, resolveVariacaoPrecoBase } from './promocoes.mapper.js';
 import { deletePromocao, fetchPromocoesData, savePromocao } from './promocoes.service.js';
 
 function brl(value) {
@@ -195,6 +195,7 @@ function renderProductSearchModal(state) {
 function renderForm(state) {
   const showSpecific = state.form.aplicar_em_todas_variacoes === false;
   const variacoes = Array.isArray(state.form.variacoes_disponiveis) ? state.form.variacoes_disponiveis : [];
+  const produtoPai = state.form.produto || {};
   const globalPercentual = state.form.percentual_desconto ?? '';
   const selectedCount = variacoes.filter((variacao) => variacao.selecionada).length;
   const hasValidSpecificDiscount = variacoes.some((variacao) => variacao.selecionada && Number.isFinite(Number(variacao.percentualDesconto)) && Number(variacao.percentualDesconto) > 0);
@@ -234,7 +235,7 @@ function renderForm(state) {
           <strong>Variações específicas</strong>
           <div class="nhp-muted">${selectedCount ? `${selectedCount} variação(ões) selecionada(s).` : 'Nenhuma variação selecionada.'}</div>
           ${variacoes.length ? `<div class="nhp-table-wrap"><table class="nhp-table" style="min-width:100%"><thead><tr><th></th><th>SKU</th><th>Cor</th><th>Grade</th><th>Preço base</th><th>Desconto %</th><th>Preço promocional</th></tr></thead><tbody>${variacoes.map((variacao) => {
-            const basePrice = Number(variacao.preco || 0);
+            const basePrice = resolveVariacaoPrecoBase(variacao, produtoPai);
             const desconto = Number(variacao.percentualDesconto || globalPercentual || 0);
             const promoPrice = desconto > 0 ? calculatePrecoPromocional(basePrice, desconto) : null;
             return `<tr>
@@ -322,6 +323,13 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
     state.form.variacoes_disponiveis = [];
     render();
     try {
+      const productDetails = await apiClient.get(`/produtos/${product.id}`);
+      const resolvedProduct = {
+        ...product,
+        ...(productDetails?.item || productDetails || {})
+      };
+      state.form.produto = resolvedProduct;
+      state.form.produto_id = resolvedProduct?.id || product?.id || '';
       const result = await apiClient.get(`/produtos/${product.id}/variacoes`);
       const variacoes = Array.isArray(result?.items) ? result.items : [];
       state.form.variacoes_disponiveis = buildVariacaoState(variacoes, new Map(), normalizeDiscount(state.form.percentual_desconto));

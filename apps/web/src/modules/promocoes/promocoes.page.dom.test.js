@@ -74,6 +74,7 @@ test('promoções: modal de produtos abre, busca e seleciona produto', async () 
         const q = params.q || params.search || '';
         return { items: q ? [{ id: 'prod-1', nome: 'Produto A', sku: 'SKU-A', categoria_nome: 'Categoria', fabricante_nome: 'Fábrica' }] : [] };
       }
+      if (path === '/produtos/prod-1') return { item: { id: 'prod-1', nome: 'Produto A', sku: 'SKU-A', preco: 21.1 } };
       if (path === '/produtos/prod-1/variacoes') return { items: [{ id: 'var-1', sku: 'VAR1', cor: 'Azul', grade: 'G', preco: 100 }] };
       return { items: [], total: 0 };
     },
@@ -96,6 +97,44 @@ test('promoções: modal de produtos abre, busca e seleciona produto', async () 
   document.querySelector('#nhp-escopo-specific')?.click();
   await flush();
   assert.match(document.body.textContent, /VAR1/);
+  teardownFrontendDom(dom);
+});
+
+test('promoções: variação específica herda preço do produto pai para exibição e cálculo', async () => {
+  const dom = setupFrontendDom('#/x');
+  const apiClient = {
+    get: async (path, params = {}) => {
+      if (path === '/promocoes') return { items: [], total: 0 };
+      if (path === '/produtos/search') {
+        const q = params.q || params.search || '';
+        return { items: q ? [{ id: 'prod-1', nome: 'Produto A', sku: 'SKU-A' }] : [] };
+      }
+      if (path === '/produtos/prod-1') return { item: { id: 'prod-1', nome: 'Produto A', sku: 'SKU-A', preco: 21.1 } };
+      if (path === '/produtos/prod-1/variacoes') return { items: [{ id: 'var-1', sku: 'VAR1', cor: 'Azul', grade: 'G', preco: 0 }] };
+      return { items: [], total: 0 };
+    },
+    post: async () => ({ ok: true, item: { id: 'promo-2' } })
+  };
+  await renderPromocoesPage(document.body, { apiClient });
+  await flush();
+  document.querySelector('#nhp-create-first')?.click();
+  await flush();
+  document.querySelector('#nhp-produto-search-open')?.click();
+  await flush();
+  document.querySelector('#nhp-product-search').value = 'Produto';
+  document.querySelector('#nhp-product-search').dispatchEvent(new Event('input', { bubbles: true }));
+  await flush();
+  document.querySelector('.nhp-product-row')?.click();
+  await flush();
+  await flush();
+  document.querySelector('#nhp-escopo-specific')?.click();
+  await flush();
+  assert.match(document.body.textContent, /R\$\s*21,10/);
+  const discount = document.querySelector('.nhp-variacao-percentual');
+  discount.value = '10';
+  discount.dispatchEvent(new Event('input', { bubbles: true }));
+  await flush();
+  assert.match(document.body.textContent, /R\$\s*18,99/);
   teardownFrontendDom(dom);
 });
 
