@@ -68,6 +68,8 @@ import { registerProdutoImagensRoutes } from './produto-imagens/produto-imagens.
 import { produtoImagensModule } from './produto-imagens/produto-imagens.module.js';
 import { registerAuditLogsRoutes } from './audit-logs/audit-logs.routes.js';
 import { auditLogsModule } from './audit-logs/audit-logs.module.js';
+import { registerPromocoesRoutes } from './promocoes/promocoes.routes.js';
+import { promocoesModule } from './promocoes/promocoes.module.js';
 
 export const registeredModules = [
   defineModule({ name: 'health', domain: 'core-platform', routes: ['GET /health'] }),
@@ -79,6 +81,7 @@ export const registeredModules = [
   whatsappConversationsModule, messageDraftsModule, messageApprovalsModule, approvalIntelligenceModule, whatsappDeliveryModule, commercialAgentModule, fabricantesModule, vendedoresModule,
   priceTableImportModule
   ,productAuditModule, productEditorModule, produtoImagensModule, auditLogsModule
+  ,promocoesModule
 ];
 
 export function registerModules(router, options = {}) {
@@ -101,6 +104,7 @@ export function registerModules(router, options = {}) {
   registerProductEditorRoutes(router);
   registerProdutoImagensRoutes(router);
   registerAuditLogsRoutes(router);
+  registerPromocoesRoutes(router);
 }
 
 
