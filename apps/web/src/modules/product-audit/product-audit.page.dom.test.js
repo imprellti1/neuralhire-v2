@@ -53,8 +53,12 @@ test('product audit page renders kpis, table and actions', async () => {
   assert.ok(root.textContent.includes('Auditoria de Produtos'));
   assert.ok(root.textContent.includes('Sem fábrica'));
   assert.ok(root.textContent.includes('Produtos com problema'));
-  assert.ok(root.textContent.includes('Ver Produto'));
-  assert.ok(root.textContent.includes('Editar Produto'));
+  assert.ok(root.querySelector('#nha-fabricante-filter'));
+  assert.equal(root.textContent.includes('Fábrica'), true);
+  assert.equal(root.querySelector('th:nth-child(4)')?.textContent, 'Categoria');
+  assert.ok(root.querySelector('[aria-label="Ver produto"]'));
+  assert.ok(root.querySelector('[aria-label="Editar produto"]'));
+  assert.equal(root.textContent.includes('Selecione um produto para ver os detalhes da auditoria'), false);
   assert.ok(root.textContent.includes('Inativos'));
   const row = root.querySelector('.nha-row');
   row.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
