@@ -36,6 +36,12 @@ test('produto 360 mantém o layout e o toggle de variações', async () => {
         return { id: 'p1', issues: ['missing_fabricante', 'missing_variations'], fabricanteId: 'fab-1', fabricanteNome: 'Fábrica 1' };
       }
       if (path === '/produtos/p1/imagens') return { items: [{ id: 'img-1', produto_id: 'p1', variacao_id: null, url: 'https://example.com/img.jpg', storage_path: 'acc/p1/pai/img.jpg', ordem: 0, principal: true, tipo: 'image' }] };
+      if (path === '/produtos/p1/variacoes') return { items: [
+        { id: 'v1', sku: 'SKU1-01', cor: 'Azul', grade: 'P', estoque_atual: 2, preco: 10, status: 'ativo', status_comercial: 'ativo', updated_at: '2026-05-03T00:00:00.000Z' },
+        { id: 'v2', sku: 'SKU1-02', cor: 'Azul', grade: 'M', estoqueAtual: 2, preco: 12, status: 'ativo', status_comercial: 'ativo', updated_at: '2026-05-04T00:00:00.000Z' },
+        { id: 'v3', sku: 'SKU1-03', cor: 'Azul', grade: 'G', estoque: 2, preco: 12, status: 'ativo', status_comercial: 'ativo', updated_at: '2026-05-05T00:00:00.000Z' },
+        { id: 'v4', sku: 'SKU1-04', cor: 'Azul', grade: 'GG', estoque: 2, preco: 12, status: 'ativo', status_comercial: 'ativo', updated_at: '2026-05-06T00:00:00.000Z' }
+      ] };
       if (path === '/product-editor/products/p1') {
         return {
           item: {
@@ -230,6 +236,61 @@ test('produto 360 sem imagem no pai nao herda imagem da variacao', async () => {
   assert.equal(root.querySelector('.nhpd-product-image'), null);
   assert.equal(root.querySelector('.nhpd-variation-image')?.getAttribute('src'), 'https://img.test/var-b.jpg');
   assert.equal(root.textContent.includes('Alterar Imagem do Produto'), true);
+
+  anchorMock.restore();
+  teardownFrontendDom(dom);
+});
+
+test('produto 360 preserva variações e uso comercial quando o refresh pós-save volta parcial', async () => {
+  const dom = setupFrontendDom('#/produtos/p1');
+  mockObjectUrl();
+  const anchorMock = mockAnchorClicks(dom);
+
+  let detailCallCount = 0;
+  const apiClient = {
+    async get(path) {
+      if (path === '/produtos/p1') {
+        detailCallCount += 1;
+        return detailCallCount === 1
+          ? { item: { id: 'p1', nome: 'Produto A', sku: 'SKU1', categoria: 'Cat', preco: 10, status: 'ativo', ativo: true } }
+          : { item: { id: 'p1', nome: 'Produto A', sku: 'SKU1', categoria: 'Cat', preco: 10, status: 'ativo', ativo: true } };
+      }
+      if (path === '/produtos/p1/variacoes') {
+        return { items: [{ id: 'v1', sku: 'SKU1-01', cor: 'Azul', grade: 'P', estoque_atual: 2, preco: 10, status: 'ativo', status_comercial: 'ativo' }] };
+      }
+      if (path === '/product-audit/products/p1') {
+        return { id: 'p1', issues: [] };
+      }
+      if (path === '/produtos/p1/imagens') {
+        return { items: [{ id: 'img-1', produto_id: 'p1', variacao_id: null, url: 'https://example.com/img.jpg', principal: true }] };
+      }
+      if (path === '/fabricantes') return { items: [] };
+      if (path === '/pedidos') {
+        return { items: [{ id: 'ped-1', numero: '1', status: 'confirmado', created_at: '2026-05-01T00:00:00.000Z', itens: [{ produto_id: 'p1', quantidade: 1, preco_unitario: 10, total: 10 }] }] };
+      }
+      return { items: [] };
+    },
+    async post() { return { item: {} }; },
+    async patch() { return { item: { id: 'p1' } }; },
+    async delete() { return { removed: true }; }
+  };
+
+  const root = document.getElementById('root');
+  renderProdutoDetailsPage(root, { apiClient, produtoId: 'p1' });
+  await flush(); await flush(); await flush();
+
+  assert.match(root.textContent, /SKU1-01/);
+  assert.match(root.textContent, /Uso em Pedidos/);
+
+  const file = new File([new Blob(['fake-image'])], 'foto.png', { type: 'image/png' });
+  const input = root.querySelector('#nhpd-product-file');
+  Object.defineProperty(input, 'files', { value: [file], configurable: true });
+  root.querySelector('.js-product-image-upload').click();
+  await flush(); await flush(); await flush();
+
+  assert.match(root.textContent, /SKU1-01/);
+  assert.equal(root.textContent.includes('Nenhuma variação cadastrada.'), false);
+  assert.equal(root.textContent.includes('Não foi possível carregar o uso comercial do produto.'), false);
 
   anchorMock.restore();
   teardownFrontendDom(dom);

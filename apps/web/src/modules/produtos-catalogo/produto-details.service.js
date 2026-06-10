@@ -40,9 +40,7 @@ export async function fetchProdutoDetailsData(apiClient, produtoId) {
 
   const variationsStartedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const variationsResponse = await tryGet(apiClient, [
-    `/produtos/${produtoId}/variacoes`,
-    `/product-editor/products/${produtoId}`,
-    `/product-editor/products/${produtoId}/variations`
+    `/produtos/${produtoId}/variacoes`
   ]).catch(() => null);
   markDuration('product_details_fetch_variacoes_ms', variationsStartedAt);
   markDuration('product_details_fetch_produto_ms', detailsStartedAt);

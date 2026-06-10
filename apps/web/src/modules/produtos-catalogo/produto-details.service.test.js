@@ -77,3 +77,28 @@ test('fetchProdutoDetailsData aceita resposta direta de product-editor com varia
   assert.equal(produto.estoqueTotalVariacoes, 1);
   assert.equal(produto.variacoes[0].statusComercial, 'ativo');
 });
+
+test('fetchProdutoDetailsData nao depende do endpoint product-editor/products/:id/variations', async () => {
+  const calls = [];
+  const apiClient = {
+    async get(path) {
+      calls.push(path);
+      if (path === '/produtos/p3') {
+        return { item: { id: 'p3', nome: 'Produto 3', sku: '850400257', categoria: 'Categoria', estoque: 0 } };
+      }
+      if (path === '/produtos/p3/variacoes') {
+        return {
+          items: [
+            { id: 'v1', sku: '850400257-1', cor: 'Azul', grade: 'U', estoque_atual: 3, preco: 10, status: 'ativo', status_comercial: 'ativo' }
+          ]
+        };
+      }
+      throw new Error(`unhandled ${path}`);
+    }
+  };
+
+  const produto = await fetchProdutoDetailsData(apiClient, 'p3');
+  assert.deepEqual(calls, ['/produtos/p3', '/produtos/p3/variacoes']);
+  assert.equal(produto.variacoes.length, 1);
+  assert.equal(produto.variacoes[0].sku, '850400257-1');
+});

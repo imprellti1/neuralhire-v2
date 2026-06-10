@@ -424,13 +424,19 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
   }
 
   async function refreshPostSave(message) {
+    const previousData = state.data;
     const [details, audit, images] = await Promise.allSettled([
       fetchProdutoDetailsData(apiClient, produtoId),
       apiClient.get(`/product-audit/products/${produtoId}`).catch(() => null),
       fetchProdutoImagens(apiClient, produtoId).catch(() => [])
     ]);
     if (details.status === 'fulfilled') {
-      state.data = details.value;
+      const nextData = details.value || {};
+      const previousVariations = Array.isArray(previousData?.variacoes) ? previousData.variacoes : [];
+      const nextVariations = Array.isArray(nextData.variacoes) ? nextData.variacoes : [];
+      state.data = (!nextVariations.length && previousVariations.length)
+        ? { ...nextData, variacoes: previousVariations, estoqueTotalVariacoes: previousData.estoqueTotalVariacoes }
+        : nextData;
       state.form = createProdutoEditForm(state.data);
     }
     if (audit.status === 'fulfilled' && Array.isArray(audit.value?.issues)) state.auditIssues = audit.value.issues;
