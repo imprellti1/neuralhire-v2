@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import xlsx from 'xlsx';
-import { __normalizePriceTableRefForTests, __normalizePriceTableValueForTests, __resetPriceTableImportSessionsForTests, executePriceTableImport, previewPriceTableImport } from './price-table-import.repository.js';
+import { __executePriceTableImportWithDepsForTests, __normalizePriceTableRefForTests, __normalizePriceTableValueForTests, __resetPriceTableImportSessionsForTests, executePriceTableImport, previewPriceTableImport } from './price-table-import.repository.js';
 import { __dumpMemoryProdutos, __loadMemoryProdutos, __resetMemoryProdutosForTests } from '../produtos/produtos.repository.js';
 
 function createWorkbook(rows) {
@@ -107,4 +107,37 @@ test('bloqueia duplicidade de referencia no cadastro sem aplicar update', async 
   assert.equal(result.summary.updatedRows, 0);
   assert.equal(__dumpMemoryProdutos().find((item) => item.id === 'p10').preco, 0);
   assert.equal(__dumpMemoryProdutos().find((item) => item.id === 'p11').preco, 12);
+});
+
+test('falha quando update nao persiste o novo preco no banco', async () => {
+  __resetMemoryProdutosForTests();
+  __resetPriceTableImportSessionsForTests();
+  __loadMemoryProdutos([
+    { id: 'p20', account_id: 'a1', sku: '870500087', nome: 'TOALHA DE MESA 1,60m x 3,20m GLAMOUR', preco: 0, ativo: true, status: 'ativo' }
+  ]);
+
+  const buffer = createWorkbook([
+    ['870500087', '164,9']
+  ]);
+
+  const preview = await previewPriceTableImport({ accountId: 'a1', fileName: 'persist-fail.xlsx', buffer });
+  assert.equal(preview.items[0].status, 'matched_changed');
+
+  const result = await __executePriceTableImportWithDepsForTests(
+    { accountId: 'a1', importToken: preview.importToken },
+    {
+      async updateProduto() {
+        return { id: 'p20', preco: 0 };
+      },
+      async getProdutoById() {
+        return { id: 'p20', sku: '870500087', preco: 0, account_id: 'a1', status: 'ativo' };
+      }
+    }
+  );
+
+  assert.equal(result.summary.updatedRows, 0);
+  assert.equal(result.summary.failedRows, 1);
+  assert.equal(result.failed[0].status, 'update_failed');
+  assert.equal(result.failed[0].persistedPrice, 0);
+  assert.equal(result.failed[0].newPrice, 164.9);
 });

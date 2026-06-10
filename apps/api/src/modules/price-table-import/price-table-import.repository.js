@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import xlsx from 'xlsx';
 import { BadRequestError, ForbiddenError } from '../../core/errors.js';
-import { listProdutos, updateProduto } from '../produtos/produtos.repository.js';
+import { getProdutoById, listProdutos, updateProduto } from '../produtos/produtos.repository.js';
 
 const importSessions = new Map();
 const REF_HEADERS = ['ref', 'referencia', 'referência', 'sku', 'codigo', 'código', 'codigo_erp', 'cod', 'codigo produto', 'código produto'];
@@ -258,26 +258,81 @@ export async function previewPriceTableImport({ accountId, fileName, buffer }) {
   };
 }
 
-export async function executePriceTableImport({ accountId, importToken }) {
+async function executePriceTableImportWithDeps({ accountId, importToken }, deps = {}) {
   assertAccountId(accountId);
   const session = importSessions.get(String(importToken || ''));
   if (!session || session.accountId !== accountId) {
     throw new BadRequestError('Prévia da importação não encontrada.', { domain: 'price-table-import', code: 'IMPORT_TOKEN_INVALID' });
   }
+  const updateProdutoFn = deps.updateProduto || updateProduto;
+  const getProdutoByIdFn = deps.getProdutoById || getProdutoById;
   const changedRows = session.rows.filter((item) => item.status === 'matched_changed');
   const updated = [];
+  const failed = [];
   for (const item of changedRows) {
-    updated.push(await updateProduto(item.productId, { preco: item.newPrice }, { accountId }));
+    const previousPrice = Number(item.currentPrice || 0);
+    try {
+      const result = await updateProdutoFn(item.productId, { preco: item.newPrice }, { accountId });
+      const persisted = await getProdutoByIdFn(item.productId, { accountId });
+      const persistedPrice = Number(persisted?.preco ?? persisted?.preco_unitario ?? 0);
+      if (Number(persistedPrice) !== Number(item.newPrice)) {
+        failed.push({
+          productId: item.productId,
+          ref: item.ref,
+          previousPrice,
+          newPrice: item.newPrice,
+          persistedPrice,
+          status: 'update_failed',
+          message: 'Preço não persistiu no banco após o update.'
+        });
+        continue;
+      }
+      updated.push({
+        productId: item.productId,
+        ref: item.ref,
+        previousPrice,
+        newPrice: item.newPrice,
+        persistedPrice,
+        status: 'updated',
+        item: result
+      });
+    } catch (error) {
+      let persistedPrice = null;
+      try {
+        const persisted = await getProdutoById(item.productId, { accountId });
+        persistedPrice = Number(persisted?.preco ?? persisted?.preco_unitario ?? 0);
+      } catch {}
+      failed.push({
+        productId: item.productId,
+        ref: item.ref,
+        previousPrice,
+        newPrice: item.newPrice,
+        persistedPrice,
+        status: 'update_failed',
+        message: error?.message || 'Falha ao atualizar preço.',
+        errorCode: error?.code || null
+      });
+    }
   }
   importSessions.delete(String(importToken || ''));
   return {
     ok: true,
     summary: {
-      updatedRows: changedRows.length,
+      updatedRows: updated.length,
+      failedRows: failed.length,
       skippedRows: session.rows.length - changedRows.length
     },
-    updated
+    updated,
+    failed
   };
+}
+
+export async function executePriceTableImport(params) {
+  return executePriceTableImportWithDeps(params);
+}
+
+export function __executePriceTableImportWithDepsForTests(params, deps) {
+  return executePriceTableImportWithDeps(params, deps);
 }
 
 export function __resetPriceTableImportSessionsForTests() {
