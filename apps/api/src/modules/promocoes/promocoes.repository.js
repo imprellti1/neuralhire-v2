@@ -116,6 +116,17 @@ function hasEstoqueDisponivel(variacao = {}) {
   return Number.isFinite(estoque) && estoque > 0;
 }
 
+function getPromocaoProdutoId(item = {}) {
+  return String(item?.produto_id ?? item?.produtoId ?? item?.id ?? '').trim();
+}
+
+function promocaoIncluiProduto(promocao = {}, produtoId = null) {
+  const target = String(produtoId || '').trim();
+  if (!target) return false;
+  const produtos = Array.isArray(promocao?.produtos) ? promocao.produtos : [];
+  return produtos.some((item) => getPromocaoProdutoId(item) === target) || String(promocao?.produto_id || '') === target;
+}
+
 function getLegacyVariacoes(links = [], rowId = null, accountId = null) {
   return links
     .filter((link) => link.account_id === accountId && link.promocao_id === rowId && !link.promocao_produto_id)
@@ -325,7 +336,6 @@ async function loadRows(accountId, produtoId = null) {
     const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     let query = supabase.from('produto_promocoes').select('*').eq('account_id', accountId).order('created_at', { ascending: false });
-    if (produtoId) query = query.eq('produto_id', produtoId);
     const { data, error } = await query;
     if (error) throw new DatabaseError('Falha ao listar promocoes', { details: error });
     const ids = (data || []).map((p) => p.id);
@@ -342,10 +352,10 @@ async function loadRows(accountId, produtoId = null) {
       const promocao = attachMeta(normalizeRow(row), legacyVariacoes);
       promocao.produtos = produtos.length ? produtos : (row.produto_id ? [{ id: row.produto_id, aplicar_em_todas_variacoes: row.aplicar_em_todas_variacoes, percentual_desconto: row.percentual_desconto, variacoes: legacyVariacoes }] : []);
       return attachProdutoData(promocao, accountId);
-    }));
+    })).then((items) => (produtoId ? items.filter((item) => promocaoIncluiProduto(item, produtoId)) : items));
   }
 
-  return Promise.all(memoryPromocoes.filter((p) => p.account_id === accountId && (!produtoId || String(p.produto_id) === String(produtoId) || memoryPromocaoProdutos.some((pp) => pp.promocao_id === p.id && String(pp.produto_id) === String(produtoId)))).map(async (row) => {
+  return Promise.all(memoryPromocoes.filter((p) => p.account_id === accountId).map(async (row) => {
     const legacyVariacoes = getLegacyVariacoes(memoryPromocaoVariacoes, row.id, accountId);
     const produtos = memoryPromocaoProdutos.filter((pp) => pp.account_id === accountId && pp.promocao_id === row.id).map((link) => ({
       id: link.produto_id,
@@ -356,7 +366,7 @@ async function loadRows(accountId, produtoId = null) {
     const promocao = attachMeta(normalizeRow(row), legacyVariacoes);
     promocao.produtos = produtos.length ? produtos : (row.produto_id ? [{ id: row.produto_id, aplicar_em_todas_variacoes: row.aplicar_em_todas_variacoes, percentual_desconto: row.percentual_desconto, variacoes: legacyVariacoes }] : []);
     return attachProdutoData(promocao, accountId);
-  }));
+  })).then((items) => (produtoId ? items.filter((item) => promocaoIncluiProduto(item, produtoId)) : items));
 }
 
 export async function listPromocoes(filters = {}, options = {}) {

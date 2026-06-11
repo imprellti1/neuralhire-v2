@@ -490,3 +490,68 @@ test('produto 360 usa o preço promocional da variacao no card Promocoes e nao r
   anchorMock.restore();
   teardownFrontendDom(dom);
 });
+
+test('produto 360 exibe promocao multi-produto quando o produto consultado e o segundo item do vinculo', async () => {
+  const dom = setupFrontendDom('#/produtos/p2');
+  mockObjectUrl();
+  const anchorMock = mockAnchorClicks(dom);
+
+  const apiClient = {
+    async get(path) {
+      if (path === '/produtos/p2') {
+        return { item: { id: 'p2', nome: 'Produto B', sku: 'SKU2', categoria: 'Cat', preco: 35, status: 'ativo', ativo: true } };
+      }
+      if (path === '/produtos/p2/variacoes') {
+        return { items: [
+          { id: 'vb-1', sku: 'SKU2-01', cor: 'Branco', grade: 'P', estoque_atual: 3, preco: 35, status: 'ativo', ativo: true },
+          { id: 'vb-2', sku: 'SKU2-02', cor: 'Branco', grade: 'M', estoque_atual: 3, preco: 35, status: 'ativo', ativo: true }
+        ] };
+      }
+      if (path === '/produtos/p2/imagens') return { items: [] };
+      if (path === '/product-audit/products/p2') return { issues: [] };
+      if (path === '/fabricantes') return { items: [] };
+      if (path === '/pedidos') return { items: [] };
+      if (path === '/produtos/p2/promocoes') {
+        return {
+          items: [
+            {
+              id: 'promo-multi',
+              produto_id: 'p1',
+              nome: 'Promo Multi',
+              percentual_desconto: 10,
+              data_inicio: '2026-06-11',
+              data_fim: '2026-06-11',
+              status: 'ativo',
+              ativaAgora: true,
+              aplicar_em_todas_variacoes: false,
+              produtos: [
+                { id: 'p1', nome: 'Produto A', variacoes: [{ variacao_id: 'va-1', percentual_desconto: 10 }] },
+                { id: 'p2', nome: 'Produto B', variacoes: [{ variacao_id: 'vb-2', percentual_desconto: 20 }] }
+              ]
+            }
+          ]
+        };
+      }
+      throw new Error(`unhandled get ${path}`);
+    },
+    async post() { return { item: {} }; },
+    async patch() { return { item: { id: 'p2' } }; },
+    async delete() { return { removed: true }; }
+  };
+
+  const root = document.getElementById('root');
+  renderProdutoDetailsPage(root, { apiClient, produtoId: 'p2' });
+  await flush(); await flush(); await flush();
+
+  assert.match(root.textContent, /Em promoção/);
+  assert.doesNotMatch(root.textContent, /Sem promoções cadastradas\./);
+  assert.match(root.textContent, /Promo Multi/);
+  assert.match(root.textContent, /R\$\s*35,00/);
+  assert.match(root.textContent, /R\$\s*28,00/);
+  assert.equal(root.querySelectorAll('.nhpd-row.is-active-promo').length >= 1, true);
+  assert.equal(root.querySelectorAll('.nhpd-row.is-active-variation').length, 1);
+  assert.match(root.textContent, /SKU2-02/);
+
+  anchorMock.restore();
+  teardownFrontendDom(dom);
+});

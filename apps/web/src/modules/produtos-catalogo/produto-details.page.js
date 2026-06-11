@@ -63,6 +63,10 @@ function normalizePromocoesForDetail(promocoes = []) {
   return (Array.isArray(promocoes) ? promocoes : []).map(normalizePromocaoForView);
 }
 
+function getPromocaoProdutoId(item = {}) {
+  return String(item?.produto_id ?? item?.produtoId ?? item?.id ?? '').trim();
+}
+
 function normalizeDetailPromoContext(product = {}, promocoes = [], variations = []) {
   const promocoesVigentes = normalizePromocoesForDetail(promocoes).filter(isPromocaoVigente);
   const promocaoPorVariacaoId = new Map();
@@ -72,7 +76,7 @@ function normalizeDetailPromoContext(product = {}, promocoes = [], variations = 
 
   for (const promocao of promocoesVigentes) {
     const produtos = Array.isArray(promocao.produtos) ? promocao.produtos : [];
-    const productMatches = produtos.some((item) => String(item.id) === String(product.id));
+    const productMatches = produtos.some((item) => getPromocaoProdutoId(item) === String(product.id));
     const legacyMatches = String(promocao.produto_id || '') === String(product.id);
     if (productMatches || legacyMatches) {
       produtoEmPromocao = true;
@@ -80,7 +84,7 @@ function normalizeDetailPromoContext(product = {}, promocoes = [], variations = 
     }
 
     for (const produto of produtos) {
-      if (String(produto.id) !== String(product.id)) continue;
+      if (getPromocaoProdutoId(produto) !== String(product.id)) continue;
       const variacoes = Array.isArray(produto.variacoes) ? produto.variacoes : [];
       if (promocao.aplicar_em_todas_variacoes) {
         for (const variation of variationById.values()) {
@@ -129,11 +133,11 @@ function isPromocaoVigente(promocao = {}) {
 }
 function matchPromotionToVariation(promocao = {}, productId, variationId) {
   const produtos = Array.isArray(promocao.produtos) ? promocao.produtos : [];
-  const productLink = produtos.find((item) => String(item.id) === String(productId)) || null;
+  const productLink = produtos.find((item) => getPromocaoProdutoId(item) === String(productId)) || null;
   const selectedVariation = productLink && Array.isArray(productLink.variacoes)
     ? productLink.variacoes.find((item) => String(item.variacao_id || item.variacaoId || item.id) === String(variationId))
     : null;
-  const matchesProduct = produtos.some((item) => String(item.id) === String(productId));
+  const matchesProduct = produtos.some((item) => getPromocaoProdutoId(item) === String(productId));
   const matchesLegacy = String(promocao.produto_id || '') === String(productId);
   const matchesVariation = produtos.some((produto) => Array.isArray(produto.variacoes) && produto.variacoes.some((item) => String(item.variacao_id || item.variacaoId || item.id) === String(variationId)));
   const matchesLegacyVariation = Array.isArray(promocao.variacoesSelecionadas) && promocao.variacoesSelecionadas.some((item) => String(item.id || item.variacao_id || item.variacaoId) === String(variationId));
@@ -154,7 +158,7 @@ function getActiveProductPromotions(product = {}, promocoes = []) {
 function getPromocaoVariationEntries(product = {}, promocao = {}) {
   const variations = Array.isArray(product.variacoes) ? product.variacoes : [];
   const promoProducts = Array.isArray(promocao.produtos) ? promocao.produtos : [];
-  const productLink = promoProducts.find((item) => String(item.id) === String(product.id)) || null;
+  const productLink = promoProducts.find((item) => getPromocaoProdutoId(item) === String(product.id)) || null;
   const linkedVariations = Array.isArray(productLink?.variacoes) ? productLink.variacoes : [];
   const variationById = new Map(variations.map((variation) => [String(variation.id), variation]));
 

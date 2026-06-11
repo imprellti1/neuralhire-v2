@@ -3,6 +3,7 @@ import { createApiApp } from '../../app.js';
 import { createTestRequest } from '../create-test-request.js';
 import { createTestResponse } from '../create-test-response.js';
 import { __loadMemoryProdutos, __resetMemoryProdutosForTests, createProduto } from '../../modules/produtos/produtos.repository.js';
+import { __resetMemoryProductEditorForTests, createVariation } from '../../modules/product-editor/product-editor.repository.js';
 import { __resetMemoryPromocoesForTests, __setPromocoesSupabaseClientForTests, calcularPrecoPromocional, isPromocaoAtiva } from '../../modules/promocoes/promocoes.repository.js';
 
 function createSupabaseMock() {
@@ -404,6 +405,45 @@ export function getPromocoesTests() {
       }
     },
     {
+      name: 'promocao multi-produto retorna produto b no produto 360 com variacao real hidratada',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryPromocoesForTests();
+        const app = createApiApp();
+        const produtoA = { id: 'produto-master', account_id: 'acc-promo-360', nome: 'MASTER', preco: 200, variacoes: [{ id: 'ma-1', produto_id: 'produto-master', account_id: 'acc-promo-360', preco: 180, ativo: true }] };
+        const produtoB = { id: 'produto-monarca', account_id: 'acc-promo-360', nome: 'MONARCA', preco: 300, variacoes: [{ id: 'mb-1', produto_id: 'produto-monarca', account_id: 'acc-promo-360', preco: 260, ativo: true }] };
+        __loadMemoryProdutos([produtoA, produtoB]);
+        const created = await call(app, {
+          method: 'POST',
+          url: '/promocoes',
+          accountId: 'acc-promo-360',
+          body: {
+            nome: 'Promo 360',
+            data_inicio: '2026-06-01',
+            data_fim: '2026-06-30',
+            percentual_desconto: 10,
+            produtos: [
+              { produto_id: produtoA.id, aplicar_em_todas_variacoes: false, percentual_desconto: 10, variacoes: [{ variacaoId: 'ma-1', percentualDesconto: 10 }] },
+              { produto_id: produtoB.id, aplicar_em_todas_variacoes: false, percentual_desconto: 10, variacoes: [{ variacaoId: 'mb-1', percentualDesconto: 10 }] }
+            ]
+          }
+        });
+        assert.equal(created.res.statusCode, 200);
+        const produtoBPromos = await call(app, { method: 'GET', url: `/produtos/${produtoB.id}/promocoes`, accountId: 'acc-promo-360' });
+        assert.equal(produtoBPromos.res.statusCode, 200);
+        assert.equal(produtoBPromos.body.items.length, 1);
+        assert.equal(produtoBPromos.body.items[0].produtos.some((produto) => String(produto.id) === produtoB.id), true);
+        const hydrated = produtoBPromos.body.items[0].produtos.find((produto) => String(produto.id) === produtoB.id);
+        assert.equal(hydrated.variacoes.length, 1);
+        assert.equal(String(hydrated.variacoes[0].id), 'mb-1');
+        assert.equal(hydrated.variacoes[0].variacao_id, 'mb-1');
+        assert.equal(hydrated.variacoes[0].variacaoId, 'mb-1');
+        assert.equal(hydrated.variacoes[0].percentual_desconto, 10);
+        assert.equal(produtoBPromos.body.items[0].produtos[0].id, produtoA.id);
+        assert.equal(produtoBPromos.body.items[0].produtos[0].variacoes[0].id, 'ma-1');
+      }
+    },
+    {
       name: 'permite remover item ao editar promocao multi-produto e salvar novamente',
       run: async () => {
         __resetMemoryProdutosForTests();
@@ -640,10 +680,11 @@ export function getPromocoesTests() {
       name: 'rejeita variacoes especificas sem desconto global e sem desconto individual',
       run: async () => {
         __resetMemoryProdutosForTests();
+        __resetMemoryProductEditorForTests();
         __resetMemoryPromocoesForTests();
         const app = createApiApp();
-        const produto = { id: 'produto-4', account_id: 'acc-promo-4', nome: 'Produto Promo 4', variacoes: [{ id: 'v20', produto_id: 'produto-4', account_id: 'acc-promo-4', preco: 80, ativo: true }] };
-        __loadMemoryProdutos([produto]);
+        const produto = await createProduto({ nome: 'Produto Promo 4', preco: 100 }, { accountId: 'acc-promo-4' });
+        const variacao = await createVariation(produto.id, { sku: 'v20', preco: 80, ativo: true }, { accountId: 'acc-promo-4' });
         const invalid = await call(app, {
           method: 'POST',
           url: '/promocoes',
@@ -655,7 +696,7 @@ export function getPromocoesTests() {
             data_inicio: '2026-06-01',
             data_fim: '2026-06-30',
             aplicar_em_todas_variacoes: false,
-            variacoesSelecionadas: [{ variacaoId: 'v20', percentualDesconto: null }]
+            variacoesSelecionadas: []
           }
         });
         assert.equal(invalid.res.statusCode, 422);
