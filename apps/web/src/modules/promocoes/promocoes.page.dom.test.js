@@ -29,6 +29,16 @@ function createApiClient(spy) {
   };
 }
 
+function createDeferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 async function openForm(apiClient) {
   await renderPromocoesPage(document.body, { apiClient });
   await flush();
@@ -204,6 +214,122 @@ test('promoções: preserva painel de variações aberto após carregar produto'
   await flush();
   assert.ok(document.querySelector('#nhp-variacoes'));
   assert.ok(document.querySelector('#nhp-variacoes').textContent.includes('Variações específicas'));
+  teardownFrontendDom(dom);
+});
+
+test('promoções: mostra loading local ao buscar variações e renderiza resultado ao concluir', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { payloads: [] };
+  const requests = [];
+  const apiClient = {
+    get: async (path, params = {}) => {
+      if (path === '/promocoes') return { items: [], total: 0 };
+      if (path === '/produtos/search') return { items: [{ id: 'prod-a', nome: 'Produto A', sku: 'SKU-A' }] };
+      if (path === '/produtos/prod-a') return { item: { id: 'prod-a', nome: 'Produto A', descricao: 'Descricao A', preco: 100 } };
+      if (path === '/produtos/prod-a/variacoes') {
+        const deferred = createDeferred();
+        requests.push(deferred);
+        return deferred.promise;
+      }
+      return { items: [], total: 0 };
+    },
+    post: async (_path, payload) => {
+      spy.payloads.push(payload);
+      return { ok: true, item: { id: 'promo-1' } };
+    }
+  };
+  await openForm(apiClient);
+  await chooseProduct('Produto A');
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+  assert.match(document.querySelector('#nhp-variacoes').textContent, /Buscando variações disponíveis\.\.\./);
+  assert.match(document.querySelector('#nhp-variacoes').textContent, /Consultando estoque e grade do produto\.\.\./);
+  requests[0].resolve({ items: [{ id: 'a1', sku: 'A1', cor: 'Azul', grade: 'G', preco: 100, estoque: 3 }] });
+  await flush();
+  await waitForDomCondition(() => !document.querySelector('#nhp-variacoes').textContent.includes('Buscando variações disponíveis...'));
+  assert.match(document.body.textContent, /A1/);
+  assert.doesNotMatch(document.body.textContent, /Não foi possível carregar as variações deste produto/);
+  teardownFrontendDom(dom);
+});
+
+test('promoções: mostra erro local quando falha ao carregar variações', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { payloads: [] };
+  const apiClient = {
+    get: async (path, params = {}) => {
+      if (path === '/promocoes') return { items: [], total: 0 };
+      if (path === '/produtos/search') return { items: [{ id: 'prod-a', nome: 'Produto A', sku: 'SKU-A' }] };
+      if (path === '/produtos/prod-a') return { item: { id: 'prod-a', nome: 'Produto A', descricao: 'Descricao A', preco: 100 } };
+      if (path === '/produtos/prod-a/variacoes') throw new Error('falha de rede');
+      return { items: [], total: 0 };
+    },
+    post: async (_path, payload) => {
+      spy.payloads.push(payload);
+      return { ok: true, item: { id: 'promo-1' } };
+    }
+  };
+  await openForm(apiClient);
+  await chooseProduct('Produto A');
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+  await waitForDomCondition(() => document.querySelector('#nhp-variacoes').textContent.includes('Não foi possível carregar as variações deste produto'));
+  assert.doesNotMatch(document.body.textContent, /Buscando variações disponíveis\.\.\./);
+  teardownFrontendDom(dom);
+});
+
+test('promoções: ignora resposta antiga ao trocar de produto durante o carregamento', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { payloads: [] };
+  const variacoesA = createDeferred();
+  const variacoesB = createDeferred();
+  const apiClient = {
+    get: async (path, params = {}) => {
+      if (path === '/promocoes') return { items: [], total: 0 };
+      if (path === '/produtos/search') {
+        const q = String(params.q || params.search || '').toLowerCase();
+        if (q.includes('a')) return { items: [{ id: 'prod-a', nome: 'Produto A', sku: 'SKU-A' }] };
+        if (q.includes('b')) return { items: [{ id: 'prod-b', nome: 'Produto B', sku: 'SKU-B' }] };
+        return { items: [] };
+      }
+      if (path === '/produtos/prod-a') return { item: { id: 'prod-a', nome: 'Produto A', descricao: 'Descricao A', preco: 100 } };
+      if (path === '/produtos/prod-b') return { item: { id: 'prod-b', nome: 'Produto B', descricao: 'Descricao B', preco: 120 } };
+      if (path === '/produtos/prod-a/variacoes') return variacoesA.promise;
+      if (path === '/produtos/prod-b/variacoes') return variacoesB.promise;
+      return { items: [], total: 0 };
+    },
+    post: async (_path, payload) => {
+      spy.payloads.push(payload);
+      return { ok: true, item: { id: 'promo-1' } };
+    }
+  };
+  await openForm(apiClient);
+  await chooseProduct('Produto A');
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+  assert.match(document.querySelector('#nhp-variacoes').textContent, /Buscando variações disponíveis\.\.\./);
+  document.querySelector('#nhp-produto-search-open')?.click();
+  await flush();
+  const search = document.querySelector('#nhp-product-search');
+  search.value = 'Produto B';
+  search.dispatchEvent(new Event('input', { bubbles: true }));
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  await flush();
+  document.querySelector('.nhp-product-search-item')?.click();
+  await flush();
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+  assert.match(document.querySelector('#nhp-variacoes').textContent, /Buscando variações disponíveis\.\.\./);
+  variacoesA.resolve({ items: [{ id: 'a1', sku: 'A1', cor: 'Azul', grade: 'G', preco: 100, estoque: 5 }] });
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  await flush();
+  assert.doesNotMatch(document.body.textContent, /A1/);
+  assert.match(document.querySelector('#nhp-variacoes').textContent, /Buscando variações disponíveis\.\.\./);
+  variacoesB.resolve({ items: [{ id: 'b1', sku: 'B1', cor: 'Preto', grade: 'M', preco: 120, estoque: 3 }] });
+  await flush();
+  await waitForDomCondition(() => document.body.textContent.includes('B1'));
+  assert.doesNotMatch(document.body.textContent, /A1/);
   teardownFrontendDom(dom);
 });
 

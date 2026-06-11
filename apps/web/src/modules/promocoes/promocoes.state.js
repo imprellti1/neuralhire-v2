@@ -31,6 +31,11 @@ export function createPromocoesState() {
         selectedVariationIds: [],
         variacoesSelecionadas: [],
         descontosPorVariacao: {},
+        variacoesLoading: false,
+        variacoesError: '',
+        variacoesRequestId: 0,
+        variacoesProdutoId: '',
+        feedback: '',
         error: ''
       }
     }
