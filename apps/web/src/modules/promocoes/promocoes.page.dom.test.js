@@ -272,6 +272,31 @@ test('promoções: preserva data-only na listagem e no payload do formulário', 
   teardownFrontendDom(dom);
 });
 
+test('promoções: lista sem coluna desconto e destaque de promoção ativa', async () => {
+  const dom = setupFrontendDom('#/x');
+  const apiClient = {
+    async get(path) {
+      if (path === '/promocoes') {
+        return {
+          items: [
+            { id: 'promo-1', nome: 'Promo A', percentual_desconto: 10, data_inicio: '2026-06-11', data_fim: '2026-06-11', status: 'ativo', ativaAgora: true, produtos: [{ id: 'prod-a', nome: 'Produto A', descricao: 'Descricao A' }] }
+          ],
+          total: 1
+        };
+      }
+      return { items: [], total: 0 };
+    }
+  };
+
+  await renderPromocoesPage(document.body, { apiClient });
+  await flush();
+
+  assert.equal(Array.from(document.querySelectorAll('table th')).some((th) => /Desconto/i.test(th.textContent || '')), false);
+  assert.match(document.body.textContent, /11\/06\/2026 a 11\/06\/2026/);
+  assert.equal(document.querySelectorAll('.nhp-row.is-active-promo').length, 1);
+  teardownFrontendDom(dom);
+});
+
 test('promoções: filtra variações sem estoque na tela e no payload', async () => {
   const dom = setupFrontendDom('#/x');
   const spy = { payloads: [] };

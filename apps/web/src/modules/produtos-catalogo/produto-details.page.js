@@ -12,11 +12,36 @@ function statusClass(status) {
 }
 function brl(value) { return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 function formatPtBrNumber(value) { return Number(value || 0).toLocaleString('pt-BR'); }
+function formatDateOnlyPtBr(value) {
+  const raw = String(value || '').trim();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? (raw || '-') : parsed.toLocaleDateString('pt-BR');
+}
+function compareDateOnly(a, b) {
+  const left = String(a || '').trim();
+  const right = String(b || '').trim();
+  if (!left || !right) return 0;
+  if (left === right) return 0;
+  return left < right ? -1 : 1;
+}
+function todayDateOnly() {
+  const now = new Date();
+  const pad = (value) => String(value).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
 function normalizeStatusLabel(status, ativo) {
   const s = String(status || '').toLowerCase();
   if (s === 'ativo' || ativo === true) return 'Ativa';
   if (s === 'inativo' || ativo === false) return 'Inativa';
   return s || 'desconhecido';
+}
+function normalizeStatusValue(status, ativo) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'ativo' || ativo === true) return 'ativo';
+  if (s === 'inativo' || ativo === false) return 'inativo';
+  return 'inativo';
 }
 function formatVariationField(value) {
   const text = String(value ?? '').trim();
@@ -28,19 +53,40 @@ function getVariationBasePrice(variation = {}, product = {}) {
   const productPrice = Number(product.preco);
   return Number.isFinite(productPrice) ? productPrice : 0;
 }
+function getPromocaoStatusNormalized(promocao = {}) {
+  const raw = String(promocao.status || '').toLowerCase();
+  if (raw === 'agendada' || raw === 'scheduled') return 'agendada';
+  if (raw === 'encerrada' || raw === 'finalizada' || raw === 'expired') return 'encerrada';
+  if (raw === 'inativa' || raw === 'inactive') return 'inativa';
+  if (raw === 'ativa' || raw === 'active') return 'ativa';
+  return promocao.ativaAgora ? 'ativa' : 'inativa';
+}
+function isPromocaoVigente(promocao = {}) {
+  if (getPromocaoStatusNormalized(promocao) !== 'ativa') return false;
+  const today = promocao.todayDateOnly || todayDateOnly();
+  return compareDateOnly(promocao.data_inicio, today) <= 0 && compareDateOnly(today, promocao.data_fim) <= 0;
+}
+function matchPromotionToVariation(promocao = {}, productId, variationId) {
+  const produtos = Array.isArray(promocao.produtos) ? promocao.produtos : [];
+  const productLink = produtos.find((item) => String(item.id) === String(productId)) || null;
+  const selectedVariation = productLink && Array.isArray(productLink.variacoes)
+    ? productLink.variacoes.find((item) => String(item.variacao_id || item.variacaoId || item.id) === String(variationId))
+    : null;
+  const matchesProduct = produtos.some((item) => String(item.id) === String(productId));
+  const matchesLegacy = String(promocao.produto_id || '') === String(productId);
+  const matchesVariation = produtos.some((produto) => Array.isArray(produto.variacoes) && produto.variacoes.some((item) => String(item.variacao_id || item.variacaoId || item.id) === String(variationId)));
+  const matchesLegacyVariation = Array.isArray(promocao.variacoesSelecionadas) && promocao.variacoesSelecionadas.some((item) => String(item.id || item.variacao_id || item.variacaoId) === String(variationId));
+  return { productLink, selectedVariation, matchesProduct, matchesLegacy, matchesVariation, matchesLegacyVariation };
+}
 function getVariationPromoPrice(variation = {}, product = {}, promocoes = []) {
   const activePromocao = promocoes.find((promocao) => {
-    const produtos = Array.isArray(promocao.produtos) ? promocao.produtos : [];
-    const matchesProduct = produtos.some((produto) => String(produto.id) === String(product.id));
-    const matchesLegacy = String(promocao.produto_id || '') === String(product.id);
-    const matchesVariation = produtos.some((produto) => Array.isArray(produto.variacoes) && produto.variacoes.some((item) => String(item.variacao_id || item.variacaoId || item.id) === String(variation.id)));
-    const matchesLegacyVariation = Array.isArray(promocao.variacoesSelecionadas) && promocao.variacoesSelecionadas.some((item) => String(item.id || item.variacao_id || item.variacaoId) === String(variation.id));
-    return promocao.ativaAgora && (matchesProduct || matchesLegacy) && (promocao.aplicar_em_todas_variacoes || matchesVariation || matchesLegacyVariation);
+    const match = matchPromotionToVariation(promocao, product.id, variation.id);
+    return isPromocaoVigente(promocao) && (match.matchesProduct || match.matchesLegacy) && (promocao.aplicar_em_todas_variacoes || match.matchesVariation || match.matchesLegacyVariation);
   });
   if (!activePromocao) return null;
-  const productLink = Array.isArray(activePromocao.produtos) ? activePromocao.produtos.find((item) => String(item.id) === String(product.id)) : null;
-  const selectedVariation = productLink && Array.isArray(productLink.variacoes) ? productLink.variacoes.find((item) => String(item.variacao_id || item.variacaoId || item.id) === String(variation.id)) : (Array.isArray(activePromocao.variacoesSelecionadas) ? activePromocao.variacoesSelecionadas.find((item) => String(item.variacao_id || item.variacaoId || item.id) === String(variation.id)) : null);
-  const percentual = selectedVariation?.percentual_desconto ?? productLink?.percentual_desconto ?? activePromocao.percentual_desconto;
+  const match = matchPromotionToVariation(activePromocao, product.id, variation.id);
+  const percentual = match.selectedVariation?.percentual_desconto ?? match.selectedVariation?.percentualDesconto ?? match.productLink?.percentual_desconto ?? activePromocao.percentual_desconto;
+  if (!Number.isFinite(Number(percentual))) return null;
   return calculatePrecoPromocional(getVariationBasePrice(variation, product), percentual);
 }
 
@@ -49,7 +95,7 @@ function getActiveProductPromotions(product = {}, promocoes = []) {
     const products = Array.isArray(promocao.produtos) ? promocao.produtos : [];
     const matchesProduct = products.some((item) => String(item.id) === String(product.id));
     const matchesLegacy = String(promocao.produto_id || '') === String(product.id);
-    return promocao.ativaAgora && (matchesProduct || matchesLegacy);
+    return isPromocaoVigente(promocao) && (matchesProduct || matchesLegacy);
   });
 }
 function renderVariationImageCell(variation = {}, fallbackSrc = null) {
@@ -110,7 +156,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     .nhpd-state{padding:24px;text-align:center;color:#607091}.nhpd-field{display:grid;gap:6px;margin-bottom:10px}.nhpd-field input,.nhpd-field select,.nhpd-field textarea{height:38px;border:1px solid #d4deee;border-radius:10px;padding:0 10px}.nhpd-field textarea{height:90px;padding:10px;resize:vertical}
     .nhpd-fabricante{display:flex;align-items:center;gap:14px}.nhpd-fabricante-logo{width:78px;height:78px;border:1px solid #e5ecf8;border-radius:18px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#f8fbff;flex:0 0 auto}.nhpd-fabricante-logo img{width:100%;height:100%;object-fit:contain;padding:8px}.nhpd-fabricante-name{font-size:18px;font-weight:700;line-height:1.2}
     .nhpd-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.nhpd-section-head h3{margin:0;font-size:20px}.nhpd-collapse{width:36px;height:36px;border-radius:10px;border:1px solid #d4deee;background:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
-    .nhpd-table-wrap{overflow:auto}.nhpd-table{width:100%;border-collapse:collapse;min-width:820px}.nhpd-table th,.nhpd-table td{padding:10px 12px;border-bottom:1px solid #edf2f8;text-align:left;vertical-align:top;font-size:13px}.nhpd-table th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#61708f;white-space:nowrap}.nhpd-table td{color:#1e2b44}.nhpd-table .is-center{text-align:center}
+    .nhpd-table-wrap{overflow:auto}.nhpd-table{width:100%;border-collapse:collapse;min-width:820px}.nhpd-table th,.nhpd-table td{padding:10px 12px;border-bottom:1px solid #edf2f8;text-align:left;vertical-align:top;font-size:13px}.nhpd-table th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#61708f;white-space:nowrap}.nhpd-table td{color:#1e2b44}.nhpd-table .is-center{text-align:center}.nhpd-row.is-active-promo td,.nhpd-row.is-active-variation td,.nhpd-row.is-active-product td{background:#eefbf3}
     .nhpd-footer{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px;color:#5e6f93;font-size:13px}
     .nhpd-stock{font-variant-numeric:tabular-nums;font-weight:700}
     .nhpd-usage-head{display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap;margin-bottom:10px}.nhpd-filter{height:32px;border:1px solid #d4deee;border-radius:8px;padding:0 8px;background:#fff}
@@ -160,25 +206,29 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     const promocoes = Array.isArray(state.promocoes) ? state.promocoes : [];
     const stockTotal = Number.isFinite(Number(d.estoqueTotalVariacoes)) ? Number(d.estoqueTotalVariacoes) : 0;
     const productFallbackImage = state.productImages?.find((image) => image?.principal)?.url || d.imagemUrl || d.imagem_url || null;
-    const variationRows = variations.map((variation) => `<tr>
+    const variationRows = variations.map((variation) => {
+      const promoPrice = getVariationPromoPrice(variation, d, promocoes);
+      return `<tr class="nhpd-row ${promoPrice !== null ? 'is-active-variation' : ''}">
       <td>${renderVariationImageCell(variation, productFallbackImage)}</td>
       <td>${formatVariationField(variation.sku)}</td>
       <td>${formatVariationField(variation.cor)}</td>
       <td>${formatVariationField(variation.tamanho)}</td>
       <td class="nhpd-stock">${formatPtBrNumber(variation.estoque)}</td>
-      <td>${variation.precoFormatado}${variation.precoPromocionalFormatado ? `<div class="nhpd-sub">Promo: ${variation.precoPromocionalFormatado}</div>` : ''}${getVariationPromoPrice(variation, d, promocoes) !== null ? `<div class="nhpd-sub">Preço promo. ${brl(getVariationPromoPrice(variation, d, promocoes))}</div>` : ''}</td>
-      <td><span class="nhpd-badge ${statusClass(variation.status)}">${normalizeStatusLabel(variation.status, variation.ativo)}</span></td>
+      <td>${variation.precoFormatado}${promoPrice !== null ? `<div class="nhpd-sub">Preço promocional ${brl(promoPrice)}</div>` : ''}</td>
+      <td><span class="nhpd-badge ${statusClass(normalizeStatusValue(variation.status, variation.ativo))}">${normalizeStatusLabel(variation.status, variation.ativo)}</span></td>
       <td><div class="nhpd-image-picker"><input type="file" id="nhpd-file-${variation.id}" accept="image/jpeg,image/png,image/webp" ${state.saving ? 'disabled' : ''}/><button class="nhpd-btn primary js-variation-image-upload" data-variacao-id="${variation.id}" ${state.saving ? 'disabled' : ''}>Alterar Imagem</button></div></td>
-    </tr>`).join('');
+    </tr>`;
+    }).join('');
+    const productHasPromoVariation = variations.some((variation) => getVariationPromoPrice(variation, d, promocoes) !== null);
     return `<section class="nhpd-panel">
       <div class="nhpd-head">
-        <div><div class="nhpd-title">${d.nomeExibicao}</div><div class="nhpd-sub">${d.categoria}</div><div style="margin-top:10px"><span class="nhpd-badge ${statusClass(d.status)}">${d.status}</span></div></div>
+        <div><div class="nhpd-title">${d.nomeExibicao}</div><div class="nhpd-sub">${d.categoria}</div><div style="margin-top:10px"><span class="nhpd-badge ${statusClass(normalizeStatusValue(d.status, d.ativo))}">${normalizeStatusLabel(d.status, d.ativo)}</span></div></div>
         <div style="display:flex;gap:8px"><button id="nhpd-back" class="nhpd-btn" aria-label="Voltar para lista de produtos">Voltar</button><button id="nhpd-edit" class="nhpd-btn primary" aria-label="Editar Produto" ${state.saving ? 'disabled' : ''}>Editar Produto</button></div>
       </div>
       <div class="nhpd-grid">
         <div class="nhpd-left-col">
-          ${state.editing ? renderEditForm() : `<article class="nhpd-card"><h3>Resumo do Produto</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Nome</dt><dd class="nhpd-dd">${d.nomeExibicao}</dd><dt class="nhpd-dt">SKU</dt><dd class="nhpd-dd">${d.sku}</dd><dt class="nhpd-dt">Categoria</dt><dd class="nhpd-dd">${d.categoria}</dd><dt class="nhpd-dt">Status</dt><dd class="nhpd-dd">${d.status}</dd>${d.descricao ? `<dt class="nhpd-dt">Descrição</dt><dd class="nhpd-dd">${d.descricao}</dd>` : ''}<dt class="nhpd-dt">Estoque total (todas as variações)</dt><dd class="nhpd-dd">${formatPtBrNumber(stockTotal)}</dd></dl></article>`}
-          <article class="nhpd-card"><h3>Preço e Comercial</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Preço atual</dt><dd class="nhpd-dd">${d.precoFormatado}</dd><dt class="nhpd-dt">Múltiplo de venda</dt><dd class="nhpd-dd">${Number.isFinite(Number(d.multiploVenda)) ? `${Number(d.multiploVenda)} ${Number(d.multiploVenda) === 1 ? 'unidade por variação' : 'unidades por variação'}` : '1 unidade por variação'}</dd><dt class="nhpd-dt">Status comercial</dt><dd class="nhpd-dd">${d.status}</dd></dl></article>
+          ${state.editing ? renderEditForm() : `<article class="nhpd-card"><h3>Resumo do Produto</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Nome</dt><dd class="nhpd-dd">${d.nomeExibicao}</dd><dt class="nhpd-dt">SKU</dt><dd class="nhpd-dd">${d.sku}</dd><dt class="nhpd-dt">Categoria</dt><dd class="nhpd-dd">${d.categoria}</dd><dt class="nhpd-dt">Status</dt><dd class="nhpd-dd">${normalizeStatusLabel(d.status, d.ativo)}</dd>${d.descricao ? `<dt class="nhpd-dt">Descrição</dt><dd class="nhpd-dd">${d.descricao}</dd>` : ''}<dt class="nhpd-dt">Estoque total (todas as variações)</dt><dd class="nhpd-dd">${formatPtBrNumber(stockTotal)}</dd></dl></article>`}
+          <article class="nhpd-card"><h3>Preço e Comercial</h3><dl class="nhpd-dl"><dt class="nhpd-dt">Preço atual</dt><dd class="nhpd-dd">${d.precoFormatado}</dd><dt class="nhpd-dt">Múltiplo de venda</dt><dd class="nhpd-dd">${Number.isFinite(Number(d.multiploVenda)) ? `${Number(d.multiploVenda)} ${Number(d.multiploVenda) === 1 ? 'unidade por variação' : 'unidades por variação'}` : '1 unidade por variação'}</dd><dt class="nhpd-dt">Status comercial</dt><dd class="nhpd-dd">${normalizeStatusLabel(d.status, d.ativo)}</dd></dl></article>
         </div>
         <div class="nhpd-right-col">
           <article class="nhpd-card"><h3>Fábrica vinculada</h3>${d.fabricanteId ? `<div class="nhpd-fabricante">${d.fabricanteLogoUrl ? `<div class="nhpd-fabricante-logo"><img src="${d.fabricanteLogoUrl}" alt="Logo da fábrica"/></div>` : '<div class="nhpd-fabricante-logo" aria-hidden="true"></div>'}<div class="nhpd-fabricante-name">${d.fabricanteNome || 'Sem nome'}</div></div>` : '<div class="nhpd-state">Sem fábrica vinculada.</div>'}</article>
@@ -192,7 +242,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
             <h3>Variações do Produto</h3>
             <button id="nhpd-variations-toggle" class="nhpd-collapse" aria-label="${state.variationsExpanded ? 'Recolher variações do produto' : 'Expandir variações do produto'}" aria-expanded="${state.variationsExpanded ? 'true' : 'false'}">${state.variationsExpanded ? '▾' : '▸'}</button>
           </div>
-          ${state.variationsExpanded ? `<div class="nhpd-table-wrap">${variations.length ? `<table class="nhpd-table"><thead><tr><th>Imagem</th><th>SKU Variação</th><th>Cor</th><th>Grade</th><th>Estoque</th><th>Preço</th><th>Status</th><th>Ação</th></tr></thead><tbody>${variationRows}</tbody></table>` : '<div class="nhpd-state">Nenhuma variação cadastrada.</div>'}<div class="nhpd-footer"><div>Total de variações: ${variations.length}</div></div></div>` : `<div class="nhpd-footer"><div>Total de variações: ${variations.length}</div></div>`}
+          ${state.variationsExpanded ? `<div class="nhpd-table-wrap">${variations.length ? `<table class="nhpd-table"><thead><tr><th>Imagem</th><th>SKU Variação</th><th>Cor</th><th>Grade</th><th>Estoque</th><th>Preço</th><th>Status</th><th>Ação</th></tr></thead><tbody>${variationRows}</tbody></table>` : '<div class="nhpd-state">Nenhuma variação cadastrada.</div>'}<div class="nhpd-footer"><div>Total de variações: ${variations.length}</div><div>${productHasPromoVariation ? 'Produto com variação em promoção' : ''}</div></div></div>` : `<div class="nhpd-footer"><div>Total de variações: ${variations.length}</div><div>${productHasPromoVariation ? 'Produto com variação em promoção' : ''}</div></div>`}
         </article>
       </div>
     </section>`;
@@ -200,10 +250,13 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
 
   function renderPromocoesCard(product, promocoes) {
     if (!promocoes.length) return '<div class="nhpd-state">Sem promoções cadastradas.</div>';
-    const base = Number(product.preco || 0);
     const visiblePromocoes = getActiveProductPromotions(product, promocoes);
     if (!visiblePromocoes.length) return '<div class="nhpd-state">Sem promoções ativas para este produto.</div>';
-    return `<div class="nhpd-table-wrap"><table class="nhpd-table"><thead><tr><th>Nome</th><th>Desconto</th><th>Período</th><th>Status</th><th>Preço original</th><th>Preço promocional</th></tr></thead><tbody>${visiblePromocoes.map((p) => `<tr><td>${p.nome}</td><td>${p.percentual_desconto}%</td><td>${p.data_inicio} a ${p.data_fim}</td><td>${p.ativaAgora ? 'Ativa' : p.status}</td><td>${brl(base)}</td><td>${brl(calculatePrecoPromocional(base, p.percentual_desconto))}</td></tr>`).join('')}</tbody></table></div>`;
+    return `<div class="nhpd-table-wrap"><table class="nhpd-table"><thead><tr><th>Nome</th><th>Período</th><th>Status</th><th>Preço original</th><th>Preço promocional</th></tr></thead><tbody>${visiblePromocoes.map((p) => {
+      const base = Number(product.preco || 0);
+      const activeNow = isPromocaoVigente(p);
+      return `<tr class="nhpd-row ${activeNow ? 'is-active-promo' : ''}"><td>${p.nome}</td><td>${formatDateOnlyPtBr(p.data_inicio)} a ${formatDateOnlyPtBr(p.data_fim)}</td><td>${activeNow ? 'Ativa' : normalizeStatusLabel(p.status, p.ativaAgora)}</td><td>${brl(base)}</td><td>${brl(calculatePrecoPromocional(base, p.percentual_desconto))}</td></tr>`;
+    }).join('')}</tbody></table></div>`;
   }
 
   function renderProductImageBlock(product) {

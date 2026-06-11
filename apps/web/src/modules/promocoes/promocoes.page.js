@@ -98,6 +98,7 @@ function injectStyles() {
   .nhp-table{width:100%;border-collapse:collapse;min-width:980px}
   .nhp-table th,.nhp-table td{padding:12px 10px;border-bottom:1px solid #edf2f8;text-align:left;vertical-align:top;font-size:13px}
   .nhp-table th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#61708f;background:#f8fbff}
+  .nhp-row.is-active-promo td{background:#eefbf3}
   .nhp-row:hover td{background:#f8fbff}
   .nhp-badge{display:inline-flex;align-items:center;justify-content:center;padding:4px 9px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
   .nhp-badge.is-active{background:#ecfdf3;color:#047857}
@@ -568,16 +569,12 @@ function renderForm(state) {
 function renderList(items) {
   const rows = items.map((item) => {
     const scope = scopeLabel(item);
-    const desconto = toPercent(item?.percentual_desconto);
-    const price = Number(item?.preco_base || item?.preco || 0);
-    const promoPrice = calculatePrecoPromocional(price, desconto);
     const activeNow = isPromocaoAtivaLocal(item);
     const status = normalizeStatus(item?.status, activeNow);
     const active = status === 'ativa';
-    return `<tr class="nhp-row" data-id="${item?.id || ''}">
+    return `<tr class="nhp-row ${activeNow ? 'is-active-promo' : ''}" data-id="${item?.id || ''}">
       <td><strong>${item?.nome || '-'}</strong></td>
       <td>${renderProdutosCell(item)}</td>
-      <td><strong>${desconto}%</strong><div class="nhp-muted">${brl(price)} -> ${brl(promoPrice)}</div></td>
       <td>${formatDate(item?.data_inicio)} a ${formatDate(item?.data_fim)}</td>
       <td>${renderBadge(statusLabel(status, activeNow), statusClass(status, activeNow))}</td>
       <td>${renderBadge(scope, scopeClass(item))}</td>
@@ -589,7 +586,7 @@ function renderList(items) {
       </td>
     </tr>`;
   }).join('');
-  return `<section class="nhp-panel"><div class="nhp-table-wrap"><table class="nhp-table"><thead><tr><th>Promoção</th><th>Produtos</th><th>Desconto</th><th>Período</th><th>Status</th><th>Escopo</th><th>Ações</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+  return `<section class="nhp-panel"><div class="nhp-table-wrap"><table class="nhp-table"><thead><tr><th>Promoção</th><th>Produtos</th><th>Período</th><th>Status</th><th>Escopo</th><th>Ações</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 
 export function renderPromocoesPage(root, { apiClient } = {}) {

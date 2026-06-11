@@ -343,12 +343,54 @@ test('produto 360 aplica promoções apenas quando vigentes e preserva o preço 
   assert.doesNotMatch(root.textContent, /Futura/);
   assert.doesNotMatch(root.textContent, /Expirada/);
   assert.doesNotMatch(root.textContent, /Inativa/);
+  assert.doesNotMatch(root.textContent, /Desconto/);
   assert.match(root.textContent, /R\$\s*100,00/);
   assert.match(root.textContent, /R\$\s*90,00/);
   assert.match(root.textContent, /R\$\s*72,00/);
   assert.equal(root.textContent.includes('R$ 70,00'), false);
   assert.equal(root.textContent.includes('R$ 60,00'), false);
   assert.match(root.textContent, /R\$\s*80,00/);
+  assert.equal(root.querySelectorAll('.nhpd-row.is-active-promo').length >= 1, true);
+  assert.equal(root.querySelectorAll('.nhpd-row.is-active-variation').length >= 1, true);
+  assert.match(root.textContent, /Ativa|Ativo/);
+
+  anchorMock.restore();
+  teardownFrontendDom(dom);
+});
+
+test('produto 360 exibe período e preço promocional em formato brasil na grade de promoções', async () => {
+  const dom = setupFrontendDom('#/produtos/p1');
+  mockObjectUrl();
+  const anchorMock = mockAnchorClicks(dom);
+
+  const apiClient = {
+    async get(path) {
+      if (path === '/produtos/p1') {
+        return { item: { id: 'p1', nome: 'Produto A', sku: 'SKU1', categoria: 'Cat', preco: 28.1, status: 'ativo', ativo: true } };
+      }
+      if (path === '/produtos/p1/variacoes') return { items: [{ id: 'v1', sku: 'SKU1-01', cor: 'Azul', grade: 'P', estoque_atual: 2, preco: 28.1, status: 'ativo', ativo: true }] };
+      if (path === '/produtos/p1/imagens') return { items: [] };
+      if (path === '/product-audit/products/p1') return { issues: [] };
+      if (path === '/fabricantes') return { items: [] };
+      if (path === '/pedidos') return { items: [] };
+      if (path === '/produtos/p1/promocoes') {
+        return { items: [{ id: 'promo-1', produto_id: 'p1', nome: 'Ação', percentual_desconto: 10, data_inicio: '2026-06-11', data_fim: '2026-06-11', status: 'ativo', ativaAgora: true, aplicar_em_todas_variacoes: true }] };
+      }
+      throw new Error(`unhandled get ${path}`);
+    },
+    async post() { return { item: {} }; },
+    async patch() { return { item: { id: 'p1' } }; },
+    async delete() { return { removed: true }; }
+  };
+
+  const root = document.getElementById('root');
+  renderProdutoDetailsPage(root, { apiClient, produtoId: 'p1' });
+  await flush(); await flush(); await flush();
+
+  assert.match(root.textContent, /11\/06\/2026 a 11\/06\/2026/);
+  assert.match(root.textContent, /R\$\s*28,10/);
+  assert.match(root.textContent, /R\$\s*25,29/);
+  assert.doesNotMatch(root.textContent, /Desconto/);
 
   anchorMock.restore();
   teardownFrontendDom(dom);

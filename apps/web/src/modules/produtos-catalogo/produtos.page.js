@@ -31,8 +31,11 @@ function injectStyles() {
   .nhp-table td,.nhp-table th{padding:10px;border-bottom:1px solid #ebf0f8;text-align:left;vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .nhp-row-link{cursor:pointer}
   .nhp-row-link:hover{background:#f7faff}
+  .nhp-row-link.is-promo-variation td{background:#eefbf3}
   .nhp-table tr:last-child td{border-bottom:none}
-  .nhp-badge{display:inline-block;padding:4px 9px;border-radius:999px;font-size:12px;font-weight:700;background:#eaf1ff;color:#1d4ed8}
+  .nhp-badge{display:inline-block;padding:4px 9px;border-radius:999px;font-size:12px;font-weight:700}
+  .nhp-badge.is-active{background:#ecfdf3;color:#047857}
+  .nhp-badge.is-inactive{background:#f1f5f9;color:#475569}
   .nhp-pager{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
   .nhp-pager button{height:34px;min-width:34px;border:1px solid #d4deee;border-radius:8px;background:#fff;cursor:pointer}
   .nhp-pager button[disabled]{opacity:.45;cursor:not-allowed}
@@ -68,13 +71,13 @@ export function renderProdutosPage(root, { apiClient }) {
     }
 
     const rows = (state.items || []).map((p) => `
-      <tr class="nhp-row-link" data-id="${p.id}">
+      <tr class="nhp-row-link ${p.temPromocaoVariacao ? 'is-promo-variation' : ''}" data-id="${p.id}">
         <td>${p.produtoExibicao}</td>
         <td>${p.skuExibicao}</td>
         <td>${p.categoriaExibicao}</td>
         <td>${p.fabricanteExibicao || 'Sem fábrica'}</td>
         <td>${fmtCurrency(p.precoExibicao)}</td>
-        <td><span class="nhp-badge">${p.statusExibicao}</span></td>
+        <td><span class="nhp-badge ${p.statusExibicao === 'Inativo' ? 'is-inactive' : 'is-active'}">${p.statusExibicao}</span></td>
         <td>${fmtDate(p.criadoEmExibicao)}</td>
       </tr>
     `).join('');

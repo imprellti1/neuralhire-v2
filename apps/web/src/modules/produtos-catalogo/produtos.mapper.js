@@ -2,6 +2,12 @@ function asDate(value) {
   const d = new Date(value || '');
   return Number.isNaN(d.getTime()) ? null : d;
 }
+function normalizeStatus(rawStatus, ativo) {
+  const s = String(rawStatus || '').toLowerCase();
+  if (s === 'ativo' || ativo === true) return 'Ativo';
+  if (s === 'inativo' || ativo === false) return 'Inativo';
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : '-';
+}
 
 export function mapProdutosData(response = {}) {
   const rawItems = Array.isArray(response?.items) ? response.items : [];
@@ -13,7 +19,8 @@ export function mapProdutosData(response = {}) {
     categoriaExibicao: item?.categoria_nome || item?.categoria || item?.category || '-',
     fabricanteExibicao: item?.fabricante_nome || item?.fabricante?.nome || 'Sem fábrica',
     precoExibicao: Number(item?.preco ?? item?.price ?? 0),
-    statusExibicao: item?.status || item?.situacao || '-',
+    statusExibicao: normalizeStatus(item?.status || item?.situacao, item?.ativo),
+    temPromocaoVariacao: Boolean(item?.tem_promocao_variacao || item?.temPromocaoVariacao || item?.variacoes_em_promocao || item?.variacao_em_promocao || item?.has_promo_variation || item?.hasPromocaoVariacao),
     criadoEmExibicao: asDate(item?.created_at || item?.createdAt || item?.criado_em)
   }));
 
