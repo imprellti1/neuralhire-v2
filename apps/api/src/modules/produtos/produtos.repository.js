@@ -480,14 +480,13 @@ async function assertVariacaoScope(accountId, produtoId, variacaoId) {
 export async function listProdutoVariacoes(produtoId, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-  await getProdutoById(produtoId, { accountId });
 
   const repositoryMode = getProdutosRepositoryMode();
   debugRepository('listProdutoVariacoes', { repositoryMode, accountId, produtoId });
 
   if (repositoryMode.mode !== 'supabase') {
     const item = memoryProdutos.find((produto) => produto.id === produtoId && produto.account_id === accountId);
-    if (!item) return [];
+    if (!item) throw new NotFoundError('Produto nao encontrado', { domain: 'produtos-catalogo', code: 'PRODUTO_NOT_FOUND' });
     const rawVariations = Array.isArray(item.variacoes) ? item.variacoes : Array.isArray(item.variations) ? item.variations : Array.isArray(item.produto_variacoes) ? item.produto_variacoes : [];
     return rawVariations.map(normalizeProdutoVariacao);
   }

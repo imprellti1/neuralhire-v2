@@ -258,15 +258,28 @@ async function attachProdutoData(promocao, accountId) {
     for (const item of produtosInput) {
       try {
         const produto = await getProdutoBaseById(item.id, { accountId });
-        produtos.push({ id: produto.id, nome: produto.nome || item.nome || null, descricao: produto.descricao || item.descricao || null, aplicar_em_todas_variacoes: item.aplicar_em_todas_variacoes !== false, percentual_desconto: item.percentual_desconto ?? null, variacoes: Array.isArray(item.variacoes) ? item.variacoes : [] });
+        const produtoVariacoes = await listProdutoVariacoes(produto.id, { accountId });
+        const byId = new Map(produtoVariacoes.map((variacao) => [String(variacao.id), variacao]));
+        const variacoes = Array.isArray(item.variacoes) ? item.variacoes.map((variacao) => {
+          const match = byId.get(String(variacao.variacaoId || variacao.variacao_id || variacao.id || ''));
+          if (!match) return null;
+          return {
+            ...match,
+            variacao_id: match.id,
+            variacaoId: match.id,
+            percentual_desconto: variacao.percentual_desconto ?? variacao.percentualDesconto ?? null
+          };
+        }).filter(Boolean) : [];
+        produtos.push({ id: produto.id, nome: produto.nome || item.nome || null, descricao: produto.descricao || item.descricao || null, aplicar_em_todas_variacoes: item.aplicar_em_todas_variacoes !== false, percentual_desconto: item.percentual_desconto ?? null, variacoes });
       } catch {
-        produtos.push({ id: item.id, nome: item.nome || null, descricao: item.descricao || null, aplicar_em_todas_variacoes: item.aplicar_em_todas_variacoes !== false, percentual_desconto: item.percentual_desconto ?? null, variacoes: Array.isArray(item.variacoes) ? item.variacoes : [] });
+        produtos.push({ id: item.id, nome: item.nome || null, descricao: item.descricao || null, aplicar_em_todas_variacoes: item.aplicar_em_todas_variacoes !== false, percentual_desconto: item.percentual_desconto ?? null, variacoes: Array.isArray(item.variacoes) ? item.variacoes.filter((variacao) => Boolean(variacao?.variacaoId || variacao?.variacao_id || variacao?.id)) : [] });
       }
     }
   } else if (promocao?.produto_id) {
     try {
       const produto = await getProdutoBaseById(promocao.produto_id, { accountId });
-      produtos.push({ id: produto.id, nome: produto.nome || null, descricao: produto.descricao || null, aplicar_em_todas_variacoes: promocao.aplicar_em_todas_variacoes !== false, percentual_desconto: promocao.percentual_desconto ?? null, variacoes: [] });
+      const produtoVariacoes = await listProdutoVariacoes(produto.id, { accountId });
+      produtos.push({ id: produto.id, nome: produto.nome || null, descricao: produto.descricao || null, aplicar_em_todas_variacoes: promocao.aplicar_em_todas_variacoes !== false, percentual_desconto: promocao.percentual_desconto ?? null, variacoes: produtoVariacoes.map((variacao) => ({ ...variacao, percentual_desconto: promocao.percentual_desconto ?? null })) });
     } catch {
       produtos.push({ id: promocao.produto_id, nome: promocao.produto_nome || promocao.produto?.nome || null, descricao: promocao.produto_descricao || promocao.produto?.descricao || null, aplicar_em_todas_variacoes: promocao.aplicar_em_todas_variacoes !== false, percentual_desconto: promocao.percentual_desconto ?? null, variacoes: [] });
     }
