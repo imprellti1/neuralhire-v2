@@ -4,6 +4,7 @@ import { fetchProdutoDetailsData, fetchProdutoImagens, fetchProdutoUsageDataWith
 import { getProductAuditIssueLabel, getProductAuditIssueTooltip } from '../product-audit/product-audit.mapper.js';
 import { calculatePrecoPromocional } from '../promocoes/promocoes.mapper.js';
 import { fetchProdutoPromocoesData } from '../promocoes/promocoes.service.js';
+import { withProcessing } from '../../core/ui-processing.js';
 
 function statusClass(status) {
   if (status === 'ativo') return 'is-ok';
@@ -506,11 +507,15 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     try {
       const started = typeof performance !== 'undefined' ? performance.now() : Date.now();
       console.info('[perf] product_details_load_started', { produtoId });
-      const detailsPromise = fetchProdutoDetailsData(apiClient, produtoId);
-      const auditPromise = apiClient.get(`/product-audit/products/${produtoId}`).catch(() => null);
-      const imagesPromise = fetchProdutoImagens(apiClient, produtoId).catch(() => []);
-      const promocoesPromise = fetchProdutoPromocoesData(apiClient, produtoId).catch(() => ({ items: [] }));
-      const [details, audit, images, promocoes] = await Promise.allSettled([detailsPromise, auditPromise, imagesPromise, promocoesPromise]);
+      const [details, audit, images, promocoes] = await withProcessing(() => Promise.allSettled([
+        fetchProdutoDetailsData(apiClient, produtoId),
+        apiClient.get(`/product-audit/products/${produtoId}`).catch(() => null),
+        fetchProdutoImagens(apiClient, produtoId).catch(() => []),
+        fetchProdutoPromocoesData(apiClient, produtoId).catch(() => ({ items: [] }))
+      ]), {
+        title: 'Carregando produto...',
+        message: 'Processando dados, aguarde...'
+      });
       state.data = details.status === 'fulfilled' ? details.value : null;
       state.auditIssues = audit.status === 'fulfilled' && Array.isArray(audit.value?.issues) ? audit.value.issues : [];
       state.productImages = images.status === 'fulfilled' ? images.value : [];
@@ -536,7 +541,7 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
 
   async function loadUsage() {
     state.usageLoading = true; state.usageError = false; render();
-    try { state.usage = await fetchProdutoUsageDataWithMetrics(apiClient, produtoId); state.usageDrillDown = null; }
+    try { state.usage = await withProcessing(() => fetchProdutoUsageDataWithMetrics(apiClient, produtoId), { title: 'Carregando uso comercial...', message: 'Processando dados, aguarde...' }); state.usageDrillDown = null; }
     catch { state.usageError = true; }
     finally { state.usageLoading = false; render(); }
   }

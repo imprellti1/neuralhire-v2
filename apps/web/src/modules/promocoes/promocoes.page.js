@@ -2,6 +2,7 @@ import { createPromocoesState } from './promocoes.state.js';
 import { calculatePrecoPromocional, mapPromocoesData, resolveVariacaoPrecoBase } from './promocoes.mapper.js';
 import { deletePromocao, fetchPromocoesData, savePromocao } from './promocoes.service.js';
 import { compareDateOnly, formatDateOnlyPtBr } from './promocoes.date.js';
+import { withProcessing } from '../../core/ui-processing.js';
 
 function brl(value) {
   return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -836,16 +837,20 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
       btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-id');
         if (!id) return;
-        await deletePromocao(apiClient, id);
-        await load();
+        await withProcessing(() => deletePromocao(apiClient, id).then(() => load()), {
+          title: 'Removendo promoção...',
+          message: 'Processando dados, aguarde...'
+        });
       });
     });
     root.querySelectorAll('[data-action="enable"]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-id');
         if (!id) return;
-        await savePromocao(apiClient, { status: 'ativa' }, id);
-        await load();
+        await withProcessing(() => savePromocao(apiClient, { status: 'ativa' }, id).then(() => load()), {
+          title: 'Atualizando promoção...',
+          message: 'Processando dados, aguarde...'
+        });
       });
     });
     root.querySelectorAll('[data-action="edit"]').forEach((btn) => {
@@ -888,9 +893,13 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
           return;
         }
         const payload = buildPromocaoPayloadFromForm(state.form);
-        await savePromocao(apiClient, payload, state.form.id || null);
-        state.formOpen = false;
-        await load();
+        await withProcessing(() => savePromocao(apiClient, payload, state.form.id || null).then(async () => {
+          state.formOpen = false;
+          await load();
+        }), {
+          title: 'Salvando promoção...',
+          message: 'Processando dados, aguarde...'
+        });
       });
     root.querySelector('#nhp-escopo-all')?.addEventListener('change', () => { state.form.itemEditor.aplicar_em_todas_variacoes = true; render(); });
     root.querySelector('#nhp-escopo-specific')?.addEventListener('change', () => { state.form.itemEditor.aplicar_em_todas_variacoes = false; render(); });
@@ -959,7 +968,10 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
     state.error = '';
     render();
     try {
-      state.items = mapPromocoesData(await fetchPromocoesData(apiClient)).items;
+      state.items = mapPromocoesData(await withProcessing(() => fetchPromocoesData(apiClient), {
+        title: 'Carregando promoções...',
+        message: 'Processando dados, aguarde...'
+      })).items;
     } catch {
       state.error = 'error';
     } finally {

@@ -228,6 +228,76 @@ async function attachPromocaoResumo(item, options = {}) {
   }
 }
 
+function normalizePromocaoResumoMap(promocoes = [], produtoIds = []) {
+  const map = new Map();
+  const produtoIdSet = new Set((Array.isArray(produtoIds) ? produtoIds : []).map((id) => String(id)));
+  for (const produtoId of produtoIdSet) {
+    map.set(produtoId, {
+      tem_promocao_variacao: false,
+      temPromocaoVariacao: false,
+      promocao_ativa: false,
+      promocao_ativa_nome: null,
+      promocao_ativa_data_inicio: null,
+      promocao_ativa_data_fim: null,
+      promocao_ativa_percentual_desconto: null
+    });
+  }
+  for (const promocao of Array.isArray(promocoes) ? promocoes : []) {
+    if (!promocao?.ativaAgora) continue;
+    const produtos = Array.isArray(promocao.produtos) ? promocao.produtos : [];
+    for (const produto of produtos) {
+      const produtoId = String(produto?.id || '');
+      if (!produtoIdSet.has(produtoId)) continue;
+      const current = map.get(produtoId) || {
+        tem_promocao_variacao: false,
+        temPromocaoVariacao: false,
+        promocao_ativa: false,
+        promocao_ativa_nome: null,
+        promocao_ativa_data_inicio: null,
+        promocao_ativa_data_fim: null,
+        promocao_ativa_percentual_desconto: null
+      };
+      const variacoes = Array.isArray(produto?.variacoes) ? produto.variacoes : [];
+      const temPromocaoVariacao = current.temPromocaoVariacao || Boolean(promocao?.aplicar_em_todas_variacoes) || variacoes.length > 0;
+      map.set(produtoId, {
+        tem_promocao_variacao: temPromocaoVariacao,
+        temPromocaoVariacao: temPromocaoVariacao,
+        promocao_ativa: true,
+        promocao_ativa_nome: current.promocao_ativa_nome || promocao?.nome || null,
+        promocao_ativa_data_inicio: current.promocao_ativa_data_inicio || promocao?.data_inicio || null,
+        promocao_ativa_data_fim: current.promocao_ativa_data_fim || promocao?.data_fim || null,
+        promocao_ativa_percentual_desconto: current.promocao_ativa_percentual_desconto ?? promocao?.percentual_desconto ?? null
+      });
+    }
+  }
+  return map;
+}
+
+async function attachPromocaoResumoEmLote(items = [], options = {}) {
+  const productIds = (Array.isArray(items) ? items : []).map((item) => item?.id).filter(Boolean);
+  if (!productIds.length) return items;
+  try {
+    const { listPromocoes } = await import('../promocoes/promocoes.repository.js');
+    const result = await listPromocoes({}, { accountId: options.accountId });
+    const resumoMap = normalizePromocaoResumoMap(result?.items || [], productIds);
+    return items.map((item) => {
+      const resumo = resumoMap.get(String(item.id));
+      return resumo ? { ...item, ...resumo } : {
+        ...item,
+        tem_promocao_variacao: false,
+        temPromocaoVariacao: false,
+        promocao_ativa: false,
+        promocao_ativa_nome: null,
+        promocao_ativa_data_inicio: null,
+        promocao_ativa_data_fim: null,
+        promocao_ativa_percentual_desconto: null
+      };
+    });
+  } catch {
+    return items;
+  }
+}
+
 export function getProdutosRepositoryMode() {
   return {
     mode: isSupabaseConfigured() ? 'supabase' : 'memory',
@@ -264,14 +334,16 @@ export async function listProdutos(filters = {}, options = {}) {
     const { data, error, count } = await query.range(from, to);
     if (error) throw new DatabaseError('Falha ao listar produtos', { details: error });
     const total = count || 0;
-    const items = await Promise.all((data || []).map((item) => attachCategoriaData(item, { accountId }).then((x) => attachFabricanteData(x, { accountId })).then((x) => attachPromocaoResumo(x, { accountId }))));
+    const itemsBase = await Promise.all((data || []).map((item) => attachCategoriaData(item, { accountId }).then((x) => attachFabricanteData(x, { accountId }))));
+    const items = await attachPromocaoResumoEmLote(itemsBase, { accountId });
     return { items, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   const filtered = applyMemoryFilters(memoryProdutos, filters, accountId);
   const total = filtered.length;
   const from = (page - 1) * limit;
-  const items = await Promise.all(filtered.slice(from, from + limit).map((item) => attachCategoriaData(item, { accountId }).then((x) => attachFabricanteData(x, { accountId })).then((x) => attachPromocaoResumo(x, { accountId }))));
+  const itemsBase = await Promise.all(filtered.slice(from, from + limit).map((item) => attachCategoriaData(item, { accountId }).then((x) => attachFabricanteData(x, { accountId }))));
+  const items = await attachPromocaoResumoEmLote(itemsBase, { accountId });
   return { items, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
 }
 
@@ -292,6 +364,25 @@ export async function getProdutoById(id, options = {}) {
   const item = memoryProdutos.find((produto) => produto.id === id && produto.account_id === accountId);
   if (!item) throw new NotFoundError('Produto nao encontrado', { domain: 'produtos-catalogo', code: 'PRODUTO_NOT_FOUND' });
   return attachPromocaoResumo(await attachFabricanteData(await attachCategoriaData(item, { accountId }), { accountId }), { accountId });
+}
+
+export async function getProdutoBaseById(id, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  const repositoryMode = getProdutosRepositoryMode();
+
+  if (repositoryMode.mode === 'supabase') {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data, error } = await supabase.from('produtos').select('*').eq('account_id', accountId).eq('id', id).maybeSingle();
+    if (error) throw new DatabaseError('Falha ao buscar produto', { details: error });
+    if (!data) throw new NotFoundError('Produto nao encontrado', { domain: 'produtos-catalogo', code: 'PRODUTO_NOT_FOUND' });
+    return attachFabricanteData(await attachCategoriaData(data, { accountId }), { accountId });
+  }
+
+  const item = memoryProdutos.find((produto) => produto.id === id && produto.account_id === accountId);
+  if (!item) throw new NotFoundError('Produto nao encontrado', { domain: 'produtos-catalogo', code: 'PRODUTO_NOT_FOUND' });
+  return attachFabricanteData(await attachCategoriaData(item, { accountId }), { accountId });
 }
 
 function normalizeProdutoVariacao(item = {}) {

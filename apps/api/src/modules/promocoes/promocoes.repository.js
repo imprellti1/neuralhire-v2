@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestError, DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '../../core/errors.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
-import { getProdutoById, listProdutoVariacoes } from '../produtos/produtos.repository.js';
+import { getProdutoBaseById, listProdutoVariacoes } from '../produtos/produtos.repository.js';
 import { compareDateOnly, dateToDateOnly, todayDateOnly } from './promocoes.date.js';
 
 const memoryPromocoes = [];
@@ -183,7 +183,7 @@ async function resolveProdutosInput(accountId, data = {}) {
         : Array.isArray(item.variacao_ids) && item.variacao_ids.length
           ? item.variacao_ids
           : [];
-    const produto = await getProdutoById(produtoId, { accountId });
+    const produto = await getProdutoBaseById(produtoId, { accountId });
     produtos.push({
       id: produto.id,
       nome: produto.nome || null,
@@ -257,7 +257,7 @@ async function attachProdutoData(promocao, accountId) {
   if (produtosInput.length) {
     for (const item of produtosInput) {
       try {
-        const produto = await getProdutoById(item.id, { accountId });
+        const produto = await getProdutoBaseById(item.id, { accountId });
         produtos.push({ id: produto.id, nome: produto.nome || item.nome || null, descricao: produto.descricao || item.descricao || null, aplicar_em_todas_variacoes: item.aplicar_em_todas_variacoes !== false, percentual_desconto: item.percentual_desconto ?? null, variacoes: Array.isArray(item.variacoes) ? item.variacoes : [] });
       } catch {
         produtos.push({ id: item.id, nome: item.nome || null, descricao: item.descricao || null, aplicar_em_todas_variacoes: item.aplicar_em_todas_variacoes !== false, percentual_desconto: item.percentual_desconto ?? null, variacoes: Array.isArray(item.variacoes) ? item.variacoes : [] });
@@ -265,7 +265,7 @@ async function attachProdutoData(promocao, accountId) {
     }
   } else if (promocao?.produto_id) {
     try {
-      const produto = await getProdutoById(promocao.produto_id, { accountId });
+      const produto = await getProdutoBaseById(promocao.produto_id, { accountId });
       produtos.push({ id: produto.id, nome: produto.nome || null, descricao: produto.descricao || null, aplicar_em_todas_variacoes: promocao.aplicar_em_todas_variacoes !== false, percentual_desconto: promocao.percentual_desconto ?? null, variacoes: [] });
     } catch {
       produtos.push({ id: promocao.produto_id, nome: promocao.produto_nome || promocao.produto?.nome || null, descricao: promocao.produto_descricao || promocao.produto?.descricao || null, aplicar_em_todas_variacoes: promocao.aplicar_em_todas_variacoes !== false, percentual_desconto: promocao.percentual_desconto ?? null, variacoes: [] });
@@ -365,7 +365,7 @@ export async function getPromocaoById(id, options = {}) {
 export async function listPromocoesDoProduto(produtoId, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-  await getProdutoById(produtoId, { accountId });
+  await getProdutoBaseById(produtoId, { accountId });
   return listPromocoes({ produto_id: produtoId }, { accountId });
 }
 

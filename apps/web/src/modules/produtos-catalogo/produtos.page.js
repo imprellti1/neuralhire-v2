@@ -1,5 +1,6 @@
 import { createProdutosState } from './produtos.state.js';
 import { fetchProdutosData } from './produtos.service.js';
+import { withProcessing } from '../../core/ui-processing.js';
 
 function fmtDate(value) {
   if (!value) return '-';
@@ -178,10 +179,13 @@ export function renderProdutosPage(root, { apiClient }) {
     state.error = false;
     render();
     try {
-      const data = await fetchProdutosData(apiClient, {
+      const data = await withProcessing(() => fetchProdutosData(apiClient, {
         page,
         limit: state?.pagination?.limit || 10,
         search: state.searchApplied
+      }), {
+        title: 'Carregando produtos...',
+        message: 'Processando dados, aguarde...'
       });
       state.items = data?.items || [];
       state.pagination = data?.pagination || state.pagination;

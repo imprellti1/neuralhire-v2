@@ -67,3 +67,47 @@ test('listagem de produtos destaca variação em promoção e mostra status corr
 
   teardownFrontendDom(dom);
 });
+
+test('listagem de produtos mostra overlay global durante carregamento e remove ao concluir ou falhar', async () => {
+  const dom = setupFrontendDom('#/produtos');
+  let resolveGet;
+  const apiClient = {
+    async get(path) {
+      if (path === '/produtos') {
+        return await new Promise((resolve, reject) => {
+          resolveGet = resolve;
+          setTimeout(() => resolve({ items: [{ id: 'p1', nome: 'Produto 1', sku: 'SKU1', categoria: 'Cat', preco: 10, status: 'ativo', created_at: '2026-01-01T00:00:00.000Z' }], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } }), 10);
+        });
+      }
+      throw new Error(`unhandled get ${path}`);
+    }
+  };
+
+  const root = document.getElementById('root');
+  renderProdutosPage(root, { apiClient });
+  await flush();
+  assert.ok(document.querySelector('.nh-global-processing'));
+  assert.match(document.body.textContent, /Carregando produtos/);
+
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  await flush();
+  await flush();
+  assert.equal(document.querySelector('.nh-global-processing')?.hidden, true);
+  assert.match(root.textContent, /Produto 1/);
+
+  const failingClient = {
+    async get(path) {
+      if (path === '/produtos') throw new Error('boom');
+      throw new Error(`unhandled get ${path}`);
+    }
+  };
+  renderProdutosPage(root, { apiClient: failingClient });
+  await flush();
+  assert.ok(document.querySelector('.nh-global-processing'));
+  await flush();
+  await flush();
+  assert.equal(root.textContent.includes('Não foi possível carregar os produtos.'), true);
+  assert.equal(document.querySelector('.nh-global-processing')?.hidden, true);
+
+  teardownFrontendDom(dom);
+});
