@@ -351,6 +351,54 @@ test('produto 360 aplica promocoes de variacao especifica, destaca a linha e mos
   teardownFrontendDom(dom);
 });
 
+test('produto 360 mostra promocao mesmo quando o desconto vem apenas de variacao especifica', async () => {
+  const dom = setupFrontendDom('#/produtos/p1');
+  mockObjectUrl();
+  const anchorMock = mockAnchorClicks(dom);
+
+  const apiClient = {
+    async get(path) {
+      if (path === '/produtos/p1') {
+        return { item: { id: 'p1', nome: 'Produto A', sku: 'SKU1', categoria: 'Cat', preco: 30, status: 'ativo', ativo: true } };
+      }
+      if (path === '/produtos/p1/variacoes') {
+        return { items: [
+          { id: 'v1', sku: 'SKU1-01', cor: 'Azul', grade: 'P', estoque_atual: 2, preco: 30, status: 'ativo', ativo: true },
+          { id: 'v2', sku: 'SKU1-02', cor: 'Azul', grade: 'M', estoque_atual: 2, preco: 30, status: 'ativo', ativo: true }
+        ] };
+      }
+      if (path === '/produtos/p1/imagens') return { items: [] };
+      if (path === '/product-audit/products/p1') return { issues: [] };
+      if (path === '/fabricantes') return { items: [] };
+      if (path === '/pedidos') return { items: [] };
+      if (path === '/produtos/p1/promocoes') {
+        return {
+          items: [
+            { id: 'promo-ativa', produto_id: 'p1', nome: 'Vigente', percentual_desconto: 10, data_inicio: '2026-06-11', data_fim: '2026-06-11', status: 'ativo', ativaAgora: true, aplicar_em_todas_variacoes: false, produtos: [{ id: 'p1', nome: 'Produto A', variacoes: [{ variacao_id: 'v2', percentual_desconto: 20 }]}] }
+          ]
+        };
+      }
+      throw new Error(`unhandled get ${path}`);
+    },
+    async post() { return { item: {} }; },
+    async patch() { return { item: { id: 'p1' } }; },
+    async delete() { return { removed: true }; }
+  };
+
+  const root = document.getElementById('root');
+  renderProdutoDetailsPage(root, { apiClient, produtoId: 'p1' });
+  await flush(); await flush(); await flush();
+
+  assert.match(root.textContent, /Em promoção/);
+  assert.doesNotMatch(root.textContent, /Sem promoções cadastradas\./);
+  assert.match(root.textContent, /R\$\s*24,00/);
+  assert.equal(root.querySelectorAll('.nhpd-row.is-active-variation').length, 1);
+  assert.equal(root.querySelectorAll('.nhpd-row.is-active-promo').length >= 1, true);
+
+  anchorMock.restore();
+  teardownFrontendDom(dom);
+});
+
 test('produto 360 exibe período e preço promocional em formato brasil na grade de promoções', async () => {
   const dom = setupFrontendDom('#/produtos/p1');
   mockObjectUrl();
