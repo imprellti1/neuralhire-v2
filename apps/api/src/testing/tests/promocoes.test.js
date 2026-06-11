@@ -3,7 +3,120 @@ import { createApiApp } from '../../app.js';
 import { createTestRequest } from '../create-test-request.js';
 import { createTestResponse } from '../create-test-response.js';
 import { __loadMemoryProdutos, __resetMemoryProdutosForTests, createProduto } from '../../modules/produtos/produtos.repository.js';
-import { __resetMemoryPromocoesForTests, calcularPrecoPromocional, isPromocaoAtiva } from '../../modules/promocoes/promocoes.repository.js';
+import { __resetMemoryPromocoesForTests, __setPromocoesSupabaseClientForTests, calcularPrecoPromocional, isPromocaoAtiva } from '../../modules/promocoes/promocoes.repository.js';
+
+function createSupabaseMock() {
+  const state = { promocoes: [], produtos: [], variacoes: [], lastInsert: null, lastUpdate: null };
+  function readTable(table) {
+    if (table === 'produto_promocoes') return [...state.promocoes];
+    if (table === 'produto_promocao_produtos') return [...state.produtos];
+    if (table === 'produto_promocao_variacoes') return [...state.variacoes];
+    if (table === 'produtos') return [...state.produtosCatalogo || []];
+    if (table === 'produto_variacoes') return [...state.variacoesCatalogo || []];
+    return [];
+  }
+  function applyFilters(rows, filter = {}) {
+    return rows.filter((row) => {
+      for (const [key, value] of Object.entries(filter)) {
+        if (value === undefined) continue;
+        if (Array.isArray(value)) {
+          if (!value.map(String).includes(String(row[key]))) return false;
+        } else if (String(row[key]) !== String(value)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }
+  return {
+    state,
+    from(table) {
+      const chain = {
+        _table: table,
+        _filter: {},
+        select() { return this; },
+        eq(k, v) { this._filter[k] = v; return this; },
+        order() { return this; },
+        in() { return this; },
+        then(resolve) {
+          const rows = applyFilters(readTable(table), this._filter);
+          const data = table === 'produto_promocoes' ? rows : rows;
+          return Promise.resolve({ data, error: null }).then(resolve);
+        },
+        delete() {
+          return {
+            _filter: {},
+            eq(k, v) {
+              this._filter[k] = v;
+              return this;
+            },
+            then(resolve) {
+              return Promise.resolve({ data: null, error: null }).then(resolve);
+            }
+          };
+        },
+        insert(payload) {
+          if (table === 'produto_promocoes') {
+            state.lastInsert = payload;
+            state.promocoes.push({ ...payload });
+            return {
+              select() {
+                return {
+                  single() {
+                    return Promise.resolve({ data: state.promocoes[state.promocoes.length - 1] || null, error: null });
+                  }
+                };
+              }
+            };
+          }
+          if (table === 'produto_promocao_produtos') {
+            const rows = Array.isArray(payload) ? payload : [payload];
+            state.produtos.push(...rows.map((row) => ({ ...row })));
+            return {
+              select() {
+                return {
+                  single() {
+                    return Promise.resolve({ data: rows[0] || null, error: null });
+                  },
+                  then(resolve) {
+                    return Promise.resolve({ data: rows.map((row) => ({ ...row })), error: null }).then(resolve);
+                  }
+                };
+              }
+            };
+          }
+          if (table === 'produto_promocao_variacoes') {
+            const rows = Array.isArray(payload) ? payload : [payload];
+            state.variacoes.push(...rows.map((row) => ({ ...row })));
+            return Promise.resolve({ data: rows.map((row) => ({ ...row })), error: null });
+          }
+          return this;
+        },
+        update(payload) {
+          if (table === 'produto_promocoes') state.lastUpdate = payload;
+          return this;
+        },
+        single() {
+          if (table === 'produto_promocoes') {
+            return Promise.resolve({ data: state.lastUpdate || state.promocoes[state.promocoes.length - 1] || null, error: null });
+          }
+          if (table === 'produtos') {
+            const rows = applyFilters(readTable(table), this._filter);
+            return Promise.resolve({ data: rows[0] || null, error: null });
+          }
+          if (table === 'produto_variacoes') {
+            const rows = applyFilters(readTable(table), this._filter);
+            return Promise.resolve({ data: rows[0] || null, error: null });
+          }
+          return Promise.resolve({ data: null, error: null });
+        },
+        maybeSingle() { return this.single(); },
+        range() { return Promise.resolve({ data: applyFilters(readTable(table), this._filter), count: applyFilters(readTable(table), this._filter).length, error: null }); }
+      };
+      return chain;
+    }
+  };
+}
 
 async function call(app, { method, url, accountId, body }) {
   const headers = { 'x-test-role': 'admin', 'x-test-account-id': accountId };
@@ -169,6 +282,83 @@ export function getPromocoesTests() {
         assert.equal(reloaded.body.item.produtos.length, 2);
         assert.equal(reloaded.body.item.produtos[0].variacoes.length, 2);
         assert.equal(reloaded.body.item.produtos[1].variacoes.length, 1);
+      }
+    },
+    {
+      name: 'ignora campos derivados ao persistir promocao via supabase',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryPromocoesForTests();
+        const mock = createSupabaseMock();
+        __setPromocoesSupabaseClientForTests(mock, true);
+        try {
+          const app = createApiApp();
+          const accountId = 'acc-promo-supabase-sanitizacao-01';
+          const produtoId = 'produto-supabase-sanitizacao-01';
+          const variacaoId = 'vs-supabase-sanitizacao-01';
+          const produto = { id: produtoId, account_id: accountId, nome: 'Produto Supabase', preco: 100 };
+          __loadMemoryProdutos([{
+            ...produto,
+            variacoes: [{ id: variacaoId, account_id: accountId, produto_id: produtoId, preco: 80, ativo: true, estoque_atual: 3 }]
+          }]);
+          mock.state.produtosCatalogo = [produto];
+          mock.state.variacoesCatalogo = [{ id: variacaoId, account_id: accountId, produto_id: produtoId, preco: 80, ativo: true, estoque_atual: 3 }];
+
+          const created = await call(app, {
+            method: 'POST',
+            url: '/promocoes',
+            accountId,
+            body: {
+              nome: 'Promo Supabase',
+              percentual_desconto: 10,
+              data_inicio: '2026-06-01',
+              data_fim: '2026-06-30',
+              produto_id: produto.id,
+              ativaAgora: true,
+              produtos: [{
+                produto_id: produto.id,
+                aplicar_em_todas_variacoes: false,
+                percentual_desconto: 10,
+                ativaAgora: true,
+                produto_nome: 'Ignorar',
+                variacoes: [{ variacaoId, percentualDesconto: 12, ativaAgora: true }]
+              }]
+            }
+          });
+
+          assert.equal(created.res.statusCode, 200);
+          assert.ok(mock.state.lastInsert);
+          assert.equal(Object.prototype.hasOwnProperty.call(mock.state.lastInsert, 'ativaAgora'), false);
+          assert.equal(Object.prototype.hasOwnProperty.call(mock.state.lastInsert, 'produtos'), false);
+          assert.equal(Object.prototype.hasOwnProperty.call(mock.state.lastInsert, 'variacoes'), false);
+          assert.equal(Object.prototype.hasOwnProperty.call(mock.state.lastInsert, 'produto_nome'), false);
+
+          const promocaoId = created.body.item.id;
+          const updated = await call(app, {
+            method: 'PATCH',
+            url: `/promocoes/${promocaoId}`,
+            accountId,
+            body: {
+              ...created.body.item,
+              nome: 'Promo Supabase 2',
+              ativaAgora: false,
+              produtos: [{
+                ...created.body.item.produtos[0],
+                aplicar_em_todas_variacoes: true,
+                variacoes: created.body.item.produtos[0].variacoes
+              }]
+            }
+          });
+
+          assert.equal(updated.res.statusCode, 200);
+          assert.ok(mock.state.lastUpdate);
+          assert.equal(Object.prototype.hasOwnProperty.call(mock.state.lastUpdate, 'ativaAgora'), false);
+          assert.equal(Object.prototype.hasOwnProperty.call(mock.state.lastUpdate, 'produtos'), false);
+          assert.equal(Object.prototype.hasOwnProperty.call(mock.state.lastUpdate, 'variacoes'), false);
+          assert.equal(Object.prototype.hasOwnProperty.call(mock.state.lastUpdate, 'produto_nome'), false);
+        } finally {
+          __resetMemoryPromocoesForTests();
+        }
       }
     },
     {

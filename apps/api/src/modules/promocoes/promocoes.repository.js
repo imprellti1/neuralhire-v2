@@ -7,6 +7,8 @@ import { compareDateOnly, dateToDateOnly, todayDateOnly } from './promocoes.date
 const memoryPromocoes = [];
 const memoryPromocaoProdutos = [];
 const memoryPromocaoVariacoes = [];
+let supabaseClientOverride = null;
+let supabaseConfiguredOverride = null;
 
 function assertAccountId(accountId) {
   if (!accountId) throw new ForbiddenError('Contexto de tenant obrigatorio', { code: 'TENANT_REQUIRED', domain: 'promocoes' });
@@ -61,6 +63,37 @@ function normalizeRow(row) {
     percentual_desconto: row.percentual_desconto === null || row.percentual_desconto === undefined || row.percentual_desconto === '' ? null : Number(row.percentual_desconto),
     aplicar_em_todas_variacoes: Boolean(row.aplicar_em_todas_variacoes)
   };
+}
+
+function stripResponseOnlyFields(payload = {}) {
+  const copy = { ...(payload || {}) };
+  delete copy.ativaAgora;
+  delete copy.produtos;
+  delete copy.variacoes;
+  delete copy.produtosSelecionados;
+  delete copy.variacoesSelecionadas;
+  delete copy.produto;
+  delete copy.produto_nome;
+  delete copy.produtoNome;
+  return copy;
+}
+
+function pickPromocaoPersistFields(data = {}) {
+  const base = stripResponseOnlyFields(data);
+  const payload = {};
+  if (base.id !== undefined) payload.id = base.id;
+  if (base.account_id !== undefined) payload.account_id = base.account_id;
+  if (base.produto_id !== undefined) payload.produto_id = base.produto_id;
+  if (base.nome !== undefined) payload.nome = String(base.nome || '').trim();
+  if (base.descricao !== undefined) payload.descricao = base.descricao || null;
+  if (base.percentual_desconto !== undefined) payload.percentual_desconto = validatePercentual(base.percentual_desconto);
+  if (base.data_inicio !== undefined) payload.data_inicio = normalizeDate(base.data_inicio);
+  if (base.data_fim !== undefined) payload.data_fim = normalizeDate(base.data_fim);
+  if (base.status !== undefined) payload.status = String(base.status || '').trim().toLowerCase() === 'inativo' ? 'inativo' : 'ativo';
+  if (base.aplicar_em_todas_variacoes !== undefined) payload.aplicar_em_todas_variacoes = Boolean(base.aplicar_em_todas_variacoes);
+  if (base.created_at !== undefined) payload.created_at = base.created_at;
+  if (base.updated_at !== undefined) payload.updated_at = base.updated_at;
+  return payload;
 }
 
 function normalizeVariationLink(row = {}) {
@@ -259,13 +292,24 @@ function buildProdutoPromocaoRows({ accountId, promocaoId, produtos }) {
   }));
 }
 
+function buildPromocaoPersistPayload(current, data = {}) {
+  const payload = pickPromocaoPersistFields(current);
+  const incoming = pickPromocaoPersistFields(data);
+  return { ...payload, ...incoming };
+}
+
 export function getPromocoesRepositoryMode() {
-  return { mode: isSupabaseConfigured() ? 'supabase' : 'memory' };
+  const configured = typeof supabaseConfiguredOverride === 'boolean' ? supabaseConfiguredOverride : isSupabaseConfigured();
+  return { mode: configured ? 'supabase' : 'memory' };
+}
+
+function resolveSupabaseClient() {
+  return supabaseClientOverride || getSupabaseClient();
 }
 
 async function loadRows(accountId, produtoId = null) {
   if (getPromocoesRepositoryMode().mode === 'supabase') {
-    const supabase = getSupabaseClient();
+    const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     let query = supabase.from('produto_promocoes').select('*').eq('account_id', accountId).order('created_at', { ascending: false });
     if (produtoId) query = query.eq('produto_id', produtoId);
@@ -334,7 +378,20 @@ export async function createPromocao(data, options = {}) {
     return { percentual: validatedPercentual, inicio, fim };
   })();
   const produtos = await resolveProdutosInput(accountId, data);
-  const payload = { id: randomUUID(), account_id: accountId, produto_id: produtos[0].id, nome: String(data.nome || '').trim(), descricao: data.descricao || null, percentual_desconto: percentual ?? null, data_inicio: inicio, data_fim: fim, status: String(data.status || 'ativo').trim().toLowerCase() === 'inativo' ? 'inativo' : 'ativo', aplicar_em_todas_variacoes: produtos[0].aplicar_em_todas_variacoes, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+  const payload = {
+    id: randomUUID(),
+    account_id: accountId,
+    produto_id: produtos[0].id,
+    nome: String(data.nome || '').trim(),
+    descricao: data.descricao || null,
+    percentual_desconto: percentual ?? null,
+    data_inicio: inicio,
+    data_fim: fim,
+    status: String(data.status || 'ativo').trim().toLowerCase() === 'inativo' ? 'inativo' : 'ativo',
+    aplicar_em_todas_variacoes: produtos[0].aplicar_em_todas_variacoes,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
 
   const produtoRows = [];
   const variationRows = [];
@@ -350,9 +407,10 @@ export async function createPromocao(data, options = {}) {
   }
 
   if (getPromocoesRepositoryMode().mode === 'supabase') {
-    const supabase = getSupabaseClient();
-    const { data: inserted, error } = await supabase.from('produto_promocoes').insert(payload).select('*').single();
-    if (error) throwSupabasePromocaoError('Falha ao criar promocao', error, { table: 'produto_promocoes', payload });
+    const supabase = resolveSupabaseClient();
+    const promocaoPayload = pickPromocaoPersistFields(payload);
+    const { data: inserted, error } = await supabase.from('produto_promocoes').insert(promocaoPayload).select('*').single();
+    if (error) throwSupabasePromocaoError('Falha ao criar promocao', error, { table: 'produto_promocoes', payload: promocaoPayload });
     const produtoInsertRows = produtoRows.map((row) => ({ ...row, promocao_id: inserted.id }));
     const { data: insertedProdutos, error: produtosError } = produtoInsertRows.length ? await supabase.from('produto_promocao_produtos').insert(produtoInsertRows).select('*') : { data: [] };
     if (produtosError) throwSupabasePromocaoError('Falha ao criar produtos da promocao', produtosError, { table: 'produto_promocao_produtos', produtoInsertRows });
@@ -375,16 +433,12 @@ export async function updatePromocao(id, data = {}, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
   const current = await getPromocaoById(id, { accountId });
-  const payload = { ...current };
-  if (data.nome !== undefined) payload.nome = String(data.nome || '').trim();
-  if (data.descricao !== undefined) payload.descricao = data.descricao || null;
-  if (data.percentual_desconto !== undefined) payload.percentual_desconto = validatePercentual(data.percentual_desconto);
+  const payload = buildPromocaoPersistPayload(current, data);
   if (data.data_inicio !== undefined || data.data_fim !== undefined) {
     const { inicio, fim } = validatePeriodo({ ...current, ...data });
     payload.data_inicio = inicio;
     payload.data_fim = fim;
   }
-  if (data.status !== undefined) payload.status = String(data.status || '').trim().toLowerCase() === 'inativo' ? 'inativo' : 'ativo';
   payload.updated_at = new Date().toISOString();
 
   const produtosInput = resolveProdutosParaAtualizacao(current, data);
@@ -393,8 +447,9 @@ export async function updatePromocao(id, data = {}, options = {}) {
   payload.produto_id = produtos[0]?.id || payload.produto_id || null;
 
   if (getPromocoesRepositoryMode().mode === 'supabase') {
-    const supabase = getSupabaseClient();
-    const { data: updated, error } = await supabase.from('produto_promocoes').update(payload).eq('id', id).eq('account_id', accountId).select('*').single();
+    const supabase = resolveSupabaseClient();
+    const promocaoPayload = pickPromocaoPersistFields(payload);
+    const { data: updated, error } = await supabase.from('produto_promocoes').update(promocaoPayload).eq('id', id).eq('account_id', accountId).select('*').single();
     if (error) throw new DatabaseError('Falha ao atualizar promocao', { details: error });
     await supabase.from('produto_promocao_variacoes').delete().eq('promocao_id', id).eq('account_id', accountId);
     await supabase.from('produto_promocao_produtos').delete().eq('promocao_id', id).eq('account_id', accountId);
@@ -436,4 +491,11 @@ export function __resetMemoryPromocoesForTests() {
   memoryPromocoes.length = 0;
   memoryPromocaoProdutos.length = 0;
   memoryPromocaoVariacoes.length = 0;
+  supabaseClientOverride = null;
+  supabaseConfiguredOverride = null;
+}
+
+export function __setPromocoesSupabaseClientForTests(client, configured = true) {
+  supabaseClientOverride = client;
+  supabaseConfiguredOverride = configured;
 }
