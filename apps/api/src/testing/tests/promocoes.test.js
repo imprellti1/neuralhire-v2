@@ -440,8 +440,67 @@ export function getPromocoesTests() {
         assert.equal(updated.res.statusCode, 200);
         assert.equal(updated.body.item.produtos.length, 1);
         assert.equal(updated.body.item.produtos[0].id, produtoA.id);
+        assert.equal(updated.body.item.produtos[0].variacoes.some((variacao) => variacao.variacao_id === 'rmb-1'), false);
         const reloaded = await call(app, { method: 'GET', url: `/promocoes/${promocaoId}`, accountId: 'acc-promo-remove' });
         assert.equal(reloaded.body.item.produtos.length, 1);
+        assert.equal(reloaded.body.item.produtos[0].variacoes.some((variacao) => variacao.variacao_id === 'rmb-1'), false);
+      }
+    },
+    {
+      name: 'aceita payload consolidado apos remover item e preserva agrupamento das variacoes',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryPromocoesForTests();
+        const app = createApiApp();
+        const produtoA = { id: 'produto-consolidado-a', account_id: 'acc-promo-cons', nome: 'Produto Cons A', variacoes: [{ id: 'ca-1', produto_id: 'produto-consolidado-a', account_id: 'acc-promo-cons', preco: 180, ativo: true }] };
+        const produtoB = { id: 'produto-consolidado-b', account_id: 'acc-promo-cons', nome: 'Produto Cons B', variacoes: [{ id: 'cb-1', produto_id: 'produto-consolidado-b', account_id: 'acc-promo-cons', preco: 280, ativo: true }] };
+        __loadMemoryProdutos([produtoA, produtoB]);
+        const created = await call(app, {
+          method: 'POST',
+          url: '/promocoes',
+          accountId: 'acc-promo-cons',
+          body: {
+            nome: 'Promo Consolidada',
+            data_inicio: '2026-06-01',
+            data_fim: '2026-06-30',
+            produtos: [
+              { produto_id: produtoA.id, aplicar_em_todas_variacoes: false, percentual_desconto: 10, variacoes: [{ variacao_id: 'ca-1', percentual_desconto: 10 }] },
+              { produto_id: produtoB.id, aplicar_em_todas_variacoes: false, percentual_desconto: 10, variacoes: [{ variacao_id: 'cb-1', percentual_desconto: 10 }] }
+            ]
+          }
+        });
+        const promocao = created.body.item;
+        const consolidated = await call(app, {
+          method: 'PATCH',
+          url: `/promocoes/${promocao.id}`,
+          accountId: 'acc-promo-cons',
+          body: {
+            nome: promocao.nome,
+            descricao: promocao.descricao,
+            data_inicio: promocao.data_inicio,
+            data_fim: promocao.data_fim,
+            status: promocao.status,
+            produtos: promocao.produtos
+              .filter((produto) => produto.id !== produtoB.id)
+              .map((produto) => ({
+                ...produto,
+                produto_id: produto.id,
+                variacoesSelecionadas: produto.variacoes.map((variacao) => ({
+                  variacaoId: variacao.variacao_id,
+                  percentualDesconto: variacao.percentual_desconto
+                })),
+                variacao_ids: produto.variacoes.map((variacao) => variacao.variacao_id),
+                variacoes: produto.variacoes.map((variacao) => ({
+                  ...variacao,
+                  produto_id: produto.id
+                }))
+              }))
+          }
+        });
+        assert.equal(consolidated.res.statusCode, 200);
+        assert.equal(consolidated.body.item.produtos.length, 1);
+        assert.equal(consolidated.body.item.produtos[0].id, produtoA.id);
+        assert.equal(consolidated.body.item.produtos[0].variacoes[0].variacao_id, 'ca-1');
       }
     },
     {

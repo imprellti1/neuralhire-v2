@@ -231,6 +231,9 @@ function removeProduct(form, productId) {
   form.produtos = (Array.isArray(form.produtos) ? form.produtos : []).filter((produto) => String(produto.id) !== String(productId));
   if (String(form.produto_ativo_id) === String(productId)) form.produto_ativo_id = form.produtos[0]?.id || '';
   form.produto = form.produtos[0] || null;
+  if (String(form.itemEditor?.produto_id || '') === String(productId)) {
+    clearItemEditor(form);
+  }
 }
 
 function getPromocaoProdutos(item = {}) {
@@ -398,6 +401,46 @@ function updateItemEditorFromProduct(form, product, productDetails = null, varia
     variacao_ids: mappedVariacoes.map((variacao) => variacao.id),
     variacoesSelecionadas: [],
     error: previous.error || ''
+  };
+}
+
+function buildPromocaoPayloadFromForm(form = {}) {
+  const globalPercentual = normalizeDiscount(form.percentual_desconto);
+  const produtos = (Array.isArray(form.produtos) ? form.produtos : [])
+    .map((produto) => {
+      const variacoesDisponiveis = Array.isArray(produto.variacoes_disponiveis) ? produto.variacoes_disponiveis : [];
+      const validVariationIds = new Set(
+        variacoesDisponiveis
+          .map((variacao) => String(variacao.id || variacao.variacao_id || variacao.variacaoId || '').trim())
+          .filter(Boolean)
+      );
+      const variacoes = variacoesDisponiveis
+        .filter((variacao) => variacao.selecionada && validVariationIds.has(String(variacao.id || variacao.variacao_id || variacao.variacaoId || '').trim()))
+        .map((variacao) => ({
+          variacao_id: variacao.id || variacao.variacao_id || variacao.variacaoId,
+          percentual_desconto: normalizeDiscount(variacao.percentualDesconto)
+        }))
+        .filter((variacao) => Boolean(variacao.variacao_id));
+      return {
+        produto_id: produto.produto_id || produto.id,
+        nome: produto.nome || '',
+        descricao: produto.descricao || '',
+        aplicar_em_todas_variacoes: produto.aplicar_em_todas_variacoes !== false,
+        percentual_desconto: produto.aplicar_em_todas_variacoes !== false ? normalizeDiscount(produto.percentual_desconto ?? globalPercentual) : null,
+        variacoes
+      };
+    })
+    .filter((produto) => Boolean(produto.produto_id));
+
+  return {
+    nome: form.nome || '',
+    descricao: form.descricao || '',
+    produtos,
+    data_inicio: form.data_inicio || '',
+    data_fim: form.data_fim || '',
+    status: form.status || 'ativa',
+    aplicar_em_todas_variacoes: true,
+    ...(Number.isFinite(globalPercentual) ? { percentual_desconto: globalPercentual } : {})
   };
 }
 
@@ -788,7 +831,7 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
     root.querySelectorAll('.nhp-remove-item').forEach((btn) => {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-product-id');
-        state.form.produtos = state.form.produtos.filter((item) => String(item.produto_id) !== String(id));
+        removeProduct(state.form, id);
         render();
       });
     });
@@ -847,28 +890,7 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
           render();
           return;
         }
-        const payload = {
-          nome: state.form.nome || '',
-          descricao: state.form.descricao || '',
-          produtos: state.form.produtos.map((produto) => ({
-            produto_id: produto.produto_id || produto.id,
-            nome: produto.nome || '',
-            descricao: produto.descricao || '',
-            aplicar_em_todas_variacoes: produto.aplicar_em_todas_variacoes !== false,
-            percentual_desconto: produto.aplicar_em_todas_variacoes !== false ? normalizeDiscount(produto.percentual_desconto ?? globalPercentual) : null,
-            variacoes: (Array.isArray(produto.variacoes_disponiveis) ? produto.variacoes_disponiveis : [])
-              .filter((variacao) => variacao.selecionada)
-              .map((variacao) => ({
-                variacao_id: variacao.id || variacao.variacao_id || variacao.variacaoId,
-                percentual_desconto: normalizeDiscount(variacao.percentualDesconto)
-              }))
-          })),
-          data_inicio: state.form.data_inicio || '',
-          data_fim: state.form.data_fim || '',
-          status: state.form.status || 'ativa',
-          aplicar_em_todas_variacoes: true
-        };
-        if (Number.isFinite(globalPercentual)) payload.percentual_desconto = globalPercentual;
+        const payload = buildPromocaoPayloadFromForm(state.form);
         await savePromocao(apiClient, payload, state.form.id || null);
         state.formOpen = false;
         await load();

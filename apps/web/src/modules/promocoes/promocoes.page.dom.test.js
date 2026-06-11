@@ -11,12 +11,15 @@ function createApiClient(spy) {
         const q = String(params.q || params.search || '').toLowerCase();
         if (q.includes('a')) return { items: [{ id: 'prod-a', nome: 'Produto A', sku: 'SKU-A' }] };
         if (q.includes('b')) return { items: [{ id: 'prod-b', nome: 'Produto B', sku: 'SKU-B' }] };
+        if (q.includes('c')) return { items: [{ id: 'prod-c', nome: 'Produto C', sku: 'SKU-C' }] };
         return { items: [{ id: 'prod-a', nome: 'Produto A', sku: 'SKU-A' }, { id: 'prod-b', nome: 'Produto B', sku: 'SKU-B' }] };
       }
       if (path === '/produtos/prod-a') return { item: { id: 'prod-a', nome: 'Produto A', descricao: 'Descricao A', preco: 100 } };
       if (path === '/produtos/prod-b') return { item: { id: 'prod-b', nome: 'Produto B', descricao: 'Descricao B', preco: 120 } };
+      if (path === '/produtos/prod-c') return { item: { id: 'prod-c', nome: 'Produto C', descricao: 'Descricao C', preco: 140 } };
       if (path === '/produtos/prod-a/variacoes') return { items: [{ id: 'a1', sku: 'A1', cor: 'Azul', grade: 'G', preco: 100, estoque: 5 }, { id: 'a2', sku: 'A2', cor: 'Azul', grade: 'GG', preco: 100, estoque: 2 }] };
       if (path === '/produtos/prod-b/variacoes') return { items: [{ id: 'b1', sku: 'B1', cor: 'Preto', grade: 'M', preco: 120, estoque: 3 }, { id: 'b2', sku: 'B2', cor: 'Preto', grade: 'G', preco: 120, estoque: 1 }] };
+      if (path === '/produtos/prod-c/variacoes') return { items: [{ id: 'c1', sku: 'C1', cor: 'Verde', grade: 'P', preco: 140, estoque: 4 }, { id: 'c2', sku: 'C2', cor: 'Verde', grade: 'M', preco: 140, estoque: 2 }] };
       return { items: [], total: 0 };
     },
     post: async (_path, payload) => {
@@ -373,5 +376,49 @@ test('promoções: mostra mensagem quando produto nao tem estoque disponivel', a
   await flush();
   assert.equal(document.querySelectorAll('.nhp-variacao-check').length, 0);
   assert.match(document.body.textContent, /Nenhuma variação com estoque disponível para promoção\./);
+  teardownFrontendDom(dom);
+});
+
+test('promoções: remove produto e salva apenas itens restantes sem cruzar variacoes', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { payloads: [] };
+  const apiClient = createApiClient(spy);
+  await openForm(apiClient);
+  fillPromoBase();
+  document.querySelector('#nhp-percentual_desconto').value = '10';
+  document.querySelector('#nhp-percentual_desconto').dispatchEvent(new Event('input', { bubbles: true }));
+
+  for (const term of ['Produto A', 'Produto B', 'Produto C']) {
+    await chooseProduct(term);
+    document.querySelector('#nhp-escopo-specific').click();
+    await flush();
+    const checks = document.querySelectorAll('.nhp-variacao-check');
+    checks[0].checked = true;
+    checks[0].dispatchEvent(new Event('change', { bubbles: true }));
+    const inputs = document.querySelectorAll('.nhp-variacao-percentual');
+    inputs[0].value = term === 'Produto A' ? '11' : term === 'Produto B' ? '12' : '13';
+    inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    await flush();
+    document.querySelector('#nhp-add-item').click();
+    await flush();
+  }
+
+  assert.equal(document.querySelectorAll('.nhp-product-row').length, 3);
+  document.querySelectorAll('.nhp-remove-item')[1].click();
+  await flush();
+  assert.equal(document.querySelectorAll('.nhp-product-row').length, 2);
+
+  document.querySelector('#nhp-save').click();
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  assert.equal(spy.payloads.length, 1);
+  const payload = spy.payloads[0];
+  assert.equal(payload.produtos.length, 2);
+  assert.deepEqual(payload.produtos.map((item) => item.produto_id), ['prod-a', 'prod-c']);
+  assert.equal(payload.produtos.some((item) => item.produto_id === 'prod-b'), false);
+  assert.deepEqual(payload.produtos[0].variacoes.map((item) => item.variacao_id), ['a1']);
+  assert.deepEqual(payload.produtos[1].variacoes.map((item) => item.variacao_id), ['c1']);
   teardownFrontendDom(dom);
 });
