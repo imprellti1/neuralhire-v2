@@ -102,6 +102,22 @@ export function getProdutosSearchTests() {
         assertEqual(body.query, '');
         assertEqual(body.total, 0);
       }
+    },
+    {
+      name: 'GET /produtos?search=master filtra e pagina',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        const app = createApiApp();
+        await call(app, { method: 'POST', url: '/produtos', role: 'admin', accountId: 'acc-http', body: { nome: 'MASTER Toalha', sku: 'MST-001', marca: 'Master' } });
+        await call(app, { method: 'POST', url: '/produtos', role: 'admin', accountId: 'acc-http', body: { nome: 'Outro Produto', sku: 'OUT-001' } });
+        const { body } = await call(app, { method: 'GET', url: '/produtos?search=master&page=1&limit=1', role: 'sales', accountId: 'acc-http' });
+        assertEqual(body.ok, true);
+        assertEqual(body.pagination.page, 1);
+        assertEqual(body.pagination.limit, 1);
+        assertEqual(body.pagination.total > 0, true);
+        assertEqual(body.items.length, 1);
+        assertEqual(String(body.items[0].nome || '').toLowerCase().includes('master') || String(body.items[0].marca || '').toLowerCase().includes('master') || String(body.items[0].sku || '').toLowerCase().includes('master'), true);
+      }
     }
   ];
 }

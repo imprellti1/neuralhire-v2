@@ -5,6 +5,6 @@ export async function fetchProdutosData(apiClient, options = {}) {
   const limit = Number(options.limit || 10);
   const search = options.search || '';
 
-  const response = await apiClient.get('/produtos', { page, limit });
-  return mapProdutosData(response, search);
+  const response = await apiClient.get('/produtos', { page, limit, search });
+  return mapProdutosData(response);
 }

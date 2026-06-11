@@ -3,26 +3,19 @@ function asDate(value) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export function mapProdutosData(response = {}, search = '') {
+export function mapProdutosData(response = {}) {
   const rawItems = Array.isArray(response?.items) ? response.items : [];
-  const query = String(search || '').trim().toLowerCase();
 
-  const items = rawItems
-    .map((item) => ({
-      ...item,
-      produtoExibicao: item?.nome || item?.produto || item?.title || '-',
-      skuExibicao: item?.sku || item?.codigo || '-',
-      categoriaExibicao: item?.categoria_nome || item?.categoria || item?.category || '-',
-      fabricanteExibicao: item?.fabricante_nome || item?.fabricante?.nome || 'Sem fábrica',
-      precoExibicao: Number(item?.preco ?? item?.price ?? 0),
-      statusExibicao: item?.status || item?.situacao || '-',
-      criadoEmExibicao: asDate(item?.created_at || item?.createdAt || item?.criado_em)
-    }))
-    .filter((item) => {
-      if (!query) return true;
-      return [item?.nome, item?.descricao, item?.sku, item?.categoria, item?.category, item?.produto]
-        .some((value) => String(value || '').toLowerCase().includes(query));
-    });
+  const items = rawItems.map((item) => ({
+    ...item,
+    produtoExibicao: item?.nome || item?.produto || item?.title || '-',
+    skuExibicao: item?.sku || item?.codigo || '-',
+    categoriaExibicao: item?.categoria_nome || item?.categoria || item?.category || '-',
+    fabricanteExibicao: item?.fabricante_nome || item?.fabricante?.nome || 'Sem fábrica',
+    precoExibicao: Number(item?.preco ?? item?.price ?? 0),
+    statusExibicao: item?.status || item?.situacao || '-',
+    criadoEmExibicao: asDate(item?.created_at || item?.createdAt || item?.criado_em)
+  }));
 
   const page = Number(response?.pagination?.page ?? response?.page ?? 1) || 1;
   const limit = Number(response?.pagination?.limit ?? response?.limit ?? 10) || 10;

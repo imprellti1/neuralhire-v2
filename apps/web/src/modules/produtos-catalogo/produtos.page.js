@@ -52,7 +52,8 @@ export function renderProdutosPage(root, { apiClient }) {
   let searchDebounceToken = 0;
 
   function commitSearchDraft() {
-    state.search = state.searchDraft;
+    state.searchApplied = state.searchDraft;
+    state.search = state.searchApplied;
   }
 
   function renderTable() {
@@ -86,7 +87,7 @@ export function renderProdutosPage(root, { apiClient }) {
       <section class="nhp-panel">
         <div class="nhp-meta">
           <div>Página ${page} de ${totalPages} • Total API: ${totalApi}</div>
-          <div>Exibindo ${(state?.items || []).length} item(ns) filtrados localmente</div>
+          <div>Exibindo ${(state?.items || []).length} item(ns) retornados pela API</div>
         </div>
         <div class="nhp-table-wrap"><table class="nhp-table">
           <tr>
@@ -108,7 +109,7 @@ export function renderProdutosPage(root, { apiClient }) {
     const searchSelectionEnd = searchWasFocused ? activeElement.selectionEnd : null;
     root.innerHTML = `
       <section class="nhp-header">
-        <div><div class="nhp-title">Produtos / Catálogo</div><div class="nhp-sub">Listagem operacional de produtos com busca local e paginação da API.</div></div>
+        <div><div class="nhp-title">Produtos / Catálogo</div><div class="nhp-sub">Listagem operacional de produtos com busca na API e paginação.</div></div>
         <div class="nhp-tools">
           <input id="nhp-search" class="nhp-input" placeholder="Pesquisar produto" value="${state.searchDraft}" />
           <button id="nhp-new" class="nhp-btn">Novo Produto</button>
@@ -177,7 +178,7 @@ export function renderProdutosPage(root, { apiClient }) {
       const data = await fetchProdutosData(apiClient, {
         page,
         limit: state?.pagination?.limit || 10,
-        search: state.search
+        search: state.searchApplied
       });
       state.items = data?.items || [];
       state.pagination = data?.pagination || state.pagination;
