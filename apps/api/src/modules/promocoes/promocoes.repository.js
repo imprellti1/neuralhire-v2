@@ -163,14 +163,33 @@ async function resolveVariacoesPorProduto(accountId, produto) {
   const produtoVariacoes = await listProdutoVariacoes(produto.id, { accountId });
   const byId = new Map(produtoVariacoes.map((v) => [String(v.id), v]));
   const selectedVariacoes = aplicarEmTodas ? produtoVariacoes : variacoesInput.map((item) => {
+    if (item?.produto_id && String(item.produto_id) !== String(produto.id)) {
+      throw new ValidationError(`Variacao invalida para o produto ${produto.id}`, { code: 'VALIDATION_ERROR', domain: 'promocoes' });
+    }
     const match = byId.get(String(item.variacaoId));
     if (!match) throw new ValidationError(`Variacao invalida para o produto ${produto.id}`, { code: 'VALIDATION_ERROR', domain: 'promocoes' });
+    if (String(match.produto_id || produto.id) !== String(produto.id)) {
+      throw new ValidationError(`Variacao invalida para o produto ${produto.id}`, { code: 'VALIDATION_ERROR', domain: 'promocoes' });
+    }
     return match;
   });
   const selectedVariacoesPayload = aplicarEmTodas
     ? selectedVariacoes.map((v) => ({ variacaoId: v.id, percentualDesconto: null }))
     : variacoesInput.map((item) => ({ variacaoId: item.variacaoId, percentualDesconto: item.percentualDesconto ?? null }));
   return { selectedVariacoes, selectedVariacoesPayload };
+}
+
+function resolveProdutosParaAtualizacao(current, data = {}) {
+  if (Array.isArray(data.produtos) && data.produtos.length) return data.produtos;
+  if (Array.isArray(current?.produtos) && current.produtos.length) {
+    return current.produtos.map((produto) => ({
+      ...produto,
+      aplicar_em_todas_variacoes: data.aplicar_em_todas_variacoes ?? produto.aplicar_em_todas_variacoes,
+      percentual_desconto: data.percentual_desconto !== undefined ? validatePercentual(data.percentual_desconto) : produto.percentual_desconto,
+      variacoes: data.variacoesSelecionadas !== undefined ? data.variacoesSelecionadas : produto.variacoes
+    }));
+  }
+  return [];
 }
 
 function attachMeta(promocao, variacoes = []) {
@@ -346,9 +365,10 @@ export async function updatePromocao(id, data = {}, options = {}) {
   if (data.status !== undefined) payload.status = String(data.status || '').trim().toLowerCase() === 'inativo' ? 'inativo' : 'ativo';
   payload.updated_at = new Date().toISOString();
 
-  const produtos = await resolveProdutosInput(accountId, data.produtos ? data : { ...data, produto_id: payload.produto_id, aplicar_em_todas_variacoes: data.aplicar_em_todas_variacoes ?? payload.aplicar_em_todas_variacoes, percentual_desconto: payload.percentual_desconto, variacoesSelecionadas: data.variacoesSelecionadas });
+  const produtosInput = resolveProdutosParaAtualizacao(current, data);
+  const produtos = produtosInput.length ? await resolveProdutosInput(accountId, { ...data, produtos: produtosInput }) : [];
   payload.aplicar_em_todas_variacoes = produtos[0]?.aplicar_em_todas_variacoes !== false;
-  payload.produto_id = produtos[0].id;
+  payload.produto_id = produtos[0]?.id || payload.produto_id || null;
 
   if (getPromocoesRepositoryMode().mode === 'supabase') {
     const supabase = getSupabaseClient();
@@ -366,12 +386,7 @@ export async function updatePromocao(id, data = {}, options = {}) {
       selectedVariacoesPayload.forEach((variacao) => variationInsertRows.push({ id: randomUUID(), account_id: accountId, promocao_id: id, promocao_produto_id: produtoRowMap.get(String(produto.id)) || null, produto_id: produto.id, variacao_id: variacao.variacaoId, percentual_desconto: variacao.percentualDesconto ?? produto.percentual_desconto ?? payload.percentual_desconto ?? null, created_at: new Date().toISOString() }));
     }
     if (variationInsertRows.length) await supabase.from('produto_promocao_variacoes').insert(variationInsertRows);
-    const updatedVariacoes = [];
-    for (const produto of produtos) {
-      const { selectedVariacoesPayload } = await resolveVariacoesPorProduto(accountId, produto);
-      selectedVariacoesPayload.forEach((variacao) => updatedVariacoes.push({ variacao_id: variacao.variacaoId, percentual_desconto: variacao.percentualDesconto ?? produto.percentual_desconto ?? payload.percentual_desconto ?? null }));
-    }
-    return attachProdutoData(attachMeta(normalizeRow(updated), updatedVariacoes), accountId);
+    return getPromocaoById(id, { accountId });
   }
 
   const idx = memoryPromocoes.findIndex((row) => row.id === id && row.account_id === accountId);
@@ -386,12 +401,7 @@ export async function updatePromocao(id, data = {}, options = {}) {
     const produtoRow = produtoRows.find((row) => String(row.produto_id) === String(produto.id));
     selectedVariacoesPayload.forEach((variacao) => memoryPromocaoVariacoes.push({ id: randomUUID(), account_id: accountId, promocao_id: id, promocao_produto_id: produtoRow?.id || null, produto_id: produto.id, variacao_id: variacao.variacaoId, percentual_desconto: variacao.percentualDesconto ?? produto.percentual_desconto ?? payload.percentual_desconto ?? null, created_at: new Date().toISOString() }));
   }
-  const updatedVariacoes = [];
-  for (const produto of produtos) {
-    const { selectedVariacoesPayload } = await resolveVariacoesPorProduto(accountId, produto);
-    selectedVariacoesPayload.forEach((variacao) => updatedVariacoes.push({ variacao_id: variacao.variacaoId, percentual_desconto: variacao.percentualDesconto ?? produto.percentual_desconto ?? payload.percentual_desconto ?? null }));
-  }
-  return attachProdutoData(attachMeta(normalizeRow(payload), updatedVariacoes), accountId);
+  return getPromocaoById(id, { accountId });
 }
 
 export async function deletePromocao(id, options = {}) {

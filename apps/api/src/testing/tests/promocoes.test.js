@@ -86,6 +86,175 @@ export function getPromocoesTests() {
       }
     },
     {
+      name: 'edita promocao multi-produto preservando e validando variacoes por produto',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryPromocoesForTests();
+        const app = createApiApp();
+        const produtoA = { id: 'produto-edit-a', account_id: 'acc-promo-edit', nome: 'Produto Edit A', preco: 200, variacoes: [
+          { id: 'va-1', produto_id: 'produto-edit-a', account_id: 'acc-promo-edit', preco: 180, ativo: true },
+          { id: 'va-2', produto_id: 'produto-edit-a', account_id: 'acc-promo-edit', preco: 170, ativo: true }
+        ] };
+        const produtoB = { id: 'produto-edit-b', account_id: 'acc-promo-edit', nome: 'Produto Edit B', preco: 300, variacoes: [
+          { id: 'vb-1', produto_id: 'produto-edit-b', account_id: 'acc-promo-edit', preco: 260, ativo: true },
+          { id: 'vb-2', produto_id: 'produto-edit-b', account_id: 'acc-promo-edit', preco: 250, ativo: true }
+        ] };
+        __loadMemoryProdutos([produtoA, produtoB]);
+
+        const created = await call(app, {
+          method: 'POST',
+          url: '/promocoes',
+          accountId: 'acc-promo-edit',
+          body: {
+            nome: 'Promo Edit',
+            percentual_desconto: 10,
+            data_inicio: '2026-06-01',
+            data_fim: '2026-06-30',
+            produtos: [
+              {
+                produto_id: produtoA.id,
+                aplicar_em_todas_variacoes: false,
+                percentual_desconto: 10,
+                variacoes: [{ variacao_id: 'va-1', percentual_desconto: 12 }]
+              },
+              {
+                produto_id: produtoB.id,
+                aplicar_em_todas_variacoes: false,
+                percentual_desconto: 7,
+                variacoes: [{ variacao_id: 'vb-1', percentual_desconto: 5 }]
+              }
+            ]
+          }
+        });
+        assert.equal(created.res.statusCode, 200);
+        const promocaoId = created.body.item.id;
+
+        const updated = await call(app, {
+          method: 'PATCH',
+          url: `/promocoes/${promocaoId}`,
+          accountId: 'acc-promo-edit',
+          body: {
+            nome: 'Promo Edit 2',
+            produtos: [
+              {
+                produto_id: produtoA.id,
+                aplicar_em_todas_variacoes: false,
+                percentual_desconto: 11,
+                variacoes: [
+                  { variacao_id: 'va-1', percentual_desconto: 13 },
+                  { variacao_id: 'va-2', percentual_desconto: 9 }
+                ]
+              },
+              {
+                produto_id: produtoB.id,
+                aplicar_em_todas_variacoes: false,
+                percentual_desconto: 8,
+                variacoes: [{ variacao_id: 'vb-2', percentual_desconto: 6 }]
+              }
+            ],
+            data_inicio: '2026-06-05',
+            data_fim: '2026-06-25'
+          }
+        });
+        assert.equal(updated.res.statusCode, 200);
+        assert.equal(updated.body.item.nome, 'Promo Edit 2');
+        assert.equal(updated.body.item.produtos.length, 2);
+        assert.equal(updated.body.item.produtos[0].variacoes.length, 2);
+        assert.equal(updated.body.item.produtos[1].variacoes.length, 1);
+        assert.equal(updated.body.item.produtos[0].variacoes[0].percentual_desconto, 13);
+        assert.equal(updated.body.item.produtos[1].variacoes[0].percentual_desconto, 6);
+
+        const reloaded = await call(app, { method: 'GET', url: `/promocoes/${promocaoId}`, accountId: 'acc-promo-edit' });
+        assert.equal(reloaded.res.statusCode, 200);
+        assert.equal(reloaded.body.item.produtos.length, 2);
+        assert.equal(reloaded.body.item.produtos[0].variacoes.length, 2);
+        assert.equal(reloaded.body.item.produtos[1].variacoes.length, 1);
+      }
+    },
+    {
+      name: 'rejeita variacao de outro produto ao editar promocao multi-produto',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryPromocoesForTests();
+        const app = createApiApp();
+        const produtoA = { id: 'produto-reject-a', account_id: 'acc-promo-reject', nome: 'Produto Reject A', variacoes: [{ id: 'ra-1', produto_id: 'produto-reject-a', account_id: 'acc-promo-reject', preco: 180, ativo: true }] };
+        const produtoB = { id: 'produto-reject-b', account_id: 'acc-promo-reject', nome: 'Produto Reject B', variacoes: [{ id: 'rb-1', produto_id: 'produto-reject-b', account_id: 'acc-promo-reject', preco: 280, ativo: true }] };
+        __loadMemoryProdutos([produtoA, produtoB]);
+        const created = await call(app, {
+          method: 'POST',
+          url: '/promocoes',
+          accountId: 'acc-promo-reject',
+          body: {
+            nome: 'Promo Reject',
+            data_inicio: '2026-06-01',
+            data_fim: '2026-06-30',
+            produtos: [
+              { produto_id: produtoA.id, aplicar_em_todas_variacoes: false, percentual_desconto: 10, variacoes: [{ variacao_id: 'ra-1', percentual_desconto: 10 }] },
+              { produto_id: produtoB.id, aplicar_em_todas_variacoes: false, percentual_desconto: 10, variacoes: [{ variacao_id: 'rb-1', percentual_desconto: 10 }] }
+            ]
+          }
+        });
+        const promocaoId = created.body.item.id;
+        const invalid = await call(app, {
+          method: 'PATCH',
+          url: `/promocoes/${promocaoId}`,
+          accountId: 'acc-promo-reject',
+          body: {
+            produtos: [
+              {
+                produto_id: produtoA.id,
+                aplicar_em_todas_variacoes: false,
+                percentual_desconto: 10,
+                variacoes: [{ variacao_id: 'rb-1', percentual_desconto: 9 }]
+              }
+            ]
+          }
+        });
+        assert.equal(invalid.res.statusCode, 422);
+      }
+    },
+    {
+      name: 'permite remover item ao editar promocao multi-produto e salvar novamente',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryPromocoesForTests();
+        const app = createApiApp();
+        const produtoA = { id: 'produto-remove-a', account_id: 'acc-promo-remove', nome: 'Produto Remove A', variacoes: [{ id: 'rma-1', produto_id: 'produto-remove-a', account_id: 'acc-promo-remove', preco: 180, ativo: true }] };
+        const produtoB = { id: 'produto-remove-b', account_id: 'acc-promo-remove', nome: 'Produto Remove B', variacoes: [{ id: 'rmb-1', produto_id: 'produto-remove-b', account_id: 'acc-promo-remove', preco: 280, ativo: true }] };
+        __loadMemoryProdutos([produtoA, produtoB]);
+        const created = await call(app, {
+          method: 'POST',
+          url: '/promocoes',
+          accountId: 'acc-promo-remove',
+          body: {
+            nome: 'Promo Remove',
+            data_inicio: '2026-06-01',
+            data_fim: '2026-06-30',
+            produtos: [
+              { produto_id: produtoA.id, aplicar_em_todas_variacoes: false, percentual_desconto: 10, variacoes: [{ variacao_id: 'rma-1', percentual_desconto: 10 }] },
+              { produto_id: produtoB.id, aplicar_em_todas_variacoes: false, percentual_desconto: 10, variacoes: [{ variacao_id: 'rmb-1', percentual_desconto: 10 }] }
+            ]
+          }
+        });
+        const promocaoId = created.body.item.id;
+        const updated = await call(app, {
+          method: 'PATCH',
+          url: `/promocoes/${promocaoId}`,
+          accountId: 'acc-promo-remove',
+          body: {
+            produtos: [
+              { produto_id: produtoA.id, aplicar_em_todas_variacoes: false, percentual_desconto: 12, variacoes: [{ variacao_id: 'rma-1', percentual_desconto: 12 }] }
+            ]
+          }
+        });
+        assert.equal(updated.res.statusCode, 200);
+        assert.equal(updated.body.item.produtos.length, 1);
+        assert.equal(updated.body.item.produtos[0].id, produtoA.id);
+        const reloaded = await call(app, { method: 'GET', url: `/promocoes/${promocaoId}`, accountId: 'acc-promo-remove' });
+        assert.equal(reloaded.body.item.produtos.length, 1);
+      }
+    },
+    {
       name: 'smoke registra rotas de promocoes',
       run: async () => {
         __resetMemoryProdutosForTests();
