@@ -127,6 +127,7 @@ function injectStyles() {
   @keyframes nhp-sh{0%{background-position:0% 0}100%{background-position:200% 0}}
   @keyframes nhp-spin{to{transform:rotate(360deg)}}
   .nhp-error{padding:24px;text-align:center;color:#607091}
+  .nhp-success{padding:12px 14px;border:1px solid #bbf7d0;background:#f0fdf4;color:#166534;border-radius:12px}
   .nhp-form{display:grid;gap:16px}
   .nhp-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
   .nhp-form-card{border:1px solid #e5ecf8;border-radius:16px;padding:16px;background:#fff;display:grid;gap:12px}
@@ -467,6 +468,7 @@ function clearItemEditor(form = {}) {
     variacoesError: '',
     variacoesRequestId: 0,
     variacoesProdutoId: '',
+    feedback: '',
     error: ''
   };
 }
@@ -494,6 +496,7 @@ function updateItemEditorFromProduct(form, product, productDetails = null, varia
     variacoesError: '',
     variacoesRequestId: 0,
     variacoesProdutoId: '',
+    feedback: '',
     error: ''
   };
 }
@@ -570,6 +573,9 @@ function renderForm(state) {
   const variationError = editor.error || (showSpecific && invalidSelectedVariationIds.length ? 'Informe um desconto válido para todas as variações selecionadas.' : '');
   const variationLoading = showSpecific && editor.variacoesLoading && produtoAtivo?.id && String(editor.variacoesProdutoId || '') === String(produtoAtivo.id);
   const variationLoadError = showSpecific && !variationLoading ? editor.variacoesError : '';
+  const canAddItem = Boolean(produtoAtivo?.id) && !variationLoading;
+  const addItemLabel = variationLoading ? 'Carregando variações...' : 'Adicionar à promoção';
+  const addItemHint = showSpecific && produtoAtivo?.id && !variationLoading && !variacoes.length ? 'Carregue as variações antes de adicionar este produto.' : showSpecific && produtoAtivo?.id && !variationLoading && !selectedCount ? 'Selecione pelo menos uma variação para adicionar este produto à promoção.' : '';
   const saveDisabled = !produtosSelecionados.length || hasInvalidItem || !String(state.form.nome || '').trim() || !state.form.data_inicio || !state.form.data_fim || !String(state.form.status || '').trim();
   return `<section class="nhp-panel nhp-form">
     <div>
@@ -593,6 +599,7 @@ function renderForm(state) {
       </article>
       <article class="nhp-form-card">
         <h3>Adicionar item à promoção</h3>
+        ${state.form.feedback ? `<div class="nhp-success" role="status" aria-live="polite">${state.form.feedback}</div>` : ''}
         <label class="nhp-field">Produto
           <div style="display:flex;gap:8px">
             <input id="nhp-produto_display" class="nhp-input" value="${produtoAtivo ? formatProductLabel(produtoAtivo) : ''}" readonly placeholder="Escolha um produto">
@@ -623,6 +630,7 @@ function renderForm(state) {
           </div>` : ''}
           ${variationLoadError ? `<div class="nhp-error" role="alert">Não foi possível carregar as variações deste produto. Tente novamente.</div>` : ''}
           ${variationError ? `<div class="nhp-error" role="alert">${variationError}</div>` : ''}
+          ${addItemHint ? `<div class="nhp-muted" aria-live="polite">${addItemHint}</div>` : ''}
           ${!variationLoading && !variationLoadError && produtoAtivo && variacoes.length ? `<div class="nhp-table-wrap"><table class="nhp-table" style="min-width:100%"><thead><tr><th></th><th>SKU</th><th>Cor</th><th>Grade</th><th>Preço base</th><th>Desconto %</th><th>Preço promocional</th></tr></thead><tbody>${variacoes.map((variacao) => {
             const basePrice = resolveVariacaoPrecoBase(variacao, produtoAtivo);
             const desconto = normalizeDiscount(variacao.percentualDesconto);
@@ -640,7 +648,7 @@ function renderForm(state) {
           }).join('')}</tbody></table></div>` : !variationLoading && !variationLoadError ? `<div class="nhp-state">${produtoAtivo ? 'Nenhuma variação com estoque disponível para promoção.' : 'Escolha um produto para listar suas variações.'}</div>` : ''}
         </div>` : `<div class="nhp-variation-box" id="nhp-variacoes"><strong>Todas as variações</strong><div class="nhp-muted">Nenhuma seleção manual necessária.</div></div>`}
         <div class="nhp-form-actions" style="justify-content:flex-start">
-          <button id="nhp-add-item" class="nhp-btn" ${canAdd ? '' : 'disabled'} type="button">Adicionar à promoção</button>
+          <button id="nhp-add-item" class="nhp-btn" ${canAddItem ? '' : 'disabled'} title="${variationLoading ? 'Aguarde o carregamento das variações.' : !produtoAtivo?.id ? 'Escolha um produto para habilitar este botão.' : ''}" type="button">${addItemLabel}</button>
         </div>
       </article>
     </div>
@@ -811,6 +819,7 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
       variacoesError: '',
       variacoesRequestId: requestId,
       variacoesProdutoId: product?.id || '',
+      feedback: '',
       error: ''
     };
     state.productSearchOpen = false;
@@ -826,6 +835,7 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
       state.form.itemEditor.variacoesError = '';
       state.form.itemEditor.variacoesRequestId = requestId;
       state.form.itemEditor.variacoesProdutoId = product?.id || '';
+      state.form.feedback = '';
     } catch {
       if (requestId !== variacoesRequestSeq) return;
       updateItemEditorFromProduct(state.form, product, null, []);
@@ -834,6 +844,7 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
       state.form.itemEditor.variacoesError = 'Não foi possível carregar as variações deste produto. Tente novamente.';
       state.form.itemEditor.variacoesRequestId = requestId;
       state.form.itemEditor.variacoesProdutoId = product?.id || '';
+      state.form.feedback = '';
     }
     render();
   }
@@ -842,6 +853,7 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
     clearItemEditor(state.form);
     state.form.produto = null;
     state.form.produto_id = '';
+    state.form.feedback = '';
     state.productSearchTerm = '';
     state.productSearchItems = [];
     state.productSearchError = '';
@@ -903,9 +915,27 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
       const produto = editor.produto;
       if (!produto?.id) return;
       const variacoes = Array.isArray(editor.variacoes_disponiveis) ? editor.variacoes_disponiveis : [];
+      if (editor.variacoesLoading) {
+        return;
+      }
+      if (editor.aplicar_em_todas_variacoes === false) {
+        const selectedVariacoes = variacoes.filter((variacao) => variacao.selecionada && hasEstoqueDisponivel(variacao));
+        const typedDiscounts = variacoes.filter((variacao) => normalizeDiscount(variacao.percentualDesconto) !== null);
+        if (!selectedVariacoes.length) {
+          if (typedDiscounts.length) {
+            editor.error = 'Marque ao menos uma variação com desconto para adicionar este produto à promoção.';
+          } else {
+            editor.error = 'Selecione pelo menos uma variação para adicionar este produto à promoção.';
+          }
+          state.form.feedback = '';
+          render();
+          return;
+        }
+      }
       const validation = validateItemDiscount(editor, state.form.percentual_desconto);
       if (!validation.valid) {
         editor.error = validation.message;
+        state.form.feedback = '';
         render();
         return;
       }
@@ -932,6 +962,7 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
       if (existingIndex >= 0) state.form.produtos.splice(existingIndex, 1);
       state.form.produtos = [...state.form.produtos, item];
       resetEditorAfterAdd();
+      state.form.feedback = 'Produto adicionado à promoção.';
       render();
     });
     root.querySelectorAll('.nhp-edit-item').forEach((btn) => {
@@ -954,6 +985,7 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
           selectedVariationIds: Array.isArray(selected.selectedVariationIds) ? selected.selectedVariationIds : Array.isArray(selected.variacao_ids) ? selected.variacao_ids : [],
           variacoesSelecionadas: Array.isArray(selected.variacoesSelecionadas) ? selected.variacoesSelecionadas : [],
           descontosPorVariacao: selected.descontosPorVariacao || {},
+          feedback: '',
           error: ''
         };
         state.productSearchOpen = false;

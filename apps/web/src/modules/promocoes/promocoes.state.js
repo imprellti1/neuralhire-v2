@@ -19,6 +19,7 @@ export function createPromocoesState() {
       produtos: [],
       aplicar_em_todas_variacoes: true,
       produto: null,
+      feedback: '',
       itemEditor: {
         produto: null,
         produto_id: '',

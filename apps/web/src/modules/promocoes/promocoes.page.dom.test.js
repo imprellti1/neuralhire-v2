@@ -94,8 +94,24 @@ test('promoções: bloqueia adicionar item específico sem variação e salvar s
   });
   document.querySelector('#nhp-add-item').click();
   await flush();
-  assert.match(document.body.textContent, /Selecione ao menos uma variação/);
+  assert.match(document.body.textContent, /Selecione pelo menos uma variação para adicionar este produto à promoção\./);
   assert.equal(document.querySelector('#nhp-save').disabled, true);
+  teardownFrontendDom(dom);
+});
+
+test('promoções: mostra erro local ao clicar adicionar sem variação selecionada', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { payloads: [] };
+  const apiClient = createApiClient(spy);
+  await openForm(apiClient);
+  fillPromoBase();
+  await chooseProduct('Produto A');
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+  document.querySelector('#nhp-add-item').click();
+  await flush();
+  assert.match(document.querySelector('#nhp-variacoes').textContent, /Selecione pelo menos uma variação para adicionar este produto à promoção\./);
+  assert.equal(document.querySelectorAll('.nhp-product-row').length, 0);
   teardownFrontendDom(dom);
 });
 
@@ -200,6 +216,51 @@ test('promoções: mostra erro visível quando tenta adicionar item inválido e 
   teardownFrontendDom(dom);
 });
 
+test('promoções: adiciona item e mostra feedback local de sucesso', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { payloads: [] };
+  const apiClient = createApiClient(spy);
+  await openForm(apiClient);
+  fillPromoBase();
+  await chooseProduct('Produto A');
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+  const check = document.querySelector('.nhp-variacao-check');
+  check.checked = true;
+  check.dispatchEvent(new Event('change', { bubbles: true }));
+  let input = document.querySelector('.nhp-variacao-percentual');
+  input.value = '12';
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  await flush();
+  document.querySelector('#nhp-add-item').click();
+  await flush();
+  assert.match(document.querySelector('.nhp-form').textContent, /Produto adicionado à promoção\./);
+  assert.equal(document.querySelectorAll('.nhp-product-row').length, 1);
+  assert.equal(document.querySelectorAll('.nhp-variacao-check').length, 0);
+  teardownFrontendDom(dom);
+});
+
+test('promoções: trocar produto limpa seleção anterior', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { payloads: [] };
+  const apiClient = createApiClient(spy);
+  await openForm(apiClient);
+  await chooseProduct('Produto A');
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+  const firstCheck = document.querySelector('.nhp-variacao-check');
+  firstCheck.checked = true;
+  firstCheck.dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+  await chooseProduct('Produto B');
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+  assert.equal(document.querySelectorAll('.nhp-variacao-check')[0].checked, false);
+  assert.equal(document.querySelector('#nhp-variacoes').textContent.includes('Produto adicionado à promoção.'), false);
+  teardownFrontendDom(dom);
+});
+
 test('promoções: preserva painel de variações aberto após carregar produto', async () => {
   const dom = setupFrontendDom('#/x');
   const spy = { payloads: [] };
@@ -249,6 +310,38 @@ test('promoções: mostra loading local ao buscar variações e renderiza result
   await waitForDomCondition(() => !document.querySelector('#nhp-variacoes').textContent.includes('Buscando variações disponíveis...'));
   assert.match(document.body.textContent, /A1/);
   assert.doesNotMatch(document.body.textContent, /Não foi possível carregar as variações deste produto/);
+  teardownFrontendDom(dom);
+});
+
+test('promoções: botão indica carregamento e não valida seleção enquanto variações estão carregando', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { payloads: [] };
+  const deferred = createDeferred();
+  const apiClient = {
+    get: async (path, params = {}) => {
+      if (path === '/promocoes') return { items: [], total: 0 };
+      if (path === '/produtos/search') return { items: [{ id: 'prod-a', nome: 'Produto A', sku: 'SKU-A' }] };
+      if (path === '/produtos/prod-a') return { item: { id: 'prod-a', nome: 'Produto A', descricao: 'Descricao A', preco: 100 } };
+      if (path === '/produtos/prod-a/variacoes') return deferred.promise;
+      return { items: [], total: 0 };
+    },
+    post: async (_path, payload) => {
+      spy.payloads.push(payload);
+      return { ok: true, item: { id: 'promo-1' } };
+    }
+  };
+  await openForm(apiClient);
+  await chooseProduct('Produto A');
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+  assert.equal(document.querySelector('#nhp-add-item').disabled, true);
+  assert.match(document.querySelector('#nhp-add-item').textContent, /Carregando variações\.\.\./);
+  document.querySelector('#nhp-add-item').click();
+  await flush();
+  assert.doesNotMatch(document.body.textContent, /Selecione pelo menos uma variação para adicionar este produto à promoção\./);
+  deferred.resolve({ items: [{ id: 'a1', sku: 'A1', cor: 'Azul', grade: 'G', preco: 100, estoque: 5 }] });
+  await flush();
+  await waitForDomCondition(() => document.querySelector('#nhp-add-item').disabled === false);
   teardownFrontendDom(dom);
 });
 
