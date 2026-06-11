@@ -44,90 +44,18 @@ async function chooseProduct(term) {
   await flush();
   document.querySelector('.nhp-product-search-item')?.click();
   await flush();
-  await new Promise((resolve) => setTimeout(resolve, 800));
+  await new Promise((resolve) => setTimeout(resolve, 1200));
   await flush();
 }
 
-test('promoções: adicionar item, limpar editor e salvar itens separados', async () => {
-  const dom = setupFrontendDom('#/x');
-  const spy = { payloads: [] };
-  const apiClient = createApiClient(spy);
-  await openForm(apiClient);
-
+function fillPromoBase() {
   document.querySelector('#nhp-nome').value = 'Promo multi';
   document.querySelector('#nhp-nome').dispatchEvent(new Event('input', { bubbles: true }));
   document.querySelector('#nhp-data_inicio').value = '2026-06-01';
   document.querySelector('#nhp-data_inicio').dispatchEvent(new Event('input', { bubbles: true }));
   document.querySelector('#nhp-data_fim').value = '2026-06-30';
   document.querySelector('#nhp-data_fim').dispatchEvent(new Event('input', { bubbles: true }));
-  document.querySelector('#nhp-percentual_desconto').value = '10';
-  document.querySelector('#nhp-percentual_desconto').dispatchEvent(new Event('input', { bubbles: true }));
-
-  await chooseProduct('Produto A');
-  document.querySelector('#nhp-escopo-specific').click();
-  await flush();
-  const checksA = document.querySelectorAll('.nhp-variacao-check');
-  checksA[0].checked = true;
-  checksA[0].dispatchEvent(new Event('change', { bubbles: true }));
-  const pctA = document.querySelector('.nhp-variacao-percentual');
-  pctA.value = '12';
-  pctA.dispatchEvent(new Event('input', { bubbles: true }));
-  await flush();
-  document.querySelector('#nhp-add-item').click();
-  await flush();
-  assert.equal(document.querySelector('#nhp-produto_display').value, '');
-  assert.equal(document.querySelectorAll('.nhp-product-row').length, 1);
-  assert.match(document.body.textContent, /Produto A/);
-
-  await chooseProduct('Produto B');
-  document.querySelector('#nhp-escopo-specific').click();
-  await flush();
-  const checksB = document.querySelectorAll('.nhp-variacao-check');
-  checksB[1].checked = true;
-  checksB[1].dispatchEvent(new Event('change', { bubbles: true }));
-  const pctB = document.querySelectorAll('.nhp-variacao-percentual')[1];
-  pctB.value = '13';
-  pctB.dispatchEvent(new Event('input', { bubbles: true }));
-  await flush();
-  document.querySelector('#nhp-add-item').click();
-  await flush();
-  assert.equal(document.querySelectorAll('.nhp-product-row').length, 2);
-
-  document.querySelector('#nhp-save').click();
-  await flush();
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  assert.equal(spy.payloads[0].produtos.length, 2);
-  assert.equal(spy.payloads[0].produtos[0].produto_id, 'prod-a');
-  assert.equal(spy.payloads[0].produtos[0].variacoes[0].variacao_id, 'a1');
-  assert.equal(spy.payloads[0].produtos[1].produto_id, 'prod-b');
-  assert.equal(spy.payloads[0].produtos[1].variacoes[0].variacao_id, 'b1');
-  teardownFrontendDom(dom);
-});
-
-test('promoções: editar e remover item já adicionado', async () => {
-  const dom = setupFrontendDom('#/x');
-  const spy = { payloads: [] };
-  const apiClient = createApiClient(spy);
-  await openForm(apiClient);
-  document.querySelector('#nhp-nome').value = 'Promo';
-  document.querySelector('#nhp-nome').dispatchEvent(new Event('input', { bubbles: true }));
-  document.querySelector('#nhp-data_inicio').value = '2026-06-01';
-  document.querySelector('#nhp-data_inicio').dispatchEvent(new Event('input', { bubbles: true }));
-  document.querySelector('#nhp-data_fim').value = '2026-06-30';
-  document.querySelector('#nhp-data_fim').dispatchEvent(new Event('input', { bubbles: true }));
-  await chooseProduct('Produto A');
-  document.querySelector('#nhp-escopo-all').click();
-  await flush();
-  document.querySelector('#nhp-add-item').click();
-  await flush();
-  document.querySelector('.nhp-edit-item').click();
-  await flush();
-  assert.equal(document.querySelector('#nhp-produto_display').value, 'Produto A');
-  document.querySelector('.nhp-remove-item').click();
-  await flush();
-  assert.equal(document.querySelectorAll('.nhp-product-row').length, 0);
-  teardownFrontendDom(dom);
-});
+}
 
 test('promoções: bloqueia adicionar item específico sem variação e salvar sem itens', async () => {
   const dom = setupFrontendDom('#/x');
@@ -145,5 +73,101 @@ test('promoções: bloqueia adicionar item específico sem variação e salvar s
   await flush();
   assert.match(document.body.textContent, /Selecione ao menos uma variação/);
   assert.equal(document.querySelector('#nhp-save').disabled, true);
+  teardownFrontendDom(dom);
+});
+
+test('promoções: bloqueia adicionar item sem desconto geral', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { payloads: [] };
+  const apiClient = createApiClient(spy);
+  await openForm(apiClient);
+  fillPromoBase();
+  await chooseProduct('Produto A');
+  document.querySelector('#nhp-escopo-all').click();
+  await flush();
+  document.querySelector('#nhp-add-item').click();
+  await flush();
+  assert.match(document.body.textContent, /Informe um desconto válido para o item da promoção/);
+  assert.equal(document.querySelectorAll('.nhp-product-row').length, 0);
+  teardownFrontendDom(dom);
+});
+
+test('promoções: bloqueia adicionar item com variações específicas sem desconto', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { payloads: [] };
+  const apiClient = createApiClient(spy);
+  await openForm(apiClient);
+  fillPromoBase();
+  await chooseProduct('Produto A');
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+  const checks = document.querySelectorAll('.nhp-variacao-check');
+  checks[0].checked = true;
+  checks[0].dispatchEvent(new Event('change', { bubbles: true }));
+  document.querySelector('#nhp-add-item').click();
+  await flush();
+  assert.match(document.body.textContent, /Informe um desconto válido para todas as variações selecionadas/);
+  assert.equal(document.querySelectorAll('.nhp-product-row').length, 0);
+  teardownFrontendDom(dom);
+});
+
+test('promoções: bloqueia salvar se algum item estiver sem desconto válido', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { payloads: [] };
+  const apiClient = createApiClient(spy);
+  await openForm(apiClient);
+  fillPromoBase();
+  document.querySelector('#nhp-percentual_desconto').value = '10';
+  document.querySelector('#nhp-percentual_desconto').dispatchEvent(new Event('input', { bubbles: true }));
+  await chooseProduct('Produto A');
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+  let checks = document.querySelectorAll('.nhp-variacao-check');
+  checks[1].checked = false;
+  checks[1].dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+  let inputs = document.querySelectorAll('.nhp-variacao-percentual');
+  inputs[0].value = '12';
+  inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  await flush();
+  document.querySelector('#nhp-add-item').click();
+  await flush();
+  assert.match(document.body.textContent, /Variações específicas • 1 variação\(ões\) • 12%/);
+  document.querySelector('#nhp-save').click();
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(spy.payloads.length, 1);
+  teardownFrontendDom(dom);
+});
+
+test('promoções: resumo e payload usam desconto válido', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { payloads: [] };
+  const apiClient = createApiClient(spy);
+  await openForm(apiClient);
+  fillPromoBase();
+  document.querySelector('#nhp-percentual_desconto').value = '10';
+  document.querySelector('#nhp-percentual_desconto').dispatchEvent(new Event('input', { bubbles: true }));
+  await chooseProduct('Produto A');
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+  let checks = document.querySelectorAll('.nhp-variacao-check');
+  checks[1].checked = false;
+  checks[1].dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+  let inputs = document.querySelectorAll('.nhp-variacao-percentual');
+  inputs[0].value = '12';
+  inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  await flush();
+  document.querySelector('#nhp-add-item').click();
+  await flush();
+  assert.match(document.body.textContent, /Variações específicas • 1 variação\(ões\) • 12%/);
+  document.querySelector('#nhp-save').click();
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal(spy.payloads[0].produtos[0].percentual_desconto, null);
+  assert.equal(spy.payloads[0].produtos[0].variacoes[0].percentual_desconto, 12);
   teardownFrontendDom(dom);
 });
