@@ -49,6 +49,11 @@ export function renderProdutosPage(root, { apiClient }) {
   injectStyles();
   const state = createProdutosState();
   let searchLoadTimer = null;
+  let searchDebounceToken = 0;
+
+  function commitSearchDraft() {
+    state.search = state.searchDraft;
+  }
 
   function renderTable() {
     if (state.loading) {
@@ -97,11 +102,15 @@ export function renderProdutosPage(root, { apiClient }) {
   }
 
   function render() {
+    const activeElement = document.activeElement;
+    const searchWasFocused = activeElement && activeElement.id === 'nhp-search';
+    const searchSelectionStart = searchWasFocused ? activeElement.selectionStart : null;
+    const searchSelectionEnd = searchWasFocused ? activeElement.selectionEnd : null;
     root.innerHTML = `
       <section class="nhp-header">
         <div><div class="nhp-title">Produtos / Catálogo</div><div class="nhp-sub">Listagem operacional de produtos com busca local e paginação da API.</div></div>
         <div class="nhp-tools">
-          <input id="nhp-search" class="nhp-input" placeholder="Pesquisar produto" value="${state.search}" />
+          <input id="nhp-search" class="nhp-input" placeholder="Pesquisar produto" value="${state.searchDraft}" />
           <button id="nhp-new" class="nhp-btn">Novo Produto</button>
           <button id="nhp-refresh" class="nhp-btn">Atualizar</button>
         </div>
@@ -110,22 +119,32 @@ export function renderProdutosPage(root, { apiClient }) {
     `;
 
     const refresh = root.querySelector('#nhp-refresh');
-    if (refresh) refresh.onclick = () => load(state?.pagination?.page || 1);
+    if (refresh) refresh.onclick = () => {
+      commitSearchDraft();
+      load(state?.pagination?.page || 1);
+    };
     const create = root.querySelector('#nhp-new');
     if (create) create.onclick = () => { window.location.hash = '#/produtos/novo'; };
 
     const retry = root.querySelector('#nhp-retry');
-    if (retry) retry.onclick = () => load(state?.pagination?.page || state?.page || 1);
+    if (retry) retry.onclick = () => {
+      commitSearchDraft();
+      load(state?.pagination?.page || state?.page || 1);
+    };
 
     const search = root.querySelector('#nhp-search');
     if (search) {
+      search.value = state.searchDraft;
       search.oninput = (event) => {
-        state.search = event.target.value || '';
+        state.searchDraft = event.target.value || '';
         if (searchLoadTimer) clearTimeout(searchLoadTimer);
+        const nextToken = ++searchDebounceToken;
         searchLoadTimer = setTimeout(() => {
           searchLoadTimer = null;
-          load(state?.pagination?.page || 1);
-        }, 120);
+          if (nextToken !== searchDebounceToken) return;
+          commitSearchDraft();
+          load(1);
+        }, 300);
       };
     }
 
@@ -138,6 +157,16 @@ export function renderProdutosPage(root, { apiClient }) {
     root.querySelectorAll('.nhp-row-link').forEach((row) => {
       row.onclick = () => { window.location.hash = `#/produtos/${row.getAttribute('data-id')}`; };
     });
+
+    if (searchWasFocused) {
+      const restoredSearch = root.querySelector('#nhp-search');
+      if (restoredSearch) {
+        restoredSearch.focus();
+        if (searchSelectionStart !== null && searchSelectionEnd !== null && restoredSearch.setSelectionRange) {
+          restoredSearch.setSelectionRange(searchSelectionStart, searchSelectionEnd);
+        }
+      }
+    }
   }
 
   async function load(page = 1, options = {}) {

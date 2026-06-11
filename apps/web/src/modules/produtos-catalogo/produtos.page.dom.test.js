@@ -5,8 +5,10 @@ import { dispatchInput, flush, setupFrontendDom, teardownFrontendDom } from '../
 
 test('listagem de produtos mostra fábrica e fallback', async () => {
   const dom = setupFrontendDom('#/produtos');
+  let calls = 0;
   const apiClient = {
     async get(path) {
+      calls += 1;
       if (path === '/produtos') return { items: [{ id: 'p1', nome: 'Produto 1', sku: 'SKU1', categoria: 'Cat', fabricante_nome: 'Fábrica 1', preco: 10, status: 'ativo', created_at: '2026-01-01T00:00:00.000Z' }, { id: 'p2', nome: 'Produto 2', sku: 'SKU2', categoria: 'Cat', preco: 10, status: 'ativo', created_at: '2026-01-02T00:00:00.000Z' }], pagination: { page: 1, limit: 10, total: 2, totalPages: 1 } };
       throw new Error(`unhandled get ${path}`);
     }
@@ -23,8 +25,14 @@ test('listagem de produtos mostra fábrica e fallback', async () => {
   dispatchInput(search, 'to');
   dispatchInput(search, 'toalha');
   dispatchInput(search, 'toalha banho');
+  assert.equal(document.activeElement, search);
+  assert.equal(search.value, 'toalha banho');
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  assert.equal(calls, 1);
+  await new Promise((resolve) => setTimeout(resolve, 220));
   await flush();
   await flush();
   assert.equal(root.querySelector('#nhp-search').value, 'toalha banho');
+  assert.equal(calls, 2);
   teardownFrontendDom(dom);
 });
