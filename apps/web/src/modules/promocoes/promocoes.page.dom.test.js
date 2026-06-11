@@ -660,3 +660,34 @@ test('promoções: ao editar promoção hidratada, remover Produto A não deixa 
   await flush();
   teardownFrontendDom(dom);
 });
+
+test('promoções: trocar Produto A por Produto B no editor limpa selecao e desconto anteriores', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { payloads: [] };
+  const apiClient = createApiClient(spy);
+  await openForm(apiClient);
+  fillPromoBase();
+  await chooseProduct('Produto A');
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+  const checksA = document.querySelectorAll('.nhp-variacao-check');
+  checksA[0].checked = true;
+  checksA[0].dispatchEvent(new Event('change', { bubbles: true }));
+  let inputs = document.querySelectorAll('.nhp-variacao-percentual');
+  inputs[0].value = '14';
+  inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  await flush();
+
+  await chooseProduct('Produto B');
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+
+  assert.equal(document.querySelectorAll('.nhp-variacao-check').length, 2);
+  assert.equal(document.querySelectorAll('.nhp-variacao-check')[0].checked, false);
+  assert.equal(document.querySelectorAll('.nhp-variacao-check')[1].checked, false);
+  inputs = document.querySelectorAll('.nhp-variacao-percentual');
+  assert.equal(inputs[0].value, '');
+  assert.equal(inputs[1].value, '');
+  teardownFrontendDom(dom);
+});

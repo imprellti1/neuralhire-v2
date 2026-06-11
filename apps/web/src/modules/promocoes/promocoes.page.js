@@ -172,11 +172,14 @@ function getItemEditor(form = {}) {
   return form.itemEditor || {
     produto: null,
     produto_id: '',
+    escopo: 'all',
     aplicar_em_todas_variacoes: true,
     percentual_desconto: '',
     variacoes_disponiveis: [],
     variacao_ids: [],
+    selectedVariationIds: [],
     variacoesSelecionadas: [],
+    descontosPorVariacao: {},
     error: ''
   };
 }
@@ -367,10 +370,12 @@ function normalizePromotionItem(item = {}) {
       percentualDesconto: variacao.percentual_desconto ?? variacao.percentualDesconto ?? ''
     })),
     variacao_ids: variacoesComEstoque.map((variacao) => variacao.variacao_id || variacao.variacaoId || variacao.id).filter(Boolean),
+    selectedVariationIds: variacoesComEstoque.map((variacao) => variacao.variacao_id || variacao.variacaoId || variacao.id).filter(Boolean),
     variacoesSelecionadas: variacoesComEstoque.map((variacao) => ({
       variacaoId: variacao.variacao_id || variacao.variacaoId || variacao.id,
       percentualDesconto: variacao.percentual_desconto ?? variacao.percentualDesconto ?? null
-    }))
+    })),
+    descontosPorVariacao: Object.fromEntries(variacoesComEstoque.map((variacao) => [String(variacao.variacao_id || variacao.variacaoId || variacao.id), variacao.percentual_desconto ?? variacao.percentualDesconto ?? null]).filter(([id]) => Boolean(id)))
   };
 }
 
@@ -397,9 +402,8 @@ function sanitizeProductVariationsForPayload(produto = {}) {
       .map((variacao) => String(variacao.id || variacao.variacao_id || variacao.variacaoId || '').trim())
       .filter(Boolean)
   );
-  const selected = Array.isArray(produto.variacoes_disponiveis) ? produto.variacoes_disponiveis : [];
   const selectedMap = new Map(
-    selected
+    (Array.isArray(produto.variacoes_disponiveis) ? produto.variacoes_disponiveis : [])
       .map((variacao) => {
         const variacaoId = String(variacao.id || variacao.variacao_id || variacao.variacaoId || '').trim();
         if (!variacaoId || !catalogIds.has(variacaoId)) return null;
@@ -409,6 +413,10 @@ function sanitizeProductVariationsForPayload(produto = {}) {
       })
       .filter(Boolean)
   );
+  const selectedIds = Array.isArray(produto.selectedVariationIds) && produto.selectedVariationIds.length
+    ? new Set(produto.selectedVariationIds.map((id) => String(id || '').trim()).filter(Boolean))
+    : null;
+  const selected = selectedIds ? Array.from(selectedMap.values()).filter((variacao) => selectedIds.has(String(variacao.id || variacao.variacao_id || variacao.variacaoId || '').trim())) : Array.from(selectedMap.values());
 
   return catalog
     .map((variacao) => {
@@ -426,6 +434,7 @@ function sanitizeProductVariationsForPayload(produto = {}) {
     })
     .filter((variacao) => variacao.selecionada)
     .map((variacao) => ({
+      produto_id: produtoId,
       variacao_id: variacao.variacao_id,
       percentual_desconto: normalizeDiscount(variacao.percentualDesconto)
     }))
@@ -436,12 +445,15 @@ function clearItemEditor(form = {}) {
   form.itemEditor = {
     produto: null,
     produto_id: '',
+    escopo: 'all',
     aplicar_em_todas_variacoes: true,
     painel_variacoes_aberto: true,
     percentual_desconto: '',
     variacoes_disponiveis: [],
     variacao_ids: [],
+    selectedVariationIds: [],
     variacoesSelecionadas: [],
+    descontosPorVariacao: {},
     error: ''
   };
 }
@@ -453,18 +465,19 @@ function updateItemEditorFromProduct(form, product, productDetails = null, varia
     selecionada: false,
     percentualDesconto: ''
   }));
-  const previous = getItemEditor(form);
   form.itemEditor = {
-    ...previous,
     produto: resolvedProduct,
     produto_id: resolvedProduct.id || product?.id || '',
-    aplicar_em_todas_variacoes: previous.aplicar_em_todas_variacoes !== false ? true : false,
+    escopo: 'specific',
+    aplicar_em_todas_variacoes: false,
     painel_variacoes_aberto: true,
-    percentual_desconto: previous.percentual_desconto ?? '',
+    percentual_desconto: '',
     variacoes_disponiveis: mappedVariacoes,
-    variacao_ids: mappedVariacoes.map((variacao) => variacao.id),
+    variacao_ids: [],
+    selectedVariationIds: [],
     variacoesSelecionadas: [],
-    error: previous.error || ''
+    descontosPorVariacao: {},
+    error: ''
   };
 }
 
@@ -745,10 +758,21 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
   }
 
   async function loadVariationsForProduct(product) {
-    state.form.itemEditor.error = '';
-    state.form.itemEditor.produto = product;
-    state.form.itemEditor.produto_id = product?.id || '';
-    state.form.itemEditor.painel_variacoes_aberto = true;
+    state.form.itemEditor = {
+      ...getItemEditor(state.form),
+      produto: product,
+      produto_id: product?.id || '',
+      escopo: 'specific',
+      aplicar_em_todas_variacoes: false,
+      painel_variacoes_aberto: true,
+      percentual_desconto: '',
+      variacoes_disponiveis: [],
+      variacao_ids: [],
+      selectedVariationIds: [],
+      variacoesSelecionadas: [],
+      descontosPorVariacao: {},
+      error: ''
+    };
     state.productSearchOpen = false;
     render();
     try {
@@ -835,6 +859,12 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
         render();
         return;
       }
+      const selectedVariacoes = sanitizeProductVariationsForPayload({
+        ...editor,
+        produto_id: produto.id,
+        selectedVariationIds: editor.selectedVariationIds || editor.variacao_ids || [],
+        variacoes_disponiveis: variacoes
+      });
       const item = normalizePromotionItem({
         produto_id: produto.id,
         nome: produto.nome || formatProductLabel(produto),
@@ -846,11 +876,7 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
           selecionada: true,
           percentualDesconto: normalizeDiscount(variacao.percentualDesconto)
         })),
-        variacoes: variacoes.filter((variacao) => variacao.selecionada && hasEstoqueDisponivel(variacao)).map((variacao) => ({
-          variacao_id: variacao.id,
-          estoque: variacao.estoque,
-          percentual_desconto: normalizeDiscount(variacao.percentualDesconto)
-        }))
+        variacoes: selectedVariacoes
       });
       const existingIndex = state.form.produtos.findIndex((itemAtual) => String(itemAtual.produto_id) === String(item.produto_id));
       if (existingIndex >= 0) state.form.produtos.splice(existingIndex, 1);
@@ -866,6 +892,7 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
         state.form.itemEditor = {
           produto: { id: selected.produto_id, nome: selected.nome, descricao: selected.descricao },
           produto_id: selected.produto_id,
+          escopo: selected.aplicar_em_todas_variacoes !== false ? 'all' : 'specific',
           aplicar_em_todas_variacoes: selected.aplicar_em_todas_variacoes !== false,
           percentual_desconto: selected.percentual_desconto ?? '',
           variacoes_disponiveis: (selected.variacoes_disponiveis || []).filter(hasEstoqueDisponivel).map((variacao) => ({
@@ -874,7 +901,9 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
             percentualDesconto: variacao.percentualDesconto ?? variacao.percentual_desconto ?? ''
           })),
           variacao_ids: Array.isArray(selected.variacao_ids) ? selected.variacao_ids : [],
+          selectedVariationIds: Array.isArray(selected.selectedVariationIds) ? selected.selectedVariationIds : Array.isArray(selected.variacao_ids) ? selected.variacao_ids : [],
           variacoesSelecionadas: Array.isArray(selected.variacoesSelecionadas) ? selected.variacoesSelecionadas : [],
+          descontosPorVariacao: selected.descontosPorVariacao || {},
           error: ''
         };
         state.productSearchOpen = false;
@@ -956,8 +985,8 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
           message: 'Processando dados, aguarde...'
         });
       });
-    root.querySelector('#nhp-escopo-all')?.addEventListener('change', () => { state.form.itemEditor.aplicar_em_todas_variacoes = true; render(); });
-    root.querySelector('#nhp-escopo-specific')?.addEventListener('change', () => { state.form.itemEditor.aplicar_em_todas_variacoes = false; render(); });
+    root.querySelector('#nhp-escopo-all')?.addEventListener('change', () => { state.form.itemEditor.escopo = 'all'; state.form.itemEditor.aplicar_em_todas_variacoes = true; render(); });
+    root.querySelector('#nhp-escopo-specific')?.addEventListener('change', () => { state.form.itemEditor.escopo = 'specific'; state.form.itemEditor.aplicar_em_todas_variacoes = false; render(); });
       root.querySelector('#nhp-nome')?.addEventListener('input', (event) => {
         state.form.nome = event.target.value || '';
         render();
@@ -989,7 +1018,9 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
             String(variacao.id) === String(variacaoId) ? { ...variacao, selecionada: event.target.checked } : variacao
           ));
           state.form.itemEditor.variacao_ids = state.form.itemEditor.variacoes_disponiveis.filter((variacao) => variacao.selecionada).map((variacao) => variacao.id);
+          state.form.itemEditor.selectedVariationIds = state.form.itemEditor.variacao_ids.slice();
           state.form.itemEditor.variacoesSelecionadas = state.form.itemEditor.variacoes_disponiveis.filter((variacao) => variacao.selecionada).map((variacao) => ({ variacaoId: variacao.id, percentualDesconto: normalizeDiscount(variacao.percentualDesconto) }));
+          state.form.itemEditor.descontosPorVariacao = Object.fromEntries(state.form.itemEditor.variacoesSelecionadas.map((variacao) => [String(variacao.variacaoId), variacao.percentualDesconto]));
           render();
         });
       });
@@ -1004,10 +1035,12 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
               : variacao
           ));
           state.form.itemEditor.variacao_ids = state.form.itemEditor.variacoes_disponiveis.filter((variacao) => variacao.selecionada).map((variacao) => variacao.id);
+          state.form.itemEditor.selectedVariationIds = state.form.itemEditor.variacao_ids.slice();
           state.form.itemEditor.variacoesSelecionadas = state.form.itemEditor.variacoes_disponiveis
             .filter((variacao) => variacao.selecionada)
             .map((variacao) => ({ variacaoId: variacao.id, percentualDesconto: normalizeDiscount(variacao.percentualDesconto) }))
             .filter((variacao) => Number.isFinite(variacao.percentualDesconto));
+          state.form.itemEditor.descontosPorVariacao = Object.fromEntries(state.form.itemEditor.variacoesSelecionadas.map((variacao) => [String(variacao.variacaoId), variacao.percentualDesconto]));
           scheduleVariacaoRender();
         });
         input.addEventListener('blur', () => {

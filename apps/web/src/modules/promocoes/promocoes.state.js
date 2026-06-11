@@ -22,12 +22,15 @@ export function createPromocoesState() {
       itemEditor: {
         produto: null,
         produto_id: '',
+        escopo: 'all',
         aplicar_em_todas_variacoes: true,
         painel_variacoes_aberto: true,
         percentual_desconto: '',
         variacoes_disponiveis: [],
         variacao_ids: [],
+        selectedVariationIds: [],
         variacoesSelecionadas: [],
+        descontosPorVariacao: {},
         error: ''
       }
     }
