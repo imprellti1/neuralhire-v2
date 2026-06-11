@@ -436,3 +436,57 @@ test('produto 360 exibe período e preço promocional em formato brasil na grade
   anchorMock.restore();
   teardownFrontendDom(dom);
 });
+
+test('produto 360 usa o preço promocional da variacao no card Promocoes e nao repete o preco original como promocional', async () => {
+  const dom = setupFrontendDom('#/produtos/p1');
+  mockObjectUrl();
+  const anchorMock = mockAnchorClicks(dom);
+
+  const apiClient = {
+    async get(path) {
+      if (path === '/produtos/p1') {
+        return { item: { id: 'p1', nome: 'Produto A', sku: 'SKU1', categoria: 'Cat', preco: 21.1, status: 'ativo', ativo: true } };
+      }
+      if (path === '/produtos/p1/variacoes') {
+        return { items: [
+          { id: 'v1', sku: 'SKU1-01', cor: 'Azul', grade: 'P', estoque_atual: 2, preco: 21.1, status: 'ativo', ativo: true },
+          { id: 'v2', sku: 'SKU1-02', cor: 'Azul', grade: 'M', estoque_atual: 2, preco: 21.1, status: 'ativo', ativo: true }
+        ] };
+      }
+      if (path === '/produtos/p1/imagens') return { items: [] };
+      if (path === '/product-audit/products/p1') return { issues: [] };
+      if (path === '/fabricantes') return { items: [] };
+      if (path === '/pedidos') return { items: [] };
+      if (path === '/produtos/p1/promocoes') {
+        return {
+          items: [
+            { id: 'promo-1', produto_id: 'p1', nome: 'Promo V1', percentual_desconto: 10, data_inicio: '2026-06-11', data_fim: '2026-06-11', status: 'ativo', ativaAgora: true, aplicar_em_todas_variacoes: false, produtos: [{ id: 'p1', nome: 'Produto A', variacoes: [{ variacao_id: 'v1', percentual_desconto: 10 }] }] }
+          ]
+        };
+      }
+      throw new Error(`unhandled get ${path}`);
+    },
+    async post() { return { item: {} }; },
+    async patch() { return { item: { id: 'p1' } }; },
+    async delete() { return { removed: true }; }
+  };
+
+  const root = document.getElementById('root');
+  renderProdutoDetailsPage(root, { apiClient, produtoId: 'p1' });
+  await flush(); await flush(); await flush();
+
+  assert.match(root.textContent, /Variações do Produto/);
+  assert.match(root.textContent, /R\$\s*18,99/);
+  assert.match(root.textContent, /Promo V1/);
+  assert.match(root.textContent, /Preço promocional/);
+  assert.doesNotMatch(root.textContent, /Preço promocional\s*R\$\s*21,10/);
+
+  const promoCard = [...root.querySelectorAll('.nhpd-card')].find((card) => card.textContent.includes('Promoções'));
+  assert.ok(promoCard);
+  assert.match(promoCard.textContent, /R\$\s*21,10/);
+  assert.match(promoCard.textContent, /R\$\s*18,99/);
+  assert.equal(promoCard.textContent.includes('Preço promocional R$ 21,10'), false);
+
+  anchorMock.restore();
+  teardownFrontendDom(dom);
+});

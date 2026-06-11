@@ -151,6 +151,51 @@ function getVariationPromoPrice(variation = {}, product = {}, promocoes = []) {
 function getActiveProductPromotions(product = {}, promocoes = []) {
   return normalizeDetailPromoContext(product, promocoes, product.variacoes || []).promocoesVigentes;
 }
+function getPromocaoVariationEntries(product = {}, promocao = {}) {
+  const variations = Array.isArray(product.variacoes) ? product.variacoes : [];
+  const promoProducts = Array.isArray(promocao.produtos) ? promocao.produtos : [];
+  const productLink = promoProducts.find((item) => String(item.id) === String(product.id)) || null;
+  const linkedVariations = Array.isArray(productLink?.variacoes) ? productLink.variacoes : [];
+  const variationById = new Map(variations.map((variation) => [String(variation.id), variation]));
+
+  if (promocao.aplicar_em_todas_variacoes) {
+    return variations.map((variation) => {
+      const base = getVariationBasePrice(variation, product);
+      const percentual = Number(promocao.percentual_desconto);
+      const promoPrice = Number.isFinite(percentual) ? calculatePrecoPromocional(base, percentual) : null;
+      return { variation, base, promoPrice };
+    });
+  }
+
+  return linkedVariations
+    .map((linked) => {
+      const variationId = String(linked?.variacao_id || linked?.variacaoId || linked?.id || '');
+      const variation = variationById.get(variationId);
+      if (!variation) return null;
+      const base = getVariationBasePrice(variation, product);
+      const percentual = linked?.percentual_desconto ?? linked?.percentualDesconto ?? promocao.percentual_desconto;
+      const promoPrice = Number.isFinite(Number(percentual)) ? calculatePrecoPromocional(base, percentual) : null;
+      return { variation, base, promoPrice };
+    })
+    .filter(Boolean);
+}
+function formatPromocaoPriceSummary(entries = []) {
+  const validEntries = (Array.isArray(entries) ? entries : []).filter((entry) => Number.isFinite(Number(entry?.base)) && Number.isFinite(Number(entry?.promoPrice)));
+  if (!validEntries.length) return { original: '-', promo: '-' };
+  const originalValues = validEntries.map((entry) => Number(entry.base)).filter((value) => Number.isFinite(value));
+  const promoValues = validEntries.map((entry) => Number(entry.promoPrice)).filter((value) => Number.isFinite(value));
+  const minOriginal = Math.min(...originalValues);
+  const maxOriginal = Math.max(...originalValues);
+  const minPromo = Math.min(...promoValues);
+  const maxPromo = Math.max(...promoValues);
+
+  if (validEntries.length === 1) {
+    return { original: brl(minOriginal), promo: brl(minPromo) };
+  }
+  const original = minOriginal === maxOriginal ? `A partir de ${brl(minOriginal)}` : `${brl(minOriginal)} a ${brl(maxOriginal)}`;
+  const promo = minPromo === maxPromo ? `A partir de ${brl(minPromo)}` : `${brl(minPromo)} a ${brl(maxPromo)}`;
+  return { original, promo };
+}
 function renderVariationImageCell(variation = {}, fallbackSrc = null) {
   const src = variation.imagemUrl || variation.imagem_url || variation.raw?.imagemUrl || variation.raw?.imagem_url || variation.raw?.imagemPrincipalUrl || variation.raw?.imagem_principal_url || fallbackSrc || null;
   return src ? `<img src="${src}" alt="Imagem da variação" class="nhpd-variation-image" />` : '<div class="nhpd-variation-image nhpd-variation-placeholder" aria-hidden="true"></div>';
@@ -312,9 +357,10 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     const visiblePromocoes = getActiveProductPromotions(product, promocoes);
     if (!promocoes.length || !visiblePromocoes.length) return '<div class="nhpd-state">Sem promoções cadastradas.</div>';
     return `<div class="nhpd-table-wrap"><table class="nhpd-table"><thead><tr><th>Nome</th><th>Período</th><th>Status</th><th>Preço original</th><th>Preço promocional</th></tr></thead><tbody>${visiblePromocoes.map((p) => {
-      const base = Number(product.preco || 0);
       const activeNow = isPromocaoVigente(p);
-      return `<tr class="nhpd-row ${activeNow ? 'is-active-promo' : ''}"><td>${p.nome}</td><td>${formatDateOnlyPtBr(p.data_inicio)} a ${formatDateOnlyPtBr(p.data_fim)}</td><td>${activeNow ? 'Ativa' : normalizeStatusLabel(p.status, p.ativaAgora)}</td><td>${brl(base)}</td><td>${brl(calculatePrecoPromocional(base, p.percentual_desconto))}</td></tr>`;
+      const priceEntries = getPromocaoVariationEntries(product, p);
+      const priceSummary = formatPromocaoPriceSummary(priceEntries);
+      return `<tr class="nhpd-row ${activeNow ? 'is-active-promo' : ''}"><td>${p.nome}</td><td>${formatDateOnlyPtBr(p.data_inicio)} a ${formatDateOnlyPtBr(p.data_fim)}</td><td>${activeNow ? 'Ativa' : normalizeStatusLabel(p.status, p.ativaAgora)}</td><td>${priceSummary.original}</td><td>${priceSummary.promo}</td></tr>`;
     }).join('')}</tbody></table></div>`;
   }
 
