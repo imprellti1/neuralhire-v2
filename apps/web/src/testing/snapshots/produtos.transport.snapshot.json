@@ -87,6 +87,15 @@
       "content-type": "application/json"
     },
     "method": "GET",
+    "path": "/produtos/p1/promocoes",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
     "path": "/produtos/p1/variacoes",
     "query": {}
   },
@@ -122,8 +131,8 @@
     "method": "GET",
     "path": "/pedidos",
     "query": {
-      "page": "1",
-      "limit": "50"
+      "limit": "50",
+      "page": "1"
     }
   },
   {

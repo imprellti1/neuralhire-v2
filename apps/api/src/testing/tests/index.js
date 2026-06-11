@@ -94,9 +94,11 @@ const [
   produtoCategorias,
   produtosImport,
   productEditor,
+  iaMemorias,
   vendedores,
   clientesVendedorScope,
-  auditLogs
+  auditLogs,
+  promocoes
 ] = await Promise.all([
   import('./auth.test.js'),
   import('./rbac.test.js'),
@@ -182,9 +184,11 @@ const [
   import('./produto-categorias.test.js'),
   import('./produtos-import.test.js'),
   import('./product-editor.test.js'),
+  import('../../modules/ia-memorias/ia-memorias.test.js'),
   import('./vendedores.test.js'),
   import('./clientes-vendedor-scope.test.js'),
-  import('./audit-logs.test.js')
+  import('./audit-logs.test.js'),
+  import('./promocoes.test.js')
 ]);
 
 async function main() {
@@ -273,9 +277,11 @@ async function main() {
     ['Produto Categorias', produtoCategorias.getProdutoCategoriasTests()],
     ['Produtos Import', produtosImport.getProdutosImportTests()],
     ['Product Editor', productEditor.getProductEditorTests()],
+    ['IA Memorias', iaMemorias.getIaMemoriasTests ? iaMemorias.getIaMemoriasTests() : []],
     ['Vendedores', vendedores.getVendedoresTests()],
     ['Clientes Vendedor Scope', clientesVendedorScope.getClientesVendedorScopeTests()]
     ,['Audit Logs', auditLogs.getAuditLogsTests()]
+    ,['Promocoes', promocoes.getPromocoesTests ? promocoes.getPromocoesTests() : []]
   ];
 
   const summary = { total: 0, passed: 0, failed: 0 };

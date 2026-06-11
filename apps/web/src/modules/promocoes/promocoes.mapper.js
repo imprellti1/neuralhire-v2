@@ -25,6 +25,7 @@ export function mapPromocoesData(response) {
   return { items: items.map((item) => ({
     ...item,
     produtos: Array.isArray(item.produtos) ? item.produtos : (item.produto ? [item.produto] : []),
+    produto_ativo_id: item.produto_ativo_id || item.produto_id || null,
     variacoesSelecionadas: Array.isArray(item.variacoesSelecionadas) ? item.variacoesSelecionadas : [],
     percentual_desconto: item.percentual_desconto === null || item.percentual_desconto === undefined ? null : Number(item.percentual_desconto)
   })) };

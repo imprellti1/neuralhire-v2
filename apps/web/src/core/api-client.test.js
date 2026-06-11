@@ -84,3 +84,24 @@ test('api client preserves explicit Authorization header', async () => {
   clearRuntimeConfig();
   resetFetchCalls();
 });
+
+test('api client clears stale session on invalid token response', async () => {
+  setRuntimeConfig({
+    VITE_API_URL: 'https://api.test',
+    VITE_APP_ENV: 'production'
+  });
+  installFetchMock({
+    'GET /promocoes': () => ({ __mockError: true, status: 401, body: { error: { code: 'INVALID_TOKEN', message: 'Token expirado' } } })
+  });
+
+  const api = createApiClient();
+  await assert.rejects(() => api.get('/promocoes'), /Token expirado/);
+
+  const storedSession = window.localStorage.getItem('neuralhire.supabase.session');
+  const storedToken = window.localStorage.getItem('neuralhire.supabase.access_token');
+  assert.equal(storedSession, null);
+  assert.equal(storedToken, null);
+
+  clearRuntimeConfig();
+  resetFetchCalls();
+});

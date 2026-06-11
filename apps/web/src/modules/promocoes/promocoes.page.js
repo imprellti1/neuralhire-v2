@@ -158,6 +158,73 @@ function normalizeFormProducts(form = {}) {
   return form.produto ? [{ ...form.produto, produto_id: form.produto.id || form.produto_id || '' }] : [];
 }
 
+function getItemEditor(form = {}) {
+  return form.itemEditor || {
+    produto: null,
+    produto_id: '',
+    aplicar_em_todas_variacoes: true,
+    percentual_desconto: '',
+    variacoes_disponiveis: [],
+    variacao_ids: [],
+    variacoesSelecionadas: [],
+    error: ''
+  };
+}
+
+function normalizeProductItem(product = {}, defaults = {}) {
+  const variacoesDisponiveis = Array.isArray(product.variacoes_disponiveis) ? product.variacoes_disponiveis : [];
+  const selectedIds = new Set(
+    variacoesDisponiveis.filter((variacao) => variacao.selecionada !== false).map((variacao) => String(variacao.id))
+  );
+  return {
+    ...product,
+    id: product.id || product.produto_id || '',
+    produto_id: product.produto_id || product.id || '',
+    aplicar_em_todas_variacoes: product.aplicar_em_todas_variacoes !== false,
+    percentual_desconto: product.percentual_desconto ?? defaults.percentual_desconto ?? '',
+    variacoes_disponiveis: variacoesDisponiveis.map((variacao) => ({
+      ...variacao,
+      selecionada: selectedIds.size ? selectedIds.has(String(variacao.id)) : variacao.selecionada !== false,
+      percentualDesconto: variacao.percentualDesconto ?? variacao.percentual_desconto ?? ''
+    })),
+    variacoesSelecionadas: Array.isArray(product.variacoesSelecionadas) ? product.variacoesSelecionadas : [],
+    variacao_ids: variacoesDisponiveis.filter((variacao) => variacao.selecionada !== false).map((variacao) => variacao.id)
+  };
+}
+
+function getProductDiscountValue(product = {}, fallback = '') {
+  const value = product.percentual_desconto ?? product.percentualDesconto ?? fallback;
+  return value === null || value === undefined ? '' : value;
+}
+
+function getProductVariations(product = {}) {
+  return product && Array.isArray(product.variacoes_disponiveis) ? product.variacoes_disponiveis : [];
+}
+
+function getActiveProduct(form = {}) {
+  const products = normalizeFormProducts(form);
+  if (!products.length) return null;
+  const activeId = form.produto_ativo_id || form.produto_id || products[0].id;
+  return products.find((item) => String(item.id) === String(activeId)) || products[0];
+}
+
+function upsertProduct(form, product) {
+  const list = Array.isArray(form.produtos) ? form.produtos.slice() : [];
+  const normalized = normalizeProductItem(product, form);
+  const idx = list.findIndex((item) => String(item.id) === String(normalized.id));
+  if (idx >= 0) list[idx] = { ...list[idx], ...normalized };
+  else list.push(normalized);
+  form.produtos = list;
+  if (!form.produto_ativo_id) form.produto_ativo_id = normalized.id;
+  form.produto = list.find((item) => String(item.id) === String(form.produto_ativo_id)) || list[0] || null;
+}
+
+function removeProduct(form, productId) {
+  form.produtos = (Array.isArray(form.produtos) ? form.produtos : []).filter((produto) => String(produto.id) !== String(productId));
+  if (String(form.produto_ativo_id) === String(productId)) form.produto_ativo_id = form.produtos[0]?.id || '';
+  form.produto = form.produtos[0] || null;
+}
+
 function getPromocaoProdutos(item = {}) {
   if (Array.isArray(item?.produtos) && item.produtos.length) return item.produtos;
   if (item?.produto) return [item.produto];
@@ -203,6 +270,65 @@ function buildVariacaoState(variacoes = [], selectedMap = new Map(), defaultPerc
   });
 }
 
+function getProductById(form, productId) {
+  return normalizeFormProducts(form).find((item) => String(item.id) === String(productId)) || null;
+}
+
+function normalizePromotionItem(item = {}) {
+  const variacoes = Array.isArray(item.variacoes) ? item.variacoes : [];
+  return {
+    produto_id: item.produto_id || item.id || '',
+    id: item.produto_id || item.id || '',
+    nome: item.nome || item.produto_nome || item.produto || '',
+    descricao: item.descricao || item.produto_descricao || '',
+    aplicar_em_todas_variacoes: item.aplicar_em_todas_variacoes !== false,
+    percentual_desconto: item.percentual_desconto ?? '',
+    variacoes_disponiveis: variacoes.map((variacao) => ({
+      ...variacao,
+      selecionada: true,
+      percentualDesconto: variacao.percentual_desconto ?? variacao.percentualDesconto ?? ''
+    })),
+    variacao_ids: variacoes.map((variacao) => variacao.variacao_id || variacao.variacaoId || variacao.id).filter(Boolean),
+    variacoesSelecionadas: variacoes.map((variacao) => ({
+      variacaoId: variacao.variacao_id || variacao.variacaoId || variacao.id,
+      percentualDesconto: variacao.percentual_desconto ?? variacao.percentualDesconto ?? null
+    }))
+  };
+}
+
+function clearItemEditor(form = {}) {
+  form.itemEditor = {
+    produto: null,
+    produto_id: '',
+    aplicar_em_todas_variacoes: true,
+    percentual_desconto: '',
+    variacoes_disponiveis: [],
+    variacao_ids: [],
+    variacoesSelecionadas: [],
+    error: ''
+  };
+}
+
+function updateItemEditorFromProduct(form, product, productDetails = null, variacoes = []) {
+  const resolvedProduct = { ...(product || {}), ...(productDetails?.item || productDetails || {}) };
+  const mappedVariacoes = variacoes.map((variacao) => ({
+    ...variacao,
+    selecionada: true,
+    percentualDesconto: ''
+  }));
+  form.itemEditor = {
+    ...getItemEditor(form),
+    produto: resolvedProduct,
+    produto_id: resolvedProduct.id || product?.id || '',
+    aplicar_em_todas_variacoes: true,
+    percentual_desconto: '',
+    variacoes_disponiveis: mappedVariacoes,
+    variacao_ids: mappedVariacoes.map((variacao) => variacao.id),
+    variacoesSelecionadas: mappedVariacoes.map((variacao) => ({ variacaoId: variacao.id, percentualDesconto: null })),
+    error: ''
+  };
+}
+
 function renderProductSearchModal(state) {
   if (!state.productSearchOpen) return '';
   return `<div class="nhp-modal-backdrop" id="nhp-product-modal">
@@ -218,7 +344,7 @@ function renderProductSearchModal(state) {
       ${state.productSearchLoading ? '<div class="nhp-state">Buscando produtos...</div>' : ''}
       ${state.productSearchError ? `<div class="nhp-state" role="alert">${state.productSearchError}</div>` : ''}
       <div class="nhp-product-list">
-        ${(state.productSearchItems || []).map((item) => `<button type="button" class="nhp-product-row" data-product-id="${item.id}" data-product-name="${formatProductLabel(item)}">
+        ${(state.productSearchItems || []).map((item) => `<button type="button" class="nhp-product-row nhp-product-search-item" data-product-id="${item.id}" data-product-name="${formatProductLabel(item)}">
           <strong>${item.nome || '-'}</strong>
           <span>${item.sku || '-'}${item.fabricante_nome ? ` • ${item.fabricante_nome}` : ''}${item.categoria_nome || item.categoria ? ` • ${item.categoria_nome || item.categoria}` : ''}</span>
         </button>`).join('')}
@@ -228,14 +354,16 @@ function renderProductSearchModal(state) {
 }
 
 function renderForm(state) {
-  const showSpecific = state.form.aplicar_em_todas_variacoes === false;
-  const variacoes = Array.isArray(state.form.variacoes_disponiveis) ? state.form.variacoes_disponiveis : [];
-  const produtoPai = state.form.produto || {};
+  const editor = getItemEditor(state.form);
+  const produtosSelecionados = Array.isArray(state.form.produtos) ? state.form.produtos : [];
+  const produtoAtivo = editor.produto || null;
+  const variacoes = Array.isArray(editor.variacoes_disponiveis) ? editor.variacoes_disponiveis : [];
+  const showSpecific = editor.aplicar_em_todas_variacoes === false;
   const globalPercentual = state.form.percentual_desconto ?? '';
-  const produtosSelecionados = normalizeFormProducts(state.form);
+  const itemPercentual = editor.percentual_desconto ?? '';
   const selectedCount = variacoes.filter((variacao) => variacao.selecionada).length;
-  const hasValidSpecificDiscount = variacoes.some((variacao) => variacao.selecionada && Number.isFinite(Number(variacao.percentualDesconto)) && Number(variacao.percentualDesconto) > 0);
-  const saveDisabled = !produtosSelecionados.length || !String(state.form.nome || '').trim() || !state.form.data_inicio || !state.form.data_fim || !String(state.form.status || '').trim() || (showSpecific ? !(normalizeDiscount(globalPercentual) || hasValidSpecificDiscount) : !normalizeDiscount(globalPercentual));
+  const canAdd = Boolean(produtoAtivo?.id);
+  const saveDisabled = !produtosSelecionados.length || !String(state.form.nome || '').trim() || !state.form.data_inicio || !state.form.data_fim || !String(state.form.status || '').trim();
   return `<section class="nhp-panel nhp-form">
     <div>
       <h2 style="margin:0;font-size:20px">Formulário</h2>
@@ -254,36 +382,27 @@ function renderForm(state) {
           <label class="nhp-field">Data inicial<input id="nhp-data_inicio" type="date" class="nhp-input" value="${state.form.data_inicio || ''}"></label>
           <label class="nhp-field">Data final<input id="nhp-data_fim" type="date" class="nhp-input" value="${state.form.data_fim || ''}"></label>
         </div>
-        <label class="nhp-field">Desconto percentual<input id="nhp-percentual_desconto" type="number" min="0" max="100" class="nhp-input" value="${globalPercentual}"><small>Em variações específicas, este valor vira padrão e pode ser sobrescrito.</small></label>
+        <label class="nhp-field">Desconto da promoção<input id="nhp-percentual_desconto" type="number" min="0" max="100" class="nhp-input" value="${globalPercentual}"><small>Desconto geral da promoção, usado como fallback para itens sem valor próprio.</small></label>
       </article>
       <article class="nhp-form-card">
-        <h3>Produto e variações</h3>
+        <h3>Adicionar item à promoção</h3>
         <label class="nhp-field">Produto
           <div style="display:flex;gap:8px">
-            <input id="nhp-produto_display" class="nhp-input" value="${state.form.produto ? formatProductLabel(state.form.produto) : ''}" readonly placeholder="Escolha um produto">
+            <input id="nhp-produto_display" class="nhp-input" value="${produtoAtivo ? formatProductLabel(produtoAtivo) : ''}" readonly placeholder="Escolha um produto">
             <button id="nhp-produto-search-open" class="nhp-btn secondary" type="button" aria-label="Abrir busca de produtos">🔍</button>
           </div>
         </label>
-        <div class="nhp-item-stack">
-          <div class="nhp-muted">Produtos na promoção: ${produtosSelecionados.length || 0}</div>
-          ${produtosSelecionados.map((produto) => `<div class="nhp-product-row" style="cursor:default;grid-template-columns:1fr auto" data-product-id="${produto.id}">
-            <div>
-              <strong>${formatProductLabel(produto)}</strong>
-              <span>${produto.descricao || ''}</span>
-            </div>
-            <button type="button" class="nhp-btn secondary nhp-remove-product" data-product-id="${produto.id}">Remover</button>
-          </div>`).join('')}
-        </div>
+        ${editor.error ? `<div class="nhp-error" role="alert">${editor.error}</div>` : ''}
         <div class="nhp-radio-group" role="radiogroup" aria-label="Escopo da promoção">
-          <label class="nhp-radio"><input type="radio" name="nhp-escopo" id="nhp-escopo-all" value="all" ${state.form.aplicar_em_todas_variacoes !== false ? 'checked' : ''}><span><strong>Todas as variações</strong><br/><small class="nhp-muted">Aplica o desconto automaticamente em toda a grade do produto.</small></span></label>
-          <label class="nhp-radio"><input type="radio" name="nhp-escopo" id="nhp-escopo-specific" value="specific" ${showSpecific ? 'checked' : ''}><span><strong>Variações específicas</strong><br/><small class="nhp-muted">Selecione ou informe as variações que recebem a promoção.</small></span></label>
+          <label class="nhp-radio"><input type="radio" name="nhp-escopo" id="nhp-escopo-all" value="all" ${!showSpecific ? 'checked' : ''}><span><strong>Todas as variações</strong><br/><small class="nhp-muted">Aplica o desconto automaticamente em toda a grade do item.</small></span></label>
+          <label class="nhp-radio"><input type="radio" name="nhp-escopo" id="nhp-escopo-specific" value="specific" ${showSpecific ? 'checked' : ''}><span><strong>Variações específicas</strong><br/><small class="nhp-muted">Escolha as variações que entram neste item da promoção.</small></span></label>
         </div>
         ${showSpecific ? `<div class="nhp-variation-box" id="nhp-variacoes">
-          <strong>Variações específicas</strong>
-          <div class="nhp-muted">${selectedCount ? `${selectedCount} variação(ões) selecionada(s).` : 'Nenhuma variação selecionada.'}</div>
-          ${variacoes.length ? `<div class="nhp-table-wrap"><table class="nhp-table" style="min-width:100%"><thead><tr><th></th><th>SKU</th><th>Cor</th><th>Grade</th><th>Preço base</th><th>Desconto %</th><th>Preço promocional</th></tr></thead><tbody>${variacoes.map((variacao) => {
-            const basePrice = resolveVariacaoPrecoBase(variacao, produtoPai);
-            const desconto = Number(variacao.percentualDesconto || globalPercentual || 0);
+          <strong>Variações específicas${produtoAtivo ? ` - ${formatProductLabel(produtoAtivo)}` : ''}</strong>
+          <div class="nhp-muted">${produtoAtivo ? `${selectedCount} variação(ões) selecionada(s) neste item.` : 'Nenhum produto selecionado.'}</div>
+          ${produtoAtivo && variacoes.length ? `<div class="nhp-table-wrap"><table class="nhp-table" style="min-width:100%"><thead><tr><th></th><th>SKU</th><th>Cor</th><th>Grade</th><th>Preço base</th><th>Desconto %</th><th>Preço promocional</th></tr></thead><tbody>${variacoes.map((variacao) => {
+            const basePrice = resolveVariacaoPrecoBase(variacao, produtoAtivo);
+            const desconto = Number(variacao.percentualDesconto || itemPercentual || globalPercentual || 0);
             const promoPrice = desconto > 0 ? calculatePrecoPromocional(basePrice, desconto) : null;
             return `<tr>
               <td><input type="checkbox" class="nhp-variacao-check" data-variacao-id="${variacao.id || ''}" ${variacao.selecionada ? 'checked' : ''}></td>
@@ -291,13 +410,37 @@ function renderForm(state) {
               <td>${variacao.cor || '-'}</td>
               <td>${variacao.grade || variacao.tamanho || '-'}</td>
               <td>${brl(basePrice)}</td>
-              <td><input class="nhp-input nhp-variacao-percentual" data-variacao-id="${variacao.id || ''}" type="number" min="0" max="100" value="${variacao.percentualDesconto ?? ''}" placeholder="${globalPercentual || ''}"></td>
+              <td><input class="nhp-input nhp-variacao-percentual" data-variacao-id="${variacao.id || ''}" type="number" min="0" max="100" value="${variacao.percentualDesconto ?? ''}" placeholder="${itemPercentual || globalPercentual || ''}"></td>
               <td>${promoPrice !== null ? brl(promoPrice) : '-'}</td>
             </tr>`;
           }).join('')}</tbody></table></div>` : `<div class="nhp-state">Escolha um produto para listar suas variações.</div>`}
         </div>` : `<div class="nhp-variation-box" id="nhp-variacoes"><strong>Todas as variações</strong><div class="nhp-muted">Nenhuma seleção manual necessária.</div></div>`}
+        <div class="nhp-form-actions" style="justify-content:flex-start">
+          <button id="nhp-add-item" class="nhp-btn" ${canAdd ? '' : 'disabled'} type="button">Adicionar à promoção</button>
+        </div>
       </article>
     </div>
+    <article class="nhp-form-card">
+      <h3>Itens da promoção</h3>
+      <div class="nhp-muted">Itens adicionados: ${produtosSelecionados.length}</div>
+      <div class="nhp-item-stack">
+        ${produtosSelecionados.map((produto) => {
+          const vars = Array.isArray(produto.variacoes_disponiveis) ? produto.variacoes_disponiveis : [];
+          const scope = produto.aplicar_em_todas_variacoes ? 'Todas as variações' : 'Variações específicas';
+          const desconto = produto.percentual_desconto ?? produto.desconto ?? '';
+          return `<div class="nhp-product-row" data-product-id="${produto.id}">
+            <div class="nhp-item-stack">
+              <strong>${formatProductLabel(produto)}</strong>
+              <span>${scope} • ${vars.filter((v) => v.selecionada).length} variação(ões) • ${desconto || globalPercentual || '-'}%</span>
+            </div>
+            <div class="nhp-actions">
+              <button type="button" class="nhp-btn secondary nhp-edit-item" data-product-id="${produto.id}">Editar</button>
+              <button type="button" class="nhp-btn secondary nhp-remove-item" data-product-id="${produto.id}">Remover</button>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </article>
     <div class="nhp-form-actions"><button id="nhp-cancel" class="nhp-btn secondary">Cancelar</button><button id="nhp-save" class="nhp-btn" ${saveDisabled ? 'disabled' : ''}>Salvar</button></div>
   </section>`;
 }
@@ -331,20 +474,8 @@ function renderList(items) {
 export function renderPromocoesPage(root, { apiClient } = {}) {
   injectStyles();
   const state = createPromocoesState();
-  state.form.variacoes_disponiveis = state.form.variacoes_disponiveis || [];
   let productSearchTimer = null;
   let variacaoRenderTimer = null;
-
-  function getVariacoesPayload() {
-    const variacoes = Array.isArray(state.form.variacoes_disponiveis) ? state.form.variacoes_disponiveis : [];
-    return variacoes
-      .filter((variacao) => variacao.selecionada)
-      .map((variacao) => ({
-        variacaoId: String(variacao.id || ''),
-        percentualDesconto: normalizeDiscount(variacao.percentualDesconto ?? state.form.percentual_desconto)
-      }))
-      .filter((item) => item.variacaoId);
-  }
 
   function syncFormFromRadio() {
     const specific = root.querySelector('#nhp-escopo-specific');
@@ -409,6 +540,17 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
     }
   }
 
+  function activateProduct(productId) {
+    const item = getProductById(state.form, productId);
+    if (!item) return;
+    state.form.itemEditor.produto = item;
+    render();
+  }
+
+  function syncProductScope(scopeSpecific) {
+    state.form.itemEditor.aplicar_em_todas_variacoes = scopeSpecific === true ? false : true;
+  }
+
   function scheduleProductSearch(term = '') {
     clearTimeout(productSearchTimer);
     const normalizedTerm = String(term || '').trim();
@@ -429,32 +571,29 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
   }
 
   async function loadVariationsForProduct(product) {
-    const exists = Array.isArray(state.form.produtos) && state.form.produtos.some((item) => String(item.id) === String(product?.id));
-    state.form.produtos = Array.isArray(state.form.produtos) ? state.form.produtos.slice() : [];
-    if (!exists && product?.id) state.form.produtos.push(product);
-    state.form.produto = state.form.produtos[0] || product;
-    state.form.produto_id = state.form.produto?.id || '';
+    state.form.itemEditor.error = '';
+    state.form.itemEditor.produto = product;
+    state.form.itemEditor.produto_id = product?.id || '';
     state.productSearchOpen = false;
-    state.form.variacoes_disponiveis = [];
     render();
     try {
       const productDetails = await apiClient.get(`/produtos/${product.id}`);
-      const resolvedProduct = {
-        ...product,
-        ...(productDetails?.item || productDetails || {})
-      };
-      state.form.produto = resolvedProduct;
-      state.form.produto_id = resolvedProduct?.id || product?.id || '';
-      if (!state.form.produtos.some((item) => String(item.id) === String(resolvedProduct.id))) state.form.produtos.push(resolvedProduct);
       const result = await apiClient.get(`/produtos/${product.id}/variacoes`);
       const variacoes = Array.isArray(result?.items) ? result.items : [];
-      state.form.variacoes_disponiveis = buildVariacaoState(variacoes, new Map(), normalizeDiscount(state.form.percentual_desconto));
-      state.form.variacao_ids = state.form.variacoes_disponiveis.filter((variacao) => variacao.selecionada).map((variacao) => variacao.id);
-      state.form.variacoesSelecionadas = getVariacoesPayload();
+      updateItemEditorFromProduct(state.form, product, productDetails, variacoes);
     } catch {
-      state.form.variacoes_disponiveis = [];
+      updateItemEditorFromProduct(state.form, product, null, []);
     }
     render();
+  }
+
+  function resetEditorAfterAdd() {
+    clearItemEditor(state.form);
+    state.form.produto = null;
+    state.form.produto_id = '';
+    state.productSearchTerm = '';
+    state.productSearchItems = [];
+    state.productSearchError = '';
   }
 
   function render() {
@@ -500,7 +639,7 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
     root.querySelector('#nhp-product-search')?.addEventListener('input', (event) => {
       scheduleProductSearch(event.target.value || '');
     });
-    root.querySelectorAll('.nhp-product-row').forEach((btn) => {
+    root.querySelectorAll('.nhp-product-search-item').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-product-id');
         const name = btn.getAttribute('data-product-name');
@@ -508,13 +647,60 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
         await loadVariationsForProduct({ id, nome: name });
       });
     });
-    root.querySelectorAll('.nhp-remove-product').forEach((btn) => {
-      btn.addEventListener('click', (event) => {
-        event.stopPropagation();
+    root.querySelector('#nhp-add-item')?.addEventListener('click', () => {
+      const editor = getItemEditor(state.form);
+      const produto = editor.produto;
+      if (!produto?.id) return;
+      const variacoes = Array.isArray(editor.variacoes_disponiveis) ? editor.variacoes_disponiveis : [];
+      if (editor.aplicar_em_todas_variacoes === false && !variacoes.some((variacao) => variacao.selecionada)) {
+        editor.error = `Selecione ao menos uma variação para o produto ${formatProductLabel(produto)}.`;
+        render();
+        return;
+      }
+      const item = normalizePromotionItem({
+        produto_id: produto.id,
+        nome: produto.nome || formatProductLabel(produto),
+        descricao: produto.descricao || '',
+        aplicar_em_todas_variacoes: editor.aplicar_em_todas_variacoes,
+        percentual_desconto: normalizeDiscount(editor.percentual_desconto ?? state.form.percentual_desconto) ?? null,
+        variacoes: variacoes.filter((variacao) => variacao.selecionada).map((variacao) => ({
+          variacao_id: variacao.id,
+          percentual_desconto: normalizeDiscount(variacao.percentualDesconto)
+        }))
+      });
+      const existingIndex = state.form.produtos.findIndex((itemAtual) => String(itemAtual.produto_id) === String(item.produto_id));
+      if (existingIndex >= 0) state.form.produtos.splice(existingIndex, 1);
+      state.form.produtos = [...state.form.produtos, item];
+      resetEditorAfterAdd();
+      render();
+    });
+    root.querySelectorAll('.nhp-edit-item').forEach((btn) => {
+      btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-product-id');
-        state.form.produtos = (state.form.produtos || []).filter((produto) => String(produto.id) !== String(id));
-        state.form.produto = state.form.produtos[0] || null;
-        state.form.produto_id = state.form.produto?.id || '';
+        const selected = state.form.produtos.find((item) => String(item.produto_id) === String(id));
+        if (!selected) return;
+        state.form.itemEditor = {
+          produto: { id: selected.produto_id, nome: selected.nome, descricao: selected.descricao },
+          produto_id: selected.produto_id,
+          aplicar_em_todas_variacoes: selected.aplicar_em_todas_variacoes !== false,
+          percentual_desconto: selected.percentual_desconto ?? '',
+          variacoes_disponiveis: (selected.variacoes_disponiveis || []).map((variacao) => ({
+            ...variacao,
+            selecionada: true,
+            percentualDesconto: variacao.percentualDesconto ?? variacao.percentual_desconto ?? ''
+          })),
+          variacao_ids: Array.isArray(selected.variacao_ids) ? selected.variacao_ids : [],
+          variacoesSelecionadas: Array.isArray(selected.variacoesSelecionadas) ? selected.variacoesSelecionadas : [],
+          error: ''
+        };
+        state.productSearchOpen = false;
+        render();
+      });
+    });
+    root.querySelectorAll('.nhp-remove-item').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-product-id');
+        state.form.produtos = state.form.produtos.filter((item) => String(item.produto_id) !== String(id));
         render();
       });
     });
@@ -545,17 +731,14 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
           id: selected.id,
           nome: selected.nome || '',
           descricao: selected.descricao || '',
-          produto_id: selected.produto_id || '',
-          produto: selected.produto || selected.produtoNome ? { id: selected.produto_id || '', nome: selected.produto || selected.produtoNome } : (selected.produto_id ? { id: selected.produto_id, nome: selected.produto_nome || selected.produto || '' } : null),
-          produtos: Array.isArray(selected.produtos) ? selected.produtos : (selected.produto ? [selected.produto] : (selected.produto_id ? [{ id: selected.produto_id, nome: selected.produto_nome || selected.produto || '' }] : [])),
+          produtos: Array.isArray(selected.produtos) ? selected.produtos.map(normalizePromotionItem) : [],
           percentual_desconto: selected.percentual_desconto ?? '',
           data_inicio: selected.data_inicio || '',
           data_fim: selected.data_fim || '',
           status: normalizeStatus(selected.status, selected.ativaAgora),
-          aplicar_em_todas_variacoes: selected.aplicar_em_todas_variacoes !== false,
-          variacao_ids: Array.isArray(selected.variacao_ids) ? selected.variacao_ids : (Array.isArray(selected.variacoesSelecionadas) ? selected.variacoesSelecionadas.map((item) => item.variacao_id || item.variacaoId || item.id).filter(Boolean) : []),
-          variacoesSelecionadas: Array.isArray(selected.variacoesSelecionadas) ? selected.variacoesSelecionadas.map((item) => ({ variacaoId: item.variacao_id || item.variacaoId || item.id, percentualDesconto: item.percentual_desconto ?? null })) : []
+          aplicar_em_todas_variacoes: selected.aplicar_em_todas_variacoes !== false
         };
+        clearItemEditor(state.form);
         render();
       });
     });
@@ -564,46 +747,40 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
       root.querySelector('#nhp-cancel')?.addEventListener('click', () => { state.formOpen = false; render(); });
       root.querySelector('#nhp-save')?.addEventListener('click', async () => {
         syncTextFieldsToState();
-        syncFormFromRadio();
         const globalPercentual = normalizeDiscount(state.form.percentual_desconto);
-        const variacoes = Array.from(root.querySelectorAll('.nhp-variacao-check')).map((checkbox) => {
-          const variacaoId = checkbox.getAttribute('data-variacao-id');
-          const percentual = normalizeDiscount(root.querySelector(`.nhp-variacao-percentual[data-variacao-id="${variacaoId}"]`)?.value);
-          return { variacaoId, percentualDesconto: percentual, selecionada: checkbox.checked };
-        }).filter((item) => item.variacaoId);
-        const selectedVariacoes = variacoes.filter((item) => item.selecionada);
-        const hasValidSpecificDiscount = selectedVariacoes.some((item) => Number.isFinite(Number(item.percentualDesconto)) && Number(item.percentualDesconto) > 0);
-        const canSaveSpecific = state.form.aplicar_em_todas_variacoes === false ? ((Number.isFinite(globalPercentual) && globalPercentual > 0) || hasValidSpecificDiscount) : (Number.isFinite(globalPercentual) && globalPercentual > 0);
-        if (!canSaveSpecific) return;
+        if (!state.form.produtos.length) {
+          state.form.itemEditor.error = 'Adicione ao menos um item à promoção.';
+          render();
+          return;
+        }
         const payload = {
           nome: state.form.nome || '',
           descricao: state.form.descricao || '',
-          produto_id: state.form.produto?.id || state.form.produto_id || '',
-          produtos: (state.form.produtos || []).map((produto) => ({
-            produto_id: produto.id,
-            aplicar_em_todas_variacoes: state.form.aplicar_em_todas_variacoes !== false,
-            percentual_desconto: Number.isFinite(globalPercentual) ? globalPercentual : null,
-            variacoes: produto.id === (state.form.produto?.id || state.form.produto_id || '')
-              ? selectedVariacoes.map((item) => ({ variacaoId: item.variacaoId, percentualDesconto: Number.isFinite(Number(item.percentualDesconto)) ? item.percentualDesconto : null }))
-              : []
+          produtos: state.form.produtos.map((produto) => ({
+            produto_id: produto.produto_id || produto.id,
+            nome: produto.nome || '',
+            descricao: produto.descricao || '',
+            aplicar_em_todas_variacoes: produto.aplicar_em_todas_variacoes !== false,
+            percentual_desconto: Number.isFinite(Number(produto.percentual_desconto)) ? Number(produto.percentual_desconto) : (Number.isFinite(globalPercentual) ? globalPercentual : null),
+          variacoes: (Array.isArray(produto.variacoes_disponiveis) ? produto.variacoes_disponiveis : [])
+            .filter((variacao) => variacao.selecionada)
+            .map((variacao) => ({
+                variacao_id: variacao.id || variacao.variacao_id || variacao.variacaoId,
+                percentual_desconto: Number.isFinite(Number(variacao.percentualDesconto)) ? Number(variacao.percentualDesconto) : null
+              }))
           })),
           data_inicio: state.form.data_inicio || '',
           data_fim: state.form.data_fim || '',
           status: state.form.status || 'ativa',
-          aplicar_em_todas_variacoes: state.form.aplicar_em_todas_variacoes !== false,
-          variacoesSelecionadas: state.form.aplicar_em_todas_variacoes === false ? selectedVariacoes.map((item) => ({
-            variacaoId: item.variacaoId,
-            percentualDesconto: Number.isFinite(Number(item.percentualDesconto)) ? item.percentualDesconto : null
-          })) : [],
-          variacao_ids: state.form.aplicar_em_todas_variacoes === false ? selectedVariacoes.map((item) => item.variacaoId) : []
+          aplicar_em_todas_variacoes: true
         };
         if (Number.isFinite(globalPercentual)) payload.percentual_desconto = globalPercentual;
         await savePromocao(apiClient, payload, state.form.id || null);
         state.formOpen = false;
         await load();
       });
-      root.querySelector('#nhp-escopo-all')?.addEventListener('change', () => { state.form.aplicar_em_todas_variacoes = true; render(); });
-      root.querySelector('#nhp-escopo-specific')?.addEventListener('change', () => { state.form.aplicar_em_todas_variacoes = false; render(); });
+    root.querySelector('#nhp-escopo-all')?.addEventListener('change', () => { state.form.itemEditor.aplicar_em_todas_variacoes = true; render(); });
+    root.querySelector('#nhp-escopo-specific')?.addEventListener('change', () => { state.form.itemEditor.aplicar_em_todas_variacoes = false; render(); });
       root.querySelector('#nhp-nome')?.addEventListener('input', (event) => {
         state.form.nome = event.target.value || '';
         render();
@@ -626,30 +803,26 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
       });
       root.querySelector('#nhp-percentual_desconto')?.addEventListener('input', (event) => {
         state.form.percentual_desconto = event.target.value || '';
-        const global = normalizeDiscount(event.target.value);
-        if (Number.isFinite(global) && state.form.aplicar_em_todas_variacoes === false) {
-          state.form.variacoes_disponiveis = (state.form.variacoes_disponiveis || []).map((variacao) => ({
-            ...variacao,
-            percentualDesconto: variacao.selecionada && !Number.isFinite(Number(variacao.percentualDesconto)) ? global : variacao.percentualDesconto
-          }));
-        }
         scheduleVariacaoRender();
       });
       root.querySelectorAll('.nhp-variacao-check').forEach((checkbox) => {
         checkbox.addEventListener('change', (event) => {
           const variacaoId = event.target.getAttribute('data-variacao-id');
-          state.form.variacoes_disponiveis = (state.form.variacoes_disponiveis || []).map((variacao) => (
+          state.form.itemEditor.variacoes_disponiveis = (state.form.itemEditor.variacoes_disponiveis || []).map((variacao) => (
             String(variacao.id) === String(variacaoId) ? { ...variacao, selecionada: event.target.checked } : variacao
           ));
+          state.form.itemEditor.variacao_ids = state.form.itemEditor.variacoes_disponiveis.filter((variacao) => variacao.selecionada).map((variacao) => variacao.id);
+          state.form.itemEditor.variacoesSelecionadas = state.form.itemEditor.variacoes_disponiveis.filter((variacao) => variacao.selecionada).map((variacao) => ({ variacaoId: variacao.id, percentualDesconto: normalizeDiscount(variacao.percentualDesconto) }));
           render();
         });
       });
       root.querySelectorAll('.nhp-variacao-percentual').forEach((input) => {
         input.addEventListener('input', (event) => {
           const variacaoId = event.target.getAttribute('data-variacao-id');
-          state.form.variacoes_disponiveis = (state.form.variacoes_disponiveis || []).map((variacao) => (
+          state.form.itemEditor.variacoes_disponiveis = (state.form.itemEditor.variacoes_disponiveis || []).map((variacao) => (
             String(variacao.id) === String(variacaoId) ? { ...variacao, percentualDesconto: event.target.value || '' } : variacao
           ));
+          state.form.itemEditor.variacoesSelecionadas = state.form.itemEditor.variacoes_disponiveis.filter((variacao) => variacao.selecionada).map((variacao) => ({ variacaoId: variacao.id, percentualDesconto: normalizeDiscount(variacao.percentualDesconto) }));
           scheduleVariacaoRender();
         });
         input.addEventListener('blur', () => {

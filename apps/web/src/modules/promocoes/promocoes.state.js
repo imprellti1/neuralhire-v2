@@ -18,10 +18,17 @@ export function createPromocoesState() {
       produto_id: '',
       produtos: [],
       aplicar_em_todas_variacoes: true,
-      variacao_ids: [],
-      variacoesSelecionadas: [],
       produto: null,
-      variacoes_disponiveis: []
+      itemEditor: {
+        produto: null,
+        produto_id: '',
+        aplicar_em_todas_variacoes: true,
+        percentual_desconto: '',
+        variacoes_disponiveis: [],
+        variacao_ids: [],
+        variacoesSelecionadas: [],
+        error: ''
+      }
     }
   };
 }

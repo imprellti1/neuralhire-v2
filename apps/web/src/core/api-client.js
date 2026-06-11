@@ -1,3 +1,5 @@
+import { clearAuthSession } from './auth-session.js';
+
 function resolveDefaultApiUrl() {
   if (typeof window !== 'undefined' && window.__NEURALHIRE_CONFIG__?.VITE_API_URL) {
     return window.__NEURALHIRE_CONFIG__.VITE_API_URL;
@@ -42,11 +44,11 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
     };
 
     const hasAuthorization = Boolean(mergedHeaders.Authorization || mergedHeaders.authorization);
-    if (!hasAuthorization) {
-      const accessToken = getStoredSession()?.access_token || (typeof window !== 'undefined' ? window.localStorage.getItem('neuralhire.supabase.access_token') : null);
-      if (accessToken) {
-        mergedHeaders.Authorization = `Bearer ${accessToken}`;
-      }
+  if (!hasAuthorization) {
+    const accessToken = getStoredSession()?.access_token || (typeof window !== 'undefined' ? window.localStorage.getItem('neuralhire.supabase.access_token') : null);
+    if (accessToken) {
+      mergedHeaders.Authorization = `Bearer ${accessToken}`;
+    }
     }
 
     delete mergedHeaders['x-test-account-id'];
@@ -56,8 +58,13 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
     delete mergedHeaders['X-Test-Role'];
     delete mergedHeaders['X-Test-User-Id'];
 
-    return mergedHeaders;
-  }
+  return mergedHeaders;
+}
+
+function shouldClearAuthSession(errorBody, status) {
+  const errorCode = String(errorBody?.error?.code || '').toUpperCase();
+  return status === 401 || errorCode === 'INVALID_TOKEN';
+}
 
   async function request(method, path, options = {}) {
     const { query = {}, body, headers = {} } = options;
@@ -86,6 +93,7 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
     const { res } = await request('GET', path, { query, headers });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
+      if (shouldClearAuthSession(body, res.status)) clearAuthSession();
       const err = new Error(body?.error?.message || 'Request failed');
       err.status = res.status;
       err.body = body;
@@ -98,6 +106,7 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
     const { res } = await request('POST', path, { body, headers });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) {
+      if (shouldClearAuthSession(out, res.status)) clearAuthSession();
       const err = new Error(out?.error?.message || 'Request failed');
       err.status = res.status;
       err.body = out;
@@ -110,6 +119,7 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
     const { res } = await request('PATCH', path, { body, headers });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) {
+      if (shouldClearAuthSession(out, res.status)) clearAuthSession();
       const err = new Error(out?.error?.message || 'Request failed');
       err.status = res.status;
       err.body = out;
@@ -122,6 +132,7 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
     const { res } = await request('PUT', path, { body, headers });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) {
+      if (shouldClearAuthSession(out, res.status)) clearAuthSession();
       const err = new Error(out?.error?.message || 'Request failed');
       err.status = res.status;
       err.body = out;
@@ -134,6 +145,7 @@ export function createApiClient(baseUrl = resolveDefaultApiUrl()) {
     const { res } = await request('DELETE', path, { body, headers });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) {
+      if (shouldClearAuthSession(out, res.status)) clearAuthSession();
       const err = new Error(out?.error?.message || 'Request failed');
       err.status = res.status;
       err.body = out;

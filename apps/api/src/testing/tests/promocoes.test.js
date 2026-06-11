@@ -17,6 +17,75 @@ async function call(app, { method, url, accountId, body }) {
 export function getPromocoesTests() {
   return [
     {
+      name: 'lista promocoes legadas e multi-produto sem quebrar compatibilidade',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryPromocoesForTests();
+        const app = createApiApp();
+        const produtoLegado = { id: 'produto-legado', account_id: 'acc-promo-legacy', nome: 'Produto Legado', descricao: 'Descricao legado', preco: 100 };
+        const produtoA = { id: 'produto-multi-a', account_id: 'acc-promo-legacy', nome: 'Produto Multi A', preco: 200, variacoes: [{ id: 'va-1', produto_id: 'produto-multi-a', account_id: 'acc-promo-legacy', preco: 180, ativo: true }] };
+        const produtoB = { id: 'produto-multi-b', account_id: 'acc-promo-legacy', nome: 'Produto Multi B', preco: 300, variacoes: [{ id: 'vb-1', produto_id: 'produto-multi-b', account_id: 'acc-promo-legacy', preco: 260, ativo: true }] };
+        __loadMemoryProdutos([produtoLegado, produtoA, produtoB]);
+
+        await call(app, {
+          method: 'POST',
+          url: '/promocoes',
+          accountId: 'acc-promo-legacy',
+          body: {
+            produto_id: produtoLegado.id,
+            nome: 'Promo Legada',
+            percentual_desconto: 12,
+            data_inicio: '2026-06-01',
+            data_fim: '2026-06-30',
+            aplicar_em_todas_variacoes: true
+          }
+        });
+
+        await call(app, {
+          method: 'POST',
+          url: '/promocoes',
+          accountId: 'acc-promo-legacy',
+          body: {
+            nome: 'Promo Multi',
+            percentual_desconto: 8,
+            data_inicio: '2026-06-01',
+            data_fim: '2026-06-30',
+            produtos: [
+              {
+                produto_id: produtoA.id,
+                aplicar_em_todas_variacoes: true,
+                percentual_desconto: 8
+              },
+              {
+                produto_id: produtoB.id,
+                aplicar_em_todas_variacoes: false,
+                percentual_desconto: 6,
+                variacoes: [{ variacaoId: 'vb-1', percentualDesconto: 5 }]
+              }
+            ]
+          }
+        });
+
+        const list = await call(app, { method: 'GET', url: '/promocoes', accountId: 'acc-promo-legacy' });
+        assert.equal(list.res.statusCode, 200);
+        assert.equal(list.body.items.length, 2);
+
+        const legacy = list.body.items.find((item) => item.nome === 'Promo Legada');
+        assert.ok(legacy);
+        assert.equal(legacy.produto.id, produtoLegado.id);
+        assert.equal(legacy.produtos.length, 1);
+        assert.equal(legacy.produtos[0].variacoes.length, 0);
+
+        const multi = list.body.items.find((item) => item.nome === 'Promo Multi');
+        assert.ok(multi);
+        assert.equal(multi.produtos.length, 2);
+        assert.equal(multi.produtos[0].id, produtoA.id);
+        assert.equal(multi.produtos[0].variacoes.length, 1);
+        assert.equal(multi.produtos[1].id, produtoB.id);
+        assert.equal(multi.produtos[1].variacoes[0].percentual_desconto, 5);
+      }
+    },
+    {
       name: 'smoke registra rotas de promocoes',
       run: async () => {
         __resetMemoryProdutosForTests();

@@ -43,6 +43,15 @@ function getVariationPromoPrice(variation = {}, product = {}, promocoes = []) {
   const percentual = selectedVariation?.percentual_desconto ?? productLink?.percentual_desconto ?? activePromocao.percentual_desconto;
   return calculatePrecoPromocional(getVariationBasePrice(variation, product), percentual);
 }
+
+function getActiveProductPromotions(product = {}, promocoes = []) {
+  return (Array.isArray(promocoes) ? promocoes : []).filter((promocao) => {
+    const products = Array.isArray(promocao.produtos) ? promocao.produtos : [];
+    const matchesProduct = products.some((item) => String(item.id) === String(product.id));
+    const matchesLegacy = String(promocao.produto_id || '') === String(product.id);
+    return promocao.ativaAgora && (matchesProduct || matchesLegacy);
+  });
+}
 function renderVariationImageCell(variation = {}, fallbackSrc = null) {
   const src = variation.imagemUrl || variation.imagem_url || variation.raw?.imagemUrl || variation.raw?.imagem_url || variation.raw?.imagemPrincipalUrl || variation.raw?.imagem_principal_url || fallbackSrc || null;
   return src ? `<img src="${src}" alt="Imagem da variação" class="nhpd-variation-image" />` : '<div class="nhpd-variation-image nhpd-variation-placeholder" aria-hidden="true"></div>';
@@ -192,7 +201,9 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
   function renderPromocoesCard(product, promocoes) {
     if (!promocoes.length) return '<div class="nhpd-state">Sem promoções cadastradas.</div>';
     const base = Number(product.preco || 0);
-    return `<div class="nhpd-table-wrap"><table class="nhpd-table"><thead><tr><th>Nome</th><th>Desconto</th><th>Período</th><th>Status</th><th>Preço original</th><th>Preço promocional</th></tr></thead><tbody>${promocoes.map((p) => `<tr><td>${p.nome}</td><td>${p.percentual_desconto}%</td><td>${p.data_inicio} a ${p.data_fim}</td><td>${p.ativaAgora ? 'Ativa' : p.status}</td><td>${brl(base)}</td><td>${brl(calculatePrecoPromocional(base, p.percentual_desconto))}</td></tr>`).join('')}</tbody></table></div>`;
+    const visiblePromocoes = getActiveProductPromotions(product, promocoes);
+    if (!visiblePromocoes.length) return '<div class="nhpd-state">Sem promoções ativas para este produto.</div>';
+    return `<div class="nhpd-table-wrap"><table class="nhpd-table"><thead><tr><th>Nome</th><th>Desconto</th><th>Período</th><th>Status</th><th>Preço original</th><th>Preço promocional</th></tr></thead><tbody>${visiblePromocoes.map((p) => `<tr><td>${p.nome}</td><td>${p.percentual_desconto}%</td><td>${p.data_inicio} a ${p.data_fim}</td><td>${p.ativaAgora ? 'Ativa' : p.status}</td><td>${brl(base)}</td><td>${brl(calculatePrecoPromocional(base, p.percentual_desconto))}</td></tr>`).join('')}</tbody></table></div>`;
   }
 
   function renderProductImageBlock(product) {

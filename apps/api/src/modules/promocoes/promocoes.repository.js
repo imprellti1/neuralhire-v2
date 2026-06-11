@@ -70,6 +70,12 @@ function normalizeVariationLink(row = {}) {
   };
 }
 
+function getLegacyVariacoes(links = [], rowId = null, accountId = null) {
+  return links
+    .filter((link) => link.account_id === accountId && link.promocao_id === rowId && !link.promocao_produto_id)
+    .map(normalizeVariationLink);
+}
+
 function normalizeVariacaoSelecionada(item = {}) {
   if (item === null || item === undefined) return null;
   if (typeof item === 'string' || typeof item === 'number') {
@@ -124,6 +130,13 @@ async function resolveProdutosInput(accountId, data = {}) {
   for (const item of produtosRaw) {
     const produtoId = String(item.produto_id || item.id || '').trim();
     if (!produtoId) throw new ValidationError('Produto invalido na promocao', { code: 'VALIDATION_ERROR', domain: 'promocoes' });
+    const variacoesInput = Array.isArray(item.variacoes) && item.variacoes.length
+      ? item.variacoes
+      : Array.isArray(item.variacoesSelecionadas) && item.variacoesSelecionadas.length
+        ? item.variacoesSelecionadas
+        : Array.isArray(item.variacao_ids) && item.variacao_ids.length
+          ? item.variacao_ids
+          : [];
     const produto = await getProdutoById(produtoId, { accountId });
     produtos.push({
       id: produto.id,
@@ -131,7 +144,7 @@ async function resolveProdutosInput(accountId, data = {}) {
       descricao: produto.descricao || null,
       aplicar_em_todas_variacoes: item.aplicar_em_todas_variacoes !== false,
       percentual_desconto: validatePercentual(item.percentual_desconto),
-      variacoes: Array.isArray(item.variacoes) ? item.variacoes : []
+      variacoes: variacoesInput
     });
   }
   return produtos;
@@ -221,28 +234,28 @@ async function loadRows(accountId, produtoId = null) {
     const { data: produtoLinks } = ids.length ? await supabase.from('produto_promocao_produtos').select('*').eq('account_id', accountId).in('promocao_id', ids) : { data: [] };
     const { data: links } = ids.length ? await supabase.from('produto_promocao_variacoes').select('*').eq('account_id', accountId).in('promocao_id', ids) : { data: [] };
     return Promise.all((data || []).map(async (row) => {
+      const legacyVariacoes = getLegacyVariacoes(links || [], row.id, accountId);
       const produtos = (produtoLinks || []).filter((l) => l.promocao_id === row.id).map((link) => ({
         id: link.produto_id,
         aplicar_em_todas_variacoes: link.aplicar_em_todas_variacoes,
         percentual_desconto: link.percentual_desconto,
         variacoes: (links || []).filter((l) => l.promocao_produto_id === link.id).map(normalizeVariationLink)
       }));
-      const allVariacoes = (links || []).filter((l) => l.promocao_id === row.id).map(normalizeVariationLink);
-      const promocao = attachMeta(normalizeRow(row), allVariacoes);
+      const promocao = attachMeta(normalizeRow(row), legacyVariacoes);
       promocao.produtos = produtos.length ? produtos : (row.produto_id ? [{ id: row.produto_id, aplicar_em_todas_variacoes: row.aplicar_em_todas_variacoes, percentual_desconto: row.percentual_desconto, variacoes: legacyVariacoes }] : []);
       return attachProdutoData(promocao, accountId);
     }));
   }
 
   return Promise.all(memoryPromocoes.filter((p) => p.account_id === accountId && (!produtoId || String(p.produto_id) === String(produtoId) || memoryPromocaoProdutos.some((pp) => pp.promocao_id === p.id && String(pp.produto_id) === String(produtoId)))).map(async (row) => {
+    const legacyVariacoes = getLegacyVariacoes(memoryPromocaoVariacoes, row.id, accountId);
     const produtos = memoryPromocaoProdutos.filter((pp) => pp.account_id === accountId && pp.promocao_id === row.id).map((link) => ({
       id: link.produto_id,
       aplicar_em_todas_variacoes: link.aplicar_em_todas_variacoes,
       percentual_desconto: link.percentual_desconto,
       variacoes: memoryPromocaoVariacoes.filter((l) => l.account_id === accountId && l.promocao_produto_id === link.id).map(normalizeVariationLink)
     }));
-    const allVariacoes = memoryPromocaoVariacoes.filter((l) => l.account_id === accountId && l.promocao_id === row.id).map(normalizeVariationLink);
-    const promocao = attachMeta(normalizeRow(row), allVariacoes);
+    const promocao = attachMeta(normalizeRow(row), legacyVariacoes);
     promocao.produtos = produtos.length ? produtos : (row.produto_id ? [{ id: row.produto_id, aplicar_em_todas_variacoes: row.aplicar_em_todas_variacoes, percentual_desconto: row.percentual_desconto, variacoes: legacyVariacoes }] : []);
     return attachProdutoData(promocao, accountId);
   }));

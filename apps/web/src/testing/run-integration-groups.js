@@ -5,6 +5,7 @@ const groups = [
     'node',
     '--test',
     'src/modules/produtos-catalogo/produto-details.page.dom.test.js',
+    'src/modules/promocoes/promocoes.page.dom.test.js',
     'src/modules/produtos-catalogo/produtos-import.page.dom.test.js',
     'src/modules/produtos-catalogo/produtos.routes.smoke.test.js',
     'src/modules/clientes-crm/clientes.routes.smoke.test.js',
