@@ -60,6 +60,16 @@ function fillPromoBase() {
   document.querySelector('#nhp-data_fim').dispatchEvent(new Event('input', { bubbles: true }));
 }
 
+async function waitForDomCondition(predicate, { timeoutMs = 6000, stepMs = 100, errorMessage = 'Condição de DOM não atingida.' } = {}) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, stepMs));
+    await flush();
+  }
+  throw new Error(`${errorMessage}\n${document.body.textContent}`);
+}
+
 test('promoções: bloqueia adicionar item específico sem variação e salvar sem itens', async () => {
   const dom = setupFrontendDom('#/x');
   const spy = { payloads: [] };
@@ -445,5 +455,208 @@ test('promoções: remove produto e salva apenas itens restantes sem cruzar vari
   assert.equal(payload.produtos.some((item) => item.produto_id === 'prod-b'), false);
   assert.deepEqual(payload.produtos[0].variacoes.map((item) => item.variacao_id), ['a1']);
   assert.deepEqual(payload.produtos[1].variacoes.map((item) => item.variacao_id), ['c1']);
+  teardownFrontendDom(dom);
+});
+
+test('promoções: ao editar promoção hidratada, remover um produto não reaproveita variacao cruzada no PATCH', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { postPayloads: [], patchPayloads: [], patchPaths: [], postPaths: [] };
+  const apiClient = {
+    get: async (path) => {
+      if (path === '/promocoes') {
+        return {
+          items: [{
+            id: 'promo-edit-1',
+            nome: 'Promo Editada',
+            descricao: 'Teste',
+            percentual_desconto: 10,
+            data_inicio: '2026-06-01',
+            data_fim: '2026-06-30',
+            status: 'ativa',
+            produtos: [
+              {
+                produto_id: 'prod-a',
+                id: 'prod-a',
+                nome: 'Produto A',
+                descricao: 'Descricao A',
+                aplicar_em_todas_variacoes: false,
+                percentual_desconto: 10,
+                variacoes_disponiveis: [{ id: 'a1', produto_id: 'prod-a', sku: 'A1', cor: 'Azul', grade: 'G', preco: 100, estoque: 5, percentual_desconto: 10 }],
+                variacoes: [{ variacao_id: 'a1', percentual_desconto: 10 }]
+              },
+              {
+                produto_id: 'prod-b',
+                id: 'prod-b',
+                nome: 'Produto B',
+                descricao: 'Descricao B',
+                aplicar_em_todas_variacoes: false,
+                percentual_desconto: 10,
+                variacoes_disponiveis: [{ id: 'b1', produto_id: 'prod-b', sku: 'B1', cor: 'Preto', grade: 'M', preco: 120, estoque: 3, percentual_desconto: 10 }],
+                variacoes: [{ variacao_id: 'b1', percentual_desconto: 10 }]
+              }
+            ]
+          }],
+          total: 1
+        };
+      }
+      if (path === '/promocoes/promo-edit-1') {
+        return {
+          item: {
+            id: 'promo-edit-1',
+            nome: 'Promo Editada',
+            descricao: 'Teste',
+            percentual_desconto: 10,
+            data_inicio: '2026-06-01',
+            data_fim: '2026-06-30',
+            status: 'ativa',
+            produtos: [
+              {
+                produto_id: 'prod-a',
+                id: 'prod-a',
+                nome: 'Produto A',
+                descricao: 'Descricao A',
+                aplicar_em_todas_variacoes: false,
+                percentual_desconto: 10,
+                variacoes_disponiveis: [{ id: 'a1', produto_id: 'prod-a', sku: 'A1', cor: 'Azul', grade: 'G', preco: 100, estoque: 5, percentual_desconto: 10 }],
+                variacoes: [{ variacao_id: 'a1', percentual_desconto: 10 }]
+              },
+              {
+                produto_id: 'prod-b',
+                id: 'prod-b',
+                nome: 'Produto B',
+                descricao: 'Descricao B',
+                aplicar_em_todas_variacoes: false,
+                percentual_desconto: 10,
+                variacoes_disponiveis: [{ id: 'b1', produto_id: 'prod-b', sku: 'B1', cor: 'Preto', grade: 'M', preco: 120, estoque: 3, percentual_desconto: 10 }],
+                variacoes: [{ variacao_id: 'b1', percentual_desconto: 10 }]
+              }
+            ]
+          }
+        };
+      }
+      if (path === '/produtos/prod-a') return { item: { id: 'prod-a', nome: 'Produto A', descricao: 'Descricao A', preco: 100 } };
+      if (path === '/produtos/prod-b') return { item: { id: 'prod-b', nome: 'Produto B', descricao: 'Descricao B', preco: 120 } };
+      if (path === '/produtos/prod-a/variacoes') return { items: [{ id: 'a1', produto_id: 'prod-a', sku: 'A1', cor: 'Azul', grade: 'G', preco: 100, estoque: 5 }] };
+      if (path === '/produtos/prod-b/variacoes') return { items: [{ id: 'b1', produto_id: 'prod-b', sku: 'B1', cor: 'Preto', grade: 'M', preco: 120, estoque: 3 }] };
+      return { items: [], total: 0 };
+    },
+    post: async (path) => {
+      spy.postPaths.push(path);
+      throw new Error('POST não deve ser usado na edição de promoção');
+    },
+    patch: async (path, payload) => {
+      spy.patchPaths.push(path);
+      spy.patchPayloads.push(payload);
+      return { ok: true, item: { id: 'promo-edit-1' } };
+    }
+  };
+  await renderPromocoesPage(document.body, { apiClient });
+  await flush();
+  await waitForDomCondition(() => document.querySelectorAll('[data-action="edit"]').length === 1, {
+    errorMessage: 'Não encontrei o botão de editar na listagem hidratada.'
+  });
+  document.querySelector('[data-action="edit"]')?.dispatchEvent(new Event('click', { bubbles: true }));
+  await waitForDomCondition(() => Boolean(document.querySelector('#nhp-save')), {
+    errorMessage: 'Não encontrei o formulário de edição após abrir a promoção.'
+  });
+  document.querySelectorAll('.nhp-remove-item')[1]?.click();
+  await flush();
+  document.querySelector('#nhp-save').disabled = false;
+  document.querySelector('#nhp-save')?.click();
+  await waitForDomCondition(() => spy.patchPayloads.length === 1, {
+    errorMessage: 'O PATCH não foi disparado ao salvar a promoção editada.'
+  });
+  assert.deepEqual(spy.patchPaths, ['/promocoes/promo-edit-1']);
+  assert.deepEqual(spy.postPaths, []);
+  const payload = spy.patchPayloads[0];
+  assert.deepEqual(payload.produtos.map((item) => item.produto_id), ['prod-a']);
+  assert.deepEqual(payload.produtos[0].variacoes.map((item) => item.variacao_id), ['a1']);
+  assert.equal(payload.produtos[0].variacoes.some((item) => item.variacao_id === 'b1'), false);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  await flush();
+  teardownFrontendDom(dom);
+});
+
+test('promoções: ao editar promoção hidratada, remover Produto A não deixa Produto B herdar variacao A', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { patchPayloads: [], patchPaths: [], postPaths: [] };
+  const apiClient = {
+    get: async (path) => {
+      if (path === '/promocoes') {
+        return {
+          items: [{
+            id: 'promo-edit-2',
+            nome: 'Promo Editada 2',
+            descricao: 'Teste',
+            percentual_desconto: 10,
+            data_inicio: '2026-06-01',
+            data_fim: '2026-06-30',
+            status: 'ativa',
+            produtos: [
+              {
+                produto_id: 'prod-a',
+                id: 'prod-a',
+                nome: 'Produto A',
+                descricao: 'Descricao A',
+                aplicar_em_todas_variacoes: false,
+                percentual_desconto: 10,
+                variacoes_disponiveis: [{ id: 'a1', produto_id: 'prod-a', sku: 'A1', cor: 'Azul', grade: 'G', preco: 100, estoque: 5, percentual_desconto: 10 }],
+                variacoes: [{ variacao_id: 'a1', percentual_desconto: 10 }]
+              },
+              {
+                produto_id: 'prod-b',
+                id: 'prod-b',
+                nome: 'Produto B',
+                descricao: 'Descricao B',
+                aplicar_em_todas_variacoes: false,
+                percentual_desconto: 10,
+                variacoes_disponiveis: [{ id: 'b1', produto_id: 'prod-b', sku: 'B1', cor: 'Preto', grade: 'M', preco: 120, estoque: 3, percentual_desconto: 10 }],
+                variacoes: [{ variacao_id: 'b1', percentual_desconto: 10 }]
+              }
+            ]
+          }],
+          total: 1
+        };
+      }
+      if (path === '/produtos/prod-a') return { item: { id: 'prod-a', nome: 'Produto A', descricao: 'Descricao A', preco: 100 } };
+      if (path === '/produtos/prod-b') return { item: { id: 'prod-b', nome: 'Produto B', descricao: 'Descricao B', preco: 120 } };
+      if (path === '/produtos/prod-a/variacoes') return { items: [{ id: 'a1', produto_id: 'prod-a', sku: 'A1', cor: 'Azul', grade: 'G', preco: 100, estoque: 5 }] };
+      if (path === '/produtos/prod-b/variacoes') return { items: [{ id: 'b1', produto_id: 'prod-b', sku: 'B1', cor: 'Preto', grade: 'M', preco: 120, estoque: 3 }] };
+      return { items: [], total: 0 };
+    },
+    post: async (path) => {
+      spy.postPaths.push(path);
+      throw new Error('POST não deve ser usado na edição de promoção');
+    },
+    patch: async (path, payload) => {
+      spy.patchPaths.push(path);
+      spy.patchPayloads.push(payload);
+      return { ok: true, item: { id: 'promo-edit-2' } };
+    }
+  };
+  await renderPromocoesPage(document.body, { apiClient });
+  await flush();
+  await waitForDomCondition(() => document.querySelectorAll('[data-action="edit"]').length === 1, {
+    errorMessage: 'Não encontrei o botão de editar na listagem hidratada.'
+  });
+  document.querySelector('[data-action="edit"]')?.dispatchEvent(new Event('click', { bubbles: true }));
+  await waitForDomCondition(() => Boolean(document.querySelector('#nhp-save')), {
+    errorMessage: 'Não encontrei o formulário de edição após abrir a promoção.'
+  });
+  document.querySelectorAll('.nhp-remove-item')[0]?.click();
+  await flush();
+  document.querySelector('#nhp-save').disabled = false;
+  document.querySelector('#nhp-save')?.click();
+  await waitForDomCondition(() => spy.patchPayloads.length === 1, {
+    errorMessage: 'O PATCH não foi disparado ao salvar a promoção editada.'
+  });
+  assert.deepEqual(spy.patchPaths, ['/promocoes/promo-edit-2']);
+  assert.deepEqual(spy.postPaths, []);
+  const payload = spy.patchPayloads[0];
+  assert.deepEqual(payload.produtos.map((item) => item.produto_id), ['prod-b']);
+  assert.deepEqual(payload.produtos[0].variacoes.map((item) => item.variacao_id), ['b1']);
+  assert.equal(payload.produtos[0].variacoes.some((item) => item.variacao_id === 'a1'), false);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  await flush();
   teardownFrontendDom(dom);
 });

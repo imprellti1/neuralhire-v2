@@ -233,7 +233,11 @@ function removeProduct(form, productId) {
   form.produtos = (Array.isArray(form.produtos) ? form.produtos : []).filter((produto) => String(produto.id) !== String(productId));
   if (String(form.produto_ativo_id) === String(productId)) form.produto_ativo_id = form.produtos[0]?.id || '';
   form.produto = form.produtos[0] || null;
+  if (String(form.produto_id || '') === String(productId)) form.produto_id = '';
   if (String(form.itemEditor?.produto_id || '') === String(productId)) {
+    clearItemEditor(form);
+  }
+  if (form.itemEditor?.produto_id && !form.produtos.some((produto) => String(produto.id) === String(form.itemEditor.produto_id))) {
     clearItemEditor(form);
   }
 }
@@ -370,6 +374,64 @@ function normalizePromotionItem(item = {}) {
   };
 }
 
+function getProductVariationsCatalog(produto = {}) {
+  return Array.isArray(produto.variacoes_disponiveis) && produto.variacoes_disponiveis.length
+    ? produto.variacoes_disponiveis
+    : Array.isArray(produto.variacoes)
+      ? produto.variacoes
+      : Array.isArray(produto.variacoesCatalogo)
+        ? produto.variacoesCatalogo
+        : [];
+}
+
+function sanitizeProductVariationsForPayload(produto = {}) {
+  const produtoId = String(produto.produto_id || produto.id || '').trim();
+  if (!produtoId) return [];
+
+  const catalog = getProductVariationsCatalog(produto).filter((variacao) => {
+    const variacaoProdutoId = String(variacao?.produto_id || variacao?.produtoId || '').trim();
+    return !variacaoProdutoId || variacaoProdutoId === produtoId;
+  });
+  const catalogIds = new Set(
+    catalog
+      .map((variacao) => String(variacao.id || variacao.variacao_id || variacao.variacaoId || '').trim())
+      .filter(Boolean)
+  );
+  const selected = Array.isArray(produto.variacoes_disponiveis) ? produto.variacoes_disponiveis : [];
+  const selectedMap = new Map(
+    selected
+      .map((variacao) => {
+        const variacaoId = String(variacao.id || variacao.variacao_id || variacao.variacaoId || '').trim();
+        if (!variacaoId || !catalogIds.has(variacaoId)) return null;
+        const variacaoProdutoId = String(variacao?.produto_id || variacao?.produtoId || '').trim();
+        if (variacaoProdutoId && variacaoProdutoId !== produtoId) return null;
+        return [variacaoId, variacao];
+      })
+      .filter(Boolean)
+  );
+
+  return catalog
+    .map((variacao) => {
+      const variacaoId = String(variacao.id || variacao.variacao_id || variacao.variacaoId || '').trim();
+      if (!variacaoId) return null;
+      const selectedVariacao = selectedMap.get(variacaoId);
+      const selecionada = selectedVariacao ? selectedVariacao.selecionada !== false : variacao.selecionada !== false;
+      const percentualDesconto = selectedVariacao?.percentualDesconto ?? selectedVariacao?.percentual_desconto ?? variacao.percentualDesconto ?? variacao.percentual_desconto ?? null;
+      return {
+        ...variacao,
+        variacao_id: variacaoId,
+        selecionada,
+        percentualDesconto: percentualDesconto === '' ? null : percentualDesconto
+      };
+    })
+    .filter((variacao) => variacao.selecionada)
+    .map((variacao) => ({
+      variacao_id: variacao.variacao_id,
+      percentual_desconto: normalizeDiscount(variacao.percentualDesconto)
+    }))
+    .filter((variacao) => Boolean(variacao.variacao_id));
+}
+
 function clearItemEditor(form = {}) {
   form.itemEditor = {
     produto: null,
@@ -410,21 +472,14 @@ function buildPromocaoPayloadFromForm(form = {}) {
   const globalPercentual = normalizeDiscount(form.percentual_desconto);
   const produtos = (Array.isArray(form.produtos) ? form.produtos : [])
     .map((produto) => {
-      const variacoesDisponiveis = Array.isArray(produto.variacoes_disponiveis) ? produto.variacoes_disponiveis : [];
-      const validVariationIds = new Set(
-        variacoesDisponiveis
-          .map((variacao) => String(variacao.id || variacao.variacao_id || variacao.variacaoId || '').trim())
-          .filter(Boolean)
-      );
-      const variacoes = variacoesDisponiveis
-        .filter((variacao) => variacao.selecionada && validVariationIds.has(String(variacao.id || variacao.variacao_id || variacao.variacaoId || '').trim()))
-        .map((variacao) => ({
-          variacao_id: variacao.id || variacao.variacao_id || variacao.variacaoId,
-          percentual_desconto: normalizeDiscount(variacao.percentualDesconto)
-        }))
-        .filter((variacao) => Boolean(variacao.variacao_id));
+      const produtoId = String(produto.produto_id || produto.id || '').trim();
+      const variacoes = sanitizeProductVariationsForPayload({
+        ...produto,
+        produto_id: produtoId,
+        variacoes_disponiveis: getProductVariationsCatalog(produto)
+      });
       return {
-        produto_id: produto.produto_id || produto.id,
+        produto_id: produtoId,
         nome: produto.nome || '',
         descricao: produto.descricao || '',
         aplicar_em_todas_variacoes: produto.aplicar_em_todas_variacoes !== false,
