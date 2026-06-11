@@ -8,6 +8,9 @@ test('ui-processing: show, update e hide controlam overlay singleton', async () 
 
   showProcessing({ title: 'Carregando', message: 'Aguarde...' });
   assert.ok(document.querySelector('.nh-global-processing'));
+  assert.equal(document.body.style.overflow, 'hidden');
+  assert.equal(document.body.style.pointerEvents, 'none');
+  assert.equal(document.documentElement.style.overflow, 'hidden');
   assert.match(document.body.textContent, /Carregando/);
   assert.match(document.body.textContent, /Aguarde/);
 
@@ -16,7 +19,10 @@ test('ui-processing: show, update e hide controlam overlay singleton', async () 
   assert.match(document.body.textContent, /70%/);
 
   hideProcessing();
-  assert.equal(document.querySelector('.nh-global-processing')?.hidden, true);
+  assert.equal(document.querySelector('.nh-global-processing'), null);
+  assert.equal(document.body.style.overflow, '');
+  assert.equal(document.body.style.pointerEvents, '');
+  assert.equal(document.documentElement.style.overflow, '');
 
   teardownFrontendDom(dom);
 });
@@ -26,7 +32,8 @@ test('ui-processing: withProcessing esconde overlay no sucesso e no erro', async
 
   await withProcessing(() => Promise.resolve('ok'), { title: 'Processando', message: 'Teste' });
   await flush();
-  assert.equal(document.querySelector('.nh-global-processing')?.hidden, true);
+  assert.equal(document.querySelector('.nh-global-processing'), null);
+  assert.equal(document.body.style.overflow, '');
 
   let failed = false;
   try {
@@ -35,7 +42,35 @@ test('ui-processing: withProcessing esconde overlay no sucesso e no erro', async
     failed = true;
   }
   assert.equal(failed, true);
-  assert.equal(document.querySelector('.nh-global-processing')?.hidden, true);
+  assert.equal(document.querySelector('.nh-global-processing'), null);
+  assert.equal(document.body.style.overflow, '');
+
+  teardownFrontendDom(dom);
+});
+
+test('ui-processing: chamadas múltiplas não deixam o body travado e limpam overlay órfão', async () => {
+  const dom = setupFrontendDom('#/');
+
+  showProcessing({ title: 'Uma', message: 'primeira' });
+  showProcessing({ title: 'Duas', message: 'segunda' });
+  assert.ok(document.querySelector('.nh-global-processing'));
+  assert.equal(document.body.style.overflow, 'hidden');
+
+  hideProcessing();
+  assert.ok(document.querySelector('.nh-global-processing'));
+  assert.equal(document.body.style.overflow, 'hidden');
+  assert.equal(document.documentElement.style.overflow, 'hidden');
+
+  hideProcessing();
+  assert.equal(document.querySelector('.nh-global-processing'), null);
+  assert.equal(document.body.style.overflow, '');
+  assert.equal(document.documentElement.style.overflow, '');
+
+  showProcessing({ title: 'Reabrindo', message: 'teste' });
+  assert.ok(document.querySelector('.nh-global-processing'));
+  hideProcessing();
+  assert.equal(document.querySelector('.nh-global-processing'), null);
+  assert.equal(document.body.style.pointerEvents, '');
 
   teardownFrontendDom(dom);
 });

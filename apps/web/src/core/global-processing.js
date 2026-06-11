@@ -1,4 +1,6 @@
 let overlayState = null;
+let processingDepth = 0;
+let scrollLockState = null;
 
 function ensureStyles() {
   if (document.getElementById('nh-global-processing-style')) return;
@@ -105,14 +107,76 @@ function ensureOverlay() {
     barEl: el.querySelector('.nh-global-processing__bar'),
     statusEl: el.querySelector('.nh-global-processing__status'),
     percentEl: el.querySelector('.nh-global-processing__percent'),
-    previousOverflow: ''
+    previousOverflow: '',
+    previousHtmlOverflow: '',
+    previousBodyPointerEvents: '',
+    previousHtmlPointerEvents: '',
+    previousBodyOverflow: '',
+    previousHtmlOverflowStyle: '',
+    previousBodyOverflowX: '',
+    previousBodyOverflowY: ''
   };
   return overlayState;
 }
 
+function lockScroll(overlay) {
+  if (scrollLockState) {
+    processingDepth += 1;
+    return;
+  }
+  processingDepth = 1;
+  scrollLockState = {
+    bodyOverflow: document.body?.style.overflow || '',
+    bodyOverflowX: document.body?.style.overflowX || '',
+    bodyOverflowY: document.body?.style.overflowY || '',
+    bodyPointerEvents: document.body?.style.pointerEvents || '',
+    htmlOverflow: document.documentElement?.style.overflow || '',
+    htmlPointerEvents: document.documentElement?.style.pointerEvents || ''
+  };
+  if (document.body) {
+    document.body.style.overflow = 'hidden';
+    document.body.style.overflowX = 'hidden';
+    document.body.style.overflowY = 'hidden';
+    document.body.style.pointerEvents = 'none';
+  }
+  if (document.documentElement) {
+    document.documentElement.style.overflow = 'hidden';
+    document.documentElement.style.pointerEvents = 'none';
+  }
+  overlay.el.style.pointerEvents = 'auto';
+}
+
+function unlockScroll() {
+  if (!scrollLockState) return;
+  processingDepth = Math.max(0, processingDepth - 1);
+  if (processingDepth > 0) return;
+  const state = scrollLockState;
+  scrollLockState = null;
+  if (document.body) {
+    document.body.style.overflow = state.bodyOverflow;
+    document.body.style.overflowX = state.bodyOverflowX;
+    document.body.style.overflowY = state.bodyOverflowY;
+    document.body.style.pointerEvents = state.bodyPointerEvents;
+  }
+  if (document.documentElement) {
+    document.documentElement.style.overflow = state.htmlOverflow;
+    document.documentElement.style.pointerEvents = state.htmlPointerEvents;
+  }
+}
+
+function destroyOverlay() {
+  const overlay = overlayState;
+  if (!overlay?.el) return;
+  overlay.el.hidden = true;
+  overlay.el.removeAttribute('aria-busy');
+  overlay.el.classList.remove('nh-global-processing--indeterminate');
+  overlay.el.replaceChildren();
+  overlay.el.remove();
+  overlayState = null;
+}
+
 export function showGlobalProcessing({ title = 'Processando...', message = '', progress = 0, indeterminate = true } = {}) {
   const overlay = ensureOverlay();
-  overlay.previousOverflow = document.body.style.overflow;
   overlay.titleEl.textContent = title;
   overlay.messageEl.textContent = message;
   overlay.statusEl.textContent = indeterminate ? 'Aguardando conclusão' : 'Em andamento';
@@ -121,7 +185,7 @@ export function showGlobalProcessing({ title = 'Processando...', message = '', p
   overlay.el.classList.toggle('nh-global-processing--indeterminate', Boolean(indeterminate));
   overlay.el.hidden = false;
   overlay.el.setAttribute('aria-busy', 'true');
-  document.body.style.overflow = 'hidden';
+  lockScroll(overlay);
   overlay.el.focus({ preventScroll: true });
 }
 
@@ -143,11 +207,19 @@ export function updateGlobalProcessing({ title, message, progress, indeterminate
 
 export function hideGlobalProcessing() {
   const overlay = overlayState?.el?.isConnected ? overlayState : null;
-  if (!overlay) return;
+  unlockScroll();
+  if (!overlay) {
+    destroyOverlay();
+    return;
+  }
+  if (processingDepth > 0) {
+    return;
+  }
   overlay.el.hidden = true;
   overlay.el.removeAttribute('aria-busy');
-  overlay.el.classList.add('nh-global-processing--indeterminate');
-  document.body.style.overflow = overlay.previousOverflow || '';
+  overlay.el.classList.remove('nh-global-processing--indeterminate');
+  overlay.el.replaceChildren();
+  destroyOverlay();
 }
 
 export async function withGlobalProcessing(task, options = {}) {

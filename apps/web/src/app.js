@@ -51,7 +51,7 @@ function injectAppStyles() {
   if (document.getElementById('nh-app-style')) return;
   const style = document.createElement('style');
   style.id = 'nh-app-style';
-  style.textContent = `:root{--bg:#f4f7fc;--bg-soft:#eef3fb;--panel:#ffffff;--text:#12203a;--muted:#61708f;--line:#dbe4f2;--brand:#2563eb;--brand-soft:#dbe7ff;--ok:#047857;--warn:#b45309;--danger:#b42318;--shadow:0 14px 34px rgba(15,35,74,.08)}*{box-sizing:border-box}body{margin:0;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;color:var(--text);background:radial-gradient(1000px 500px at 90% -20%,#dbe8ff 0%,rgba(219,232,255,0) 70%),linear-gradient(180deg,#f8fbff 0%,var(--bg) 100%)}.nh-shell{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:100vh}.nh-sidebar{padding:24px 18px;border-right:1px solid var(--line);background:rgba(255,255,255,.8);backdrop-filter:blur(8px)}.nh-brand{padding:12px 14px;border-radius:14px;background:linear-gradient(135deg,#1948bf,#2563eb);color:#fff;font-weight:700;letter-spacing:.02em;box-shadow:var(--shadow)}.nh-brand small{display:block;font-weight:500;opacity:.85;margin-top:4px}.nh-nav{margin-top:18px;display:grid;gap:8px}.nh-menu-item{display:block;padding:12px 14px;border-radius:12px;color:#20304f;text-decoration:none;font-weight:600;transition:.2s background,.2s color,.2s transform}.nh-menu-item:hover{background:#edf3ff;transform:translateY(-1px)}.nh-menu-item.is-active{background:var(--brand-soft);color:#0f3da8;box-shadow:inset 0 0 0 1px #c8dafd}.nh-main{padding:0 24px 28px;min-width:0}.nh-content{max-width:1360px;width:100%;margin:0 auto;padding-top:24px}.nh-login-shell{min-height:100vh;display:grid;place-items:center;padding:24px}.nh-login-shell .nh-content{max-width:100%;margin:0;padding:0}@media (max-width:1280px){.nh-shell{grid-template-columns:220px minmax(0,1fr)}.nh-main{padding:0 20px 24px}.nh-content{padding-top:20px}}@media (max-width:1024px){.nh-shell{grid-template-columns:1fr}.nh-sidebar{display:none}.nh-main{padding:0 12px 20px}.nh-content{padding-top:12px}}`;
+  style.textContent = `:root{--bg:#f4f7fc;--bg-soft:#eef3fb;--panel:#ffffff;--text:#12203a;--muted:#61708f;--line:#dbe4f2;--brand:#2563eb;--brand-soft:#dbe7ff;--ok:#047857;--warn:#b45309;--danger:#b42318;--shadow:0 14px 34px rgba(15,35,74,.08)}*{box-sizing:border-box}body{margin:0;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;color:var(--text);background:radial-gradient(1000px 500px at 90% -20%,#dbe8ff 0%,rgba(219,232,255,0) 70%),linear-gradient(180deg,#f8fbff 0%,var(--bg) 100%)}body.nh-shell-active{overflow:hidden}.nh-shell{display:grid;grid-template-columns:260px minmax(0,1fr);height:100vh;overflow:hidden}.nh-sidebar{height:100vh;overflow-y:auto;overscroll-behavior:contain;padding:24px 18px;border-right:1px solid var(--line);background:rgba(255,255,255,.8);backdrop-filter:blur(8px)}.nh-brand{padding:12px 14px;border-radius:14px;background:linear-gradient(135deg,#1948bf,#2563eb);color:#fff;font-weight:700;letter-spacing:.02em;box-shadow:var(--shadow)}.nh-brand small{display:block;font-weight:500;opacity:.85;margin-top:4px}.nh-nav{margin-top:18px;display:grid;gap:8px}.nh-menu-item{display:block;padding:12px 14px;border-radius:12px;color:#20304f;text-decoration:none;font-weight:600;transition:.2s background,.2s color,.2s transform}.nh-menu-item:hover{background:#edf3ff;transform:translateY(-1px)}.nh-menu-item.is-active{background:var(--brand-soft);color:#0f3da8;box-shadow:inset 0 0 0 1px #c8dafd}.nh-main{height:100vh;overflow-y:auto;overscroll-behavior:contain;padding:0 24px 28px;min-width:0}.nh-content{max-width:1360px;width:100%;min-height:100%;margin:0 auto;padding-top:24px;padding-bottom:24px}.nh-login-shell{min-height:100vh;display:grid;place-items:center;padding:24px}.nh-login-shell .nh-content{max-width:100%;margin:0;padding:0}@media (max-width:1280px){.nh-shell{grid-template-columns:220px minmax(0,1fr)}.nh-main{padding:0 20px 24px}.nh-content{padding-top:20px}}@media (max-width:1024px){.nh-shell{grid-template-columns:1fr;height:auto;min-height:100vh}.nh-sidebar{display:none}.nh-main{height:auto;min-height:100vh;overflow-y:visible;padding:0 12px 20px}.nh-content{padding-top:12px;padding-bottom:12px}}`;
   document.head.appendChild(style);
 }
 
@@ -133,6 +133,7 @@ export function bootstrapWebApp() {
   };
 
   const renderPublic = () => {
+    document.body.classList.remove('nh-shell-active');
     document.body.innerHTML = '';
     renderPublicLandingPage(document.body, { apiClient: api });
   };
@@ -155,6 +156,7 @@ export function bootstrapWebApp() {
       return;
     }
     if (!isAppSite && route === '#/login') {
+      document.body.classList.remove('nh-shell-active');
       renderPublic();
       return;
     }
@@ -169,6 +171,7 @@ export function bootstrapWebApp() {
     }
 
     if (route === '#/login') {
+      document.body.classList.remove('nh-shell-active');
       const loginShell = ensureRootShell('login');
       const loginContent = document.getElementById('app-content');
       if (loginContent) {
@@ -189,6 +192,7 @@ export function bootstrapWebApp() {
       document.body.innerHTML = '';
       document.body.appendChild(layout);
     }
+    document.body.classList.add('nh-shell-active');
 
     const content = document.getElementById('app-content');
     const activeRoute = route.startsWith('#/pedidos/') ? '#/pedidos'
