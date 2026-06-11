@@ -23,6 +23,7 @@ export function createPromocoesState() {
         produto: null,
         produto_id: '',
         aplicar_em_todas_variacoes: true,
+        painel_variacoes_aberto: true,
         percentual_desconto: '',
         variacoes_disponiveis: [],
         variacao_ids: [],

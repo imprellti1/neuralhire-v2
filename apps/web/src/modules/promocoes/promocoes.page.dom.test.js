@@ -111,7 +111,90 @@ test('promoções: bloqueia adicionar item com variações específicas sem desc
   teardownFrontendDom(dom);
 });
 
-test('promoções: bloqueia salvar se algum item estiver sem desconto válido', async () => {
+test('promoções: carrega variações específicas desmarcadas e marca/desmarca ao editar desconto', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { payloads: [] };
+  const apiClient = createApiClient(spy);
+  await openForm(apiClient);
+  fillPromoBase();
+  await chooseProduct('Produto A');
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+  const checks = document.querySelectorAll('.nhp-variacao-check');
+  assert.equal(checks[0].checked, false);
+  assert.equal(checks[1].checked, false);
+  let inputs = document.querySelectorAll('.nhp-variacao-percentual');
+  inputs[0].value = '12';
+  inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  await flush();
+  assert.equal(document.querySelectorAll('.nhp-variacao-check')[0].checked, true);
+  inputs = document.querySelectorAll('.nhp-variacao-percentual');
+  inputs[0].value = '';
+  inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  await flush();
+  assert.equal(document.querySelectorAll('.nhp-variacao-check')[0].checked, false);
+  assert.equal(document.querySelectorAll('.nhp-variacao-percentual')[0].value, '');
+  teardownFrontendDom(dom);
+});
+
+test('promoções: mostra erro visível quando tenta adicionar item inválido e permite adicionar após preencher todos os descontos', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { payloads: [] };
+  const apiClient = createApiClient(spy);
+  await openForm(apiClient);
+  fillPromoBase();
+  document.querySelector('#nhp-percentual_desconto').value = '10';
+  document.querySelector('#nhp-percentual_desconto').dispatchEvent(new Event('input', { bubbles: true }));
+  await chooseProduct('Produto A');
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+  const checks = document.querySelectorAll('.nhp-variacao-check');
+  checks[0].checked = true;
+  checks[0].dispatchEvent(new Event('change', { bubbles: true }));
+  checks[1].checked = true;
+  checks[1].dispatchEvent(new Event('change', { bubbles: true }));
+  await flush();
+  let inputs = document.querySelectorAll('.nhp-variacao-percentual');
+  inputs[0].value = '12';
+  inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  await flush();
+  document.querySelector('#nhp-add-item').click();
+  await flush();
+  assert.match(document.body.textContent, /Informe um desconto válido para todas as variações selecionadas/);
+  assert.equal(document.querySelectorAll('.nhp-product-row').length, 0);
+  inputs = document.querySelectorAll('.nhp-variacao-percentual');
+  inputs[1].value = '13';
+  inputs[1].dispatchEvent(new Event('input', { bubbles: true }));
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  await flush();
+  document.querySelector('#nhp-add-item').click();
+  await flush();
+  assert.equal(document.querySelectorAll('.nhp-product-row').length, 1);
+  assert.equal(spy.payloads.length, 0);
+  teardownFrontendDom(dom);
+});
+
+test('promoções: preserva painel de variações aberto após carregar produto', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { payloads: [] };
+  const apiClient = createApiClient(spy);
+  await openForm(apiClient);
+  await chooseProduct('Produto A');
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+  assert.ok(document.querySelector('#nhp-variacoes'));
+  assert.ok(document.querySelector('#nhp-variacoes').textContent.includes('Variações específicas'));
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  await flush();
+  assert.ok(document.querySelector('#nhp-variacoes'));
+  assert.ok(document.querySelector('#nhp-variacoes').textContent.includes('Variações específicas'));
+  teardownFrontendDom(dom);
+});
+
+test('promoções: adiciona somente variações com desconto válido e payload final usa valores numéricos', async () => {
   const dom = setupFrontendDom('#/x');
   const spy = { payloads: [] };
   const apiClient = createApiClient(spy);
@@ -138,35 +221,6 @@ test('promoções: bloqueia salvar se algum item estiver sem desconto válido', 
   await flush();
   await new Promise((resolve) => setTimeout(resolve, 300));
   assert.equal(spy.payloads.length, 1);
-  teardownFrontendDom(dom);
-});
-
-test('promoções: resumo e payload usam desconto válido', async () => {
-  const dom = setupFrontendDom('#/x');
-  const spy = { payloads: [] };
-  const apiClient = createApiClient(spy);
-  await openForm(apiClient);
-  fillPromoBase();
-  document.querySelector('#nhp-percentual_desconto').value = '10';
-  document.querySelector('#nhp-percentual_desconto').dispatchEvent(new Event('input', { bubbles: true }));
-  await chooseProduct('Produto A');
-  document.querySelector('#nhp-escopo-specific').click();
-  await flush();
-  let checks = document.querySelectorAll('.nhp-variacao-check');
-  checks[1].checked = false;
-  checks[1].dispatchEvent(new Event('change', { bubbles: true }));
-  await flush();
-  let inputs = document.querySelectorAll('.nhp-variacao-percentual');
-  inputs[0].value = '12';
-  inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
-  await new Promise((resolve) => setTimeout(resolve, 350));
-  await flush();
-  document.querySelector('#nhp-add-item').click();
-  await flush();
-  assert.match(document.body.textContent, /Variações específicas • 1 variação\(ões\) • 12%/);
-  document.querySelector('#nhp-save').click();
-  await flush();
-  await new Promise((resolve) => setTimeout(resolve, 300));
   assert.equal(spy.payloads[0].produtos[0].percentual_desconto, null);
   assert.equal(spy.payloads[0].produtos[0].variacoes[0].percentual_desconto, 12);
   teardownFrontendDom(dom);
