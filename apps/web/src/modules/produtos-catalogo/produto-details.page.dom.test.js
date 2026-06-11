@@ -90,6 +90,12 @@ test('produto 360 mantém o layout e o toggle de variações', async () => {
   assert.doesNotMatch(bodyText, /Ativo\/Inativo/);
   assert.match(bodyText, /Estoque total \(todas as variações\)\s*8/);
   assert.match(bodyText, /Múltiplo de venda\s*3 unidades por variação/);
+  assert.match(bodyText, /Status comercial\s*Ativa/);
+  assert.doesNotMatch(bodyText, /Preço promocional/);
+  assert.doesNotMatch(bodyText, /Período/);
+  assert.match(bodyText, /Fábrica vinculada/);
+  assert.match(bodyText, /Promoções/);
+  assert.match(bodyText, /Imagem do Produto \(principal\)/);
   assert.match(bodyText, /Variações do Produto/);
   assert.match(bodyText, /Pendências de Auditoria/);
   assert.match(bodyText, /Sem fábrica/);
@@ -100,6 +106,17 @@ test('produto 360 mantém o layout e o toggle de variações', async () => {
   assert.match(bodyText, /SKU1-04/);
   assert.match(bodyText, /R\$\s*21,10/);
   assert.ok(root.querySelector('.nhpd-audit-issue[title]'));
+
+  const cardTitles = [...root.querySelectorAll('.nhpd-card h3')].map((el) => el.textContent.trim());
+  assert.deepEqual(cardTitles.slice(0, 5), [
+    'Resumo do Produto',
+    'Preço e Comercial',
+    'Fábrica vinculada',
+    'Pendências de Auditoria',
+    'Promoções'
+  ]);
+  assert.equal(cardTitles.includes('Imagem do Produto (principal)'), true);
+  assert.equal(cardTitles.includes('Variações do Produto'), true);
 
   const toggle = root.querySelector('#nhpd-variations-toggle');
   assert.ok(toggle);
@@ -344,7 +361,13 @@ test('produto 360 aplica promocoes de variacao especifica, destaca a linha e mos
   assert.match(root.textContent, /R\$\s*25,29/);
   assert.equal(root.querySelectorAll('.nhpd-row.is-active-promo').length >= 1, true);
   assert.equal(root.querySelectorAll('.nhpd-row.is-active-variation').length >= 1, true);
-  assert.match(root.textContent, /Preço promocional/);
+  const priceCommercialCard = [...root.querySelectorAll('.nhpd-card')].find((card) => card.textContent.includes('Preço e Comercial'));
+  assert.ok(priceCommercialCard);
+  assert.match(priceCommercialCard.textContent, /Preço atual/);
+  assert.match(priceCommercialCard.textContent, /Múltiplo de venda/);
+  assert.match(priceCommercialCard.textContent, /Status comercial/);
+  assert.doesNotMatch(priceCommercialCard.textContent, /Preço promocional/);
+  assert.doesNotMatch(priceCommercialCard.textContent, /Período/);
   assert.equal(root.textContent.includes('R$ 0,00'), false);
 
   anchorMock.restore();
@@ -478,7 +501,6 @@ test('produto 360 usa o preço promocional da variacao no card Promocoes e nao r
   assert.match(root.textContent, /Variações do Produto/);
   assert.match(root.textContent, /R\$\s*18,99/);
   assert.match(root.textContent, /Promo V1/);
-  assert.match(root.textContent, /Preço promocional/);
   assert.doesNotMatch(root.textContent, /Preço promocional\s*R\$\s*21,10/);
 
   const promoCard = [...root.querySelectorAll('.nhpd-card')].find((card) => card.textContent.includes('Promoções'));
