@@ -199,6 +199,35 @@ function scoreItem(item, query) {
   return score;
 }
 
+async function attachPromocaoResumo(item, options = {}) {
+  if (!item?.id) return item;
+  try {
+    const { listPromocoesDoProduto } = await import('../promocoes/promocoes.repository.js');
+    const result = await listPromocoesDoProduto(item.id, { accountId: options.accountId });
+    const promocoes = Array.isArray(result?.items) ? result.items : [];
+    const activePromocoes = promocoes.filter((promocao) => promocao?.ativaAgora);
+    const temPromocaoVariacao = activePromocoes.some((promocao) => {
+      if (promocao?.aplicar_em_todas_variacoes) return true;
+      const produtos = Array.isArray(promocao?.produtos) ? promocao.produtos : [];
+      const productLink = produtos.find((produto) => String(produto.id) === String(item.id));
+      const variacoes = Array.isArray(productLink?.variacoes) ? productLink.variacoes : Array.isArray(promocao?.variacoesSelecionadas) ? promocao.variacoesSelecionadas : [];
+      return variacoes.length > 0;
+    });
+    return {
+      ...item,
+      tem_promocao_variacao: temPromocaoVariacao,
+      temPromocaoVariacao: temPromocaoVariacao,
+      promocao_ativa: activePromocoes.length > 0,
+      promocao_ativa_nome: activePromocoes[0]?.nome || null,
+      promocao_ativa_data_inicio: activePromocoes[0]?.data_inicio || null,
+      promocao_ativa_data_fim: activePromocoes[0]?.data_fim || null,
+      promocao_ativa_percentual_desconto: activePromocoes[0]?.percentual_desconto ?? null
+    };
+  } catch {
+    return item;
+  }
+}
+
 export function getProdutosRepositoryMode() {
   return {
     mode: isSupabaseConfigured() ? 'supabase' : 'memory',
@@ -235,14 +264,14 @@ export async function listProdutos(filters = {}, options = {}) {
     const { data, error, count } = await query.range(from, to);
     if (error) throw new DatabaseError('Falha ao listar produtos', { details: error });
     const total = count || 0;
-    const items = await Promise.all((data || []).map((item) => attachCategoriaData(item, { accountId }).then((x) => attachFabricanteData(x, { accountId }))));
+    const items = await Promise.all((data || []).map((item) => attachCategoriaData(item, { accountId }).then((x) => attachFabricanteData(x, { accountId })).then((x) => attachPromocaoResumo(x, { accountId }))));
     return { items, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
 
   const filtered = applyMemoryFilters(memoryProdutos, filters, accountId);
   const total = filtered.length;
   const from = (page - 1) * limit;
-  const items = await Promise.all(filtered.slice(from, from + limit).map((item) => attachCategoriaData(item, { accountId }).then((x) => attachFabricanteData(x, { accountId }))));
+  const items = await Promise.all(filtered.slice(from, from + limit).map((item) => attachCategoriaData(item, { accountId }).then((x) => attachFabricanteData(x, { accountId })).then((x) => attachPromocaoResumo(x, { accountId }))));
   return { items, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
 }
 
@@ -257,12 +286,12 @@ export async function getProdutoById(id, options = {}) {
     const { data, error } = await supabase.from('produtos').select('*').eq('account_id', accountId).eq('id', id).maybeSingle();
     if (error) throw new DatabaseError('Falha ao buscar produto', { details: error });
     if (!data) throw new NotFoundError('Produto nao encontrado', { domain: 'produtos-catalogo', code: 'PRODUTO_NOT_FOUND' });
-    return attachFabricanteData(await attachCategoriaData(data, { accountId }), { accountId });
+  return attachPromocaoResumo(await attachFabricanteData(await attachCategoriaData(data, { accountId }), { accountId }), { accountId });
   }
 
   const item = memoryProdutos.find((produto) => produto.id === id && produto.account_id === accountId);
   if (!item) throw new NotFoundError('Produto nao encontrado', { domain: 'produtos-catalogo', code: 'PRODUTO_NOT_FOUND' });
-  return attachFabricanteData(await attachCategoriaData(item, { accountId }), { accountId });
+  return attachPromocaoResumo(await attachFabricanteData(await attachCategoriaData(item, { accountId }), { accountId }), { accountId });
 }
 
 function normalizeProdutoVariacao(item = {}) {
