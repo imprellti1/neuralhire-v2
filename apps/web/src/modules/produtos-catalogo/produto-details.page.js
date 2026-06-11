@@ -5,6 +5,7 @@ import { getProductAuditIssueLabel, getProductAuditIssueTooltip } from '../produ
 import { calculatePrecoPromocional } from '../promocoes/promocoes.mapper.js';
 import { fetchProdutoPromocoesData } from '../promocoes/promocoes.service.js';
 import { withProcessing } from '../../core/ui-processing.js';
+import { updateProdutosState } from './produtos.state.js';
 
 function statusClass(status) {
   if (status === 'ativo') return 'is-ok';
@@ -465,7 +466,12 @@ export function renderProdutoDetailsPage(root, { apiClient, produtoId }) {
     const retry = root.querySelector('#nhpd-retry');
     if (retry) retry.onclick = () => load();
     const back = root.querySelector('#nhpd-back');
-    if (back) back.onclick = () => { window.location.hash = '#/produtos'; };
+    if (back) back.onclick = () => {
+      updateProdutosState({
+        scrollY: window.scrollY || 0
+      });
+      window.location.hash = '#/produtos';
+    };
     const edit = root.querySelector('#nhpd-edit');
     if (edit) edit.onclick = () => { state.editing = true; state.fieldErrors = {}; state.feedbackMessage = ''; state.form = createProdutoEditForm(state.data); render(); };
     const variationsToggle = root.querySelector('#nhpd-variations-toggle');

@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { renderProdutosPage } from './produtos.page.js';
+import { resetProdutosState } from './produtos.state.js';
 import { dispatchInput, flush, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 
 test('listagem de produtos mostra fábrica e fallback', async () => {
+  resetProdutosState();
   const dom = setupFrontendDom('#/produtos');
   let calls = 0;
   const queries = [];
@@ -40,6 +42,7 @@ test('listagem de produtos mostra fábrica e fallback', async () => {
 });
 
 test('listagem de produtos destaca variação em promoção e mostra status corretamente', async () => {
+  resetProdutosState();
   const dom = setupFrontendDom('#/produtos');
   const apiClient = {
     async get(path) {
@@ -69,6 +72,7 @@ test('listagem de produtos destaca variação em promoção e mostra status corr
 });
 
 test('listagem de produtos mostra overlay global durante carregamento e remove ao concluir ou falhar', async () => {
+  resetProdutosState();
   const dom = setupFrontendDom('#/produtos');
   let resolveGet;
   const apiClient = {

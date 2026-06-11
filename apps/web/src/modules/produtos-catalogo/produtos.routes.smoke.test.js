@@ -6,10 +6,12 @@ import { createProdutosMockHandlers } from '../../testing/mocks/produtos.mock.js
 import { assertNoSensitiveTransportFields, getSanitizedFetchCalls, installFetchMock } from '../../testing/mocks/api-client.mock.js';
 import { assertTransportSnapshot } from '../../testing/transport-snapshot.js';
 import { assertProdutoPatchPayload, assertProdutoPostPayload } from '../../testing/payload-contracts.js';
+import { resetProdutosState } from './produtos.state.js';
 
 // ...keep first test unchanged
 
 test('produtos: listagem/criacao/detalhe/edicao + contrato + snapshot', async () => {
+  resetProdutosState();
   const dom = setupFrontendDom('#/produtos');
   mockAuthenticatedSession();
   installFetchMock(createProdutosMockHandlers());
@@ -44,6 +46,7 @@ test('produtos: listagem/criacao/detalhe/edicao + contrato + snapshot', async ()
 });
 
 test('produto 360: GET sucesso + PATCH 422 e 500 + GET 404 isolado', async () => {
+  resetProdutosState();
   const dom422 = setupFrontendDom('#/produtos/p1');
   mockAuthenticatedSession();
   installFetchMock(createProdutosMockHandlers({ scenario: 'validationError' }));
@@ -81,6 +84,7 @@ test('produto 360: GET sucesso + PATCH 422 e 500 + GET 404 isolado', async () =>
 });
 
 test('produtos: rota novo nao pode colidir com rota de detalhe dinamica', async () => {
+  resetProdutosState();
   const dom = setupFrontendDom('#/produtos/novo');
   mockAuthenticatedSession();
   installFetchMock(createProdutosMockHandlers());
@@ -94,6 +98,7 @@ test('produtos: rota novo nao pode colidir com rota de detalhe dinamica', async 
 });
 
 test('produtos: rota invalida e detalhe inexistente mantem estado seguro', async () => {
+  resetProdutosState();
   const domInvalid = setupFrontendDom('#/produtos/nao-existe/rota');
   mockAuthenticatedSession();
   installFetchMock(createProdutosMockHandlers());
@@ -110,4 +115,60 @@ test('produtos: rota invalida e detalhe inexistente mantem estado seguro', async
   assert.match(document.body.textContent, /Produto não encontrado|Produto nao encontrado/i);
   assert.doesNotThrow(() => assertNoSensitiveTransportFields());
   teardownFrontendDom(domMissing);
+});
+
+test('produtos: volta do detalhe restaura busca, pagina e resultados anteriores', async () => {
+  resetProdutosState();
+  const dom = setupFrontendDom('#/produtos');
+  mockAuthenticatedSession();
+  installFetchMock({
+    'GET /produtos': ({ query }) => {
+      const search = String(query?.search || '').toLowerCase();
+      if (search === 'vie') {
+        return {
+          items: [
+            { id: 'p1', nome: 'Produto Vieira', sku: 'VIE-001', categoria: 'Cat', fabricante_nome: 'Fábrica V', preco: 10, status: 'ativo', created_at: '2026-01-01T00:00:00.000Z' }
+          ],
+          pagination: { page: 2, limit: 10, total: 11, totalPages: 2 }
+        };
+      }
+      return {
+        items: [
+          { id: 'p0', nome: 'Produto Genérico', sku: 'GEN-001', categoria: 'Cat', fabricante_nome: 'Fábrica G', preco: 5, status: 'ativo', created_at: '2026-01-01T00:00:00.000Z' }
+        ],
+        pagination: { page: 1, limit: 10, total: 1, totalPages: 1 }
+      };
+    },
+    'GET /produtos/p1': () => ({ item: { id: 'p1', nome: 'Produto Vieira', sku: 'VIE-001', categoria: 'Cat', preco: 10, status: 'ativo', ativo: true } }),
+    'GET /produtos/p1/variacoes': () => ({ items: [] }),
+    'GET /product-audit/products/p1': () => ({ issues: [] }),
+    'GET /produtos/p1/imagens': () => ({ items: [] }),
+    'GET /fabricantes': () => ({ items: [] }),
+    'GET /pedidos': () => ({ items: [] })
+  });
+  bootstrapWebApp();
+  await flush(); await flush();
+
+  dispatchInput(document.querySelector('#nhp-search'), 'vie');
+  await flush(); await flush();
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  await flush(); await flush();
+
+  assert.equal(document.querySelector('#nhp-search').value, 'vie');
+  assert.match(document.body.textContent, /Produto Vieira/);
+  assert.match(document.body.textContent, /Página 2 de 2/);
+
+  document.querySelector('.nhp-row-link').click();
+  await flush(); await flush();
+  assert.match(document.body.textContent, /Produto Vieira/);
+
+  document.querySelector('#nhpd-back').click();
+  await flush(); await flush();
+
+  assert.equal(document.querySelector('#nhp-search').value, 'vie');
+  assert.match(document.body.textContent, /Produto Vieira/);
+  assert.match(document.body.textContent, /Página 2 de 2/);
+  assert.doesNotMatch(document.body.textContent, /Produto Genérico/);
+
+  teardownFrontendDom(dom);
 });

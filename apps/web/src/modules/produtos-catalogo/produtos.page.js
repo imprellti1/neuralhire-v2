@@ -1,4 +1,4 @@
-import { createProdutosState } from './produtos.state.js';
+import { getProdutosState, updateProdutosState } from './produtos.state.js';
 import { fetchProdutosData } from './produtos.service.js';
 import { withProcessing } from '../../core/ui-processing.js';
 
@@ -51,13 +51,36 @@ function injectStyles() {
 
 export function renderProdutosPage(root, { apiClient }) {
   injectStyles();
-  const state = createProdutosState();
+  const state = getProdutosState();
   let searchLoadTimer = null;
   let searchDebounceToken = 0;
+  let scrollRestoreTimer = null;
+
+  function saveViewportState() {
+    updateProdutosState({
+      scrollY: window.scrollY || 0,
+      scrollTop: root.scrollTop || 0
+    });
+  }
+
+  function restoreViewportState() {
+    const scrollY = Number(state.scrollY || 0);
+    const scrollTop = Number(state.scrollTop || 0);
+    if (scrollRestoreTimer) clearTimeout(scrollRestoreTimer);
+    scrollRestoreTimer = setTimeout(() => {
+      const isJsdom = typeof window.navigator?.userAgent === 'string' && /jsdom/i.test(window.navigator.userAgent);
+      if (!isJsdom && typeof window.scrollTo === 'function') {
+        window.scrollTo(0, scrollY);
+      }
+      if (root && typeof root.scrollTop === 'number') root.scrollTop = scrollTop;
+    }, 0);
+  }
 
   function commitSearchDraft() {
-    state.searchApplied = state.searchDraft;
-    state.search = state.searchApplied;
+    updateProdutosState({
+      searchApplied: state.searchDraft,
+      search: state.searchDraft
+    });
   }
 
   function renderTable() {
@@ -141,7 +164,7 @@ export function renderProdutosPage(root, { apiClient }) {
     if (search) {
       search.value = state.searchDraft;
       search.oninput = (event) => {
-        state.searchDraft = event.target.value || '';
+        updateProdutosState({ searchDraft: event.target.value || '' });
         if (searchLoadTimer) clearTimeout(searchLoadTimer);
         const nextToken = ++searchDebounceToken;
         searchLoadTimer = setTimeout(() => {
@@ -160,7 +183,10 @@ export function renderProdutosPage(root, { apiClient }) {
     if (next) next.onclick = () => load(Math.min(state?.pagination?.totalPages || 1, (state?.pagination?.page || 1) + 1));
 
     root.querySelectorAll('.nhp-row-link').forEach((row) => {
-      row.onclick = () => { window.location.hash = `#/produtos/${row.getAttribute('data-id')}`; };
+      row.onclick = () => {
+        saveViewportState();
+        window.location.hash = `#/produtos/${row.getAttribute('data-id')}`;
+      };
     });
 
     if (searchWasFocused) {
@@ -187,16 +213,20 @@ export function renderProdutosPage(root, { apiClient }) {
         title: 'Carregando produtos...',
         message: 'Processando dados, aguarde...'
       });
-      state.items = data?.items || [];
-      state.pagination = data?.pagination || state.pagination;
+      updateProdutosState({
+        items: data?.items || [],
+        pagination: data?.pagination || state.pagination
+      });
     } catch {
-      state.error = true;
+      updateProdutosState({ error: true });
     } finally {
-      state.loading = false;
+      updateProdutosState({ loading: false });
       render();
+      restoreViewportState();
     }
   }
 
   render();
-  load(1);
+  if (!state.items.length && !state.loading && !state.error) load(1);
+  else restoreViewportState();
 }
