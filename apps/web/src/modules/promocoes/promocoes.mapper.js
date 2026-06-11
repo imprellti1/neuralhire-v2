@@ -27,6 +27,8 @@ export function mapPromocoesData(response) {
     produtos: Array.isArray(item.produtos) ? item.produtos : (item.produto ? [item.produto] : []),
     produto_ativo_id: item.produto_ativo_id || item.produto_id || null,
     variacoesSelecionadas: Array.isArray(item.variacoesSelecionadas) ? item.variacoesSelecionadas : [],
-    percentual_desconto: item.percentual_desconto === null || item.percentual_desconto === undefined ? null : Number(item.percentual_desconto)
+    percentual_desconto: item.percentual_desconto === null || item.percentual_desconto === undefined ? null : Number(item.percentual_desconto),
+    data_inicio: typeof item.data_inicio === 'string' ? item.data_inicio.slice(0, 10) : item.data_inicio,
+    data_fim: typeof item.data_fim === 'string' ? item.data_fim.slice(0, 10) : item.data_fim
   })) };
 }

@@ -15,8 +15,8 @@ function createApiClient(spy) {
       }
       if (path === '/produtos/prod-a') return { item: { id: 'prod-a', nome: 'Produto A', descricao: 'Descricao A', preco: 100 } };
       if (path === '/produtos/prod-b') return { item: { id: 'prod-b', nome: 'Produto B', descricao: 'Descricao B', preco: 120 } };
-      if (path === '/produtos/prod-a/variacoes') return { items: [{ id: 'a1', sku: 'A1', cor: 'Azul', grade: 'G', preco: 100 }, { id: 'a2', sku: 'A2', cor: 'Azul', grade: 'GG', preco: 100 }] };
-      if (path === '/produtos/prod-b/variacoes') return { items: [{ id: 'b1', sku: 'B1', cor: 'Preto', grade: 'M', preco: 120 }, { id: 'b2', sku: 'B2', cor: 'Preto', grade: 'G', preco: 120 }] };
+      if (path === '/produtos/prod-a/variacoes') return { items: [{ id: 'a1', sku: 'A1', cor: 'Azul', grade: 'G', preco: 100, estoque: 5 }, { id: 'a2', sku: 'A2', cor: 'Azul', grade: 'GG', preco: 100, estoque: 2 }] };
+      if (path === '/produtos/prod-b/variacoes') return { items: [{ id: 'b1', sku: 'B1', cor: 'Preto', grade: 'M', preco: 120, estoque: 3 }, { id: 'b2', sku: 'B2', cor: 'Preto', grade: 'G', preco: 120, estoque: 1 }] };
       return { items: [], total: 0 };
     },
     post: async (_path, payload) => {
@@ -223,5 +223,155 @@ test('promoções: adiciona somente variações com desconto válido e payload f
   assert.equal(spy.payloads.length, 1);
   assert.equal(spy.payloads[0].produtos[0].percentual_desconto, null);
   assert.equal(spy.payloads[0].produtos[0].variacoes[0].percentual_desconto, 12);
+  teardownFrontendDom(dom);
+});
+
+test('promoções: preserva data-only na listagem e no payload do formulário', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { payloads: [] };
+  const baseClient = createApiClient(spy);
+  const apiClient = {
+    ...baseClient,
+    get: async (path, params = {}) => {
+      if (path === '/promocoes') {
+        return {
+          items: [
+            {
+              id: 'promo-data-only',
+              nome: 'Promo data only',
+              percentual_desconto: 10,
+              data_inicio: '2026-06-11',
+              data_fim: '2026-06-11',
+              status: 'inativa',
+              produtos: [{ id: 'prod-a', nome: 'Produto A', descricao: 'Descricao A' }]
+            }
+          ],
+          total: 1
+        };
+      }
+      return baseClient.get(path, params);
+    }
+  };
+  await renderPromocoesPage(document.body, { apiClient });
+  await flush();
+  assert.match(document.body.textContent, /11\/06\/2026 a 11\/06\/2026/);
+  document.querySelector('#nhp-new')?.click();
+  await flush();
+  document.querySelector('#nhp-create-first')?.click();
+  await flush();
+  document.querySelector('#nhp-data_inicio').value = '2026-06-11';
+  document.querySelector('#nhp-data_inicio').dispatchEvent(new Event('input', { bubbles: true }));
+  document.querySelector('#nhp-data_fim').value = '2026-06-11';
+  document.querySelector('#nhp-data_fim').dispatchEvent(new Event('input', { bubbles: true }));
+  await flush();
+  assert.equal(document.querySelector('#nhp-data_inicio').value, '2026-06-11');
+  assert.equal(document.querySelector('#nhp-data_fim').value, '2026-06-11');
+  teardownFrontendDom(dom);
+});
+
+test('promoções: filtra variações sem estoque na tela e no payload', async () => {
+  const dom = setupFrontendDom('#/x');
+  const spy = { payloads: [] };
+  const baseClient = createApiClient(spy);
+  const apiClient = {
+    ...baseClient,
+    get: async (path, params = {}) => {
+      if (path === '/promocoes') return { items: [], total: 0 };
+      if (path === '/produtos/search') return { items: [{ id: 'prod-stock', nome: 'Produto Stock', sku: 'SKU-S' }] };
+      if (path === '/produtos/prod-stock') return { item: { id: 'prod-stock', nome: 'Produto Stock', descricao: 'Descricao Stock', preco: 100 } };
+      if (path === '/produtos/prod-stock/variacoes') {
+        return {
+          items: [
+            { id: 'v-ok', sku: 'OK', cor: 'Azul', grade: 'G', preco: 100, estoque: 5 },
+            { id: 'v-zero', sku: 'ZERO', cor: 'Azul', grade: 'M', preco: 100, estoque: 0 },
+            { id: 'v-null', sku: 'NULL', cor: 'Azul', grade: 'P', preco: 100, estoque: null },
+            { id: 'v-neg', sku: 'NEG', cor: 'Azul', grade: 'GG', preco: 100, estoque: -1 }
+          ]
+        };
+      }
+      return baseClient.get(path, params);
+    }
+  };
+  await renderPromocoesPage(document.body, { apiClient });
+  await flush();
+  document.querySelector('#nhp-create-first')?.click();
+  await flush();
+  document.querySelector('#nhp-produto-search-open')?.click();
+  await flush();
+  const search = document.querySelector('#nhp-product-search');
+  search.value = 'stock';
+  search.dispatchEvent(new Event('input', { bubbles: true }));
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  await flush();
+  document.querySelector('.nhp-product-search-item')?.click();
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  await flush();
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+  assert.equal(document.querySelectorAll('.nhp-variacao-check').length, 1);
+  assert.equal(document.body.textContent.includes('Nenhuma variação com estoque disponível para promoção.'), false);
+  const check = document.querySelector('.nhp-variacao-check');
+  check.checked = true;
+  check.dispatchEvent(new Event('change', { bubbles: true }));
+  document.querySelector('#nhp-nome').value = 'Promo estoque';
+  document.querySelector('#nhp-nome').dispatchEvent(new Event('input', { bubbles: true }));
+  document.querySelector('#nhp-data_inicio').value = '2026-06-11';
+  document.querySelector('#nhp-data_inicio').dispatchEvent(new Event('input', { bubbles: true }));
+  document.querySelector('#nhp-data_fim').value = '2026-06-11';
+  document.querySelector('#nhp-data_fim').dispatchEvent(new Event('input', { bubbles: true }));
+  document.querySelector('#nhp-percentual_desconto').value = '10';
+  document.querySelector('#nhp-percentual_desconto').dispatchEvent(new Event('input', { bubbles: true }));
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  await flush();
+  document.querySelector('#nhp-add-item').click();
+  await flush();
+  assert.match(document.body.textContent, /Variações específicas/);
+  assert.equal(document.querySelectorAll('.nhp-variacao-check').length, 1);
+  teardownFrontendDom(dom);
+});
+
+test('promoções: mostra mensagem quando produto nao tem estoque disponivel', async () => {
+  const dom = setupFrontendDom('#/x');
+  const baseClient = createApiClient({ payloads: [] });
+  const apiClient = {
+    ...baseClient,
+    get: async (path, params = {}) => {
+      if (path === '/promocoes') return { items: [], total: 0 };
+      if (path === '/produtos/search') return { items: [{ id: 'prod-empty', nome: 'Produto Empty', sku: 'SKU-E' }] };
+      if (path === '/produtos/prod-empty') return { item: { id: 'prod-empty', nome: 'Produto Empty', descricao: 'Descricao Empty', preco: 100 } };
+      if (path === '/produtos/prod-empty/variacoes') {
+        return {
+          items: [
+            { id: 'e1', sku: 'E1', cor: 'Azul', grade: 'G', preco: 100, estoque: 0 },
+            { id: 'e2', sku: 'E2', cor: 'Azul', grade: 'M', preco: 100, estoque: null },
+            { id: 'e3', sku: 'E3', cor: 'Azul', grade: 'P', preco: 100, estoque: -2 }
+          ]
+        };
+      }
+      return baseClient.get(path, params);
+    }
+  };
+  await renderPromocoesPage(document.body, { apiClient });
+  await flush();
+  document.querySelector('#nhp-create-first')?.click();
+  await flush();
+  document.querySelector('#nhp-produto-search-open')?.click();
+  await flush();
+  const search = document.querySelector('#nhp-product-search');
+  search.value = 'empty';
+  search.dispatchEvent(new Event('input', { bubbles: true }));
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 800));
+  await flush();
+  document.querySelector('.nhp-product-search-item')?.click();
+  await flush();
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  await flush();
+  document.querySelector('#nhp-escopo-specific').click();
+  await flush();
+  assert.equal(document.querySelectorAll('.nhp-variacao-check').length, 0);
+  assert.match(document.body.textContent, /Nenhuma variação com estoque disponível para promoção\./);
   teardownFrontendDom(dom);
 });

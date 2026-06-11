@@ -332,8 +332,10 @@ export function getPromocoesTests() {
           }
         });
         assert.equal(created.res.statusCode, 200);
-        assert.equal(created.body.item.percentual_desconto, null);
-        assert.equal(created.body.item.variacoesSelecionadas[0].percentual_desconto, 9);
+        assert.equal(created.body.item.produtos[0].aplicar_em_todas_variacoes, false);
+        assert.equal(created.body.item.produtos[0].percentual_desconto, null);
+        assert.equal(created.body.item.produtos[0].variacoes[0].percentual_desconto, 9);
+        assert.equal(created.body.item.produtos[0].variacoes.some((variacao) => variacao.variacao_id === 'v40'), true);
       }
     },
     {
@@ -453,6 +455,112 @@ export function getPromocoesTests() {
         assert.equal(calcularPrecoPromocional(100, 15), 85);
         assert.equal(isPromocaoAtiva({ status: 'ativo', data_inicio: '2026-06-01', data_fim: '2026-06-30' }, new Date('2026-06-10')), true);
         assert.equal(isPromocaoAtiva({ status: 'inativo', data_inicio: '2026-06-01', data_fim: '2026-06-30' }, new Date('2026-06-10')), false);
+      }
+    },
+    {
+      name: 'mantem datas date-only ao criar e atualizar promocao',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryPromocoesForTests();
+        const app = createApiApp();
+        const produto = await createProduto({ nome: 'Produto Date Only', preco: 100 }, { accountId: 'acc-date-only' });
+        const created = await call(app, {
+          method: 'POST',
+          url: '/promocoes',
+          accountId: 'acc-date-only',
+          body: {
+            produto_id: produto.id,
+            nome: 'Promo Date Only',
+            percentual_desconto: 10,
+            data_inicio: '2026-06-11',
+            data_fim: '2026-06-11',
+            aplicar_em_todas_variacoes: true
+          }
+        });
+        assert.equal(created.res.statusCode, 200);
+        assert.equal(created.body.item.data_inicio, '2026-06-11');
+        assert.equal(created.body.item.data_fim, '2026-06-11');
+        assert.equal(created.body.item.ativaAgora, true);
+
+        const promocaoId = created.body.item.id;
+        const updated = await call(app, {
+          method: 'PATCH',
+          url: `/promocoes/${promocaoId}`,
+          accountId: 'acc-date-only',
+          body: {
+            data_inicio: '2026-06-11',
+            data_fim: '2026-06-11'
+          }
+        });
+        assert.equal(updated.res.statusCode, 200);
+        assert.equal(updated.body.item.data_inicio, '2026-06-11');
+        assert.equal(updated.body.item.data_fim, '2026-06-11');
+        assert.equal(updated.body.item.ativaAgora, true);
+      }
+    },
+    {
+      name: 'rejeita variacao sem estoque e aceita variação com estoque',
+      run: async () => {
+        __resetMemoryProdutosForTests();
+        __resetMemoryPromocoesForTests();
+        const app = createApiApp();
+        const produto = {
+          id: 'produto-estoque',
+          account_id: 'acc-estoque',
+          nome: 'Produto Estoque',
+          preco: 100,
+          variacoes: [
+            { id: 'v-ok', produto_id: 'produto-estoque', account_id: 'acc-estoque', preco: 80, ativo: true, estoque: 4 },
+            { id: 'v-zero', produto_id: 'produto-estoque', account_id: 'acc-estoque', preco: 80, ativo: true, estoque: 0 }
+          ]
+        };
+        __loadMemoryProdutos([produto]);
+        const accepted = await call(app, {
+          method: 'POST',
+          url: '/promocoes',
+          accountId: 'acc-estoque',
+          body: {
+            nome: 'Promo Estoque',
+            percentual_desconto: 10,
+            data_inicio: '2026-06-11',
+            data_fim: '2026-06-11',
+            produtos: [
+              {
+                produto_id: produto.id,
+                aplicar_em_todas_variacoes: false,
+                percentual_desconto: 10,
+                variacoes: [{ variacao_id: 'v-ok', percentual_desconto: 12 }]
+              }
+            ]
+          }
+        });
+        assert.equal(accepted.res.statusCode, 200);
+        assert.equal(accepted.body.item.produtos[0].id, produto.id);
+        assert.equal(Array.isArray(accepted.body.item.produtos[0].variacoes), true);
+        assert.equal(accepted.body.item.produtos[0].variacoes[0].variacao_id, 'v-ok');
+        assert.equal(accepted.body.item.produtos[0].variacoes.some((variacao) => variacao.variacao_id === 'v-zero'), false);
+
+        const rejected = await call(app, {
+          method: 'POST',
+          url: '/promocoes',
+          accountId: 'acc-estoque',
+          body: {
+            nome: 'Promo Estoque 2',
+            percentual_desconto: 10,
+            data_inicio: '2026-06-11',
+            data_fim: '2026-06-11',
+            produtos: [
+              {
+                produto_id: produto.id,
+                aplicar_em_todas_variacoes: false,
+                percentual_desconto: 10,
+                variacoes: [{ variacao_id: 'v-zero', percentual_desconto: 12 }]
+              }
+            ]
+          }
+        });
+        assert.equal(rejected.res.statusCode, 422);
+        assert.match(rejected.body.error.message || rejected.body.message || '', /sem estoque disponível para promoção/i);
       }
     }
   ];

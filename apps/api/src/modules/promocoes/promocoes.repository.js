@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestError, DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '../../core/errors.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { getProdutoById, listProdutoVariacoes } from '../produtos/produtos.repository.js';
+import { compareDateOnly, dateToDateOnly, todayDateOnly } from './promocoes.date.js';
 
 const memoryPromocoes = [];
 const memoryPromocaoProdutos = [];
@@ -14,9 +15,8 @@ function assertAccountId(accountId) {
 function normalizeDate(value) {
   const raw = String(value || '').trim();
   if (!raw) return null;
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) return null;
-  return raw.slice(0, 10);
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? raw.slice(0, 10) : null;
 }
 
 function validatePercentual(value, { required = false } = {}) {
@@ -34,7 +34,7 @@ function validatePercentual(value, { required = false } = {}) {
 function validatePeriodo(data = {}) {
   const inicio = normalizeDate(data.data_inicio);
   const fim = normalizeDate(data.data_fim);
-  if (!inicio || !fim || new Date(inicio) > new Date(fim)) {
+  if (!inicio || !fim || compareDateOnly(inicio, fim) > 0) {
     throw new ValidationError('Periodo da promocao invalido', { code: 'VALIDATION_ERROR', domain: 'promocoes' });
   }
   return { inicio, fim };
@@ -49,10 +49,10 @@ export function calcularPrecoPromocional(precoBase, percentualDesconto) {
 
 export function isPromocaoAtiva(promocao, dataReferencia = new Date()) {
   if (!promocao) return false;
-  const ref = new Date(dataReferencia);
-  const inicio = new Date(promocao.data_inicio);
-  const fim = new Date(promocao.data_fim);
-  return promocao.status === 'ativo' && !Number.isNaN(ref.getTime()) && ref >= inicio && ref <= fim;
+  const ref = dateToDateOnly(dataReferencia) || todayDateOnly();
+  const inicio = normalizeDate(promocao.data_inicio);
+  const fim = normalizeDate(promocao.data_fim);
+  return promocao.status === 'ativo' && !!inicio && !!fim && compareDateOnly(inicio, ref) <= 0 && compareDateOnly(ref, fim) <= 0;
 }
 
 function normalizeRow(row) {
@@ -68,6 +68,19 @@ function normalizeVariationLink(row = {}) {
     ...row,
     percentual_desconto: row.percentual_desconto === null || row.percentual_desconto === undefined || row.percentual_desconto === '' ? null : Number(row.percentual_desconto)
   };
+}
+
+function normalizeEstoque(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function hasEstoqueDisponivel(variacao = {}) {
+  const hasField = ['estoque', 'stock', 'quantidade', 'qtd_estoque'].some((key) => Object.prototype.hasOwnProperty.call(variacao || {}, key));
+  if (!hasField) return true;
+  const estoque = normalizeEstoque(variacao.estoque ?? variacao.stock ?? variacao.quantidade ?? variacao.qtd_estoque);
+  return Number.isFinite(estoque) && estoque > 0;
 }
 
 function getLegacyVariacoes(links = [], rowId = null, accountId = null) {
@@ -171,8 +184,17 @@ async function resolveVariacoesPorProduto(accountId, produto) {
     if (String(match.produto_id || produto.id) !== String(produto.id)) {
       throw new ValidationError(`Variacao invalida para o produto ${produto.id}`, { code: 'VALIDATION_ERROR', domain: 'promocoes' });
     }
+    if (!hasEstoqueDisponivel(match)) {
+      throw new ValidationError('Variação sem estoque disponível para promoção.', { code: 'VALIDATION_ERROR', domain: 'promocoes' });
+    }
     return match;
   });
+  if (aplicarEmTodas) {
+    const invalid = selectedVariacoes.find((variacao) => !hasEstoqueDisponivel(variacao));
+    if (invalid) {
+      throw new ValidationError('Variação sem estoque disponível para promoção.', { code: 'VALIDATION_ERROR', domain: 'promocoes' });
+    }
+  }
   const selectedVariacoesPayload = aplicarEmTodas
     ? selectedVariacoes.map((v) => ({ variacaoId: v.id, percentualDesconto: null }))
     : variacoesInput.map((item) => ({ variacaoId: item.variacaoId, percentualDesconto: item.percentualDesconto ?? null }));
@@ -340,13 +362,13 @@ export async function createPromocao(data, options = {}) {
       const { error: linkError } = await supabase.from('produto_promocao_variacoes').insert(variationInsertRows);
       if (linkError) throwSupabasePromocaoError('Falha ao criar variacoes da promocao', linkError, { table: 'produto_promocao_variacoes', variationInsertRows });
     }
-    return attachProdutoData(attachMeta(normalizeRow(inserted), createdVariacoes), accountId);
+    return getPromocaoById(inserted.id, { accountId });
   }
 
   memoryPromocoes.push(payload);
   memoryPromocaoProdutos.push(...produtoRows);
   memoryPromocaoVariacoes.push(...variationRows);
-  return attachProdutoData(attachMeta(normalizeRow(payload), createdVariacoes), accountId);
+  return getPromocaoById(payload.id, { accountId });
 }
 
 export async function updatePromocao(id, data = {}, options = {}) {
