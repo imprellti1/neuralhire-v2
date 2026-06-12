@@ -18,7 +18,8 @@ test('ai director route smoke', async () => {
       alerts: [{ severity: 'high', title: 'Faturamento caiu 18% nos últimos 15 dias' }],
       opportunities: [{ title: '12 clientes demonstraram intenção de compra' }]
     }),
-    'GET /ai-director/memories': () => ({ items: [] })
+    'GET /ai-director/memories': () => ({ items: [] }),
+    'GET /ai-director/managers': () => ({ managers: [] })
   });
   bootstrapWebApp();
   await flush();

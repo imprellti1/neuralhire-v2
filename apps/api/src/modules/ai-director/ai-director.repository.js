@@ -5,6 +5,48 @@ import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase
 const validTipos = new Set(['observacao', 'alerta', 'oportunidade', 'diagnostico', 'decisao', 'plano_acao']);
 const validPrioridades = new Set(['baixa', 'media', 'alta', 'critica']);
 const memoryStore = [];
+const managers = [
+  {
+    id: 'comercial',
+    nome: 'Gerente Comercial',
+    descricao: 'Especialista em carteira, pedidos, pipeline e leitura de receita.',
+    modulos: ['Clientes', 'Pedidos', 'Pipeline', 'Revenue'],
+    capacidades: ['analisar carteira de clientes', 'identificar clientes em risco', 'analisar pedidos', 'resumir pipeline comercial', 'apoiar análise de faturamento'],
+    status: 'ativo'
+  },
+  {
+    id: 'produtos',
+    nome: 'Gerente Produtos',
+    descricao: 'Focado em catálogo, operação de produtos e leitura de promoções.',
+    modulos: ['Produtos', 'Categorias', 'Fabricantes', 'Importações', 'Promoções'],
+    capacidades: ['analisar catálogo', 'identificar problemas de produtos', 'avaliar fabricantes', 'acompanhar promoções', 'apoiar importações'],
+    status: 'ativo'
+  },
+  {
+    id: 'auditoria',
+    nome: 'Gerente Auditoria',
+    descricao: 'Responsável por integridade, logs e sinais de risco operacional.',
+    modulos: ['Auditoria', 'Logs', 'Integridade de dados'],
+    capacidades: ['analisar logs', 'identificar inconsistências', 'verificar integridade de dados', 'apontar riscos operacionais'],
+    status: 'ativo'
+  },
+  {
+    id: 'followup',
+    nome: 'Gerente Follow-up',
+    descricao: 'Orquestra conversas, bloqueios e oportunidades de follow-up.',
+    modulos: ['WhatsApp', 'Evolution', 'IA Comercial', 'Pipeline IA'],
+    capacidades: ['analisar conversas', 'identificar oportunidades no WhatsApp', 'avaliar bloqueios de follow-up', 'acompanhar pipeline IA'],
+    status: 'ativo'
+  },
+  {
+    id: 'administrativo',
+    nome: 'Gerente Administrativo',
+    descricao: 'Cuida de governança, permissões, configurações e tenant.',
+    modulos: ['Usuários', 'Permissões', 'Configurações', 'Tenant'],
+    capacidades: ['revisar permissões', 'analisar configuração da conta', 'apoiar governança administrativa'],
+    status: 'ativo'
+  }
+];
 
 function assertAccountId(accountId) {
   if (!accountId) throw new ForbiddenError('Contexto de tenant obrigatorio', { code: 'TENANT_REQUIRED', domain: 'ai-director' });
@@ -55,6 +97,33 @@ export function getAiDirectorDashboard() {
         title: '12 clientes demonstraram intenção de compra'
       }
     ]
+  };
+}
+
+export function listManagers() {
+  return managers.map(clone);
+}
+
+export function getManagerById(managerId) {
+  const id = String(managerId ?? '').trim();
+  if (!id) return null;
+  return managers.find((manager) => manager.id === id) || null;
+}
+
+export function consultManager(context = {}, managerId, payload = {}) {
+  assertAccountId(context?.accountId || context?.account_id || null);
+  const manager = getManagerById(managerId);
+  if (!manager) throw new BadRequestError('manager inexistente');
+  const question = normalizeText(payload.question, 'question');
+  return {
+    manager: {
+      id: manager.id,
+      nome: manager.nome
+    },
+    question,
+    summary: `Consulta recebida pelo ${manager.nome}.`,
+    status: 'mocked',
+    sources: [...manager.modulos]
   };
 }
 

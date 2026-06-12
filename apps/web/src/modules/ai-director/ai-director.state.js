@@ -4,6 +4,10 @@ export function createAiDirectorState() {
     error: null,
     dashboard: null,
     memories: [],
+    managers: [],
+    managersLoading: false,
+    managerConsultations: {},
+    managerQuestion: '',
     memoryForm: {
       tipo: 'observacao',
       titulo: '',

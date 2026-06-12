@@ -28,10 +28,30 @@ test('ai director page dom', async () => {
             ]
           };
         }
+        if (url === '/ai-director/managers') {
+          return {
+            managers: [
+              { id: 'comercial', nome: 'Gerente Comercial', descricao: 'Especialista em carteira, pedidos, pipeline e leitura de receita.', modulos: ['Clientes', 'Pedidos', 'Pipeline', 'Revenue'], capacidades: ['analisar carteira de clientes'], status: 'ativo' },
+              { id: 'produtos', nome: 'Gerente Produtos', descricao: 'Focado em catálogo, operação de produtos e leitura de promoções.', modulos: ['Produtos', 'Categorias', 'Fabricantes', 'Importações', 'Promoções'], capacidades: ['analisar catálogo'], status: 'ativo' },
+              { id: 'auditoria', nome: 'Gerente Auditoria', descricao: 'Responsável por integridade, logs e sinais de risco operacional.', modulos: ['Auditoria', 'Logs', 'Integridade de dados'], capacidades: ['analisar logs'], status: 'ativo' },
+              { id: 'followup', nome: 'Gerente Follow-up', descricao: 'Orquestra conversas, bloqueios e oportunidades de follow-up.', modulos: ['WhatsApp', 'Evolution', 'IA Comercial', 'Pipeline IA'], capacidades: ['analisar conversas'], status: 'ativo' },
+              { id: 'administrativo', nome: 'Gerente Administrativo', descricao: 'Cuida de governança, permissões, configurações e tenant.', modulos: ['Usuários', 'Permissões', 'Configurações', 'Tenant'], capacidades: ['revisar permissões'], status: 'ativo' }
+            ]
+          };
+        }
         return {};
       },
       post: async (url, payload) => {
         calls.push({ url, payload });
+        if (url === '/ai-director/managers/comercial/consult') {
+          return {
+            manager: { id: 'comercial', nome: 'Gerente Comercial' },
+            question: payload.question,
+            summary: 'Consulta recebida pelo Gerente Comercial.',
+            status: 'mocked',
+            sources: ['Clientes', 'Pedidos', 'Pipeline', 'Revenue']
+          };
+        }
         return { item: { id: '2', ...payload } };
       }
     }
@@ -43,12 +63,23 @@ test('ai director page dom', async () => {
   assert.match(document.body.textContent, /Oportunidades/);
   assert.match(document.body.textContent, /Memória Estratégica/);
   assert.match(document.body.textContent, /Clientes em risco aumentando/);
+  assert.match(document.body.textContent, /Gerentes Especializados/);
+  assert.match(document.body.textContent, /Gerente Comercial/);
+  assert.match(document.body.textContent, /Gerente Produtos/);
+  assert.match(document.body.textContent, /Gerente Auditoria/);
+  assert.match(document.body.textContent, /Gerente Follow-up/);
+  assert.match(document.body.textContent, /Gerente Administrativo/);
   assert.match(document.body.textContent, /Pergunte ao Diretor/);
+  document.querySelector('[data-manager-id="comercial"] input').value = 'Quais clientes estão em risco?';
+  document.querySelector('[data-manager-id="comercial"] .manager-consult-button').click();
+  await flush();
+  await flush();
+  assert.match(document.body.textContent, /Consulta recebida pelo Gerente Comercial\./);
   document.querySelector('#ai-director-memory-titulo').value = 'Nova observacao';
   document.querySelector('#ai-director-memory-conteudo').value = 'Conteudo novo';
-  document.querySelector('#ai-director-memory-submit').click();
+  document.querySelector('#ai-director-memory-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
   await flush();
   await flush();
-  assert.equal(calls[0].url, '/ai-director/memories');
+  assert.ok(calls.some((call) => call.url === '/ai-director/memories'));
   teardownFrontendDom(dom);
 });

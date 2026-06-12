@@ -1,6 +1,6 @@
 import { asyncHandler } from '../../core/async-handler.js';
 import { sendSuccess } from '../../core/response.js';
-import { createAiDirectorMemoryHandler, getAiDirectorDashboardHandler, listAiDirectorMemoriesHandler } from './ai-director.controller.js';
+import { consultAiDirectorManagerHandler, createAiDirectorMemoryHandler, getAiDirectorDashboardHandler, listAiDirectorMemoriesHandler, listAiDirectorManagersHandler } from './ai-director.controller.js';
 
 export function registerAiDirectorRoutes(router) {
   router.registerRoute({
@@ -20,5 +20,17 @@ export function registerAiDirectorRoutes(router) {
     path: '/ai-director/memories',
     domain: 'ai-director',
     handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await createAiDirectorMemoryHandler(context), 201))
+  });
+  router.registerRoute({
+    method: 'GET',
+    path: '/ai-director/managers',
+    domain: 'ai-director',
+    handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await listAiDirectorManagersHandler(context)))
+  });
+  router.registerRoute({
+    method: 'POST',
+    path: '/ai-director/managers/:id/consult',
+    domain: 'ai-director',
+    handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await consultAiDirectorManagerHandler(context)))
   });
 }

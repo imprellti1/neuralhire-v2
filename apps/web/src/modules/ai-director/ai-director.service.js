@@ -9,3 +9,11 @@ export async function listMemories(apiClient, params = {}) {
 export async function createMemory(apiClient, payload) {
   return apiClient.post('/ai-director/memories', payload);
 }
+
+export async function listManagers(apiClient) {
+  return apiClient.get('/ai-director/managers');
+}
+
+export async function consultManager(apiClient, managerId, payload) {
+  return apiClient.post(`/ai-director/managers/${managerId}/consult`, payload);
+}

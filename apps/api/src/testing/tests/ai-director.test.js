@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { __resetMemoryAiDirectorForTests, createAiDirectorMemory, getAiDirectorDashboard, listAiDirectorMemories } from '../../modules/ai-director/ai-director.repository.js';
+import { __resetMemoryAiDirectorForTests, consultManager, createAiDirectorMemory, getAiDirectorDashboard, listAiDirectorMemories, listManagers } from '../../modules/ai-director/ai-director.repository.js';
 
 function resetState() {
   __resetMemoryAiDirectorForTests();
@@ -58,6 +58,39 @@ export function getAiDirectorTests() {
         const result = await listAiDirectorMemories({}, { accountId: 'acc-b' });
         assert.equal(result.items.length, 0);
         assert.equal(item.account_id, 'acc-a');
+      }
+    },
+    {
+      name: 'GET /ai-director/managers retorna 5 gerentes',
+      run: async () => {
+        const managers = listManagers();
+        assert.equal(managers.length, 5);
+        assert.ok(managers.some((manager) => manager.id === 'comercial'));
+        assert.ok(managers.some((manager) => manager.id === 'produtos'));
+        assert.ok(managers.some((manager) => manager.id === 'auditoria'));
+        assert.ok(managers.some((manager) => manager.id === 'followup'));
+        assert.ok(managers.some((manager) => manager.id === 'administrativo'));
+      }
+    },
+    {
+      name: 'POST /ai-director/managers/comercial/consult retorna mocked',
+      run: async () => {
+        const response = consultManager({ accountId: 'acc-a' }, 'comercial', { question: 'Quais clientes estão em risco?' });
+        assert.equal(response.manager.id, 'comercial');
+        assert.equal(response.status, 'mocked');
+        assert.deepEqual(response.sources, ['Clientes', 'Pedidos', 'Pipeline', 'Revenue']);
+      }
+    },
+    {
+      name: 'POST consult rejeita question vazia',
+      run: async () => {
+        assert.throws(() => consultManager({ accountId: 'acc-a' }, 'comercial', { question: '   ' }));
+      }
+    },
+    {
+      name: 'POST consult rejeita manager inexistente',
+      run: async () => {
+        assert.throws(() => consultManager({ accountId: 'acc-a' }, 'inexistente', { question: 'Teste' }));
       }
     }
   ];
