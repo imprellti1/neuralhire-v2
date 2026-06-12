@@ -3,5 +3,5 @@ import { defineModule } from '../../core/module-contract.js';
 export const aiDirectorModule = defineModule({
   name: 'ai-director',
   domain: 'ai-director',
-  routes: ['GET /ai-director/dashboard']
+  routes: ['GET /ai-director/dashboard', 'GET /ai-director/memories', 'POST /ai-director/memories']
 });

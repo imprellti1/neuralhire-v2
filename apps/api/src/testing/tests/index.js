@@ -100,6 +100,7 @@ const suiteSpecs = [
   ['Produtos Import', './produtos-import.test.js', 'getProdutosImportTests'],
   ['Product Editor', './product-editor.test.js', 'getProductEditorTests'],
   ['IA Memorias', '../../modules/ia-memorias/ia-memorias.test.js', 'getIaMemoriasTests'],
+  ['Ai Director', './ai-director.test.js', 'getAiDirectorTests'],
   ['Ai Director Repository', '../../modules/ai-director/ai-director.repository.test.js', 'getAiDirectorRepositoryTests'],
   ['Ai Director Controller', '../../modules/ai-director/ai-director.controller.test.js', 'getAiDirectorControllerTests'],
   ['Vendedores', './vendedores.test.js', 'getVendedoresTests'],

@@ -5,6 +5,7 @@ import { flush, setupFrontendDom, teardownFrontendDom } from '../../testing/fron
 
 test('ai director page dom', async () => {
   const dom = setupFrontendDom('#/diretor-ia');
+  const calls = [];
   await renderAiDirectorPage(document.body, {
     apiClient: {
       get: async (url) => {
@@ -20,7 +21,18 @@ test('ai director page dom', async () => {
             opportunities: [{ title: '12 clientes demonstraram intenção de compra' }]
           };
         }
+        if (url === '/ai-director/memories') {
+          return {
+            items: [
+              { id: '1', tipo: 'observacao', prioridade: 'alta', titulo: 'Clientes em risco aumentando', conteudo: 'O número de clientes em risco cresceu.', origem: 'diretor_ia', created_at: '2026-06-12T10:00:00.000Z' }
+            ]
+          };
+        }
         return {};
+      },
+      post: async (url, payload) => {
+        calls.push({ url, payload });
+        return { item: { id: '2', ...payload } };
       }
     }
   });
@@ -29,6 +41,14 @@ test('ai director page dom', async () => {
   assert.match(document.body.textContent, /Saúde do Negócio/);
   assert.match(document.body.textContent, /Alertas Estratégicos/);
   assert.match(document.body.textContent, /Oportunidades/);
+  assert.match(document.body.textContent, /Memória Estratégica/);
+  assert.match(document.body.textContent, /Clientes em risco aumentando/);
   assert.match(document.body.textContent, /Pergunte ao Diretor/);
+  document.querySelector('#ai-director-memory-titulo').value = 'Nova observacao';
+  document.querySelector('#ai-director-memory-conteudo').value = 'Conteudo novo';
+  document.querySelector('#ai-director-memory-submit').click();
+  await flush();
+  await flush();
+  assert.equal(calls[0].url, '/ai-director/memories');
   teardownFrontendDom(dom);
 });
