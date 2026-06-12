@@ -120,6 +120,7 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
     const radar = dashboard.radar || {};
     const scoreExecutivo = radar.scoreExecutivo || {};
     const prioridades = Array.isArray(radar.prioridades) ? radar.prioridades : [];
+    const acoesSugeridas = Array.isArray(radar.acoesSugeridas) ? radar.acoesSugeridas : [];
     const penalidades = Array.isArray(scoreExecutivo.penalidades) ? scoreExecutivo.penalidades : [];
     const pilares = scoreExecutivo.pilares || {};
     const pillarEntries = [
@@ -160,6 +161,21 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
         ${item.gerenteSugerido ? `<div class="nh-mini" style="margin-top: 6px;">Gerente sugerido: ${esc(item.gerenteSugerido)}</div>` : ''}
       </div>
     `).join('');
+    const actionsHtml = acoesSugeridas.slice(0, 5).length ? acoesSugeridas.slice(0, 5).map((item) => `
+      <div class="nh-list-item">
+        <div class="nh-between">
+          <div>
+            <div class="nh-badge ${badgeClass(item.prioridade)}">Prioridade ${esc(normalizeClassificacao(item.prioridade))}</div>
+            <div style="margin-top: 8px; font-size: 1.02rem; font-weight: 700;">${esc(item.ordem)}. ${esc(item.titulo)}</div>
+          </div>
+          <div class="nh-mini">${esc(item.prazoSugerido || 'sem_prazo')}</div>
+        </div>
+        <div class="nh-mini" style="margin-top: 10px;">Tipo: ${esc(item.tipo || 'geral')} · Origem: ${esc(item.origem || '—')}</div>
+        <div style="margin-top: 8px;">${esc(item.descricao || '—')}</div>
+        ${item.gerenteSugerido ? `<div class="nh-mini" style="margin-top: 8px;">Gerente sugerido: ${esc(item.gerenteSugerido)}</div>` : ''}
+        <div class="nh-mini" style="margin-top: 8px;">Critério de conclusão: ${esc(item.criterioConclusao || '—')}</div>
+      </div>
+    `).join('') : '<div class="nh-mini">Sem ações sugeridas no momento.</div>';
     const penalidadesHtml = penalidades.slice(0, 5).length ? penalidades.slice(0, 5).map((item) => `
       <div class="nh-list-item">
         <div class="nh-between">
@@ -370,6 +386,15 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
             </div>
           </div>
           <div class="nh-list" style="margin-top: 14px;">${penalidadesHtml}</div>
+        </article>
+        <article class="nh-card">
+          <div class="nh-between">
+            <div>
+              <h2 class="nh-section-title">Ações Sugeridas</h2>
+              <p class="nh-section-subtitle">Próximos passos acionáveis derivados das prioridades do radar.</p>
+            </div>
+          </div>
+          <div class="nh-list" style="margin-top: 14px;">${actionsHtml}</div>
         </article>
         <article class="nh-card">
           <div class="nh-between">

@@ -196,6 +196,65 @@ function dedupeAndSortPriorities(prioridades = []) {
     .map((priority, index) => ({ ...priority, ordem: index + 1 }));
 }
 
+function mapPriorityToActionType(priority) {
+  const text = String(priority?.origem || priority?.titulo || '').toLowerCase();
+  if (['clientes', 'comercial', 'revenue', 'pedidos'].some((token) => text.includes(token))) return 'comercial';
+  if (['auditoria', 'operacional', 'operacao', 'operação'].some((token) => text.includes(token))) return 'operacional';
+  if (['produto', 'produtos', 'catalogo', 'catálogo'].some((token) => text.includes(token))) return 'produtos';
+  if (['inteligencia', 'inteligência', 'memoria', 'memória', 'insight'].some((token) => text.includes(token))) return 'inteligencia';
+  return 'geral';
+}
+
+function mapActionDeadline(priority) {
+  const urgencia = String(priority?.urgencia || '').toLowerCase();
+  const impacto = String(priority?.impacto || '').toLowerCase();
+  if (urgencia === 'alta' && impacto === 'alto') return 'hoje';
+  if (urgencia === 'alta') return 'hoje';
+  if (impacto === 'alto') return 'esta_semana';
+  if (impacto === 'medio' || impacto === 'médio') return 'esta_semana';
+  if (urgencia === 'media' || urgencia === 'média') return 'proximos_15_dias';
+  return 'proximos_15_dias';
+}
+
+function actionConclusionForType(tipo) {
+  if (tipo === 'comercial') return 'Plano comercial definido e clientes priorizados para contato.';
+  if (tipo === 'operacional') return 'Pendências operacionais revisadas e encaminhadas.';
+  if (tipo === 'produtos') return 'Produtos com pendências revisados e correções planejadas.';
+  if (tipo === 'inteligencia') return 'Insight revisado e decisão registrada na memória executiva.';
+  return 'Ação analisada e encaminhamento definido.';
+}
+
+function buildSuggestedActions(prioridades = []) {
+  if (!Array.isArray(prioridades) || prioridades.length === 0) return [];
+  const ordered = prioridades.slice().sort((a, b) => {
+    if (a.ordem !== b.ordem) return a.ordem - b.ordem;
+    return b.peso - a.peso;
+  });
+  const actions = [];
+  const seen = new Set();
+  for (const priority of ordered) {
+    const tipo = mapPriorityToActionType(priority);
+    const titulo = String(priority?.titulo || '').trim();
+    const key = `${tipo}::${titulo.toLowerCase()}`;
+    if (!titulo || seen.has(key)) continue;
+    seen.add(key);
+    const prioridade = String(priority?.urgencia || '').toLowerCase() === 'alta' ? 'alta' : String(priority?.urgencia || '').toLowerCase() === 'media' || String(priority?.urgencia || '').toLowerCase() === 'média' ? 'media' : 'baixa';
+    actions.push({
+      ordem: actions.length + 1,
+      titulo,
+      descricao: String(priority?.acaoRecomendada || priority?.motivo || '').trim() || 'Ação sugerida pelo radar executivo.',
+      tipo,
+      prioridade,
+      origem: String(priority?.origem || 'geral'),
+      gerenteSugerido: priority?.gerenteSugerido ?? null,
+      prazoSugerido: mapActionDeadline(priority),
+      criterioConclusao: actionConclusionForType(tipo)
+    });
+    if (actions.length >= 5) break;
+  }
+  return actions;
+}
+
 export async function buildStrategicRadar(context = {}) {
   const accountId = context?.accountId || context?.account_id || null;
   const [clientes, pedidos, produtos, audit, revenue, executiveMemories, managers] = await Promise.all([
@@ -333,6 +392,7 @@ export async function buildStrategicRadar(context = {}) {
     }));
   }
   const prioridades = dedupeAndSortPriorities(prioridadesRaw);
+  const acoesSugeridas = buildSuggestedActions(prioridades);
 
   const penalidades = [];
 
@@ -416,6 +476,7 @@ export async function buildStrategicRadar(context = {}) {
       ? 'ativar os gerentes especializados disponíveis'
       : 'explorar a base ativa existente';
   const principalPriority = prioridades[0] || null;
+  const mainAction = acoesSugeridas[0] || null;
 
   return {
     scoreExecutivo: {
@@ -433,10 +494,11 @@ export async function buildStrategicRadar(context = {}) {
         : `Score Executivo em nível ${classificationFromScore(score)}. O radar não identificou penalidades relevantes no momento.`
     },
     resumoExecutivo: principalPriority
-      ? `Radar Estratégico identificou ${alertas.length} alertas, ${oportunidades.length} oportunidades e ${prioridades.length} prioridades. O Score Executivo está em ${score} (${classificationFromScore(score)}). A prioridade máxima é ${principalPriority.titulo}, com apoio sugerido do ${principalPriority.gerenteSugerido || 'gestor responsável'}. A principal atenção está em ${principalAttention}. A principal oportunidade é ${principalOpportunity}.`
-      : `Radar Estratégico identificou ${alertas.length} alertas, ${oportunidades.length} oportunidades e ${prioridades.length} prioridades. O Score Executivo está em ${score} (${classificationFromScore(score)}). A principal atenção está em ${principalAttention}. A principal oportunidade é ${principalOpportunity}.`,
+      ? `Score Executivo ${score} (${classificationFromScore(score)}). O Radar identificou ${alertas.length} alertas, ${oportunidades.length} oportunidades e ${prioridades.length} prioridades. A prioridade máxima é ${principalPriority.titulo}. A ação sugerida é ${mainAction?.descricao || principalPriority.acaoRecomendada || 'definir o próximo passo'}${mainAction?.gerenteSugerido ? ` com apoio do ${mainAction.gerenteSugerido}` : ''}.`
+      : `Score Executivo ${score} (${classificationFromScore(score)}). O Radar identificou ${alertas.length} alertas, ${oportunidades.length} oportunidades e ${prioridades.length} prioridades. Não há ações críticas pendentes no momento.`,
     alertas,
     oportunidades,
-    prioridades
+    prioridades,
+    acoesSugeridas
   };
 }

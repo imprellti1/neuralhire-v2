@@ -41,6 +41,8 @@ export function getAiDirectorTests() {
         assert.ok(dashboard.radar.scoreExecutivo.pilares);
         assert.equal(Array.isArray(dashboard.radar.scoreExecutivo.penalidades), true);
         assert.equal(typeof dashboard.radar.scoreExecutivo.diagnostico, 'string');
+        assert.equal(Array.isArray(dashboard.radar.acoesSugeridas), true);
+        assert.equal(dashboard.radar.acoesSugeridas.length <= 5, true);
         for (const [name, pillar] of Object.entries(dashboard.radar.scoreExecutivo.pilares)) {
           assert.ok(['comercial', 'operacional', 'produtos', 'inteligencia'].includes(name));
           assert.equal(typeof pillar.valor, 'number');
@@ -78,8 +80,23 @@ export function getAiDirectorTests() {
         });
         if (dashboard.radar.prioridades.length > 0) {
           assert.equal(dashboard.radar.resumoExecutivo.includes(dashboard.radar.prioridades[0].titulo), true);
+          assert.equal(dashboard.radar.resumoExecutivo.includes('Ação sugerida'), true);
         }
         assert.equal(dashboard.radar.resumoExecutivo.includes('Score Executivo'), true);
+        dashboard.radar.acoesSugeridas.forEach((acao, index) => {
+          assert.equal(acao.ordem, index + 1);
+          assert.equal(typeof acao.titulo, 'string');
+          assert.equal(typeof acao.descricao, 'string');
+          assert.equal(['comercial', 'operacional', 'produtos', 'inteligencia', 'geral'].includes(acao.tipo), true);
+          assert.equal(['alta', 'media', 'baixa'].includes(acao.prioridade), true);
+          assert.equal(typeof acao.origem, 'string');
+          assert.equal(acao.gerenteSugerido === null || typeof acao.gerenteSugerido === 'string', true);
+          assert.equal(['hoje', 'esta_semana', 'proximos_15_dias', 'sem_prazo'].includes(acao.prazoSugerido), true);
+          assert.equal(typeof acao.criterioConclusao, 'string');
+        });
+        for (let index = 1; index < dashboard.radar.acoesSugeridas.length; index += 1) {
+          assert.equal(dashboard.radar.acoesSugeridas[index - 1].ordem < dashboard.radar.acoesSugeridas[index].ordem, true);
+        }
       }
     },
     {

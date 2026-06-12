@@ -60,6 +60,11 @@ test('ai director page dom with radar', async () => {
             { origem: 'Promoções', pontos: 5, motivo: 'Aderência abaixo do esperado.' }
           ]
         }
+        ,
+        acoesSugeridas: [
+          { ordem: 1, titulo: 'Recuperar carteira em risco', descricao: 'Priorizar contato comercial nas 24h', tipo: 'comercial', prioridade: 'alta', origem: 'clientes', gerenteSugerido: 'Gerente Comercial', prazoSugerido: 'hoje', criterioConclusao: 'Plano comercial definido e clientes priorizados para contato.' },
+          { ordem: 2, titulo: 'Ajustar promoções', descricao: 'Rever calendário promocional', tipo: 'produtos', prioridade: 'media', origem: 'produtos', gerenteSugerido: null, prazoSugerido: 'esta_semana', criterioConclusao: 'Produtos com pendências revisados e correções planejadas.' }
+        ]
       }
     },
     managers: [
@@ -106,6 +111,10 @@ test('ai director page dom with radar', async () => {
   assert.match(document.body.textContent, /Ação recomendada: Priorizar contato comercial nas 24h/);
   assert.match(document.body.textContent, /Gerente sugerido: Gerente Comercial/);
   assert.match(document.body.textContent, /Penalidades do Score/);
+  assert.match(document.body.textContent, /Ações Sugeridas/);
+  assert.match(document.body.textContent, /Recuperar carteira em risco/);
+  assert.match(document.body.textContent, /hoje/);
+  assert.match(document.body.textContent, /Plano comercial definido e clientes priorizados para contato\./);
   assert.match(document.body.textContent, /Nenhuma penalidade critical|Carteira/);
   assert.match(document.body.textContent, /Pergunte ao Diretor IA/);
   assert.match(document.body.textContent, /Memória Executiva/);
@@ -168,6 +177,7 @@ test('ai director page dom without radar fallback', async () => {
   assert.match(document.body.textContent, /Sem diagnóstico disponível/);
   assert.match(document.body.textContent, /Sem resumo executivo disponível/);
   assert.match(document.body.textContent, /Nenhuma penalidade crítica identificada no Score Executivo\./);
+  assert.match(document.body.textContent, /Sem ações sugeridas no momento\./);
   assert.match(document.body.textContent, /Sem dados suficientes/);
   assert.match(document.body.textContent, /Pergunte ao Diretor IA/);
   assert.match(document.body.textContent, /Memória Executiva/);
