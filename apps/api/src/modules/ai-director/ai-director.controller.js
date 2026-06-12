@@ -1,5 +1,5 @@
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
-import { createAiDirectorMemory, consultManager, getAiDirectorDashboard, listAiDirectorMemories, listManagers } from './ai-director.repository.js';
+import { createAiDirectorMemory, consultManager, getAiDirectorDashboard, listAiDirectorMemories, listExecutiveMemories, listManagers } from './ai-director.repository.js';
 import { answerAiDirectorQuestion, delegateAiDirectorQuestion } from './ai-director.orchestrator.js';
 
 export async function getAiDirectorDashboardHandler() {
@@ -10,6 +10,13 @@ export async function listAiDirectorMemoriesHandler(context = {}) {
   const accountId = getAccountIdFromContext(context);
   const limit = context?.query?.limit !== undefined ? Number(context.query.limit) : undefined;
   return { ok: true, ...(await listAiDirectorMemories({ limit }, { accountId, context })) };
+}
+
+export async function listAiDirectorExecutiveMemoriesHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const limit = context?.query?.limit !== undefined ? Number(context.query.limit) : undefined;
+  const categoria = context?.query?.categoria ? String(context.query.categoria).trim() : undefined;
+  return { ok: true, ...(await listExecutiveMemories({ limit, categoria }, { accountId, context })) };
 }
 
 export async function createAiDirectorMemoryHandler(context = {}) {

@@ -4,6 +4,8 @@ export function createAiDirectorState() {
     error: null,
     dashboard: null,
     memories: [],
+    executiveMemories: [],
+    executiveMemoriesFilter: 'all',
     managers: [],
     managersLoading: false,
     managerConsultations: {},

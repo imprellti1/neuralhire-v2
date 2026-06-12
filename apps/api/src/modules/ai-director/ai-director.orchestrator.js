@@ -1,7 +1,8 @@
-import { consultManager, getAiDirectorDashboard, listAiDirectorMemories, listManagers } from './ai-director.repository.js';
+import { consultManager, findRelevantExecutiveMemories, getAiDirectorDashboard, listAiDirectorMemories, listManagers, recordExecutiveInsight } from './ai-director.repository.js';
 import { BadRequestError } from '../../core/errors.js';
 import { buildAiDirectorContext } from './ai-director.context-builder.js';
 import { askAiDirectorLlm } from './ai-director.llm.js';
+import { analyzeExecutiveFacts } from './ai-director.executive-memory.js';
 
 const intentRules = [
   { intent: 'analise_clientes', keywords: ['cliente', 'clientes', 'risco', 'carteira', 'recompra'], managers: ['comercial', 'followup'] },
@@ -75,11 +76,23 @@ export async function answerAiDirectorQuestion(payload = {}, options = {}) {
   const delegation = await delegateAiDirectorQuestion({ question }, options);
   const dashboard = getAiDirectorDashboard();
   const memoriesResult = await listAiDirectorMemories({ limit: 8 }, { accountId: options.accountId, context: options.context }).catch(() => ({ items: [] }));
+  const executiveMemoriesResult = await findRelevantExecutiveMemories({ limit: 8, question }, { accountId: options.accountId, context: options.context }).catch(() => ({ items: [] }));
+  const insights = analyzeExecutiveFacts(delegation.managerResponses || [], executiveMemoriesResult.items || []);
+  const storedInsights = [];
+  for (const insight of insights) {
+    const exists = (executiveMemoriesResult.items || []).some((memory) => memory.tipo === insight.tipo && memory.titulo === insight.titulo && memory.categoria === insight.categoria);
+    if (!exists) {
+      const created = await recordExecutiveInsight(insight, { accountId: options.accountId, context: options.context }).catch(() => null);
+      if (created) storedInsights.push(created);
+    }
+  }
+  const allExecutiveMemories = [...(executiveMemoriesResult.items || []), ...storedInsights];
   const context = await buildAiDirectorContext({
     question,
     delegation,
     dashboard,
-    memories: memoriesResult.items || []
+    memories: memoriesResult.items || [],
+    executiveMemories: allExecutiveMemories
   });
   const llmResult = await askAiDirectorLlm(context, options).catch((error) => ({
     answer: null,
@@ -93,6 +106,7 @@ export async function answerAiDirectorQuestion(payload = {}, options = {}) {
     consultedManagers: delegation.selectedManagers,
     managerResponses: delegation.managerResponses,
     usedMemories: context.usedMemories.map((memory) => memory.id),
+    executiveMemories: allExecutiveMemories.map((memory) => memory.id),
     facts: context.facts,
     status: llmResult.answer ? 'answered' : 'answered_with_fallback',
     llm: llmResult.error ? { error: llmResult.error } : undefined

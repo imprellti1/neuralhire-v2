@@ -17,6 +17,9 @@ import { ROLE_PERMISSIONS } from '../../core/permissions.js';
 
 const validTipos = new Set(['observacao', 'alerta', 'oportunidade', 'diagnostico', 'decisao', 'plano_acao']);
 const validPrioridades = new Set(['baixa', 'media', 'alta', 'critica']);
+const validExecutiveTipos = new Set(['trend', 'alert', 'opportunity', 'risk', 'performance']);
+const validExecutiveCategorias = new Set(['comercial', 'produtos', 'auditoria', 'followup', 'administrativo', 'geral']);
+const validExecutiveSeveridades = new Set(['baixa', 'media', 'alta', 'critica']);
 const memoryStore = [];
 const managerProviderOverrides = new Map();
 const managers = [
@@ -90,6 +93,19 @@ function normalizeMemoryPayload(data = {}) {
   const origem = String(data.origem ?? 'diretor_ia').trim() || 'diretor_ia';
   const metadata = data.metadata && typeof data.metadata === 'object' && !Array.isArray(data.metadata) ? data.metadata : {};
   return { tipo, titulo, conteudo, prioridade, origem, metadata };
+}
+
+function normalizeExecutiveMemoryPayload(data = {}) {
+  const tipo = normalizeText(data.tipo, 'tipo');
+  if (!validExecutiveTipos.has(tipo)) throw new BadRequestError('tipo invalido');
+  const titulo = normalizeText(data.titulo, 'titulo');
+  const descricao = normalizeText(data.descricao, 'descricao');
+  const categoria = String(data.categoria ?? 'geral').trim() || 'geral';
+  if (!validExecutiveCategorias.has(categoria)) throw new BadRequestError('categoria invalida');
+  const severidade = String(data.severidade ?? 'media').trim() || 'media';
+  if (!validExecutiveSeveridades.has(severidade)) throw new BadRequestError('severidade invalida');
+  const dados_json = data.dados_json && typeof data.dados_json === 'object' && !Array.isArray(data.dados_json) ? data.dados_json : {};
+  return { tipo, titulo, descricao, categoria, severidade, dados_json };
 }
 
 export function getAiDirectorDashboard() {
@@ -331,6 +347,88 @@ export async function listAiDirectorMemories(filters = {}, options = {}) {
     .slice(0, safeLimit)
     .map(clone);
   return { items, total: items.length };
+}
+
+function matchesExecutiveFilters(row, filters = {}) {
+  if (filters?.categoria && row.categoria !== filters.categoria) return false;
+  if (filters?.tipo && row.tipo !== filters.tipo) return false;
+  return true;
+}
+
+export async function createExecutiveMemory(data = {}, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  const payload = normalizeExecutiveMemoryPayload(data);
+  const row = {
+    id: randomUUID(),
+    account_id: accountId,
+    ...payload,
+    criado_em: new Date().toISOString()
+  };
+
+  if (mode() === 'supabase') {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data: inserted, error } = await supabase.from('ai_director_executive_memories').insert(row).select('*').single();
+    if (error) throw new DatabaseError('Falha ao criar memoria executiva do diretor', { details: error });
+    return inserted;
+  }
+
+  memoryStore.push({ ...row, executive: true });
+  return clone(row);
+}
+
+export async function listExecutiveMemories(filters = {}, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  const limit = Number(filters.limit ?? 10);
+  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 100) : 10;
+
+  if (mode() === 'supabase') {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    let query = supabase
+      .from('ai_director_executive_memories')
+      .select('*')
+      .eq('account_id', accountId)
+      .order('criado_em', { ascending: false })
+      .limit(safeLimit);
+    if (filters?.categoria) query = query.eq('categoria', filters.categoria);
+    if (filters?.tipo) query = query.eq('tipo', filters.tipo);
+    const { data, error } = await query;
+    if (error) throw new DatabaseError('Falha ao listar memorias executivas do diretor', { details: error });
+    return { items: data || [], total: (data || []).length };
+  }
+
+  const items = memoryStore
+    .filter((row) => row.account_id === accountId && row.executive)
+    .filter((row) => matchesExecutiveFilters(row, filters))
+    .sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)))
+    .slice(0, safeLimit)
+    .map(({ executive, ...item }) => clone(item));
+  return { items, total: items.length };
+}
+
+export async function findRelevantExecutiveMemories(filters = {}, options = {}) {
+  const result = await listExecutiveMemories({ limit: filters.limit ?? 5, categoria: filters.categoria, tipo: filters.tipo }, options);
+  const keywords = String(filters.question ?? '').toLowerCase().split(/\s+/).filter(Boolean);
+  const items = [...result.items]
+    .map((memory) => {
+      const text = [memory.titulo, memory.descricao, memory.tipo, memory.categoria].join(' ').toLowerCase();
+      const score = keywords.reduce((total, token) => total + (text.includes(token) ? 1 : 0), 0);
+      return { ...memory, _score: score };
+    })
+    .filter((memory) => memory._score > 0)
+    .sort((a, b) => b._score - a._score)
+    .slice(0, Number(filters.limit ?? 5))
+    .map(({ _score, ...memory }) => memory);
+  return { items, total: items.length };
+}
+
+export async function recordExecutiveInsight(data = {}, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  return createExecutiveMemory(data, { accountId, context: options.context });
 }
 
 export async function createAiDirectorMemory(data = {}, options = {}) {

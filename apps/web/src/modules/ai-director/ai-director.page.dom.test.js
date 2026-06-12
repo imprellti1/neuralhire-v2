@@ -28,6 +28,14 @@ test('ai director page dom', async () => {
             ]
           };
         }
+        if (url === '/ai-director/executive-memories') {
+          return {
+            items: [
+              { id: 'e1', tipo: 'risk', categoria: 'comercial', severidade: 'alta', titulo: 'Aumento de clientes em risco', descricao: 'A carteira mostra crescimento no risco.', criado_em: '2026-06-12T11:00:00.000Z' },
+              { id: 'e2', tipo: 'opportunity', categoria: 'produtos', severidade: 'media', titulo: 'Maior utilização de promoções', descricao: 'Promoções ativas cresceram.', criado_em: '2026-06-12T12:00:00.000Z' }
+            ]
+          };
+        }
         if (url === '/ai-director/managers') {
           return {
             managers: [
@@ -96,6 +104,10 @@ test('ai director page dom', async () => {
   assert.match(document.body.textContent, /Oportunidades/);
   assert.match(document.body.textContent, /Memória Estratégica/);
   assert.match(document.body.textContent, /Clientes em risco aumentando/);
+  assert.match(document.body.textContent, /Memória Executiva/);
+  assert.match(document.body.textContent, /Aumento de clientes em risco/);
+  assert.match(document.body.textContent, /comercial/);
+  assert.match(document.body.textContent, /alta/);
   assert.match(document.body.textContent, /Gerentes Especializados/);
   assert.match(document.body.textContent, /Gerente Comercial/);
   assert.match(document.body.textContent, /Gerente Produtos/);
@@ -114,6 +126,11 @@ test('ai director page dom', async () => {
   assert.match(document.body.textContent, /answered/);
   assert.match(document.body.textContent, /124550/);
   assert.match(document.body.textContent, /clientes_risco/);
+  document.querySelector('#ai-director-executive-filter').value = 'produtos';
+  document.querySelector('#ai-director-executive-filter').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await flush();
+  assert.match(document.body.textContent, /Maior utilização de promoções/);
+  assert.ok(!document.body.textContent.includes('Aumento de clientes em risco'));
   document.querySelector('[data-manager-id="comercial"] input').value = 'Quais clientes estão em risco?';
   document.querySelector('[data-manager-id="comercial"] .manager-consult-button').click();
   await flush();

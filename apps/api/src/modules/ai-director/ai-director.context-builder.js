@@ -20,7 +20,7 @@ function summarizeManagerResponse(response = {}) {
   };
 }
 
-export async function buildAiDirectorContext({ question, delegation, dashboard, memories = [] }) {
+export async function buildAiDirectorContext({ question, delegation, dashboard, memories = [], executiveMemories = [] }) {
   const usedMemories = [...memories]
     .map((memory) => ({ ...memory, _score: scoreMemory(question, memory) }))
     .filter((memory) => memory._score > 0)
@@ -35,7 +35,8 @@ export async function buildAiDirectorContext({ question, delegation, dashboard, 
     opportunities: Array.isArray(dashboard?.opportunities) ? dashboard.opportunities : [],
     managers: managerFacts,
     memoriesCount: usedMemories.length,
-    managerFacts
+    managerFacts,
+    executiveMemoriesCount: executiveMemories.length
   };
 
   const comercial = managerFacts.find((item) => item.managerId === 'comercial')?.facts || {};
@@ -53,6 +54,7 @@ export async function buildAiDirectorContext({ question, delegation, dashboard, 
     usedMemories,
     managerFacts,
     safeFallbackAnswer,
-    consultedManagers: delegation?.selectedManagers || []
+    consultedManagers: delegation?.selectedManagers || [],
+    executiveMemories
   };
 }

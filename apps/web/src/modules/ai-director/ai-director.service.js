@@ -6,6 +6,10 @@ export async function listMemories(apiClient, params = {}) {
   return apiClient.get('/ai-director/memories', params);
 }
 
+export async function listExecutiveMemories(apiClient, params = {}) {
+  return apiClient.get('/ai-director/executive-memories', params);
+}
+
 export async function createMemory(apiClient, payload) {
   return apiClient.post('/ai-director/memories', payload);
 }

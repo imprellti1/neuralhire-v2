@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { __resetMemoryAiDirectorForTests, __setAiDirectorManagerProviderOverrideForTests, consultManager, createAiDirectorMemory, getAiDirectorDashboard, listAiDirectorMemories, listManagers } from '../../modules/ai-director/ai-director.repository.js';
+import { __resetMemoryAiDirectorForTests, __setAiDirectorManagerProviderOverrideForTests, consultManager, createAiDirectorMemory, createExecutiveMemory, findRelevantExecutiveMemories, getAiDirectorDashboard, listAiDirectorMemories, listExecutiveMemories, listManagers } from '../../modules/ai-director/ai-director.repository.js';
 import { answerAiDirectorQuestion, delegateAiDirectorQuestion } from '../../modules/ai-director/ai-director.orchestrator.js';
 import { askAiDirectorLlm } from '../../modules/ai-director/ai-director.llm.js';
 import { __resetMemoryClientesForTests, createCliente } from '../../modules/clientes/clientes.repository.js';
@@ -41,6 +41,17 @@ export function getAiDirectorTests() {
         const result = await listAiDirectorMemories({ limit: 10 }, { accountId: 'acc-a' });
         assert.equal(result.items.length, 1);
         assert.equal(result.items[0].account_id, 'acc-a');
+      }
+    },
+    {
+      name: 'GET /ai-director/executive-memories retorna lista por categoria',
+      run: async () => {
+        resetState();
+        await createExecutiveMemory({ tipo: 'risk', titulo: 'Aumento de clientes em risco', descricao: 'Observado aumento', categoria: 'comercial', severidade: 'alta', dados_json: { delta: 4 } }, { accountId: 'acc-a' });
+        await createExecutiveMemory({ tipo: 'trend', titulo: 'Outro insight', descricao: 'Outubro', categoria: 'produtos', severidade: 'media', dados_json: {} }, { accountId: 'acc-a' });
+        const result = await listExecutiveMemories({ categoria: 'comercial' }, { accountId: 'acc-a' });
+        assert.equal(result.items.length, 1);
+        assert.equal(result.items[0].categoria, 'comercial');
       }
     },
     {
@@ -188,6 +199,18 @@ export function getAiDirectorTests() {
         const memory = await createAiDirectorMemory({ tipo: 'alerta', titulo: 'Faturamento caiu', conteudo: 'Queda de receita observada no periodo atual', prioridade: 'alta' }, { accountId: 'acc-a' });
         const result = await answerAiDirectorQuestion({ question: 'Por que o faturamento caiu?' }, { accountId: 'acc-a' });
         assert.ok(result.usedMemories.includes(memory.id));
+      }
+    },
+    {
+      name: 'POST /ai-director/ask registra memoria executiva quando identifica risco',
+      run: async () => {
+        resetState();
+        __setAiDirectorManagerProviderOverrideForTests('comercial', async () => ({ clientes_risco: 23, clientes_ativos: 50, receita_mes: 10000, pedidos_mes: 12 }));
+        const result = await answerAiDirectorQuestion({ question: 'Como está nossa carteira?' }, { accountId: 'acc-a' });
+        const executive = await findRelevantExecutiveMemories({ question: 'carteira', limit: 10 }, { accountId: 'acc-a' });
+        assert.ok(executive.items.some((item) => item.tipo === 'risk'));
+        assert.ok(result.executiveMemories.length > 0);
+        __setAiDirectorManagerProviderOverrideForTests('comercial', null);
       }
     },
     {

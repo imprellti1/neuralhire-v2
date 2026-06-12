@@ -1,4 +1,4 @@
-import { askDirector, consultManager, createMemory, fetchAiDirectorDashboard, listManagers, listMemories } from './ai-director.service.js';
+import { askDirector, consultManager, createMemory, fetchAiDirectorDashboard, listExecutiveMemories, listManagers, listMemories } from './ai-director.service.js';
 import { createAiDirectorState } from './ai-director.state.js';
 
 function esc(value) {
@@ -23,6 +23,18 @@ function managerNamesFor(ids, managers = []) {
   return ids.map((id) => map.get(id) || id);
 }
 
+function formatExecutiveDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString('pt-BR');
+}
+
+function executiveMemoryMatchesFilter(memory, filter) {
+  if (!filter || filter === 'all') return true;
+  return String(memory?.categoria || '').toLowerCase() === filter;
+}
+
 export async function renderAiDirectorPage(container, { apiClient } = {}) {
   const state = createAiDirectorState();
 
@@ -41,6 +53,7 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
     const alerts = dashboard.alerts || [];
     const opportunities = dashboard.opportunities || [];
     const memories = state.memories || [];
+    const executiveMemories = (state.executiveMemories || []).filter((memory) => executiveMemoryMatchesFilter(memory, state.executiveMemoriesFilter));
     const managers = state.managers || [];
     const form = state.memoryForm || {};
     const delegation = state.delegationResult || {};
@@ -90,6 +103,25 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
             <textarea id="ai-director-memory-conteudo" rows="4">${esc(form.conteudo)}</textarea>
             <button id="ai-director-memory-submit" type="submit" ${state.savingMemory ? 'disabled' : ''}>Registrar observação</button>
           </form>
+        </article>
+        <article>
+          <h2>Memória Executiva</h2>
+          <label for="ai-director-executive-filter">Filtrar por categoria</label>
+          <select id="ai-director-executive-filter">
+            ${['all', 'comercial', 'produtos', 'auditoria', 'followup', 'administrativo', 'geral'].map((categoria) => `<option value="${categoria}"${state.executiveMemoriesFilter === categoria ? ' selected' : ''}>${categoria === 'all' ? 'Todas' : categoria}</option>`).join('')}
+          </select>
+          <ul data-testid="executive-memories-list">
+            ${executiveMemories.map((item) => `
+              <li>
+                <strong>${esc(item.tipo)}</strong>
+                <span>${esc(item.categoria)}</span>
+                <span>${esc(item.severidade)}</span>
+                <strong>${esc(item.titulo)}</strong>
+                <p>${esc(item.descricao)}</p>
+                <small>${esc(formatExecutiveDate(item.criado_em || item.created_at))}</small>
+              </li>
+            `).join('')}
+          </ul>
         </article>
         <article>
           <h2>Gerentes Especializados</h2>
@@ -213,6 +245,11 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
       });
     });
 
+    container.querySelector('#ai-director-executive-filter')?.addEventListener('change', async (event) => {
+      state.executiveMemoriesFilter = event.target.value || 'all';
+      render();
+    });
+
     bindMemoryForm();
   };
 
@@ -221,18 +258,20 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
     state.managersLoading = true;
     render();
     try {
-      const [dashboardResult, memoriesResult, managersResult] = await Promise.all([
+      const [dashboardResult, memoriesResult, executiveMemoriesResult, managersResult] = await Promise.all([
         fetchAiDirectorDashboard(apiClient),
         listMemories(apiClient).catch((error) => {
           state.memoryError = 'Não foi possível carregar as memórias.';
           return { items: [] };
         }),
+        listExecutiveMemories(apiClient).catch(() => ({ items: [] })),
         listManagers(apiClient).catch(() => {
           return { managers: [] };
         })
       ]);
       state.dashboard = dashboardResult;
       state.memories = memoriesResult.items || [];
+      state.executiveMemories = executiveMemoriesResult.items || [];
       state.managers = managersResult.managers || [];
     } catch (error) {
       state.error = error;
