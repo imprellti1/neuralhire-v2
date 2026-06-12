@@ -4,6 +4,7 @@ import { listProdutos } from '../produtos/produtos.repository.js';
 import { auditSummary } from '../product-audit/product-audit.repository.js';
 import { getRevenueIntelligence } from '../revenue-intelligence/revenue-intelligence.repository.js';
 import { detectRelevantChanges } from './ai-director.change-detector.js';
+import { orchestrateManagersForChanges } from './ai-director.manager-orchestrator.js';
 import { createExecutiveMemory, listExecutiveMemories, listManagers } from './ai-director.repository.js';
 
 const RADAR_STATUS = {
@@ -53,6 +54,7 @@ const EMPTY_RADAR_SHAPE = {
   acoesSugeridas: [],
   alteracoesRelevantes: [],
   resumoAlteracoes: 'Sem alterações relevantes na janela monitorada.',
+  orquestracaoGerentes: { totalOrquestracoes: 0, orquestracoes: [], resumo: 'Sem orquestrações pendentes.' },
   monitoramento: { janelaHoras: 24, geradoEm: new Date(0).toISOString(), totalAlteracoes: 0 },
   persistenciaInsights: { candidatos: 0, persistidos: 0, ignorados: 0 },
   auditoria: {
@@ -468,6 +470,13 @@ function validateRadarShape(radar = {}) {
     acoesSugeridas: ensureArray(source.acoesSugeridas),
     alteracoesRelevantes: ensureArray(source.alteracoesRelevantes),
     resumoAlteracoes: sanitizeText(source.resumoAlteracoes, 500) || fallback.resumoAlteracoes,
+    orquestracaoGerentes: {
+      ...fallback.orquestracaoGerentes,
+      ...ensureObject(source.orquestracaoGerentes, {}),
+      totalOrquestracoes: clampPercent(source.orquestracaoGerentes?.totalOrquestracoes),
+      orquestracoes: ensureArray(source.orquestracaoGerentes?.orquestracoes).slice(0, 10),
+      resumo: sanitizeText(source.orquestracaoGerentes?.resumo, 500) || fallback.orquestracaoGerentes.resumo
+    },
     monitoramento: {
       ...fallback.monitoramento,
       ...monitoramento,
@@ -626,6 +635,31 @@ function buildSuggestedActions(prioridades = []) {
     if (actions.length >= 5) break;
   }
   return actions;
+}
+
+function mergeOrchestrationActions(actions = [], orquestracaoGerentes = {}) {
+  const orchestrationActions = ensureArray(orquestracaoGerentes?.orquestracoes)
+    .filter((item) => item?.prioridade === 'alta' && item?.acao)
+    .map((item) => ({
+      ordem: 0,
+      titulo: sanitizeText(`${item.modulo} · ${item.alteracaoTipo}`, 120),
+      descricao: sanitizeText(item.acao, 500),
+      tipo: mapPriorityToActionType({ origem: item.modulo, titulo: item.alteracaoTipo }),
+      prioridade: 'alta',
+      origem: sanitizeText(item.origemAlteracao || item.modulo || 'geral', 120),
+      gerenteSugerido: item.gerente || null,
+      prazoSugerido: 'hoje',
+      criterioConclusao: 'Orquestração validada e encaminhada ao gerente responsável.'
+    }));
+  const merged = [...actions];
+  const seen = new Set(merged.map((action) => `${String(action?.tipo || '').toLowerCase()}::${String(action?.titulo || '').toLowerCase()}::${String(action?.descricao || '').toLowerCase()}`));
+  for (const action of orchestrationActions) {
+    const key = `${String(action.tipo).toLowerCase()}::${String(action.titulo).toLowerCase()}::${String(action.descricao).toLowerCase()}`;
+    if (seen.has(key)) continue;
+    merged.push(action);
+    seen.add(key);
+  }
+  return merged.slice(0, 5).map((action, index) => ({ ...action, ordem: index + 1 }));
 }
 
 export async function buildStrategicRadar(context = {}) {
@@ -791,7 +825,7 @@ export async function buildStrategicRadar(context = {}) {
     }));
   }
   const prioridades = dedupeAndSortPriorities(prioridadesRaw);
-  const acoesSugeridas = buildSuggestedActions(prioridades);
+  const acoesSugeridasBase = buildSuggestedActions(prioridades);
 
   const penalidades = [];
 
@@ -911,7 +945,7 @@ export async function buildStrategicRadar(context = {}) {
         `Memórias executivas críticas: ${criticalMemories.length}`,
         `Alertas do radar: ${alertas.length}`,
         `Prioridades ativas: ${prioridades.length}`,
-        `Ações sugeridas: ${acoesSugeridas.length}`
+        `Ações sugeridas: ${acoesSugeridasBase.length}`
       ],
       gerenteResponsavel: 'Diretor IA'
     })
@@ -950,7 +984,7 @@ export async function buildStrategicRadar(context = {}) {
       ? 'ativar os gerentes especializados disponíveis'
       : 'explorar a base ativa existente';
   const principalPriority = prioridades[0] || null;
-  const mainAction = acoesSugeridas[0] || null;
+  const mainAction = acoesSugeridasBase[0] || null;
   const persistenceCandidates = [
     ...alertas
       .filter((item) => isPersistableRadarInsight(buildRadarInsightCandidate(item, 'alerta')))
@@ -958,7 +992,7 @@ export async function buildStrategicRadar(context = {}) {
     ...prioridades
       .filter((item) => isPersistableRadarInsight(buildRadarInsightCandidate(item, 'prioridade')))
       .map((item) => buildRadarInsightCandidate(item, 'prioridade')),
-    ...acoesSugeridas
+    ...acoesSugeridasBase
       .filter((item) => isPersistableRadarInsight(buildRadarInsightCandidate(item, 'acao')))
       .map((item) => buildRadarInsightCandidate(item, 'acao')),
     ...observacoesPorModulo
@@ -975,6 +1009,16 @@ export async function buildStrategicRadar(context = {}) {
   if (prioridades.length) fontesUtilizadas.add('followup');
 
   const scoreExecutivoValido = clampPercent(score);
+  const orquestracaoGerentes = orchestrateManagersForChanges({
+    alteracoesRelevantes: ensureArray(changeDetection.alteracoes),
+    managers,
+    radar: {
+      scoreExecutivo: { valor: scoreExecutivoValido },
+      prioridades,
+      acoesSugeridas: acoesSugeridasBase
+    }
+  });
+  const acoesSugeridas = mergeOrchestrationActions(acoesSugeridasBase, orquestracaoGerentes);
   const classificacaoExecutiva = classificationFromScore(scoreExecutivoValido);
   const tempoGeracaoMs = Math.max(0, Date.now() - radarStart);
   const auditoria = {
@@ -1028,6 +1072,7 @@ export async function buildStrategicRadar(context = {}) {
     acoesSugeridas,
     alteracoesRelevantes: ensureArray(changeDetection.alteracoes),
     resumoAlteracoes: sanitizeText(changeDetection.resumo, 500) || 'Sem alterações relevantes na janela monitorada.',
+    orquestracaoGerentes,
     monitoramento: {
       janelaHoras: Math.max(1, Math.round(safeNumber(changeDetection.janelaHoras, 24))),
       geradoEm: sanitizeText(changeDetection.geradoEm, 80) || new Date().toISOString(),

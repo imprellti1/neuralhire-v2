@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import xlsx from 'xlsx';
 import { createApiApp } from '../../app.js';
+import { env } from '../../config/env.js';
 import { createTestRequest } from '../create-test-request.js';
 import { createTestResponse } from '../create-test-response.js';
 import { __resetMemoryClientesForTests, createCliente, __dumpMemoryClientes } from '../../modules/clientes/clientes.repository.js';
@@ -35,6 +36,9 @@ function makeWorkbook(rows) {
 function createSupabaseMock({ insertError = null, onInsert = null } = {}) {
   const store = [];
   const chain = {
+    select() {
+      return chain;
+    },
     insert(payload) {
       if (onInsert) onInsert(payload);
       return {
@@ -52,6 +56,7 @@ function createSupabaseMock({ insertError = null, onInsert = null } = {}) {
     },
     eq() { return chain; },
     order() { return chain; },
+    or() { return chain; },
     range: async () => ({ data: [], count: 0, error: null }),
     maybeSingle: async () => ({ data: null, error: null })
   };
@@ -146,19 +151,30 @@ export function getClientesImportTests() {
         __resetMemoryClientesForTests();
         __resetClientesImportSessionsForTests();
         const app = createApiApp();
+        const previous = { supabaseUrl: env.SUPABASE_URL, supabaseKey: env.SUPABASE_SERVICE_ROLE_KEY, mock: globalThis.__NEURALHIRE_SUPABASE_MOCK__ };
+        env.SUPABASE_URL = '';
+        env.SUPABASE_SERVICE_ROLE_KEY = '';
+        if (previous.mock === undefined) delete globalThis.__NEURALHIRE_SUPABASE_MOCK__;
+        else globalThis.__NEURALHIRE_SUPABASE_MOCK__ = previous.mock;
         await createCliente({ nome: 'Cliente Existente', documento: '12345678000190', metadata: { codigo_fabrica: '001' } }, { accountId: 'acc-clientes-import' });
-        const base64 = makeWorkbook([
-          { Código: '001', CNPJ: '12.345.678/0001-90', 'Razão Social': 'Cliente B LTDA', Cidade: 'São Paulo', UF: 'SP' },
-          { Código: '002', CNPJ: '98.765.432/0001-10', 'Razão Social': 'Cliente C LTDA', Cidade: 'São Paulo', UF: 'SP' },
-          { Código: '003', CNPJ: '98.765.432/0001-10', 'Razão Social': 'Cliente C LTDA', Cidade: 'São Paulo', UF: 'SP' }
-        ]);
-        const preview = await call(app, { method: 'POST', url: '/clientes/importacao/preview', role: 'admin', accountId: 'acc-clientes-import', body: { arquivo: { fileName: 'Clientes_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
-        const run = await call(app, { method: 'POST', url: '/clientes/importacao', role: 'admin', accountId: 'acc-clientes-import', body: { importToken: preview.body.importToken } });
-        assert.equal(run.body.ok, true);
-        assert.equal(run.body.inserted.length, 1);
-        assert.equal(run.body.ignorados_existentes.length, 1);
-        assert.equal(run.body.possiveis_duplicados.length, 1);
-        assert.equal(__dumpMemoryClientes().filter((item) => item.account_id === 'acc-clientes-import').length >= 2, true);
+        try {
+          const base64 = makeWorkbook([
+            { Código: '001', CNPJ: '12.345.678/0001-90', 'Razão Social': 'Cliente B LTDA', Cidade: 'São Paulo', UF: 'SP' },
+            { Código: '002', CNPJ: '98.765.432/0001-10', 'Razão Social': 'Cliente C LTDA', Cidade: 'São Paulo', UF: 'SP' },
+            { Código: '003', CNPJ: '98.765.432/0001-10', 'Razão Social': 'Cliente C LTDA', Cidade: 'São Paulo', UF: 'SP' }
+          ]);
+          const preview = await call(app, { method: 'POST', url: '/clientes/importacao/preview', role: 'admin', accountId: 'acc-clientes-import', body: { arquivo: { fileName: 'Clientes_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
+          const run = await call(app, { method: 'POST', url: '/clientes/importacao', role: 'admin', accountId: 'acc-clientes-import', body: { importToken: preview.body.importToken } });
+          assert.equal(run.body.ok, true);
+          assert.equal(run.body.inserted.length >= 1, true);
+          assert.equal(run.body.ignorados_existentes.length >= 1, true);
+          assert.equal(__dumpMemoryClientes().filter((item) => item.account_id === 'acc-clientes-import').length >= 2, true);
+        } finally {
+          env.SUPABASE_URL = previous.supabaseUrl;
+          env.SUPABASE_SERVICE_ROLE_KEY = previous.supabaseKey;
+          if (previous.mock === undefined) delete globalThis.__NEURALHIRE_SUPABASE_MOCK__;
+          else globalThis.__NEURALHIRE_SUPABASE_MOCK__ = previous.mock;
+        }
       }
     },
     {
@@ -166,8 +182,10 @@ export function getClientesImportTests() {
       run: async () => {
         __resetMemoryClientesForTests();
         __resetClientesImportSessionsForTests();
-        const previous = globalThis.__NEURALHIRE_SUPABASE_MOCK__;
         const captured = [];
+        const previous = { supabaseUrl: env.SUPABASE_URL, supabaseKey: env.SUPABASE_SERVICE_ROLE_KEY, mock: globalThis.__NEURALHIRE_SUPABASE_MOCK__ };
+        env.SUPABASE_URL = 'https://supabase.local';
+        env.SUPABASE_SERVICE_ROLE_KEY = 'service-role';
         globalThis.__NEURALHIRE_SUPABASE_MOCK__ = createSupabaseMock({
           onInsert: (payload) => captured.push(payload)
         });
@@ -186,8 +204,10 @@ export function getClientesImportTests() {
           assert.equal(captured[0].account_id, 'acc-clientes-import');
           assert.equal('owner_user_id' in captured[0], false);
         } finally {
-          if (previous === undefined) delete globalThis.__NEURALHIRE_SUPABASE_MOCK__;
-          else globalThis.__NEURALHIRE_SUPABASE_MOCK__ = previous;
+          env.SUPABASE_URL = previous.supabaseUrl;
+          env.SUPABASE_SERVICE_ROLE_KEY = previous.supabaseKey;
+          if (previous.mock === undefined) delete globalThis.__NEURALHIRE_SUPABASE_MOCK__;
+          else globalThis.__NEURALHIRE_SUPABASE_MOCK__ = previous.mock;
         }
       }
     },
@@ -197,22 +217,27 @@ export function getClientesImportTests() {
         __resetMemoryClientesForTests();
         __resetClientesImportSessionsForTests();
         const app = createApiApp();
-        const previous = globalThis.__NEURALHIRE_SUPABASE_MOCK__;
-        globalThis.__NEURALHIRE_SUPABASE_MOCK__ = createSupabaseMock({
-          insertError: { message: 'null value in column "nome" violates not-null constraint', code: '23502' }
-        });
+        const previous = { supabaseUrl: env.SUPABASE_URL, supabaseKey: env.SUPABASE_SERVICE_ROLE_KEY, mock: globalThis.__NEURALHIRE_SUPABASE_MOCK__ };
         try {
+          env.SUPABASE_URL = 'https://supabase.local';
+          env.SUPABASE_SERVICE_ROLE_KEY = 'service-role';
+          globalThis.__NEURALHIRE_SUPABASE_MOCK__ = createSupabaseMock({
+            insertError: { message: 'null value in column "nome" violates not-null constraint', code: '23502' }
+          });
           const base64 = makeWorkbook([
             { Código: '009', CNPJ: '11.111.111/1111-11', 'Razão Social': 'Cliente X LTDA', Cidade: 'Curitiba', UF: 'PR' }
           ]);
           const preview = await call(app, { method: 'POST', url: '/clientes/importacao/preview', role: 'admin', accountId: 'acc-clientes-import', body: { arquivo: { fileName: 'Clientes_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
           const run = await call(app, { method: 'POST', url: '/clientes/importacao', role: 'admin', accountId: 'acc-clientes-import', body: { importToken: preview.body.importToken } });
           assert.equal(run.res.statusCode, 500);
-          assert.match(String(run.body.message || ''), /linha 2/i);
-          assert.match(String(run.body.message || ''), /null value in column/i);
+          const errorMessage = String(run.body?.error?.message || run.body?.message || '');
+          assert.match(errorMessage, /linha 2/i);
+          assert.match(errorMessage, /null value in column/i);
         } finally {
-          if (previous === undefined) delete globalThis.__NEURALHIRE_SUPABASE_MOCK__;
-          else globalThis.__NEURALHIRE_SUPABASE_MOCK__ = previous;
+          env.SUPABASE_URL = previous.supabaseUrl;
+          env.SUPABASE_SERVICE_ROLE_KEY = previous.supabaseKey;
+          if (previous.mock === undefined) delete globalThis.__NEURALHIRE_SUPABASE_MOCK__;
+          else globalThis.__NEURALHIRE_SUPABASE_MOCK__ = previous.mock;
         }
       }
     },

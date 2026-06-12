@@ -145,12 +145,12 @@ function buildImportPayload(row) {
 
 function extractErrorMessage(error) {
   const candidates = [
-    error?.message,
     error?.details?.message,
     error?.details?.error?.message,
     error?.details?.cause,
     error?.details?.hint,
-    error?.details?.code
+    error?.details?.code,
+    error?.message
   ];
   return candidates.find((value) => typeof value === 'string' && value.trim()) || null;
 }
@@ -283,13 +283,15 @@ export async function executeClientesImport({ accountId, importToken }) {
       inserted.push({ id: created.id, nome: created.nome, documento: created.documento });
     } catch (error) {
       const motivo = extractErrorMessage(error);
-      throw new DatabaseError(`Falha ao criar cliente na linha ${row.rowNumber}${motivo ? `: ${motivo}` : ''}`, {
+      throw new DatabaseError(`Falha ao criar cliente no repository na linha ${row.rowNumber}${motivo ? `: ${motivo}` : ''}`, {
         domain: 'clientes-import',
         details: {
           rowNumber: row.rowNumber,
           codigo: row.codigo || null,
           cnpj: row.cnpj || null,
           nome: row.razaoSocial || null,
+          repository: 'clientes.repository',
+          motivo: motivo || 'erro_desconhecido',
           cause: error?.details || error?.message || String(error)
         }
       });

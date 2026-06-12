@@ -23,6 +23,9 @@ test('ai director repository returns executive dashboard mock', async () => {
   assert.equal(typeof dashboard.radar.auditoria.consistencia.scoreValido, 'boolean');
   assert.ok(Array.isArray(dashboard.radar.observacoesPorModulo));
   assert.ok(Array.isArray(dashboard.radar.alteracoesRelevantes));
+  assert.equal(typeof dashboard.radar.orquestracaoGerentes, 'object');
+  assert.ok(Array.isArray(dashboard.radar.orquestracaoGerentes.orquestracoes));
+  assert.equal(typeof dashboard.radar.orquestracaoGerentes.resumo, 'string');
   assert.equal(typeof dashboard.radar.resumoAlteracoes, 'string');
   assert.ok(dashboard.radar.monitoramento && typeof dashboard.radar.monitoramento === 'object');
   assert.equal(typeof dashboard.radar.monitoramento.janelaHoras, 'number');

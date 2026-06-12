@@ -14,6 +14,8 @@ import { registerProdutoCategoriasRoutes } from './produto-categorias/produto-ca
 import { produtoCategoriasModule } from './produto-categorias/produto-categorias.module.js';
 import { registerPedidosRoutes } from './pedidos/pedidos.routes.js';
 import { pedidosModule } from './pedidos/pedidos.module.js';
+import { registerPedidosImportRoutes } from './pedidos-import/pedidos-import.routes.js';
+import { pedidosImportModule } from './pedidos-import/pedidos-import.module.js';
 import { registerAnalyticsRoutes } from './analytics/analytics.routes.js';
 import { analyticsModule } from './analytics/analytics.module.js';
 import { registerInterestLeadsRoutes } from './interest-leads/interest-leads.routes.js';
@@ -84,7 +86,7 @@ export const registeredModules = [
   revenueIntelligenceModule, portfolioDashboardModule, legacyImportModule, customerMemoryModule,
   whatsappConversationsModule, messageDraftsModule, messageApprovalsModule, approvalIntelligenceModule, whatsappDeliveryModule, commercialAgentModule, fabricantesModule, vendedoresModule,
   priceTableImportModule, clientesImportModule
-  ,productAuditModule, productEditorModule, produtoImagensModule, auditLogsModule
+  ,pedidosImportModule, productAuditModule, productEditorModule, produtoImagensModule, auditLogsModule
   ,promocoesModule, aiDirectorModule
 ];
 
@@ -93,6 +95,7 @@ export function registerModules(router, options = {}) {
   registerClientesRoutes(router); registerProdutosRoutes(router); registerProdutosImportRoutes(router); registerPedidosRoutes(router); registerAnalyticsRoutes(router);
   registerPriceTableImportRoutes(router);
   registerClientesImportRoutes(router);
+  registerPedidosImportRoutes(router);
   registerProdutoCategoriasRoutes(router);
   registerInterestLeadsRoutes(router); registerBillingRoutes(router); registerOnboardingRoutes(router); registerAccountActivationRoutes(router);
   registerImplementationTrackerRoutes(router); registerCustomerSuccessRoutes(router); registerCustomerSuccessAutomationRoutes(router);

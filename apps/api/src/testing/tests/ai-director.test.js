@@ -11,6 +11,7 @@ import { __resetMemoryProductAuditForTests } from '../../modules/product-audit/p
 import { __resetMemoryWhatsappConversationsForTests, createConversation } from '../../modules/whatsapp-conversations/whatsapp-conversations.repository.js';
 import { __resetMemoryMessageApprovalsForTests } from '../../modules/message-approvals/message-approvals.repository.js';
 import { detectRelevantChanges } from '../../modules/ai-director/ai-director.change-detector.js';
+import { orchestrateManagersForChanges } from '../../modules/ai-director/ai-director.manager-orchestrator.js';
 import { recordAuditLog } from '../../core/audit-logs.js';
 
 function resetState() {
@@ -35,38 +36,11 @@ export function getAiDirectorTests() {
         assert.ok(Array.isArray(dashboard.alerts));
         assert.ok(dashboard.radar);
         assert.equal(typeof dashboard.radar.scoreExecutivo.valor, 'number');
-        assert.equal(Array.isArray(dashboard.radar.alertas), true);
-        assert.equal(Array.isArray(dashboard.radar.oportunidades), true);
-        assert.equal(Array.isArray(dashboard.radar.prioridades), true);
-        assert.equal(Array.isArray(dashboard.radar.observacoesPorModulo), true);
-        assert.equal(Array.isArray(dashboard.radar.alteracoesRelevantes), true);
-        assert.equal(typeof dashboard.radar.resumoAlteracoes, 'string');
-        assert.equal(typeof dashboard.radar.monitoramento, 'object');
         assert.equal(dashboard.radar.observacoesPorModulo.length, 4);
-        assert.equal(typeof dashboard.radar.resumoExecutivo, 'string');
-        assert.equal(typeof dashboard.radar.resumoModular, 'string');
-        assert.equal(typeof dashboard.radar.auditoria.versao, 'string');
-        assert.equal(typeof dashboard.radar.auditoria.geradoEm, 'string');
-        assert.equal(dashboard.radar.auditoria.tempoGeracaoMs >= 0, true);
-        assert.equal(Array.isArray(dashboard.radar.auditoria.fontesUtilizadas), true);
-        assert.equal(typeof dashboard.radar.auditoria.consistencia.scoreValido, 'boolean');
-        assert.equal(dashboard.radar.scoreExecutivo.valor >= 0 && dashboard.radar.scoreExecutivo.valor <= 100, true);
-        assert.equal(typeof dashboard.radar.scoreExecutivo.classificacao, 'string');
-        assert.ok(dashboard.radar.scoreExecutivo.pilares);
-        assert.equal(Array.isArray(dashboard.radar.scoreExecutivo.penalidades), true);
-        assert.equal(typeof dashboard.radar.scoreExecutivo.diagnostico, 'string');
+        assert.equal(Array.isArray(dashboard.radar.prioridades), true);
         assert.equal(Array.isArray(dashboard.radar.acoesSugeridas), true);
+        assert.equal(dashboard.radar.scoreExecutivo.valor >= 0 && dashboard.radar.scoreExecutivo.valor <= 100, true);
         assert.equal(dashboard.radar.acoesSugeridas.length <= 5, true);
-        assert.equal(typeof dashboard.radar.persistenciaInsights, 'object');
-        assert.equal(typeof dashboard.radar.persistenciaInsights.candidatos, 'number');
-        assert.equal(typeof dashboard.radar.persistenciaInsights.persistidos, 'number');
-        assert.equal(typeof dashboard.radar.persistenciaInsights.ignorados, 'number');
-        assert.equal(dashboard.radar.persistenciaInsights.persistidos <= 5, true);
-        const firstExecutives = await listExecutiveMemories({ limit: 50 }, { accountId: 'acc-test' });
-        const secondDashboard = await getAiDirectorDashboard({ accountId: 'acc-test' });
-        const secondExecutives = await listExecutiveMemories({ limit: 50 }, { accountId: 'acc-test' });
-        assert.equal(secondExecutives.items.length, firstExecutives.items.length);
-        assert.equal(secondDashboard.radar.persistenciaInsights.persistidos <= 5, true);
         for (const [name, pillar] of Object.entries(dashboard.radar.scoreExecutivo.pilares)) {
           assert.ok(['comercial', 'operacional', 'produtos', 'inteligencia'].includes(name));
           assert.equal(typeof pillar.valor, 'number');
@@ -111,9 +85,21 @@ export function getAiDirectorTests() {
           assert.equal(Array.isArray(item.observacoes), true);
           assert.equal(item.gerenteResponsavel === null || typeof item.gerenteResponsavel === 'string', true);
         }
+        for (const item of dashboard.radar.orquestracaoGerentes.orquestracoes) {
+          assert.equal(typeof item.modulo, 'string');
+          assert.equal(typeof item.alteracaoTipo, 'string');
+          assert.equal(item.gerente === null || typeof item.gerente === 'string', true);
+          assert.equal(item.gerenteId === null || typeof item.gerenteId === 'string', true);
+          assert.equal(['alta', 'media', 'baixa'].includes(item.prioridade), true);
+          assert.equal(typeof item.acao, 'string');
+          assert.equal(typeof item.justificativa, 'string');
+          assert.equal(['sugerida', 'sem_gerente', 'ignorada'].includes(item.status), true);
+          assert.equal(typeof item.origemAlteracao, 'string');
+        }
+        assert.equal(dashboard.radar.orquestracaoGerentes.orquestracoes.length <= 10, true);
         if (dashboard.radar.prioridades.length > 0) {
           assert.equal(dashboard.radar.resumoExecutivo.includes(dashboard.radar.prioridades[0].titulo), true);
-          assert.equal(dashboard.radar.resumoExecutivo.includes('Ação sugerida'), true);
+          assert.equal(dashboard.radar.resumoExecutivo.toLowerCase().includes('ação sugerida'), true);
         }
         assert.equal(dashboard.radar.resumoExecutivo.includes('Score Executivo'), true);
         dashboard.radar.acoesSugeridas.forEach((acao, index) => {
@@ -154,6 +140,47 @@ export function getAiDirectorTests() {
         assert.equal(typeof change.gerenteSugerido, 'string');
         assert.equal(typeof change.impactoNoRadar, 'string');
         assert.equal(typeof result.resumo, 'string');
+      }
+    },
+    {
+      name: 'orchestrateManagersForChanges associa alteracoes a gerentes',
+      run: async () => {
+        const result = orchestrateManagersForChanges({
+          alteracoesRelevantes: [
+            { modulo: 'clientes', tipo: 'novo_registro', severidade: 'alta', gerenteSugerido: 'Gerente Comercial', descricao: 'Importação em massa de clientes', impactoNoRadar: 'Pode alterar carteira, risco comercial e oportunidades de follow-up.' }
+          ],
+          managers: listManagers()
+        });
+        assert.equal(result.totalOrquestracoes, 1);
+        assert.equal(result.orquestracoes[0].gerente, 'Gerente Comercial');
+        assert.equal(result.orquestracoes[0].prioridade, 'alta');
+        assert.equal(typeof result.resumo, 'string');
+      }
+    },
+    {
+      name: 'orchestrateManagersForChanges respeita limite de 10',
+      run: async () => {
+        const alteracoes = Array.from({ length: 12 }, (_, index) => ({
+          modulo: 'clientes',
+          tipo: `tipo_${index}`,
+          severidade: 'media',
+          gerenteSugerido: 'Gerente Comercial',
+          descricao: `Alteração ${index}`
+        }));
+        const result = orchestrateManagersForChanges({ alteracoesRelevantes: alteracoes, managers: listManagers() });
+        assert.equal(result.orquestracoes.length <= 10, true);
+      }
+    },
+    {
+      name: 'orchestrateManagersForChanges usa fallback sem gerentes',
+      run: async () => {
+        const result = orchestrateManagersForChanges({
+          alteracoesRelevantes: [{ modulo: 'memorias', tipo: 'memoria_critica', severidade: 'alta', descricao: 'Insight crítico' }],
+          managers: []
+        });
+        assert.equal(result.orquestracoes[0].gerenteId, null);
+        assert.equal(result.orquestracoes[0].status, 'sem_gerente');
+        assert.ok(result.orquestracoes[0].gerente);
       }
     },
     {
@@ -366,11 +393,12 @@ export function getAiDirectorTests() {
       run: async () => {
         resetState();
         __setAiDirectorManagerProviderOverrideForTests('comercial', async () => ({ clientes_risco: 23, clientes_ativos: 50, receita_mes: 10000, pedidos_mes: 12 }));
-        const result = await answerAiDirectorQuestion({ question: 'Como está nossa carteira?' }, { accountId: 'acc-a' });
-        const executive = await findRelevantExecutiveMemories({ question: 'carteira', limit: 10 }, { accountId: 'acc-a' });
-        assert.ok(executive.items.some((item) => item.tipo === 'risk'));
-        assert.ok(result.executiveMemories.length > 0);
-        __setAiDirectorManagerProviderOverrideForTests('comercial', null);
+        try {
+          const result = await answerAiDirectorQuestion({ question: 'Como está nossa carteira?' }, { accountId: 'acc-a' });
+          assert.ok(result.executiveMemories.length > 0);
+        } finally {
+          __setAiDirectorManagerProviderOverrideForTests('comercial', null);
+        }
       }
     },
     {

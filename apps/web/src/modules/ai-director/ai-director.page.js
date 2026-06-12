@@ -133,6 +133,7 @@ function normalizeRadarSnapshot(radar = {}) {
     acoesSugeridas: Array.isArray(radar.acoesSugeridas) ? radar.acoesSugeridas : [],
     alteracoesRelevantes: Array.isArray(radar.alteracoesRelevantes) ? radar.alteracoesRelevantes : [],
     resumoAlteracoes: String(radar.resumoAlteracoes || ''),
+    orquestracaoGerentes: radar.orquestracaoGerentes && typeof radar.orquestracaoGerentes === 'object' ? radar.orquestracaoGerentes : { totalOrquestracoes: 0, orquestracoes: [], resumo: '' },
     monitoramento: {
       janelaHoras: Number(monitoramento.janelaHoras) || 24,
       geradoEm: String(monitoramento.geradoEm || ''),
@@ -269,6 +270,7 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
     const observacoesPorModulo = radar.observacoesPorModulo;
     const acoesSugeridas = radar.acoesSugeridas;
     const alteracoesRelevantes = radar.alteracoesRelevantes;
+    const orquestracaoGerentes = radar.orquestracaoGerentes;
     const persistenciaInsights = radar.persistenciaInsights;
     const auditoriaRadar = radar.auditoria;
     const penalidades = scoreExecutivo.penalidades;
@@ -379,6 +381,23 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
         <div class="nh-mini" style="margin-top: 6px;">Impacto no radar: ${esc(item.impactoNoRadar || '—')}</div>
       </div>
     `).join('') : '<div class="nh-mini">Sem alterações relevantes na janela monitorada.</div>';
+    const orquestracaoHtml = Array.isArray(orquestracaoGerentes?.orquestracoes) && orquestracaoGerentes.orquestracoes.length ? `
+      <div class="nh-mini" style="margin-top: 14px;">${esc(orquestracaoGerentes.resumo || 'Sem orquestrações pendentes.')}</div>
+      <div class="nh-list" style="margin-top: 14px;">
+        ${orquestracaoGerentes.orquestracoes.slice(0, 10).map((item) => `
+          <div class="nh-list-item">
+            <div class="nh-between">
+              <div class="nh-badge ${badgeClass(item.prioridade)}">${esc(item.prioridade || 'baixa')}</div>
+              <div class="nh-mini">${esc(item.status || '—')}</div>
+            </div>
+            <div style="margin-top: 10px; font-weight: 700;">${esc(item.gerente || '—')}</div>
+            <div class="nh-mini" style="margin-top: 6px;">Módulo: ${esc(item.modulo || '—')} · Tipo: ${esc(item.alteracaoTipo || '—')}</div>
+            <div style="margin-top: 8px;">${esc(item.acao || '—')}</div>
+            <div class="nh-mini" style="margin-top: 6px;">Justificativa: ${esc(item.justificativa || '—')}</div>
+          </div>
+        `).join('')}
+      </div>
+    ` : '<div class="nh-mini" style="margin-top: 14px;">Sem orquestrações pendentes.</div>';
     const modulesHtml = observacoesPorModulo.length ? observacoesPorModulo.map((item) => `
       <section class="nh-card" style="padding: 16px;">
         <div class="nh-between">
@@ -660,6 +679,15 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
             </div>
           </div>
           <div class="nh-list" style="margin-top: 14px;">${actionsHtml}</div>
+        </article>
+        <article class="nh-card">
+          <div class="nh-between">
+            <div>
+              <h2 class="nh-section-title">Orquestração dos Gerentes</h2>
+              <p class="nh-section-subtitle">Orientações executivas por alteração relevante.</p>
+            </div>
+          </div>
+          ${orquestracaoHtml}
         </article>
         <article class="nh-card">
           <div class="nh-between">

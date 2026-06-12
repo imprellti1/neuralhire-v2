@@ -94,6 +94,23 @@ test('ai director page dom with radar and auto refresh', async () => {
             { ordem: 1, titulo: 'Recuperar carteira em risco', impacto: 'alto', urgencia: 'alta', motivo: 'Clientes-chave reduziram recompra.', acaoRecomendada: 'Priorizar contato comercial nas 24h', gerenteSugerido: 'Gerente Comercial', peso: 95 },
             { ordem: 2, titulo: 'Ajustar promoções', impacto: 'medio', urgencia: 'media', motivo: 'Promoções pouco aderentes.', acaoRecomendada: 'Rever calendário promocional', peso: 78 }
           ],
+          orquestracaoGerentes: {
+            totalOrquestracoes: 1,
+            resumo: '1 alterações relevantes foram associadas a gerentes. A principal atuação sugerida é do Gerente Comercial para revisar clientes importados recentemente.',
+            orquestracoes: [
+              {
+                modulo: 'clientes',
+                alteracaoTipo: 'novo_registro',
+                gerente: 'Gerente Comercial',
+                gerenteId: 'comercial',
+                prioridade: 'alta',
+                acao: 'Revisar segmentação dos clientes importados e validar oportunidades de ativação.',
+                justificativa: 'Importação em massa exige revisão.',
+                status: 'sugerida',
+                origemAlteracao: 'Pode alterar carteira, risco comercial e oportunidades de follow-up.'
+              }
+            ]
+          },
           alteracoesRelevantes: [
             { modulo: 'clientes', tipo: 'novo_registro', titulo: '552 clientes importados recentemente', descricao: 'Foram detectados novos clientes criados após a última janela observada.', severidade: 'media', ocorridoEm: '2026-06-12T19:20:00Z', gerenteSugerido: 'Gerente Comercial', impactoNoRadar: 'Pode alterar carteira, risco comercial e oportunidades de follow-up.' }
           ],
@@ -149,6 +166,7 @@ test('ai director page dom with radar and auto refresh', async () => {
           prioridades: [
             { ordem: 1, titulo: 'Recuperar carteira em risco', impacto: 'alto', urgencia: 'alta', motivo: 'Clientes-chave reduziram recompra.', acaoRecomendada: 'Priorizar contato comercial nas 24h', gerenteSugerido: 'Gerente Comercial', peso: 95 }
           ],
+          orquestracaoGerentes: { totalOrquestracoes: 0, resumo: 'Sem orquestrações pendentes.', orquestracoes: [] },
           persistenciaInsights: { candidatos: 13, persistidos: 4, ignorados: 9 },
           scoreExecutivo: {
             valor: 84,
@@ -192,8 +210,11 @@ test('ai director page dom with radar and auto refresh', async () => {
   assert.match(document.body.textContent, /Score Executivo/);
   assert.match(document.body.textContent, /O negócio está saudável, mas o risco comercial pressiona a estabilidade\./);
   assert.match(document.body.textContent, /Alterações Relevantes/);
+  assert.match(document.body.textContent, /Orquestração dos Gerentes/);
+  assert.match(document.body.textContent, /1 alterações relevantes foram associadas a gerentes/);
   assert.match(document.body.textContent, /552 clientes importados recentemente/);
   assert.match(document.body.textContent, /Gerente Comercial/);
+  assert.match(document.body.textContent, /Revisar segmentação dos clientes importados/);
   assert.match(document.body.textContent, /Pode alterar carteira, risco comercial e oportunidades de follow-up\./);
 
   const questionInput = document.querySelector('#ai-director-question');
@@ -250,6 +271,7 @@ test('ai director page dom without radar fallback and auto refresh error', async
   assert.match(document.body.textContent, /Nenhuma penalidade crítica identificada no Score Executivo\./);
   assert.match(document.body.textContent, /Sem ações sugeridas no momento\./);
   assert.match(document.body.textContent, /Sem alterações relevantes na janela monitorada\./);
+  assert.match(document.body.textContent, /Sem orquestrações pendentes\./);
   assert.match(document.body.textContent, /Atualização automática ativa/);
 
   await intervalHarness.tick(0);

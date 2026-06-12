@@ -138,6 +138,38 @@ export async function createPedido(data = {}, options = {}) {
   memoryPedidos.push(pedido); memoryPedidoItens.push(...itens); return { pedido, itens };
 }
 
+export async function createPedidoFromImport(data = {}, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  const cliente = await getClienteById(data.cliente_id, { accountId, context: options.context });
+  const repositoryMode = getPedidosRepositoryMode();
+  const status = isValidPedidoStatus(data.status) ? String(data.status).toLowerCase() : PEDIDO_STATUS.RASCUNHO;
+  const payload = {
+    account_id: accountId,
+    cliente_id: cliente.id,
+    numero: data.numero || null,
+    status,
+    origem: data.origem || 'importacao',
+    observacoes: data.observacoes || null,
+    subtotal: Number.isFinite(Number(data.subtotal)) ? Number(data.subtotal) : 0,
+    desconto: Number.isFinite(Number(data.desconto)) ? Number(data.desconto) : 0,
+    total: Number.isFinite(Number(data.total)) ? Number(data.total) : 0,
+    metadata: data.metadata || {}
+  };
+
+  if (repositoryMode.mode === 'supabase') {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data: inserted, error } = await supabase.from('pedidos').insert(payload).select('*').single();
+    if (error) throw new DatabaseError('Falha ao criar pedido importado', { details: error });
+    return { pedido: inserted, itens: [] };
+  }
+
+  const pedido = { id: randomUUID(), ...payload, createdAt: new Date().toISOString() };
+  memoryPedidos.push(pedido);
+  return { pedido, itens: [] };
+}
+
 export async function updatePedidoStatus(id, data = {}, options = {}) {
   const accountId = options.accountId || null; assertAccountId(accountId);
   const nextStatus = String(data.status || '').toLowerCase();

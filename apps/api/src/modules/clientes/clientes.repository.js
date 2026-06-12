@@ -6,6 +6,17 @@ import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase
 import { findVendedorByUserId } from '../vendedores/vendedores.repository.js';
 
 const memoryClientes = [];
+let supabaseClientOverride = null;
+let supabaseConfiguredOverride = null;
+
+function resolveSupabaseConfigured() {
+  if (typeof supabaseConfiguredOverride === 'boolean') return supabaseConfiguredOverride;
+  return isSupabaseConfigured();
+}
+
+function resolveSupabaseClient() {
+  return supabaseClientOverride || getSupabaseClient();
+}
 
 function normalizePagination(filters = {}) {
   const page = Number.isFinite(filters.page) && filters.page > 0 ? Math.floor(filters.page) : 1;
@@ -40,6 +51,104 @@ function getClienteScopeId(cliente = {}) {
   return String(cliente.vendedor_id || cliente.owner_user_id || '').trim() || null;
 }
 
+function normalizeDateValue(value) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function computeCommercialStatusFromDays(daysSinceLastPurchase) {
+  if (!Number.isFinite(daysSinceLastPurchase)) return 'sem_pedido';
+  if (daysSinceLastPurchase <= 60) return 'ativo';
+  if (daysSinceLastPurchase <= 120) return 'em_risco';
+  return 'inativo';
+}
+
+function isValidCommercialPedido(pedido = {}) {
+  const status = String(pedido.status || '').trim().toLowerCase();
+  if (!status) return false;
+  if (['cancelado', 'rejeitado', 'estornado'].includes(status)) return false;
+  const metadata = pedido.metadata && typeof pedido.metadata === 'object' ? pedido.metadata : {};
+  if (['cancelado', 'rejeitado', 'estornado'].includes(String(metadata.status || '').trim().toLowerCase())) return false;
+  if (['cancelado', 'rejeitado', 'estornado'].includes(String(metadata.situacao || '').trim().toLowerCase())) return false;
+  return true;
+}
+
+function resolvePurchaseDate(pedido = {}) {
+  return normalizeDateValue(pedido.data_faturamento) || normalizeDateValue(pedido.data_emissao) || normalizeDateValue(pedido.created_at) || normalizeDateValue(pedido.createdAt);
+}
+
+async function listClientePedidos(accountId, clienteId) {
+  const repositoryMode = getClientesRepositoryMode();
+  if (repositoryMode.mode === 'supabase') {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data, error } = await supabase.from('pedidos').select('id, account_id, cliente_id, status, data_emissao, data_faturamento, metadata, created_at, createdAt').eq('account_id', accountId).eq('cliente_id', clienteId);
+    if (error) throw new DatabaseError('Falha ao buscar pedidos do cliente', { details: error });
+    return data || [];
+  }
+
+  const { __dumpMemoryPedidos } = await import('../pedidos/pedidos.repository.js');
+  const snapshot = __dumpMemoryPedidos();
+  return (snapshot.pedidos || []).filter((pedido) => pedido.account_id === accountId && pedido.cliente_id === clienteId);
+}
+
+async function persistClientCommercialHistory(cliente, payload, options = {}) {
+  const accountId = options.accountId || null;
+  if (getClientesRepositoryMode().mode === 'supabase') {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data, error } = await supabase.from('clientes').update(payload).eq('account_id', accountId).eq('id', cliente.id).select('*').single();
+    if (error) throw new DatabaseError('Falha ao atualizar historico comercial do cliente', { details: error });
+    return data;
+  }
+
+  const idx = memoryClientes.findIndex((item) => item.id === cliente.id && item.account_id === accountId);
+  if (idx < 0) throw new NotFoundError('Cliente nao encontrado', { code: 'CLIENTE_NOT_FOUND', domain: 'clientes-crm' });
+  memoryClientes[idx] = { ...memoryClientes[idx], ...payload, updated_at: new Date().toISOString() };
+  return memoryClientes[idx];
+}
+
+export async function recalculateClientCommercialHistory(clienteId, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  const cliente = await getClienteById(clienteId, { accountId, context: options.context });
+  const pedidos = await listClientePedidos(accountId, cliente.id);
+  const pedidosValidos = (pedidos || []).filter(isValidCommercialPedido);
+  if (!pedidosValidos.length) {
+    return persistClientCommercialHistory(cliente, { ultima_compra_em: null, status_comercial: 'sem_pedido' }, { accountId });
+  }
+
+  const compras = pedidosValidos
+    .map((pedido) => ({ pedido, data: resolvePurchaseDate(pedido) }))
+    .filter((entry) => entry.data)
+    .sort((a, b) => b.data.getTime() - a.data.getTime());
+
+  if (!compras.length) {
+    return persistClientCommercialHistory(cliente, { ultima_compra_em: null, status_comercial: 'sem_pedido' }, { accountId });
+  }
+
+  const ultimaCompra = compras[0].data;
+  const hoje = options.now instanceof Date ? options.now : new Date(options.now || new Date());
+  const diffMs = hoje.getTime() - ultimaCompra.getTime();
+  const daysSinceLastPurchase = Number.isFinite(diffMs) ? Math.floor(diffMs / 86400000) : Number.NaN;
+  const status_comercial = computeCommercialStatusFromDays(daysSinceLastPurchase);
+
+  return persistClientCommercialHistory(cliente, {
+    ultima_compra_em: ultimaCompra.toISOString(),
+    status_comercial
+  }, { accountId });
+}
+
+export async function recalculateClientsCommercialHistory(clienteIds = [], options = {}) {
+  const uniqueIds = [...new Set((Array.isArray(clienteIds) ? clienteIds : [clienteIds]).map((id) => String(id || '').trim()).filter(Boolean))];
+  const results = [];
+  for (const clienteId of uniqueIds) {
+    results.push(await recalculateClientCommercialHistory(clienteId, options));
+  }
+  return results;
+}
+
 function filterMemoryClientes(items, filters = {}, accountId) {
   let result = items.filter((item) => item.account_id === accountId);
   if (filters.vendedor_id) result = result.filter((item) => String(item.vendedor_id || '') === String(filters.vendedor_id));
@@ -58,9 +167,15 @@ function filterMemoryClientes(items, filters = {}, accountId) {
 
 export function getClientesRepositoryMode() {
   return {
-    mode: isSupabaseConfigured() ? 'supabase' : 'memory',
-    supabaseConfigured: isSupabaseConfigured()
+    mode: resolveSupabaseConfigured() ? 'supabase' : 'memory',
+    supabaseConfigured: resolveSupabaseConfigured()
   };
+}
+
+function normalizeClienteMetadata(metadata, fallback = {}) {
+  const base = metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : {};
+  const merged = { ...base, ...fallback };
+  return Object.keys(merged).length ? merged : {};
 }
 
 export async function listClientes(filters = {}, options = {}) {
@@ -75,7 +190,7 @@ export async function listClientes(filters = {}, options = {}) {
   const vendedor = resolveVendedorScope(accountId, options.context);
   const effectiveVendedorId = vendedor?.id || scopedFilters.vendedor_id || null;
   if (repositoryMode.mode === 'supabase') {
-    const supabase = getSupabaseClient();
+    const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
 
     let query = supabase
@@ -168,7 +283,7 @@ export async function createCliente(data, options = {}) {
       estado: data.estado || null,
       tags: Array.isArray(data.tags) ? data.tags : [],
       ativo: typeof data.ativo === 'boolean' ? data.ativo : true,
-      metadata: data.metadata || {},
+      metadata: normalizeClienteMetadata(data.metadata, data.metadata_importacao),
       vendedor_id: vendedorId
     };
 
@@ -227,7 +342,7 @@ export async function updateCliente(id, data, options = {}) {
   else if (data.vendedor_id !== undefined) next.vendedor_id = data.vendedor_id || null;
 
   if (getClientesRepositoryMode().mode === 'supabase') {
-    const supabase = getSupabaseClient();
+    const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data: updated, error } = await supabase.from('clientes').update({
       nome: next.nome,
@@ -238,7 +353,7 @@ export async function updateCliente(id, data, options = {}) {
       estado: next.estado,
       tags: next.tags,
       ativo: next.ativo,
-      metadata: next.metadata,
+      metadata: normalizeClienteMetadata(next.metadata),
       vendedor_id: next.vendedor_id,
       owner_user_id: next.vendedor_id,
       updated_at: new Date().toISOString()
@@ -266,4 +381,9 @@ export function __loadMemoryClientes(items = []) {
   for (const item of items) {
     memoryClientes.push({ ...item });
   }
+}
+
+export function __setClientesSupabaseClientForTests(client, configured = true) {
+  supabaseClientOverride = client;
+  supabaseConfiguredOverride = configured;
 }
