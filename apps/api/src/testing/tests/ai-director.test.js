@@ -37,6 +37,28 @@ export function getAiDirectorTests() {
         assert.equal(Array.isArray(dashboard.radar.prioridades), true);
         assert.equal(typeof dashboard.radar.resumoExecutivo, 'string');
         assert.equal(dashboard.radar.scoreExecutivo.valor >= 0 && dashboard.radar.scoreExecutivo.valor <= 100, true);
+        for (const priority of dashboard.radar.prioridades) {
+          assert.equal(typeof priority.ordem, 'number');
+          assert.equal(typeof priority.titulo, 'string');
+          assert.equal(['alto', 'medio', 'baixo'].includes(priority.impacto), true);
+          assert.equal(['alta', 'media', 'baixa'].includes(priority.urgencia), true);
+          assert.equal(typeof priority.motivo, 'string');
+          assert.equal(typeof priority.origem, 'string');
+          assert.equal(typeof priority.acaoRecomendada, 'string');
+          assert.equal(priority.gerenteSugerido === null || typeof priority.gerenteSugerido === 'string', true);
+          assert.equal(typeof priority.peso, 'number');
+          assert.equal(priority.peso >= 0 && priority.peso <= 100, true);
+        }
+        for (let index = 1; index < dashboard.radar.prioridades.length; index += 1) {
+          assert.equal(dashboard.radar.prioridades[index - 1].peso >= dashboard.radar.prioridades[index].peso, true);
+        }
+        assert.equal(dashboard.radar.prioridades.length <= 7, true);
+        dashboard.radar.prioridades.forEach((priority, index) => {
+          assert.equal(priority.ordem, index + 1);
+        });
+        if (dashboard.radar.prioridades.length > 0) {
+          assert.equal(dashboard.radar.resumoExecutivo.includes(dashboard.radar.prioridades[0].titulo), true);
+        }
       }
     },
     {
