@@ -119,7 +119,7 @@ function buildRow(headers, row, rowNumber) {
   };
   return {
     rowNumber,
-    numero: normalizeText(get('Número') || get('Numero') || get('Pedido')),
+    numero: normalizeText(get('Número ERP') || get('Número') || get('Numero') || get('Pedido')),
     clienteCodigo: normalizeText(get('Cliente')),
     status: normalizeText(get('Status')) || 'rascunho',
     observacoes: normalizeText(get('Observações') || get('Observacoes')) || null,
