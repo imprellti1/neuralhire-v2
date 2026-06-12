@@ -10,6 +10,7 @@ import { __resetMemoryPromocoesForTests, createPromocao } from '../../modules/pr
 import { __resetMemoryProductAuditForTests } from '../../modules/product-audit/product-audit.repository.js';
 import { __resetMemoryWhatsappConversationsForTests, createConversation } from '../../modules/whatsapp-conversations/whatsapp-conversations.repository.js';
 import { __resetMemoryMessageApprovalsForTests } from '../../modules/message-approvals/message-approvals.repository.js';
+import { detectRelevantChanges } from '../../modules/ai-director/ai-director.change-detector.js';
 import { recordAuditLog } from '../../core/audit-logs.js';
 
 function resetState() {
@@ -38,6 +39,9 @@ export function getAiDirectorTests() {
         assert.equal(Array.isArray(dashboard.radar.oportunidades), true);
         assert.equal(Array.isArray(dashboard.radar.prioridades), true);
         assert.equal(Array.isArray(dashboard.radar.observacoesPorModulo), true);
+        assert.equal(Array.isArray(dashboard.radar.alteracoesRelevantes), true);
+        assert.equal(typeof dashboard.radar.resumoAlteracoes, 'string');
+        assert.equal(typeof dashboard.radar.monitoramento, 'object');
         assert.equal(dashboard.radar.observacoesPorModulo.length, 4);
         assert.equal(typeof dashboard.radar.resumoExecutivo, 'string');
         assert.equal(typeof dashboard.radar.resumoModular, 'string');
@@ -126,6 +130,30 @@ export function getAiDirectorTests() {
         for (let index = 1; index < dashboard.radar.acoesSugeridas.length; index += 1) {
           assert.equal(dashboard.radar.acoesSugeridas[index - 1].ordem < dashboard.radar.acoesSugeridas[index].ordem, true);
         }
+      }
+    },
+    {
+      name: 'detectRelevantChanges agrega alteracoes e limita saida',
+      run: async () => {
+        resetState();
+        for (let index = 0; index < 55; index += 1) {
+          await createCliente({ nome: `Cliente ${index}`, ativo: true }, { accountId: 'acc-a' });
+        }
+        const result = await detectRelevantChanges({ accountId: 'acc-a', janelaHoras: 24 });
+        assert.equal(Array.isArray(result.alteracoes), true);
+        assert.equal(result.alteracoes.length <= 10, true);
+        assert.ok(result.alteracoes.some((item) => item.modulo === 'clientes'));
+        const change = result.alteracoes.find((item) => item.modulo === 'clientes');
+        assert.ok(change);
+        assert.equal(typeof change.modulo, 'string');
+        assert.equal(typeof change.tipo, 'string');
+        assert.equal(typeof change.titulo, 'string');
+        assert.equal(typeof change.descricao, 'string');
+        assert.equal(typeof change.severidade, 'string');
+        assert.equal(typeof change.ocorridoEm, 'string');
+        assert.equal(typeof change.gerenteSugerido, 'string');
+        assert.equal(typeof change.impactoNoRadar, 'string');
+        assert.equal(typeof result.resumo, 'string');
       }
     },
     {

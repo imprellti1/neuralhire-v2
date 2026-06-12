@@ -124,12 +124,20 @@ function normalizeRadarSnapshot(radar = {}) {
   const auditoria = radar.auditoria && typeof radar.auditoria === 'object' ? radar.auditoria : {};
   const consistencia = auditoria.consistencia && typeof auditoria.consistencia === 'object' ? auditoria.consistencia : {};
   const qualidade = auditoria.qualidade && typeof auditoria.qualidade === 'object' ? auditoria.qualidade : {};
+  const monitoramento = radar.monitoramento && typeof radar.monitoramento === 'object' ? radar.monitoramento : {};
   return {
     resumoExecutivo: String(radar.resumoExecutivo || ''),
     resumoModular: String(radar.resumoModular || ''),
     observacoesPorModulo: Array.isArray(radar.observacoesPorModulo) ? radar.observacoesPorModulo : [],
     prioridades: Array.isArray(radar.prioridades) ? radar.prioridades : [],
     acoesSugeridas: Array.isArray(radar.acoesSugeridas) ? radar.acoesSugeridas : [],
+    alteracoesRelevantes: Array.isArray(radar.alteracoesRelevantes) ? radar.alteracoesRelevantes : [],
+    resumoAlteracoes: String(radar.resumoAlteracoes || ''),
+    monitoramento: {
+      janelaHoras: Number(monitoramento.janelaHoras) || 24,
+      geradoEm: String(monitoramento.geradoEm || ''),
+      totalAlteracoes: Number(monitoramento.totalAlteracoes) || 0
+    },
     alertas: Array.isArray(radar.alertas) ? radar.alertas : [],
     oportunidades: Array.isArray(radar.oportunidades) ? radar.oportunidades : [],
     persistenciaInsights: radar.persistenciaInsights && typeof radar.persistenciaInsights === 'object' ? radar.persistenciaInsights : {},
@@ -260,6 +268,7 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
     const prioridades = radar.prioridades;
     const observacoesPorModulo = radar.observacoesPorModulo;
     const acoesSugeridas = radar.acoesSugeridas;
+    const alteracoesRelevantes = radar.alteracoesRelevantes;
     const persistenciaInsights = radar.persistenciaInsights;
     const auditoriaRadar = radar.auditoria;
     const penalidades = scoreExecutivo.penalidades;
@@ -358,6 +367,18 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
         </div>
       </div>
     `;
+    const alteracoesHtml = alteracoesRelevantes.length ? alteracoesRelevantes.slice(0, 10).map((item) => `
+      <div class="nh-list-item">
+        <div class="nh-between">
+          <div class="nh-badge ${badgeClass(item.severidade)}">${esc(item.modulo || '—')} · ${esc(item.severidade || '—')}</div>
+          <div class="nh-mini">${esc(formatCompactDate(item.ocorridoEm))}</div>
+        </div>
+        <div style="margin-top: 10px; font-size: 1.02rem; font-weight: 700;">${esc(item.titulo || '—')}</div>
+        <div class="nh-mini" style="margin-top: 6px;">${esc(item.descricao || '—')}</div>
+        <div class="nh-mini" style="margin-top: 6px;">Gerente sugerido: ${esc(item.gerenteSugerido || '—')}</div>
+        <div class="nh-mini" style="margin-top: 6px;">Impacto no radar: ${esc(item.impactoNoRadar || '—')}</div>
+      </div>
+    `).join('') : '<div class="nh-mini">Sem alterações relevantes na janela monitorada.</div>';
     const modulesHtml = observacoesPorModulo.length ? observacoesPorModulo.map((item) => `
       <section class="nh-card" style="padding: 16px;">
         <div class="nh-between">
@@ -617,6 +638,19 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
             </div>
           </div>
           <div class="nh-list" style="margin-top: 14px;">${penalidadesHtml}</div>
+        </article>
+        <article class="nh-card">
+          <div class="nh-between">
+            <div>
+              <h2 class="nh-section-title">Alterações Relevantes</h2>
+              <p class="nh-section-subtitle">Mudanças observadas nas últimas ${esc(radar.monitoramento?.janelaHoras || 24)} horas.</p>
+            </div>
+          </div>
+          <div class="nh-card" style="margin-top: 14px; padding: 16px;">
+            <p class="nh-mini">${esc(radar.resumoAlteracoes || 'Sem alterações relevantes na janela monitorada.')}</p>
+            <p class="nh-mini" style="margin-top: 6px;">Monitoramento: ${esc(formatRadarMetric(radar.monitoramento?.totalAlteracoes || 0))} alteração(ões) · gerado em ${esc(formatCompactDate(radar.monitoramento?.geradoEm))}</p>
+          </div>
+          <div class="nh-list" style="margin-top: 14px;">${alteracoesHtml}</div>
         </article>
         <article class="nh-card">
           <div class="nh-between">

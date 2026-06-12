@@ -94,6 +94,11 @@ test('ai director page dom with radar and auto refresh', async () => {
             { ordem: 1, titulo: 'Recuperar carteira em risco', impacto: 'alto', urgencia: 'alta', motivo: 'Clientes-chave reduziram recompra.', acaoRecomendada: 'Priorizar contato comercial nas 24h', gerenteSugerido: 'Gerente Comercial', peso: 95 },
             { ordem: 2, titulo: 'Ajustar promoções', impacto: 'medio', urgencia: 'media', motivo: 'Promoções pouco aderentes.', acaoRecomendada: 'Rever calendário promocional', peso: 78 }
           ],
+          alteracoesRelevantes: [
+            { modulo: 'clientes', tipo: 'novo_registro', titulo: '552 clientes importados recentemente', descricao: 'Foram detectados novos clientes criados após a última janela observada.', severidade: 'media', ocorridoEm: '2026-06-12T19:20:00Z', gerenteSugerido: 'Gerente Comercial', impactoNoRadar: 'Pode alterar carteira, risco comercial e oportunidades de follow-up.' }
+          ],
+          resumoAlteracoes: 'Foram detectadas 1 alterações relevantes desde a última observação. O principal impacto está em Clientes.',
+          monitoramento: { janelaHoras: 24, geradoEm: '2026-06-12T19:21:00Z', totalAlteracoes: 1 },
           persistenciaInsights: { candidatos: 12, persistidos: 3, ignorados: 9 },
           scoreExecutivo: {
             valor: 82,
@@ -186,6 +191,10 @@ test('ai director page dom with radar and auto refresh', async () => {
   assert.match(document.body.textContent, /Radar Executivo/);
   assert.match(document.body.textContent, /Score Executivo/);
   assert.match(document.body.textContent, /O negócio está saudável, mas o risco comercial pressiona a estabilidade\./);
+  assert.match(document.body.textContent, /Alterações Relevantes/);
+  assert.match(document.body.textContent, /552 clientes importados recentemente/);
+  assert.match(document.body.textContent, /Gerente Comercial/);
+  assert.match(document.body.textContent, /Pode alterar carteira, risco comercial e oportunidades de follow-up\./);
 
   const questionInput = document.querySelector('#ai-director-question');
   questionInput.value = 'Pergunta em andamento';
@@ -240,6 +249,7 @@ test('ai director page dom without radar fallback and auto refresh error', async
   assert.match(document.body.textContent, /Sem resumo executivo disponível/);
   assert.match(document.body.textContent, /Nenhuma penalidade crítica identificada no Score Executivo\./);
   assert.match(document.body.textContent, /Sem ações sugeridas no momento\./);
+  assert.match(document.body.textContent, /Sem alterações relevantes na janela monitorada\./);
   assert.match(document.body.textContent, /Atualização automática ativa/);
 
   await intervalHarness.tick(0);

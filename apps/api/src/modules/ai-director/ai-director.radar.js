@@ -3,6 +3,7 @@ import { listPedidos } from '../pedidos/pedidos.repository.js';
 import { listProdutos } from '../produtos/produtos.repository.js';
 import { auditSummary } from '../product-audit/product-audit.repository.js';
 import { getRevenueIntelligence } from '../revenue-intelligence/revenue-intelligence.repository.js';
+import { detectRelevantChanges } from './ai-director.change-detector.js';
 import { createExecutiveMemory, listExecutiveMemories, listManagers } from './ai-director.repository.js';
 
 const RADAR_STATUS = {
@@ -50,6 +51,9 @@ const EMPTY_RADAR_SHAPE = {
   oportunidades: [],
   prioridades: [],
   acoesSugeridas: [],
+  alteracoesRelevantes: [],
+  resumoAlteracoes: 'Sem alterações relevantes na janela monitorada.',
+  monitoramento: { janelaHoras: 24, geradoEm: new Date(0).toISOString(), totalAlteracoes: 0 },
   persistenciaInsights: { candidatos: 0, persistidos: 0, ignorados: 0 },
   auditoria: {
     versao: '2.1',
@@ -453,6 +457,7 @@ function validateRadarShape(radar = {}) {
   const auditoria = ensureObject(source.auditoria, {});
   const consistencia = ensureObject(auditoria.consistencia, {});
   const qualidade = ensureObject(auditoria.qualidade, {});
+  const monitoramento = ensureObject(source.monitoramento, {});
   return {
     ...fallback,
     ...source,
@@ -461,6 +466,15 @@ function validateRadarShape(radar = {}) {
     oportunidades: ensureArray(source.oportunidades),
     prioridades: ensureArray(source.prioridades),
     acoesSugeridas: ensureArray(source.acoesSugeridas),
+    alteracoesRelevantes: ensureArray(source.alteracoesRelevantes),
+    resumoAlteracoes: sanitizeText(source.resumoAlteracoes, 500) || fallback.resumoAlteracoes,
+    monitoramento: {
+      ...fallback.monitoramento,
+      ...monitoramento,
+      janelaHoras: Math.max(1, Math.round(safeNumber(monitoramento.janelaHoras, fallback.monitoramento.janelaHoras))),
+      geradoEm: sanitizeText(monitoramento.geradoEm, 80) || fallback.monitoramento.geradoEm,
+      totalAlteracoes: clampPercent(monitoramento.totalAlteracoes)
+    },
     persistenciaInsights: {
       ...fallback.persistenciaInsights,
       ...persistenciaInsights,
@@ -618,6 +632,21 @@ export async function buildStrategicRadar(context = {}) {
   const radarStart = Date.now();
   const accountId = context?.accountId || context?.account_id || null;
   const fontesUtilizadas = new Set();
+  const changeDetection = accountId
+    ? await safeCall(() => detectRelevantChanges(context), {
+      janelaHoras: 24,
+      geradoEm: new Date().toISOString(),
+      alteracoes: [],
+      resumo: 'Nenhuma alteração relevante detectada na janela monitorada.',
+      fontesIndisponiveis: ['detector']
+    })
+    : {
+      janelaHoras: 24,
+      geradoEm: new Date().toISOString(),
+      alteracoes: [],
+      resumo: 'Nenhuma alteração relevante detectada na janela monitorada.',
+      fontesIndisponiveis: ['detector']
+    };
   const [clientes, pedidos, produtos, audit, revenue, executiveMemories, managers] = await Promise.all([
     accountId ? safeCall(() => listClientes({ limit: 200 }, { accountId }), { items: [], total: 0 }) : { items: [], total: 0 },
     accountId ? safeCall(() => listPedidos({ limit: 200 }, { accountId }), { items: [], total: 0 }) : { items: [], total: 0 },
@@ -997,6 +1026,13 @@ export async function buildStrategicRadar(context = {}) {
     oportunidades,
     prioridades,
     acoesSugeridas,
+    alteracoesRelevantes: ensureArray(changeDetection.alteracoes),
+    resumoAlteracoes: sanitizeText(changeDetection.resumo, 500) || 'Sem alterações relevantes na janela monitorada.',
+    monitoramento: {
+      janelaHoras: Math.max(1, Math.round(safeNumber(changeDetection.janelaHoras, 24))),
+      geradoEm: sanitizeText(changeDetection.geradoEm, 80) || new Date().toISOString(),
+      totalAlteracoes: ensureArray(changeDetection.alteracoes).length
+    },
     persistenciaInsights,
     auditoria
   });
