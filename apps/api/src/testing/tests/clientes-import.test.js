@@ -60,6 +60,22 @@ export function getClientesImportTests() {
         assert.equal(out.body.rows[0].metadata.limite_credito_disponivel, 150000);
         assert.equal(out.body.rows[0].metadata.origem_importacao, 'clientes_fabrica');
         assert.equal(out.body.rows[0].ativo, true);
+        assert.equal(out.body.rows[0].ativoLabel, 'Sim');
+      }
+    },
+    {
+      name: 'preview marca Inativo como ativo nao',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        __resetClientesImportSessionsForTests();
+        const app = createApiApp();
+        const base64 = makeWorkbook([
+          { Código: '010', CNPJ: '22.222.222/2222-22', 'Razão Social': 'Cliente B LTDA', Situação: 'Inativo', Cidade: 'São Paulo', UF: 'SP' }
+        ]);
+        const out = await call(app, { method: 'POST', url: '/clientes/importacao/preview', role: 'admin', accountId: 'acc-clientes-import', body: { arquivo: { fileName: 'Clientes_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
+        assert.equal(out.body.rows[0].ativo, false);
+        assert.equal(out.body.rows[0].ativoLabel, 'Não');
+        assert.equal(out.body.rows[0].metadata.situacao_original, 'Inativo');
       }
     },
     {

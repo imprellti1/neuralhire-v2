@@ -194,7 +194,14 @@ function buildPreviewRows(workbookRows, existingClientes) {
     else if (classification.status === 'existente') summary.existentes += 1;
     else if (classification.status === 'invalido') summary.invalidos += 1;
     else if (classification.status === 'possivel_duplicado') summary.possiveis_duplicados += 1;
-    rows.push({ ...row, status: classification.status, errors: classification.errors, possibleDuplicate: classification.possibleDuplicate ? { id: classification.possibleDuplicate.id, nome: classification.possibleDuplicate.nome, cidade: classification.possibleDuplicate.cidade, estado: classification.possibleDuplicate.estado } : null, metadata: buildMetadata(row) });
+    rows.push({
+      ...row,
+      status: classification.status,
+      ativoLabel: row.ativo ? 'Sim' : 'Não',
+      errors: classification.errors,
+      possibleDuplicate: classification.possibleDuplicate ? { id: classification.possibleDuplicate.id, nome: classification.possibleDuplicate.nome, cidade: classification.possibleDuplicate.cidade, estado: classification.possibleDuplicate.estado } : null,
+      metadata: buildMetadata(row)
+    });
   }
   return { rows, summary };
 }
