@@ -122,6 +122,39 @@ function buildMetadata(row) {
   return metadata;
 }
 
+function normalizeImportMetadata(metadata) {
+  return metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : {};
+}
+
+function normalizeImportTags(tags) {
+  return Array.isArray(tags) ? tags : [];
+}
+
+function buildImportPayload(row) {
+  return {
+    account_id: row.accountId,
+    nome: normalizeText(row.razaoSocial),
+    documento: row.cnpj || null,
+    cidade: row.cidade || null,
+    estado: row.uf || null,
+    ativo: typeof row.ativo === 'boolean' ? row.ativo : true,
+    metadata: normalizeImportMetadata(row.metadata),
+    tags: normalizeImportTags(row.tags)
+  };
+}
+
+function extractErrorMessage(error) {
+  const candidates = [
+    error?.message,
+    error?.details?.message,
+    error?.details?.error?.message,
+    error?.details?.cause,
+    error?.details?.hint,
+    error?.details?.code
+  ];
+  return candidates.find((value) => typeof value === 'string' && value.trim()) || null;
+}
+
 function buildRowFromSheet(headers, row, rowNumber) {
   const get = (name) => {
     const index = pickHeaderIndex(headers, HEADERS[name]);
@@ -244,17 +277,23 @@ export async function executeClientesImport({ accountId, importToken }) {
       ignoredExistentes.push(row);
       continue;
     }
-    const payload = {
-      nome: row.razaoSocial,
-      documento: row.cnpj,
-      cidade: row.cidade || null,
-      estado: row.uf || null,
-      ativo: row.ativo,
-      metadata: row.metadata,
-      tags: []
-    };
-    const created = await createCliente(payload, { accountId });
-    inserted.push({ id: created.id, nome: created.nome, documento: created.documento });
+    const payload = buildImportPayload({ ...row, accountId });
+    try {
+      const created = await createCliente(payload, { accountId });
+      inserted.push({ id: created.id, nome: created.nome, documento: created.documento });
+    } catch (error) {
+      const motivo = extractErrorMessage(error);
+      throw new DatabaseError(`Falha ao criar cliente na linha ${row.rowNumber}${motivo ? `: ${motivo}` : ''}`, {
+        domain: 'clientes-import',
+        details: {
+          rowNumber: row.rowNumber,
+          codigo: row.codigo || null,
+          cnpj: row.cnpj || null,
+          nome: row.razaoSocial || null,
+          cause: error?.details || error?.message || String(error)
+        }
+      });
+    }
     existingByDocumento.add(row.cnpj);
     if (row.codigo) existingByCodigo.add(row.codigo);
   }

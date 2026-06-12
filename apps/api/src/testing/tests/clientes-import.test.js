@@ -32,6 +32,36 @@ function makeWorkbook(rows) {
   return xlsx.write(wb, { type: 'base64', bookType: 'xlsx' });
 }
 
+function createSupabaseMock({ insertError = null, onInsert = null } = {}) {
+  const store = [];
+  const chain = {
+    insert(payload) {
+      if (onInsert) onInsert(payload);
+      return {
+        select() {
+          return {
+            single: async () => {
+              if (insertError) return { data: null, error: insertError };
+              const created = { id: `cliente-${store.length + 1}`, ...payload };
+              store.push(created);
+              return { data: created, error: null };
+            }
+          };
+        }
+      };
+    },
+    eq() { return chain; },
+    order() { return chain; },
+    range: async () => ({ data: [], count: 0, error: null }),
+    maybeSingle: async () => ({ data: null, error: null })
+  };
+  return {
+    from() {
+      return chain;
+    }
+  };
+}
+
 export function getClientesImportTests() {
   return [
     {
@@ -129,6 +159,61 @@ export function getClientesImportTests() {
         assert.equal(run.body.ignorados_existentes.length, 1);
         assert.equal(run.body.possiveis_duplicados.length, 1);
         assert.equal(__dumpMemoryClientes().filter((item) => item.account_id === 'acc-clientes-import').length >= 2, true);
+      }
+    },
+    {
+      name: 'createCliente aceita metadata de importacao no modo supabase',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        __resetClientesImportSessionsForTests();
+        const previous = globalThis.__NEURALHIRE_SUPABASE_MOCK__;
+        const captured = [];
+        globalThis.__NEURALHIRE_SUPABASE_MOCK__ = createSupabaseMock({
+          onInsert: (payload) => captured.push(payload)
+        });
+        try {
+          const created = await createCliente({
+            nome: 'Cliente com metadata',
+            documento: '12345678000190',
+            cidade: 'São Paulo',
+            estado: 'SP',
+            ativo: true,
+            metadata: { codigo_fabrica: '001', origem_importacao: 'clientes_fabrica' },
+            tags: []
+          }, { accountId: 'acc-clientes-import' });
+          assert.equal(created.nome, 'Cliente com metadata');
+          assert.equal(captured[0].metadata.codigo_fabrica, '001');
+          assert.equal(captured[0].account_id, 'acc-clientes-import');
+          assert.equal('owner_user_id' in captured[0], false);
+        } finally {
+          if (previous === undefined) delete globalThis.__NEURALHIRE_SUPABASE_MOCK__;
+          else globalThis.__NEURALHIRE_SUPABASE_MOCK__ = previous;
+        }
+      }
+    },
+    {
+      name: 'erro de importacao aponta linha e motivo do repository',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        __resetClientesImportSessionsForTests();
+        const app = createApiApp();
+        const previous = globalThis.__NEURALHIRE_SUPABASE_MOCK__;
+        globalThis.__NEURALHIRE_SUPABASE_MOCK__ = createSupabaseMock({
+          insertError: { message: 'null value in column "nome" violates not-null constraint', code: '23502' }
+        });
+        try {
+          const base64 = makeWorkbook([
+            { Código: '009', CNPJ: '11.111.111/1111-11', 'Razão Social': 'Cliente X LTDA', Cidade: 'Curitiba', UF: 'PR' }
+          ]);
+          const preview = await call(app, { method: 'POST', url: '/clientes/importacao/preview', role: 'admin', accountId: 'acc-clientes-import', body: { arquivo: { fileName: 'Clientes_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
+          const run = await call(app, { method: 'POST', url: '/clientes/importacao', role: 'admin', accountId: 'acc-clientes-import', body: { importToken: preview.body.importToken } });
+          assert.equal(run.res.statusCode, 500);
+          assert.match(String(run.body.message || ''), /linha 2/i);
+          assert.match(String(run.body.message || ''), /null value in column/i);
+        } finally {
+          if (previous === undefined) delete globalThis.__NEURALHIRE_SUPABASE_MOCK__;
+          else globalThis.__NEURALHIRE_SUPABASE_MOCK__ = previous;
+        }
       }
     },
     {

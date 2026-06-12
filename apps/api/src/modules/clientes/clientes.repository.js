@@ -169,8 +169,7 @@ export async function createCliente(data, options = {}) {
       tags: Array.isArray(data.tags) ? data.tags : [],
       ativo: typeof data.ativo === 'boolean' ? data.ativo : true,
       metadata: data.metadata || {},
-      vendedor_id: vendedorId,
-      owner_user_id: vendedorId
+      vendedor_id: vendedorId
     };
 
     const { data: inserted, error } = await supabase.from('clientes').insert(payload).select('*').single();
