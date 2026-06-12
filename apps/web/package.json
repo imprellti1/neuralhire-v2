@@ -9,7 +9,7 @@
     "test:dom": "node src/modules/produtos-catalogo/produto-details.page.contract.test.js",
     "test:integration": "node src/testing/run-integration-groups.js",
     "test:security": "node --test src/testing/frontend-security.test.js",
-    "test:web": "npm run test:mapper && npm run test:dom && node --test src/modules/produtos-catalogo/produto-details.service.test.js && node --test src/modules/produtos-catalogo/produtos-import.page.unit.test.js && node --test src/modules/produto-categorias/produto-categorias.page.dom.test.js && node --test src/modules/ia-memorias/ia-memorias.page.dom.test.js && node --test src/core/api-client.test.js && npm run test:integration && npm run test:security && node --test src/testing/infrastructure-helpers.unit.test.js"
+    "test:web": "npm run test:mapper && npm run test:dom && node --test src/modules/produtos-catalogo/produto-details.service.test.js && node --test src/modules/produtos-catalogo/produtos-import.page.unit.test.js && node --test src/modules/produto-categorias/produto-categorias.page.dom.test.js && node --test src/modules/ia-memorias/ia-memorias.page.dom.test.js && node --test src/modules/pedidos-import/pedidos-import.page.dom.test.js && node --test src/core/api-client.test.js && npm run test:integration && npm run test:security && node --test src/testing/infrastructure-helpers.unit.test.js"
   },
   "devDependencies": {
     "jsdom": "^26.1.0"
