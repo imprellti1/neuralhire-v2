@@ -138,6 +138,7 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
     const prioridades = Array.isArray(radar.prioridades) ? radar.prioridades : [];
     const observacoesPorModulo = Array.isArray(radar.observacoesPorModulo) ? radar.observacoesPorModulo : [];
     const acoesSugeridas = Array.isArray(radar.acoesSugeridas) ? radar.acoesSugeridas : [];
+    const persistenciaInsights = radar.persistenciaInsights && typeof radar.persistenciaInsights === 'object' ? radar.persistenciaInsights : null;
     const penalidades = Array.isArray(scoreExecutivo.penalidades) ? scoreExecutivo.penalidades : [];
     const pilares = scoreExecutivo.pilares || {};
     const pillarEntries = [
@@ -193,6 +194,22 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
         <div class="nh-mini" style="margin-top: 8px;">Critério de conclusão: ${esc(item.criterioConclusao || '—')}</div>
       </div>
     `).join('') : '<div class="nh-mini">Sem ações sugeridas no momento.</div>';
+    const persistenciaHtml = `
+      <div class="nh-grid-3" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;">
+        <div class="nh-list-item">
+          <div class="nh-mini">Candidatos</div>
+          <div style="margin-top: 6px; font-size: 1.5rem; font-weight: 800;">${esc(formatRadarMetric(persistenciaInsights?.candidatos ?? 0))}</div>
+        </div>
+        <div class="nh-list-item">
+          <div class="nh-mini">Persistidos</div>
+          <div style="margin-top: 6px; font-size: 1.5rem; font-weight: 800;">${esc(formatRadarMetric(persistenciaInsights?.persistidos ?? 0))}</div>
+        </div>
+        <div class="nh-list-item">
+          <div class="nh-mini">Ignorados</div>
+          <div style="margin-top: 6px; font-size: 1.5rem; font-weight: 800;">${esc(formatRadarMetric(persistenciaInsights?.ignorados ?? 0))}</div>
+        </div>
+      </div>
+    `;
     const modulesHtml = observacoesPorModulo.length ? observacoesPorModulo.map((item) => `
       <section class="nh-card" style="padding: 16px;">
         <div class="nh-between">
@@ -442,6 +459,15 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
             </div>
           </div>
           <div class="nh-list" style="margin-top: 14px;">${actionsHtml}</div>
+        </article>
+        <article class="nh-card">
+          <div class="nh-between">
+            <div>
+              <h2 class="nh-section-title">Persistência Inteligente</h2>
+              <p class="nh-section-subtitle">Resumo da seleção automática de insights relevantes para a Memória Executiva.</p>
+            </div>
+          </div>
+          <div style="margin-top: 14px;">${persistenciaHtml}</div>
         </article>
         <article class="nh-card">
           <div class="nh-between">

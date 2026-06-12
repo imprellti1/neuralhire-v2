@@ -52,6 +52,11 @@ test('ai director page dom with radar', async () => {
             { ordem: 1, titulo: 'Recuperar carteira em risco', impacto: 'alto', urgencia: 'alta', motivo: 'Clientes-chave reduziram recompra.', acaoRecomendada: 'Priorizar contato comercial nas 24h', gerenteSugerido: 'Gerente Comercial', peso: 95 },
             { ordem: 2, titulo: 'Ajustar promoções', impacto: 'medio', urgencia: 'media', motivo: 'Promoções pouco aderentes.', acaoRecomendada: 'Rever calendário promocional', peso: 78 }
         ],
+        persistenciaInsights: {
+          candidatos: 12,
+          persistidos: 3,
+          ignorados: 9
+        },
         scoreExecutivo: {
           valor: 82,
           classificacao: 'Boa',
@@ -126,6 +131,10 @@ test('ai director page dom with radar', async () => {
   assert.match(document.body.textContent, /Gerente sugerido: Gerente Comercial/);
   assert.match(document.body.textContent, /Penalidades do Score/);
   assert.match(document.body.textContent, /Ações Sugeridas/);
+  assert.match(document.body.textContent, /Persistência Inteligente/);
+  assert.match(document.body.textContent, /Candidatos/);
+  assert.match(document.body.textContent, /Persistidos/);
+  assert.match(document.body.textContent, /Ignorados/);
   assert.match(document.body.textContent, /Recuperar carteira em risco/);
   assert.match(document.body.textContent, /hoje/);
   assert.match(document.body.textContent, /Plano comercial definido e clientes priorizados para contato\./);
@@ -192,6 +201,8 @@ test('ai director page dom without radar fallback', async () => {
   assert.match(document.body.textContent, /Sem resumo executivo disponível/);
   assert.match(document.body.textContent, /Nenhuma penalidade crítica identificada no Score Executivo\./);
   assert.match(document.body.textContent, /Sem ações sugeridas no momento\./);
+  assert.match(document.body.textContent, /Persistência Inteligente/);
+  assert.match(document.body.textContent, /0/);
   assert.match(document.body.textContent, /Sem dados suficientes/);
   assert.match(document.body.textContent, /Nenhuma observação modular disponível no momento\./);
   assert.match(document.body.textContent, /Pergunte ao Diretor IA/);

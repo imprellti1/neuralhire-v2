@@ -27,7 +27,8 @@ export function getAiDirectorTests() {
     {
       name: 'GET /ai-director/dashboard continua retornando payload',
       run: async () => {
-        const dashboard = await getAiDirectorDashboard();
+        resetState();
+        const dashboard = await getAiDirectorDashboard({ accountId: 'acc-test' });
         assert.ok(dashboard.health && typeof dashboard.health === 'object');
         assert.ok(Array.isArray(dashboard.alerts));
         assert.ok(dashboard.radar);
@@ -46,6 +47,16 @@ export function getAiDirectorTests() {
         assert.equal(typeof dashboard.radar.scoreExecutivo.diagnostico, 'string');
         assert.equal(Array.isArray(dashboard.radar.acoesSugeridas), true);
         assert.equal(dashboard.radar.acoesSugeridas.length <= 5, true);
+        assert.equal(typeof dashboard.radar.persistenciaInsights, 'object');
+        assert.equal(typeof dashboard.radar.persistenciaInsights.candidatos, 'number');
+        assert.equal(typeof dashboard.radar.persistenciaInsights.persistidos, 'number');
+        assert.equal(typeof dashboard.radar.persistenciaInsights.ignorados, 'number');
+        assert.equal(dashboard.radar.persistenciaInsights.persistidos <= 5, true);
+        const firstExecutives = await listExecutiveMemories({ limit: 50 }, { accountId: 'acc-test' });
+        const secondDashboard = await getAiDirectorDashboard({ accountId: 'acc-test' });
+        const secondExecutives = await listExecutiveMemories({ limit: 50 }, { accountId: 'acc-test' });
+        assert.equal(secondExecutives.items.length, firstExecutives.items.length);
+        assert.equal(secondDashboard.radar.persistenciaInsights.persistidos <= 5, true);
         for (const [name, pillar] of Object.entries(dashboard.radar.scoreExecutivo.pilares)) {
           assert.ok(['comercial', 'operacional', 'produtos', 'inteligencia'].includes(name));
           assert.equal(typeof pillar.valor, 'number');
@@ -114,7 +125,7 @@ export function getAiDirectorTests() {
     {
       name: 'GET /ai-director/dashboard inclui observacao modular e resumo',
       run: async () => {
-        const dashboard = await getAiDirectorDashboard();
+        const dashboard = await getAiDirectorDashboard({ accountId: 'acc-test-2' });
         assert.ok(Array.isArray(dashboard.radar.observacoesPorModulo));
         assert.ok(dashboard.radar.observacoesPorModulo.some((item) => item.modulo === 'Comercial'));
         assert.ok(dashboard.radar.observacoesPorModulo.some((item) => item.modulo === 'Produtos'));

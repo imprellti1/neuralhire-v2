@@ -3,7 +3,7 @@ import { listPedidos } from '../pedidos/pedidos.repository.js';
 import { listProdutos } from '../produtos/produtos.repository.js';
 import { auditSummary } from '../product-audit/product-audit.repository.js';
 import { getRevenueIntelligence } from '../revenue-intelligence/revenue-intelligence.repository.js';
-import { listExecutiveMemories, listManagers } from './ai-director.repository.js';
+import { createExecutiveMemory, listExecutiveMemories, listManagers } from './ai-director.repository.js';
 
 function safeNumber(value, fallback = 0) {
   const n = Number(value);
@@ -93,6 +93,143 @@ async function safeCall(fn, fallback) {
   } catch {
     return typeof fallback === 'function' ? fallback() : fallback;
   }
+}
+
+function normalizeText(value) {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+function normalizeCategory(value) {
+  const text = normalizeText(value);
+  if (['comercial', 'clientes', 'revenue', 'pedidos'].includes(text)) return 'comercial';
+  if (['produtos', 'produto', 'catalogo', 'catálogo'].includes(text)) return 'produtos';
+  if (['followup', 'follow-up', 'whatsapp', 'conversas'].includes(text)) return 'followup';
+  if (['auditoria', 'logs', 'operacional', 'operacao', 'operação'].includes(text)) return 'auditoria';
+  if (['inteligencia', 'inteligência', 'memoria', 'memória'].includes(text)) return 'geral';
+  return 'geral';
+}
+
+function normalizeSeverity(value) {
+  const text = normalizeText(value);
+  if (['critico', 'crítico'].includes(text)) return 'critica';
+  if (text === 'alto' || text === 'alta') return 'alta';
+  if (text === 'medio' || text === 'médio' || text === 'media' || text === 'média') return 'media';
+  return 'baixa';
+}
+
+function pickManagerNameByCategory(category) {
+  const map = {
+    comercial: 'Gerente Comercial',
+    produtos: 'Gerente de Produtos',
+    followup: 'Gerente de Follow-up',
+    auditoria: 'Gerente de Auditoria',
+    geral: 'Diretor IA'
+  };
+  return map[category] || 'Diretor IA';
+}
+
+function buildRadarInsightTitle(candidate) {
+  const type = normalizeText(candidate?.tipo);
+  const title = String(candidate?.titulo || '').trim();
+  if (title) return title.slice(0, 72);
+  if (type === 'alerta') return 'Alerta estratégico relevante';
+  if (type === 'prioridade') return 'Prioridade executiva relevante';
+  if (type === 'acao') return 'Ação executiva relevante';
+  if (type === 'observacao') return 'Observação crítica relevante';
+  return 'Insight estratégico relevante';
+}
+
+function buildRadarInsightDescription(candidate) {
+  const motivo = String(candidate?.motivo || candidate?.descricao || candidate?.resumo || '').trim();
+  const acao = String(candidate?.acao || candidate?.acaoRecomendada || candidate?.proximaAcao || '').trim();
+  const gerente = String(candidate?.gerenteResponsavel || candidate?.gerenteSugerido || '').trim();
+  const parts = [];
+  if (motivo) parts.push(motivo);
+  if (acao) parts.push(`Ação: ${acao}`);
+  if (gerente) parts.push(`Responsável: ${gerente}`);
+  return parts.join(' · ').slice(0, 220) || 'Insight estratégico relevante identificado pelo radar.';
+}
+
+function buildRadarInsightCandidate(item, tipo) {
+  const category = normalizeCategory(item?.categoria || item?.modulo || item?.origem);
+  const severity = normalizeSeverity(item?.severidade || item?.severity || item?.status);
+  const tipoMap = { alerta: 'alerta', prioridade: 'prioridade', acao: 'acao', observacao: 'observacao' };
+  return {
+    tipo: tipoMap[tipo] || tipo,
+    categoria: category,
+    severidade: severity,
+    titulo: buildRadarInsightTitle(item),
+    descricao: buildRadarInsightDescription(item),
+    gerenteResponsavel: String(item?.gerenteResponsavel || item?.gerenteSugerido || pickManagerNameByCategory(category)).trim(),
+    origem: String(item?.origem || item?.modulo || category || 'geral').trim() || 'geral',
+    dados_json: {
+      fonte: tipo,
+      payload: item
+    }
+  };
+}
+
+function isPersistableRadarInsight(candidate) {
+  if (!candidate) return false;
+  if (candidate.tipo === 'alerta') return ['alta', 'critica'].includes(candidate.severidade) || normalizeText(candidate?.status) === 'critico';
+  if (candidate.tipo === 'prioridade') return Number(candidate?.peso ?? 0) >= 85;
+  if (candidate.tipo === 'acao') return normalizeText(candidate?.prioridade) === 'alta';
+  if (candidate.tipo === 'observacao') return normalizeText(candidate?.status) === 'critico';
+  return false;
+}
+
+function fingerprintRadarInsight(candidate) {
+  return `${normalizeText(candidate?.categoria)}::${normalizeText(candidate?.titulo)}::${normalizeText(candidate?.tipo)}`;
+}
+
+function isRecentEnough(createdAt, now) {
+  const created = new Date(createdAt);
+  if (Number.isNaN(created.getTime())) return false;
+  return now.getTime() - created.getTime() <= 7 * 24 * 60 * 60 * 1000;
+}
+
+async function persistStrategicRadarInsights(context, candidates = []) {
+  const accountId = context?.accountId || context?.account_id || null;
+  if (!accountId) {
+    return { candidatos: candidates.length, persistidos: 0, ignorados: candidates.length };
+  }
+
+  const recentMemories = await safeCall(
+    () => listExecutiveMemories({ limit: 50 }, { accountId, context }),
+    { items: [] }
+  );
+  const now = new Date();
+  const recentFingerprints = new Set(
+    (Array.isArray(recentMemories?.items) ? recentMemories.items : [])
+      .filter((memory) => isRecentEnough(memory?.criado_em || memory?.created_at, now))
+      .map((memory) => fingerprintRadarInsight(memory))
+  );
+
+  let persistidos = 0;
+  let ignorados = 0;
+  for (const candidate of candidates.slice(0, 5)) {
+    const fingerprint = fingerprintRadarInsight(candidate);
+    if (recentFingerprints.has(fingerprint)) {
+      ignorados += 1;
+      continue;
+    }
+    const created = await safeCall(
+      () => createExecutiveMemory(candidate, { accountId, context }),
+      null
+    );
+    if (created) {
+      persistidos += 1;
+      recentFingerprints.add(fingerprint);
+    } else {
+      ignorados += 1;
+    }
+  }
+
+  return {
+    candidatos: candidates.length,
+    persistidos,
+    ignorados: Math.max(ignorados, candidates.length - persistidos)
+  };
 }
 
 function buildAlert(tipo, descricao, origem) {
@@ -591,6 +728,26 @@ export async function buildStrategicRadar(context = {}) {
       : 'explorar a base ativa existente';
   const principalPriority = prioridades[0] || null;
   const mainAction = acoesSugeridas[0] || null;
+  const persistenceCandidates = [
+    ...alertas
+      .filter((item) => isPersistableRadarInsight(buildRadarInsightCandidate(item, 'alerta')))
+      .map((item) => buildRadarInsightCandidate(item, 'alerta')),
+    ...prioridades
+      .filter((item) => isPersistableRadarInsight(buildRadarInsightCandidate(item, 'prioridade')))
+      .map((item) => buildRadarInsightCandidate(item, 'prioridade')),
+    ...acoesSugeridas
+      .filter((item) => isPersistableRadarInsight(buildRadarInsightCandidate(item, 'acao')))
+      .map((item) => buildRadarInsightCandidate(item, 'acao')),
+    ...observacoesPorModulo
+      .filter((item) => isPersistableRadarInsight(buildRadarInsightCandidate(item, 'observacao')))
+      .map((item) => buildRadarInsightCandidate(item, 'observacao'))
+  ];
+  const uniquePersistenceCandidates = [...new Map(persistenceCandidates.map((item) => [fingerprintRadarInsight(item), item])).values()];
+  const persistenciaInsights = await persistStrategicRadarInsights(context, uniquePersistenceCandidates).catch(() => ({
+    candidates: uniquePersistenceCandidates.length,
+    persistidos: 0,
+    ignorados: uniquePersistenceCandidates.length
+  }));
 
   return {
     observacoesPorModulo,
@@ -615,6 +772,7 @@ export async function buildStrategicRadar(context = {}) {
     alertas,
     oportunidades,
     prioridades,
-    acoesSugeridas
+    acoesSugeridas,
+    persistenciaInsights
   };
 }

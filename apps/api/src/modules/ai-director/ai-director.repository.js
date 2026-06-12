@@ -18,7 +18,7 @@ import { buildStrategicRadar } from './ai-director.radar.js';
 
 const validTipos = new Set(['observacao', 'alerta', 'oportunidade', 'diagnostico', 'decisao', 'plano_acao']);
 const validPrioridades = new Set(['baixa', 'media', 'alta', 'critica']);
-const validExecutiveTipos = new Set(['trend', 'alert', 'opportunity', 'risk', 'performance']);
+const validExecutiveTipos = new Set(['trend', 'alert', 'opportunity', 'risk', 'performance', 'alerta', 'prioridade', 'acao', 'observacao']);
 const validExecutiveCategorias = new Set(['comercial', 'produtos', 'auditoria', 'followup', 'administrativo', 'geral']);
 const validExecutiveSeveridades = new Set(['baixa', 'media', 'alta', 'critica']);
 const memoryStore = [];
@@ -118,7 +118,8 @@ export async function getAiDirectorDashboard(context = {}) {
     alertas: [],
     oportunidades: [],
     prioridades: [],
-    acoesSugeridas: []
+    acoesSugeridas: [],
+    persistenciaInsights: { candidatos: 0, persistidos: 0, ignorados: 0 }
   }));
   return {
     health: {},

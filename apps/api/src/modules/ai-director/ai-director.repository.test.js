@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { getAiDirectorDashboard } from './ai-director.repository.js';
+import { __resetMemoryAiDirectorForTests, listExecutiveMemories } from './ai-director.repository.js';
 
 test('ai director repository returns executive dashboard mock', async () => {
-  const dashboard = await getAiDirectorDashboard();
+  __resetMemoryAiDirectorForTests();
+  const dashboard = await getAiDirectorDashboard({ accountId: 'acc-test' });
   assert.ok(dashboard.health && typeof dashboard.health === 'object');
   assert.ok(Array.isArray(dashboard.alerts));
   assert.ok(Array.isArray(dashboard.opportunities));
@@ -27,6 +29,19 @@ test('ai director repository returns executive dashboard mock', async () => {
   assert.ok(typeof dashboard.radar.scoreExecutivo.valor === 'number');
   assert.ok(dashboard.radar.scoreExecutivo.pilares);
   assert.ok(Array.isArray(dashboard.radar.acoesSugeridas));
+  assert.ok(dashboard.radar.persistenciaInsights);
+  assert.equal(typeof dashboard.radar.persistenciaInsights.candidatos, 'number');
+  assert.equal(typeof dashboard.radar.persistenciaInsights.persistidos, 'number');
+  assert.equal(typeof dashboard.radar.persistenciaInsights.ignorados, 'number');
+  assert.ok(dashboard.radar.persistenciaInsights.persistidos <= 5);
+
+  const firstMemories = await listExecutiveMemories({ limit: 50 }, { accountId: 'acc-test' });
+  const firstCount = firstMemories.items.length;
+  const repeatDashboard = await getAiDirectorDashboard({ accountId: 'acc-test' });
+  assert.ok(repeatDashboard.radar.persistenciaInsights);
+  assert.ok(repeatDashboard.radar.persistenciaInsights.persistidos <= 5);
+  const secondMemories = await listExecutiveMemories({ limit: 50 }, { accountId: 'acc-test' });
+  assert.equal(secondMemories.items.length, firstCount);
 });
 
 export function getAiDirectorRepositoryTests() {
