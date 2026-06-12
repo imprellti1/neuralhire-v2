@@ -359,7 +359,6 @@ export async function updateCliente(id, data, options = {}) {
       ativo: next.ativo,
       metadata: normalizeClienteMetadata(next.metadata),
       vendedor_id: next.vendedor_id,
-      owner_user_id: next.vendedor_id,
       updated_at: new Date().toISOString()
     }).eq('account_id', accountId).eq('id', id).select('*').single();
     if (error) throw new DatabaseError('Falha ao atualizar cliente', { details: error });
