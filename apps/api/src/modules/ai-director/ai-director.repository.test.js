@@ -12,6 +12,7 @@ test('ai director repository returns executive dashboard mock', async () => {
   assert.equal(dashboard.alerts.length, 0);
   assert.equal(dashboard.opportunities.length, 0);
   assert.ok(typeof dashboard.radar.scoreExecutivo.valor === 'number');
+  assert.ok(dashboard.radar.scoreExecutivo.pilares);
 });
 
 export function getAiDirectorRepositoryTests() {

@@ -21,6 +21,33 @@ function classificationFromScore(score) {
   return 'Crítica';
 }
 
+function pillarStatusFromScore(score) {
+  if (score >= 90) return 'excelente';
+  if (score >= 75) return 'bom';
+  if (score >= 60) return 'atencao';
+  return 'critico';
+}
+
+function buildPenalty(origem, pontos, motivo) {
+  const safePoints = Math.max(0, Math.round(safeNumber(pontos, 0)));
+  return safePoints > 0 ? { origem, pontos: safePoints, motivo } : null;
+}
+
+function buildPillar(value, fatores = []) {
+  const score = clamp(Math.round(value), 0, 100);
+  return {
+    valor: score,
+    status: pillarStatusFromScore(score),
+    fatores: fatores.filter(Boolean)
+  };
+}
+
+function summarizePenalties(penalidades = []) {
+  if (!penalidades.length) return null;
+  const main = penalidades[0];
+  return `O principal impacto está no pilar ${String(main.origem || '').toLowerCase()}, com ${main.motivo.toLowerCase()}`;
+}
+
 async function safeCall(fn, fallback) {
   try {
     return await fn();
@@ -188,6 +215,10 @@ export async function buildStrategicRadar(context = {}) {
   const ordersMonth = safeNumber(context?.health?.pedidos_mes ?? pedidos?.total ?? 0, safeNumber(pedidos?.total ?? 0, 0));
   const revenueMonth = safeNumber(context?.health?.receita_mes ?? revenue?.mrr ?? revenue?.receita30 ?? 0, 0);
   const productIssues = safeNumber(audit?.comProblemas ?? 0, 0);
+  const auditCriticalProducts = safeNumber(audit?.criticos ?? 0, 0);
+  const totalProducts = safeNumber(audit?.totalProdutos ?? produtos?.total ?? 0, safeNumber(produtos?.total ?? 0, 0));
+  const productsWithNoImage = Array.isArray(produtos?.items) ? produtos.items.filter((item) => !String(item?.imagemUrl ?? item?.imagem_url ?? item?.image_url ?? item?.foto ?? item?.foto_url ?? '').trim()).length : 0;
+  const productsWithNoCategory = Array.isArray(produtos?.items) ? produtos.items.filter((item) => !String(item?.categoria ?? '').trim()).length : 0;
   const criticalMemories = Array.isArray(executiveMemories?.items)
     ? executiveMemories.items.filter((memory) => ['alta', 'critica'].includes(String(memory.severidade || '').toLowerCase()))
     : [];
@@ -303,13 +334,72 @@ export async function buildStrategicRadar(context = {}) {
   }
   const prioridades = dedupeAndSortPriorities(prioridadesRaw);
 
-  let score = 100;
-  if (customersAtRisk > 0) score -= Math.min(30, customersAtRisk * 5);
-  if (ordersMonth <= 0) score -= 20;
-  if (revenueMonth <= 0) score -= 20;
-  if (productIssues > 0) score -= Math.min(15, productIssues * 3);
-  if (criticalMemories.length > 0) score -= Math.min(15, criticalMemories.length * 5);
-  score = clamp(score, 0, 100);
+  const penalidades = [];
+
+  const comercialPenalties = [];
+  if (customersAtRisk > 0) comercialPenalties.push(buildPenalty('comercial', Math.min(25, customersAtRisk * 5), `${customersAtRisk} cliente(s) em risco exigem ação comercial.`));
+  if (customersActive <= 0) comercialPenalties.push(buildPenalty('comercial', 25, 'Base ativa ausente.'));
+  if (ordersMonth <= 0) comercialPenalties.push(buildPenalty('comercial', 20, 'Pedidos do mês zerados.'));
+  if (revenueMonth <= 0) comercialPenalties.push(buildPenalty('comercial', 20, 'Receita do mês zerada ou indisponível.'));
+  else if (revenueMonth < 1000) comercialPenalties.push(buildPenalty('comercial', 10, 'Receita do mês muito baixa.'));
+  const comercialScore = buildPillar(100 - comercialPenalties.reduce((sum, item) => sum + (item?.pontos || 0), 0), [
+    customersAtRisk > 0 ? 'Clientes em risco exigem ação comercial.' : null,
+    customersActive > 0 ? 'Base ativa presente.' : 'Base ativa ausente.',
+    ordersMonth > 0 ? 'Pedidos do mês identificados.' : 'Pedidos do mês zerados.',
+    revenueMonth > 0 ? 'Receita do mês identificada.' : 'Receita do mês zerada ou muito baixa.'
+  ]);
+
+  const operacionalPenalties = [];
+  if (productIssues > 0) operacionalPenalties.push(buildPenalty('operacional', Math.min(20, productIssues * 4), `${productIssues} produto(s) com pendências de auditoria.`));
+  if (auditCriticalProducts > 0) operacionalPenalties.push(buildPenalty('operacional', Math.min(15, auditCriticalProducts * 5), `${auditCriticalProducts} produto(s) críticos na auditoria.`));
+  if (prioridades.some((priority) => ['auditoria', 'product-audit'].includes(String(priority?.origem || '').toLowerCase()))) operacionalPenalties.push(buildPenalty('operacional', 10, 'Prioridades operacionais e de auditoria ativas.'));
+  if (!audit || typeof audit !== 'object') operacionalPenalties.push(buildPenalty('operacional', 5, 'Dados operacionais indisponíveis.'));
+  const operacionalScore = buildPillar(100 - operacionalPenalties.reduce((sum, item) => sum + (item?.pontos || 0), 0), [
+    productIssues > 0 ? `${productIssues} pendência(s) de auditoria identificada(s).` : 'Sem pendências operacionais relevantes.',
+    auditCriticalProducts > 0 ? `${auditCriticalProducts} produto(s) críticos na auditoria.` : null,
+    prioridades.some((priority) => ['auditoria', 'product-audit'].includes(String(priority?.origem || '').toLowerCase()))
+      ? 'Há prioridades de origem operacional/auditoria.'
+      : 'Sem prioridades operacionais relevantes.'
+  ]);
+
+  const produtosPenalties = [];
+  if (totalProducts <= 0) produtosPenalties.push(buildPenalty('produtos', 20, 'Ausência total de produtos.'));
+  if (productsWithNoImage > 0) produtosPenalties.push(buildPenalty('produtos', Math.min(15, productsWithNoImage * 3), `${productsWithNoImage} produto(s) sem imagem.`));
+  if (productsWithNoCategory > 0) produtosPenalties.push(buildPenalty('produtos', Math.min(15, productsWithNoCategory * 3), `${productsWithNoCategory} produto(s) sem categoria.`));
+  if (productIssues > 0) produtosPenalties.push(buildPenalty('produtos', Math.min(10, productIssues * 2), 'Problemas de auditoria em produtos disponíveis.'));
+  const produtosScore = buildPillar(100 - produtosPenalties.reduce((sum, item) => sum + (item?.pontos || 0), 0), [
+    totalProducts > 0 ? `${totalProducts} produto(s) disponíveis.` : 'Sem produtos cadastrados.',
+    productsWithNoImage > 0 ? `${productsWithNoImage} produto(s) sem imagem.` : 'Imagens de produtos sem alerta relevante.',
+    productsWithNoCategory > 0 ? `${productsWithNoCategory} produto(s) sem categoria.` : 'Categorias de produtos sem alerta relevante.'
+  ]);
+
+  const inteligenciaPenalties = [];
+  if (criticalMemories.length > 0) inteligenciaPenalties.push(buildPenalty('inteligencia', Math.min(20, criticalMemories.length * 5), `${criticalMemories.length} memória(s) executiva(s) recente(s) em severidade alta/crítica.`));
+  if (availableManagers.length <= 0) inteligenciaPenalties.push(buildPenalty('inteligencia', 15, 'Nenhum gerente especializado ativo disponível.'));
+  if (alertas.length <= 0) inteligenciaPenalties.push(buildPenalty('inteligencia', 5, 'Baixa observabilidade por ausência de alertas relevantes.'));
+  const inteligenciaScore = buildPillar(100 - inteligenciaPenalties.reduce((sum, item) => sum + (item?.pontos || 0), 0), [
+    criticalMemories.length > 0 ? `${criticalMemories.length} memória(s) executiva(s) crítica(s) recente(s).` : 'Sem memórias executivas críticas recentes.',
+    availableManagers.length > 0 ? `${availableManagers.length} gerente(s) especializado(s) disponíveis.` : 'Sem gerentes especializados ativos.',
+    alertas.length > 0 ? `${alertas.length} alerta(s) sinalizam observabilidade ativa.` : 'Poucos alertas podem indicar baixa observabilidade.'
+  ]);
+
+  const pillarEntries = [
+    ...comercialPenalties,
+    ...operacionalPenalties,
+    ...produtosPenalties,
+    ...inteligenciaPenalties
+  ].filter(Boolean);
+  penalidades.push(...pillarEntries);
+  penalidades.sort((a, b) => b.pontos - a.pontos);
+  const topPenalties = penalidades.slice(0, 10);
+
+  const score = clamp(Math.round(
+    (comercialScore.valor * 0.35) +
+    (operacionalScore.valor * 0.25) +
+    (produtosScore.valor * 0.2) +
+    (inteligenciaScore.valor * 0.2)
+  ), 0, 100);
+  const principalPenalty = topPenalties[0] || null;
 
   const principalAttention = customersAtRisk > 0
     ? 'clientes em risco'
@@ -330,11 +420,21 @@ export async function buildStrategicRadar(context = {}) {
   return {
     scoreExecutivo: {
       valor: score,
-      classificacao: classificationFromScore(score)
+      classificacao: classificationFromScore(score),
+      pilares: {
+        comercial: comercialScore,
+        operacional: operacionalScore,
+        produtos: produtosScore,
+        inteligencia: inteligenciaScore
+      },
+      penalidades: topPenalties,
+      diagnostico: principalPenalty
+        ? `Score Executivo em nível ${classificationFromScore(score)}. ${summarizePenalties(topPenalties) || 'O principal impacto está distribuído entre os pilares.'}`
+        : `Score Executivo em nível ${classificationFromScore(score)}. O radar não identificou penalidades relevantes no momento.`
     },
     resumoExecutivo: principalPriority
-      ? `Radar Estratégico identificou ${alertas.length} alertas, ${oportunidades.length} oportunidades e ${prioridades.length} prioridades. A prioridade máxima é ${principalPriority.titulo}, com apoio sugerido do ${principalPriority.gerenteSugerido || 'gestor responsável'}. A principal atenção está em ${principalAttention}. A principal oportunidade é ${principalOpportunity}.`
-      : `Radar Estratégico identificou ${alertas.length} alertas, ${oportunidades.length} oportunidades e ${prioridades.length} prioridades. A principal atenção está em ${principalAttention}. A principal oportunidade é ${principalOpportunity}.`,
+      ? `Radar Estratégico identificou ${alertas.length} alertas, ${oportunidades.length} oportunidades e ${prioridades.length} prioridades. O Score Executivo está em ${score} (${classificationFromScore(score)}). A prioridade máxima é ${principalPriority.titulo}, com apoio sugerido do ${principalPriority.gerenteSugerido || 'gestor responsável'}. A principal atenção está em ${principalAttention}. A principal oportunidade é ${principalOpportunity}.`
+      : `Radar Estratégico identificou ${alertas.length} alertas, ${oportunidades.length} oportunidades e ${prioridades.length} prioridades. O Score Executivo está em ${score} (${classificationFromScore(score)}). A principal atenção está em ${principalAttention}. A principal oportunidade é ${principalOpportunity}.`,
     alertas,
     oportunidades,
     prioridades

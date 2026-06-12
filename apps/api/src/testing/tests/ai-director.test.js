@@ -37,6 +37,26 @@ export function getAiDirectorTests() {
         assert.equal(Array.isArray(dashboard.radar.prioridades), true);
         assert.equal(typeof dashboard.radar.resumoExecutivo, 'string');
         assert.equal(dashboard.radar.scoreExecutivo.valor >= 0 && dashboard.radar.scoreExecutivo.valor <= 100, true);
+        assert.equal(typeof dashboard.radar.scoreExecutivo.classificacao, 'string');
+        assert.ok(dashboard.radar.scoreExecutivo.pilares);
+        assert.equal(Array.isArray(dashboard.radar.scoreExecutivo.penalidades), true);
+        assert.equal(typeof dashboard.radar.scoreExecutivo.diagnostico, 'string');
+        for (const [name, pillar] of Object.entries(dashboard.radar.scoreExecutivo.pilares)) {
+          assert.ok(['comercial', 'operacional', 'produtos', 'inteligencia'].includes(name));
+          assert.equal(typeof pillar.valor, 'number');
+          assert.equal(pillar.valor >= 0 && pillar.valor <= 100, true);
+          assert.equal(['excelente', 'bom', 'atencao', 'critico'].includes(pillar.status), true);
+          assert.equal(Array.isArray(pillar.fatores), true);
+        }
+        for (const penalty of dashboard.radar.scoreExecutivo.penalidades) {
+          assert.equal(typeof penalty.origem, 'string');
+          assert.equal(typeof penalty.pontos, 'number');
+          assert.equal(penalty.pontos > 0, true);
+          assert.equal(typeof penalty.motivo, 'string');
+        }
+        for (let index = 1; index < dashboard.radar.scoreExecutivo.penalidades.length; index += 1) {
+          assert.equal(dashboard.radar.scoreExecutivo.penalidades[index - 1].pontos >= dashboard.radar.scoreExecutivo.penalidades[index].pontos, true);
+        }
         for (const priority of dashboard.radar.prioridades) {
           assert.equal(typeof priority.ordem, 'number');
           assert.equal(typeof priority.titulo, 'string');
@@ -59,6 +79,7 @@ export function getAiDirectorTests() {
         if (dashboard.radar.prioridades.length > 0) {
           assert.equal(dashboard.radar.resumoExecutivo.includes(dashboard.radar.prioridades[0].titulo), true);
         }
+        assert.equal(dashboard.radar.resumoExecutivo.includes('Score Executivo'), true);
       }
     },
     {
