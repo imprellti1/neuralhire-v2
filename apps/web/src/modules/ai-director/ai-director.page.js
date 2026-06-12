@@ -167,6 +167,81 @@ function normalizeRadarSnapshot(radar = {}) {
 
 export async function renderAiDirectorPage(container, { apiClient } = {}) {
   const state = createAiDirectorState();
+  const AUTO_REFRESH_INTERVAL_MS = 30000;
+  let autoRefreshTimer = null;
+  let autoRefreshInFlight = false;
+  let destroyed = false;
+
+  const formatClockTime = (value) => {
+    if (!value) return '—';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+
+  const clearAutoRefreshTimer = () => {
+    if (autoRefreshTimer) {
+      clearInterval(autoRefreshTimer);
+      autoRefreshTimer = null;
+    }
+  };
+
+  const cleanup = () => {
+    destroyed = true;
+    clearAutoRefreshTimer();
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+  };
+
+  function scheduleAutoRefresh() {
+    if (destroyed) return;
+    clearAutoRefreshTimer();
+    if (!state.autoRefreshEnabled) return;
+    autoRefreshTimer = setInterval(() => {
+      void refreshDashboard({ silent: true });
+    }, AUTO_REFRESH_INTERVAL_MS);
+  }
+
+  function isPageVisible() {
+    if (typeof document === 'undefined' || !('visibilityState' in document)) return true;
+    return document.visibilityState !== 'hidden';
+  }
+
+  function handleVisibilityChange() {
+    if (destroyed || !state.autoRefreshEnabled) return;
+    if (isPageVisible()) {
+      void refreshDashboard({ silent: true });
+    }
+  }
+
+  async function refreshDashboard({ silent = false } = {}) {
+    if (!apiClient || destroyed) return false;
+    if (autoRefreshInFlight) return false;
+    if (!silent) {
+      state.autoRefreshError = null;
+    }
+    if (!isPageVisible()) {
+      state.autoRefreshEnabled = true;
+      if (!silent) render();
+      return false;
+    }
+    autoRefreshInFlight = true;
+    state.autoRefreshLoading = true;
+    if (!silent) render();
+    try {
+      const dashboardResult = await fetchAiDirectorDashboard(apiClient);
+      state.dashboard = dashboardResult;
+      state.lastAutoRefreshAt = new Date().toISOString();
+      state.autoRefreshError = null;
+      return true;
+    } catch (error) {
+      state.autoRefreshError = 'Falha ao atualizar radar automaticamente';
+      return false;
+    } finally {
+      autoRefreshInFlight = false;
+      state.autoRefreshLoading = false;
+      if (!destroyed) render();
+    }
+  }
 
   const render = () => {
     if (state.loading) {
@@ -319,6 +394,13 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
     const askResult = state.askResult || {};
     const topManagers = managers;
     const executiveFacts = executiveFactsSummary(askResult.facts);
+    const autoRefreshStatus = state.autoRefreshError
+      ? state.autoRefreshError
+      : state.autoRefreshLoading
+        ? 'Atualizando radar...'
+        : state.autoRefreshEnabled
+          ? 'Atualização automática ativa'
+          : 'Atualização automática pausada';
 
     container.innerHTML = `
       <section style="--nh-bg:#071129;--nh-panel:rgba(10,18,43,.82);--nh-panel-strong:rgba(8,15,35,.94);--nh-border:rgba(122,146,255,.18);--nh-text:#eaf1ff;--nh-muted:#9cb0db;--nh-accent:#7c5cff;--nh-good:#4ce38a;--nh-warn:#ffb347;--nh-bad:#ff6b6b;display:grid;gap:18px;padding:10px;color:var(--nh-text);background:radial-gradient(circle at top right, rgba(124,92,255,.24), transparent 30%), radial-gradient(circle at left center, rgba(0,212,255,.12), transparent 26%), linear-gradient(180deg, rgba(5,10,24,.98), rgba(8,14,33,.98));border:1px solid var(--nh-border);border-radius:28px;box-shadow:0 30px 80px rgba(0,0,0,.35);">
@@ -369,10 +451,12 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
           <div class="nh-card" style="min-width: 280px; padding: 16px 18px;">
             <div class="nh-between">
               <div class="nh-mini">Última atualização</div>
-              <div class="nh-mini">online</div>
+              <div class="nh-mini">${esc(state.autoRefreshError ? 'warning' : 'online')}</div>
             </div>
             <div style="font-size: 1.05rem; font-weight: 600; margin-top: 6px;">${esc(formatCompactDate(health.updated_at || dashboard.updated_at || new Date()))}</div>
             <div class="nh-mini" style="margin-top: 6px;">Gerentes ativos: ${esc(formatCount(managers.filter((manager) => String(manager.status || '').toLowerCase() === 'ativo').length || managers.length || 0))}</div>
+            <div class="nh-mini" style="margin-top: 8px;">${esc(autoRefreshStatus)}</div>
+            <div class="nh-mini" style="margin-top: 4px;">Última atualização automática: ${esc(formatClockTime(state.lastAutoRefreshAt))}</div>
           </div>
         </header>
         <article class="nh-card">
@@ -679,6 +763,9 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
     `;
 
     const questionInput = container.querySelector('#ai-director-question');
+    questionInput?.addEventListener('input', (event) => {
+      state.question = event.target.value || '';
+    });
     container.querySelector('#ai-director-analyze')?.addEventListener('click', async () => {
       state.question = questionInput?.value || '';
       if (!apiClient) return;
@@ -810,4 +897,7 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
 
   await load();
   bindMemoryForm();
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  scheduleAutoRefresh();
+  container.__aiDirectorCleanup = cleanup;
 }

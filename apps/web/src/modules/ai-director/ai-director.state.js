@@ -25,6 +25,10 @@ export function createAiDirectorState() {
     delegationError: null,
     askLoading: false,
     askResult: null,
-    askError: null
+    askError: null,
+    autoRefreshEnabled: true,
+    autoRefreshLoading: false,
+    autoRefreshError: null,
+    lastAutoRefreshAt: null
   };
 }
