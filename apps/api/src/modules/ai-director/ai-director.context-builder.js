@@ -14,7 +14,9 @@ function summarizeManagerResponse(response = {}) {
     managerName: response?.manager?.nome || null,
     status: response?.status || null,
     sources: Array.isArray(response?.sources) ? response.sources : [],
-    summary: response?.summary || null
+    summary: response?.summary || null,
+    facts: response?.facts || {},
+    provider: response?.facts?.provider || null
   };
 }
 
@@ -32,10 +34,18 @@ export async function buildAiDirectorContext({ question, delegation, dashboard, 
     alerts: Array.isArray(dashboard?.alerts) ? dashboard.alerts : [],
     opportunities: Array.isArray(dashboard?.opportunities) ? dashboard.opportunities : [],
     managers: managerFacts,
-    memoriesCount: usedMemories.length
+    memoriesCount: usedMemories.length,
+    managerFacts
   };
 
-  const safeFallbackAnswer = `Com base nos dados disponíveis, encontrei ${facts.alerts.length} alerta(s), ${facts.opportunities.length} oportunidade(s) e consultei ${managerFacts.length} gerente(s). Posso aprofundar um recorte se você quiser.`;
+  const comercial = managerFacts.find((item) => item.managerId === 'comercial')?.facts || {};
+  const fallbackPieces = [];
+  if (comercial.receita_mes !== undefined) fallbackPieces.push(`receita de ${comercial.receita_mes}`);
+  if (comercial.pedidos_mes !== undefined) fallbackPieces.push(`${comercial.pedidos_mes} pedidos`);
+  if (comercial.clientes_risco !== undefined) fallbackPieces.push(`${comercial.clientes_risco} clientes em risco`);
+  const safeFallbackAnswer = fallbackPieces.length
+    ? `Com base nos dados disponíveis, encontrei ${fallbackPieces.join(', ')} e consultei ${managerFacts.length} gerente(s). Posso aprofundar um recorte se você quiser.`
+    : `Com base nos dados disponíveis, encontrei ${facts.alerts.length} alerta(s), ${facts.opportunities.length} oportunidade(s) e consultei ${managerFacts.length} gerente(s). Posso aprofundar um recorte se você quiser.`;
 
   return {
     question,

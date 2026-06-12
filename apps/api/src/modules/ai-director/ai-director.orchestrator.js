@@ -36,11 +36,29 @@ export async function delegateAiDirectorQuestion(payload = {}, options = {}) {
   const question = normalizeQuestion(payload.question);
   const { intent, selectedManagers } = classifyDelegation(question);
   const managerMap = getManagerMap();
-  const managerResponses = selectedManagers.map((managerId) => {
+  const managerResponses = await Promise.all(selectedManagers.map(async (managerId) => {
     const manager = managerMap.get(managerId);
     if (!manager) return null;
-    return consultManager({ accountId: options.accountId }, managerId, { question });
-  }).filter(Boolean);
+    try {
+      return await consultManager({ accountId: options.accountId, context: options.context }, managerId, { question });
+    } catch (error) {
+      return {
+        manager: { id: managerId, nome: manager.nome },
+        question,
+        summary: `Falha controlada ao consultar ${manager.nome}.`,
+        status: 'fallback',
+        sources: [...manager.modulos],
+        facts: {
+          manager_id: manager.id,
+          manager_nome: manager.nome,
+          sources: [...manager.modulos],
+          question,
+          provider: 'fallback',
+          provider_error: error?.message || 'Falha ao consultar gerente'
+        }
+      };
+    }
+  })).then((items) => items.filter(Boolean));
 
   return {
     question,
@@ -73,6 +91,7 @@ export async function answerAiDirectorQuestion(payload = {}, options = {}) {
     question,
     answer,
     consultedManagers: delegation.selectedManagers,
+    managerResponses: delegation.managerResponses,
     usedMemories: context.usedMemories.map((memory) => memory.id),
     facts: context.facts,
     status: llmResult.answer ? 'answered' : 'answered_with_fallback',

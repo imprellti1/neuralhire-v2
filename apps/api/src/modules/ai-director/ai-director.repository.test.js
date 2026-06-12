@@ -4,10 +4,12 @@ import { getAiDirectorDashboard } from './ai-director.repository.js';
 
 test('ai director repository returns executive dashboard mock', () => {
   const dashboard = getAiDirectorDashboard();
-  assert.equal(dashboard.health.receita_mes, 124550);
-  assert.equal(dashboard.health.pedidos_mes, 358);
+  assert.ok(dashboard.health && typeof dashboard.health === 'object');
   assert.ok(Array.isArray(dashboard.alerts));
   assert.ok(Array.isArray(dashboard.opportunities));
+  assert.equal(Object.keys(dashboard.health).length, 0);
+  assert.equal(dashboard.alerts.length, 0);
+  assert.equal(dashboard.opportunities.length, 0);
 });
 
 export function getAiDirectorRepositoryTests() {

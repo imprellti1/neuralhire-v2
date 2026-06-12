@@ -1,10 +1,25 @@
 import assert from 'node:assert/strict';
-import { __resetMemoryAiDirectorForTests, consultManager, createAiDirectorMemory, getAiDirectorDashboard, listAiDirectorMemories, listManagers } from '../../modules/ai-director/ai-director.repository.js';
+import { __resetMemoryAiDirectorForTests, __setAiDirectorManagerProviderOverrideForTests, consultManager, createAiDirectorMemory, getAiDirectorDashboard, listAiDirectorMemories, listManagers } from '../../modules/ai-director/ai-director.repository.js';
 import { answerAiDirectorQuestion, delegateAiDirectorQuestion } from '../../modules/ai-director/ai-director.orchestrator.js';
 import { askAiDirectorLlm } from '../../modules/ai-director/ai-director.llm.js';
+import { __resetMemoryClientesForTests, createCliente } from '../../modules/clientes/clientes.repository.js';
+import { __resetMemoryPedidosForTests, createPedido } from '../../modules/pedidos/pedidos.repository.js';
+import { __resetMemoryProdutosForTests, createProduto } from '../../modules/produtos/produtos.repository.js';
+import { __resetMemoryPromocoesForTests, createPromocao } from '../../modules/promocoes/promocoes.repository.js';
+import { __resetMemoryProductAuditForTests } from '../../modules/product-audit/product-audit.repository.js';
+import { __resetMemoryWhatsappConversationsForTests, createConversation } from '../../modules/whatsapp-conversations/whatsapp-conversations.repository.js';
+import { __resetMemoryMessageApprovalsForTests } from '../../modules/message-approvals/message-approvals.repository.js';
+import { recordAuditLog } from '../../core/audit-logs.js';
 
 function resetState() {
   __resetMemoryAiDirectorForTests();
+  __resetMemoryClientesForTests();
+  __resetMemoryPedidosForTests();
+  __resetMemoryProdutosForTests();
+  __resetMemoryPromocoesForTests();
+  __resetMemoryProductAuditForTests();
+  __resetMemoryWhatsappConversationsForTests();
+  __resetMemoryMessageApprovalsForTests();
 }
 
 export function getAiDirectorTests() {
@@ -13,7 +28,7 @@ export function getAiDirectorTests() {
       name: 'GET /ai-director/dashboard continua retornando payload',
       run: async () => {
         const dashboard = getAiDirectorDashboard();
-        assert.equal(dashboard.health.receita_mes, 124550);
+        assert.ok(dashboard.health && typeof dashboard.health === 'object');
         assert.ok(Array.isArray(dashboard.alerts));
       }
     },
@@ -77,24 +92,29 @@ export function getAiDirectorTests() {
     {
       name: 'POST /ai-director/managers/comercial/consult retorna fatos estruturados',
       run: async () => {
-        const response = consultManager({ accountId: 'acc-a' }, 'comercial', { question: 'Quais clientes estão em risco?' });
+        resetState();
+        const cliente = await createCliente({ nome: 'Cliente A', ativo: true }, { accountId: 'acc-a' });
+        const produto = await createProduto({ nome: 'Produto A', preco: 100 }, { accountId: 'acc-a' });
+        await createPedido({ cliente_id: cliente.id, itens: [{ produto_id: produto.id, quantidade: 2, preco_unitario: 50 }] }, { accountId: 'acc-a' });
+        const response = await consultManager({ accountId: 'acc-a' }, 'comercial', { question: 'Quais clientes estão em risco?' });
         assert.equal(response.manager.id, 'comercial');
         assert.equal(response.status, 'answered');
         assert.deepEqual(response.sources, ['Clientes', 'Pedidos', 'Pipeline', 'Revenue']);
         assert.ok(response.facts);
+        assert.equal(response.facts.indicators.clientes_ativos >= 1, true);
         assert.ok(Array.isArray(response.facts.observations));
       }
     },
     {
       name: 'POST consult rejeita question vazia',
       run: async () => {
-        assert.throws(() => consultManager({ accountId: 'acc-a' }, 'comercial', { question: '   ' }));
+        await assert.rejects(() => consultManager({ accountId: 'acc-a' }, 'comercial', { question: '   ' }));
       }
     },
     {
       name: 'POST consult rejeita manager inexistente',
       run: async () => {
-        assert.throws(() => consultManager({ accountId: 'acc-a' }, 'inexistente', { question: 'Teste' }));
+        await assert.rejects(() => consultManager({ accountId: 'acc-a' }, 'inexistente', { question: 'Teste' }));
       }
     },
     {
@@ -181,6 +201,13 @@ export function getAiDirectorTests() {
     {
       name: 'POST /ai-director/ask cobre clientes, faturamento, pedidos, fabricante, promocoes e auditoria',
       run: async () => {
+        resetState();
+        const cliente = await createCliente({ nome: 'Cliente B', ativo: true }, { accountId: 'acc-a' });
+        const produto = await createProduto({ nome: 'Produto B', preco: 200 }, { accountId: 'acc-a' });
+        await createPedido({ cliente_id: cliente.id, itens: [{ produto_id: produto.id, quantidade: 1, preco_unitario: 200 }] }, { accountId: 'acc-a' });
+        await createPromocao({ nome: 'Promo B', percentual_desconto: 10, data_inicio: '2026-06-01', data_fim: '2026-06-30', produto_id: produto.id }, { accountId: 'acc-a' });
+        await recordAuditLog({ accountId: 'acc-a', auth: { userId: 'u-1', role: 'manager' } }, { modulo: 'ai-director', entidade: 'teste', acao: 'falha', descricao: 'Problema critico', status: 'failed', sucesso: false, erro_mensagem: 'Falha critica' }).catch(() => null);
+        await createConversation({ phone: '11999999999', clienteId: cliente.id }, { accountId: 'acc-a' });
         const cases = [
           ['Quais clientes estão em risco?', ['comercial', 'followup']],
           ['Qual o faturamento do mês?', ['comercial']],
@@ -195,6 +222,16 @@ export function getAiDirectorTests() {
           assert.deepEqual(result.consultedManagers, managers);
           assert.equal(result.status === 'answered' || result.status === 'answered_with_fallback', true);
         }
+      }
+    },
+    {
+      name: 'POST /ai-director/ask retorna fallback quando gerente falha',
+      run: async () => {
+        __setAiDirectorManagerProviderOverrideForTests('comercial', async () => { throw new Error('falha simulada'); });
+        const result = await answerAiDirectorQuestion({ question: 'Qual o faturamento do mês?' }, { accountId: 'acc-a' });
+        assert.equal(result.managerResponses[0].facts.provider, 'fallback');
+        assert.ok(result.answer.includes('dados disponíveis'));
+        __setAiDirectorManagerProviderOverrideForTests('comercial', null);
       }
     },
     {

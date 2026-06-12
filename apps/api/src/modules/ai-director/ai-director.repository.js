@@ -1,10 +1,24 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestError, DatabaseError, ForbiddenError } from '../../core/errors.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
+import { listClientes } from '../clientes/clientes.repository.js';
+import { listPedidos } from '../pedidos/pedidos.repository.js';
+import { listProdutos } from '../produtos/produtos.repository.js';
+import { listPromocoes } from '../promocoes/promocoes.repository.js';
+import { auditSummary } from '../product-audit/product-audit.repository.js';
+import { getRevenueIntelligence } from '../revenue-intelligence/revenue-intelligence.repository.js';
+import { listAuditLogs } from '../audit-logs/audit-logs.repository.js';
+import { listConversations, listEvents } from '../whatsapp-conversations/whatsapp-conversations.repository.js';
+import { listPendingApprovals } from '../message-approvals/message-approvals.repository.js';
+import { getCustomerSuccess } from '../customer-success/customer-success.repository.js';
+import { getCustomerRetention } from '../customer-retention/customer-retention.repository.js';
+import { getImplementationStatus } from '../implementation-tracker/implementation-tracker.repository.js';
+import { ROLE_PERMISSIONS } from '../../core/permissions.js';
 
 const validTipos = new Set(['observacao', 'alerta', 'oportunidade', 'diagnostico', 'decisao', 'plano_acao']);
 const validPrioridades = new Set(['baixa', 'media', 'alta', 'critica']);
 const memoryStore = [];
+const managerProviderOverrides = new Map();
 const managers = [
   {
     id: 'comercial',
@@ -80,23 +94,9 @@ function normalizeMemoryPayload(data = {}) {
 
 export function getAiDirectorDashboard() {
   return {
-    health: {
-      receita_mes: 124550,
-      pedidos_mes: 358,
-      clientes_ativos: 78,
-      clientes_risco: 15
-    },
-    alerts: [
-      {
-        severity: 'high',
-        title: 'Faturamento caiu 18% nos últimos 15 dias'
-      }
-    ],
-    opportunities: [
-      {
-        title: '12 clientes demonstraram intenção de compra'
-      }
-    ]
+    health: {},
+    alerts: [],
+    opportunities: []
   };
 }
 
@@ -110,70 +110,174 @@ export function getManagerById(managerId) {
   return managers.find((manager) => manager.id === id) || null;
 }
 
-export function consultManager(context = {}, managerId, payload = {}) {
+function normalizeQuestionText(question = '') {
+  return String(question || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function safeNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function formatCurrency(value) {
+  const n = safeNumber(value, 0);
+  return `R$ ${n.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+async function safeCall(label, fn, fallback) {
+  try {
+    return await fn();
+  } catch (error) {
+    return typeof fallback === 'function' ? fallback(error) : fallback;
+  }
+}
+
+function buildCommercialFacts(question, dashboard, customers, orders, revenue, retention, customerSuccess) {
+  const activeCustomers = Array.isArray(customers?.items) ? customers.items.filter((item) => item.ativo !== false) : [];
+  const latestOrders = Array.isArray(orders?.items) ? orders.items : [];
+  const ordersCount = safeNumber(orders?.total ?? latestOrders.length, latestOrders.length);
+  const revenueMonth = safeNumber(revenue?.mrr ?? revenue?.receita30 ?? 0, safeNumber(dashboard?.health?.receita_mes ?? 0, 0));
+  const averageTicket = ordersCount > 0 ? revenueMonth / ordersCount : 0;
+  const customerRiskCount = safeNumber(dashboard?.health?.clientes_risco ?? customerSuccess?.alertas?.length ?? 0, customerSuccess?.alertas?.length ?? 0);
+  const customerActiveCount = safeNumber(dashboard?.health?.clientes_ativos ?? activeCustomers.length, activeCustomers.length);
+  const riskPercent = customerActiveCount > 0 ? Math.round((customerRiskCount / customerActiveCount) * 100) : null;
+  return {
+    clientes_risco: customerRiskCount,
+    clientes_ativos: customerActiveCount,
+    pedidos_mes: ordersCount,
+    receita_mes: revenueMonth,
+    ticket_medio: Math.round(averageTicket),
+    percentual_risco: riskPercent,
+    periodo: 'mês atual',
+    destaque: question.includes('faturamento')
+      ? `Faturamento atual de ${formatCurrency(revenueMonth)} com ${ordersCount} pedido(s).`
+      : `Há ${customerRiskCount} cliente(s) em risco e ${customerActiveCount} ativo(s).`
+  };
+}
+
+function buildProductFacts(products, promotions, audit) {
+  const items = Array.isArray(products?.items) ? products.items : [];
+  const byManufacturer = new Map();
+  for (const item of items) {
+    const key = String(item.fabricante_nome || item.fabricante_nome || item.marca || item.fabricanteId || item.fabricante_id || 'Sem fabricante').trim() || 'Sem fabricante';
+    byManufacturer.set(key, (byManufacturer.get(key) || 0) + 1);
+  }
+  const fabricanteLider = [...byManufacturer.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  return {
+    fabricante_lider: fabricanteLider,
+    promocoes_ativas: Array.isArray(promotions?.items) ? promotions.items.filter((item) => item.ativaAgora).length : 0,
+    produtos_sem_giro: safeNumber(audit?.summary?.comProblemas ?? 0, 0),
+    produtos_criticos: safeNumber(audit?.summary?.criticos ?? 0, 0)
+  };
+}
+
+function buildAuditFacts(auditLogs, auditSummaryResult) {
+  const items = Array.isArray(auditLogs?.items) ? auditLogs.items : [];
+  const critical = items.filter((item) => String(item.status || '').toLowerCase() === 'failed' || String(item.severidade || '').toLowerCase() === 'critical');
+  return {
+    issues_criticas: safeNumber(auditSummaryResult?.criticos ?? critical.length, critical.length),
+    issues_abertas: safeNumber(auditSummaryResult?.comProblemas ?? items.length, items.length),
+    ultimo_alerta: items[0]?.descricao || items[0]?.erro_mensagem || null
+  };
+}
+
+function buildFollowupFacts(conversations, events, approvals, customerSuccess) {
+  const items = Array.isArray(conversations?.items) ? conversations.items : [];
+  const pendingApprovals = Array.isArray(approvals) ? approvals : [];
+  const openConversations = items.filter((item) => String(item.status || '').toLowerCase() === 'open');
+  return {
+    clientes_followup: openConversations.length || pendingApprovals.length,
+    oportunidades_aquecendo: safeNumber(customerSuccess?.alertas?.length ?? events?.length ?? 0, 0),
+    clientes_bloqueados: pendingApprovals.length
+  };
+}
+
+function buildAdministrativeFacts(accountId, rolePermissions = ROLE_PERMISSIONS, implementationStatus = null) {
+  const roles = Object.keys(ROLE_PERMISSIONS).length;
+  const users = safeNumber(implementationStatus?.milestones?.length ?? 0, 0);
+  const alertasPermissoes = (rolePermissions.admin || []).filter((permission) => permission.includes('system') || permission.includes('followup')).length;
+  return {
+    usuarios: users,
+    roles,
+    alertas_permissoes: alertasPermissoes,
+    tenant: accountId || null
+  };
+}
+
+async function collectManagerFacts(managerId, context = {}, question = '') {
+  if (managerProviderOverrides.has(managerId)) {
+    return managerProviderOverrides.get(managerId)({ managerId, context, question });
+  }
+  const accountId = context?.accountId || null;
+  if (!accountId) throw new ForbiddenError('Contexto de tenant obrigatorio', { code: 'TENANT_REQUIRED', domain: 'ai-director' });
+  const dashboard = getAiDirectorDashboard();
+  if (managerId === 'comercial') {
+    const [customers, orders, revenue, retention, customerSuccess] = await Promise.all([
+      safeCall('clientes', () => listClientes({ limit: 200 }, { accountId }), { items: [], total: 0 }),
+      safeCall('pedidos', () => listPedidos({ limit: 200 }, { accountId }), { items: [], total: 0 }),
+      safeCall('revenue', () => getRevenueIntelligence(accountId), {}),
+      safeCall('retention', () => getCustomerRetention(accountId), {}),
+      safeCall('success', () => getCustomerSuccess(accountId), {})
+    ]);
+    return buildCommercialFacts(question, dashboard, customers, orders, revenue, retention, customerSuccess);
+  }
+  if (managerId === 'produtos') {
+    const [products, promotions, audit] = await Promise.all([
+      safeCall('produtos', () => listProdutos({ limit: 200 }, { accountId }), { items: [], total: 0 }),
+      safeCall('promocoes', () => listPromocoes({}, { accountId }), { items: [], total: 0 }),
+      safeCall('audit', () => auditSummary({ accountId }), {})
+    ]);
+    return buildProductFacts(products, promotions, audit);
+  }
+  if (managerId === 'auditoria') {
+    const [logs, audit] = await Promise.all([
+      safeCall('auditLogs', () => listAuditLogs({ limit: 50 }, { accountId }), { items: [], total: 0 }),
+      safeCall('productAudit', () => auditSummary({ accountId }), {})
+    ]);
+    return buildAuditFacts(logs, audit);
+  }
+  if (managerId === 'followup') {
+    const [conversations, approvals, customerSuccess, implementationStatus] = await Promise.all([
+      safeCall('conversations', () => listConversations({ limit: 200 }, { accountId }), { items: [], total: 0 }),
+      safeCall('approvals', () => listPendingApprovals({ accountId }), []),
+      safeCall('success', () => getCustomerSuccess(accountId), {}),
+      safeCall('implementation', () => getImplementationStatus(accountId), {})
+    ]);
+    return buildFollowupFacts(conversations, [], approvals, customerSuccess, implementationStatus);
+  }
+  if (managerId === 'administrativo') {
+    const implementationStatus = await safeCall('implementation', () => getImplementationStatus(accountId), {});
+    return buildAdministrativeFacts(accountId, ROLE_PERMISSIONS, implementationStatus);
+  }
+  return {};
+}
+
+export async function consultManager(context = {}, managerId, payload = {}) {
   assertAccountId(context?.accountId || context?.account_id || null);
   const manager = getManagerById(managerId);
   if (!manager) throw new BadRequestError('manager inexistente');
   const question = normalizeText(payload.question, 'question');
-  const dashboard = getAiDirectorDashboard();
-  const lowerQuestion = question.toLowerCase();
+  const lowerQuestion = normalizeQuestionText(question);
   const facts = {
     manager_id: manager.id,
     manager_nome: manager.nome,
     sources: [...manager.modulos],
     question,
     indicators: {},
-    observations: []
+    observations: [],
+    provider: 'real'
   };
-
-  if (managerId === 'comercial') {
-    facts.indicators = {
-      receita_mes: dashboard.health.receita_mes,
-      pedidos_mes: dashboard.health.pedidos_mes,
-      clientes_ativos: dashboard.health.clientes_ativos,
-      clientes_risco: dashboard.health.clientes_risco
-    };
-    if (lowerQuestion.includes('faturamento') || lowerQuestion.includes('receita')) {
-      facts.observations.push('A receita do mes atual esta abaixo do esperado no painel executivo.');
-    }
-    if (lowerQuestion.includes('risco') || lowerQuestion.includes('cliente')) {
-      facts.observations.push('Ha clientes em risco que merecem priorizacao imediata.');
-    }
-  }
-
-  if (managerId === 'produtos') {
-    facts.indicators = {
-      alertas_produto: dashboard.alerts.length,
-      oportunidades: dashboard.opportunities.length
-    };
-    if (lowerQuestion.includes('fabricante')) {
-      facts.observations.push('A analise deve priorizar fabricantes e mix de vendas.');
-    }
-    if (lowerQuestion.includes('promoc')) {
-      facts.observations.push('As promocoes ativas precisam ser verificadas na camada de catalogo.');
-    }
-  }
-
-  if (managerId === 'auditoria') {
-    facts.indicators = {
-      alertas_criticos: dashboard.alerts.filter((alert) => String(alert.severity || '').toLowerCase() === 'high').length
-    };
-    facts.observations.push('Existe sinal critico de acompanhamento operacional no painel.');
-  }
-
-  if (managerId === 'followup') {
-    facts.indicators = {
-      oportunidades: dashboard.opportunities.length
-    };
-    facts.observations.push('As oportunidades registradas precisam de follow-up comercial.');
-  }
-
-  if (managerId === 'administrativo') {
-    facts.indicators = {
-      alertas: dashboard.alerts.length
-    };
-    facts.observations.push('O foco e governanca e risco operacional.');
-  }
+  const managerFacts = await collectManagerFacts(managerId, context, question).catch((error) => {
+    facts.provider = 'fallback';
+    facts.provider_error = error?.message || 'Falha ao consultar dados reais';
+    return {};
+  });
+  facts.indicators = managerFacts;
+  if (lowerQuestion.includes('faturamento') || lowerQuestion.includes('receita')) facts.observations.push('Acompanhe receita, ticket medio e pedidos do periodo.');
+  if (lowerQuestion.includes('risco') || lowerQuestion.includes('cliente')) facts.observations.push('Priorize reengajamento e reducao de risco da carteira.');
+  if (lowerQuestion.includes('promoc')) facts.observations.push('As promocoes ativas devem ser validadas no catalogo.');
+  if (lowerQuestion.includes('auditoria') || lowerQuestion.includes('erro') || lowerQuestion.includes('inconsist')) facts.observations.push('Vale abrir os alertas criticos e logs mais recentes.');
+  if (lowerQuestion.includes('permiss')) facts.observations.push('Revise permissões e governança do tenant.');
 
   return {
     manager: {
@@ -181,7 +285,7 @@ export function consultManager(context = {}, managerId, payload = {}) {
       nome: manager.nome
     },
     question,
-    summary: `Consulta recebida pelo ${manager.nome}.`,
+    summary: facts.provider === 'real' ? `Consulta consolidada com dados reais pelo ${manager.nome}.` : `Consulta recebida pelo ${manager.nome} com fallback controlado.`,
     status: 'answered',
     sources: [...manager.modulos],
     facts
@@ -255,4 +359,14 @@ export async function createAiDirectorMemory(data = {}, options = {}) {
 
 export function __resetMemoryAiDirectorForTests() {
   memoryStore.length = 0;
+  managerProviderOverrides.clear();
+}
+
+export function __setAiDirectorManagerProviderOverrideForTests(managerId, provider) {
+  if (!managerId) return;
+  if (typeof provider !== 'function') {
+    managerProviderOverrides.delete(managerId);
+    return;
+  }
+  managerProviderOverrides.set(managerId, provider);
 }

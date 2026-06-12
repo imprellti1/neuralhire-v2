@@ -68,7 +68,10 @@ test('ai director page dom', async () => {
             usedMemories: ['1'],
             facts: {
               health: { receita_mes: 124550, pedidos_mes: 358 },
-              managers: []
+              managers: [],
+              managerFacts: [
+                { managerId: 'comercial', summary: 'Dados reais consolidados', provider: 'real', facts: { receita_mes: 124550, pedidos_mes: 358, clientes_risco: 15 } }
+              ]
             },
             status: 'answered'
           };
@@ -109,16 +112,31 @@ test('ai director page dom', async () => {
   assert.match(document.body.textContent, /comercial, followup/);
   assert.match(document.body.textContent, /1/);
   assert.match(document.body.textContent, /answered/);
+  assert.match(document.body.textContent, /124550/);
+  assert.match(document.body.textContent, /clientes_risco/);
   document.querySelector('[data-manager-id="comercial"] input').value = 'Quais clientes estão em risco?';
   document.querySelector('[data-manager-id="comercial"] .manager-consult-button').click();
   await flush();
   await flush();
   assert.match(document.body.textContent, /Consulta recebida pelo Gerente Comercial\./);
+  assert.match(document.body.textContent, /facts/i);
   document.querySelector('#ai-director-memory-titulo').value = 'Nova observacao';
   document.querySelector('#ai-director-memory-conteudo').value = 'Conteudo novo';
   document.querySelector('#ai-director-memory-form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
   await flush();
   await flush();
   assert.ok(calls.some((call) => call.url === '/ai-director/memories'));
+  const errorDom = setupFrontendDom('#/diretor-ia-erro');
+  await renderAiDirectorPage(document.body, {
+    apiClient: {
+      get: async (url) => {
+        if (url === '/ai-director/dashboard') throw new Error('fail');
+        return {};
+      }
+    }
+  });
+  await flush();
+  assert.match(document.body.textContent, /Erro ao carregar o dashboard/);
   teardownFrontendDom(dom);
+  teardownFrontendDom(errorDom);
 });
