@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { __resetMemoryAiDirectorForTests, __setAiDirectorManagerProviderOverrideForTests, consultManager, createAiDirectorMemory, createExecutiveMemory, findRelevantExecutiveMemories, getAiDirectorDashboard, listAiDirectorMemories, listExecutiveMemories, listManagers } from '../../modules/ai-director/ai-director.repository.js';
 import { answerAiDirectorQuestion, delegateAiDirectorQuestion } from '../../modules/ai-director/ai-director.orchestrator.js';
 import { askAiDirectorLlm } from '../../modules/ai-director/ai-director.llm.js';
+import { buildStrategicRadar } from '../../modules/ai-director/ai-director.radar.js';
 import { __resetMemoryClientesForTests, createCliente } from '../../modules/clientes/clientes.repository.js';
 import { __resetMemoryPedidosForTests, createPedido } from '../../modules/pedidos/pedidos.repository.js';
 import { __resetMemoryProdutosForTests, createProduto } from '../../modules/produtos/produtos.repository.js';
@@ -125,6 +126,30 @@ export function getAiDirectorTests() {
         for (let index = 1; index < dashboard.radar.acoesSugeridas.length; index += 1) {
           assert.equal(dashboard.radar.acoesSugeridas[index - 1].ordem < dashboard.radar.acoesSugeridas[index].ordem, true);
         }
+      }
+    },
+    {
+      name: 'buildStrategicRadar executa com contexto minimo sem falhar',
+      run: async () => {
+        const radar = await buildStrategicRadar({});
+        assert.ok(radar);
+        assert.ok(Array.isArray(radar.alertas));
+        assert.ok(Array.isArray(radar.oportunidades));
+        assert.ok(Array.isArray(radar.prioridades));
+        assert.ok(Array.isArray(radar.acoesSugeridas));
+        assert.ok(Array.isArray(radar.observacoesPorModulo));
+        assert.equal(typeof radar.scoreExecutivo.valor, 'number');
+      }
+    },
+    {
+      name: 'radar vazio e parcialmente preenchido mantem shape',
+      run: async () => {
+        const radar = await buildStrategicRadar({ accountId: 'acc-shape', health: { clientes_ativos: 0, clientes_risco: 0, pedidos_mes: 0, receita_mes: 0 } });
+        assert.ok(Array.isArray(radar.observacoesPorModulo));
+        assert.equal(radar.observacoesPorModulo.length, 4);
+        assert.ok(Array.isArray(radar.scoreExecutivo.penalidades));
+        assert.ok(radar.auditoria && typeof radar.auditoria === 'object');
+        assert.ok(radar.auditoria.consistencia && typeof radar.auditoria.consistencia === 'object');
       }
     },
     {

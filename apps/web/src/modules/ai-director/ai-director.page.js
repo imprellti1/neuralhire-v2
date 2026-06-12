@@ -118,6 +118,53 @@ function executiveFactsSummary(facts) {
   return entries;
 }
 
+function normalizeRadarSnapshot(radar = {}) {
+  const scoreExecutivo = radar.scoreExecutivo && typeof radar.scoreExecutivo === 'object' ? radar.scoreExecutivo : {};
+  const pilares = scoreExecutivo.pilares && typeof scoreExecutivo.pilares === 'object' ? scoreExecutivo.pilares : {};
+  const auditoria = radar.auditoria && typeof radar.auditoria === 'object' ? radar.auditoria : {};
+  const consistencia = auditoria.consistencia && typeof auditoria.consistencia === 'object' ? auditoria.consistencia : {};
+  const qualidade = auditoria.qualidade && typeof auditoria.qualidade === 'object' ? auditoria.qualidade : {};
+  return {
+    resumoExecutivo: String(radar.resumoExecutivo || ''),
+    resumoModular: String(radar.resumoModular || ''),
+    observacoesPorModulo: Array.isArray(radar.observacoesPorModulo) ? radar.observacoesPorModulo : [],
+    prioridades: Array.isArray(radar.prioridades) ? radar.prioridades : [],
+    acoesSugeridas: Array.isArray(radar.acoesSugeridas) ? radar.acoesSugeridas : [],
+    alertas: Array.isArray(radar.alertas) ? radar.alertas : [],
+    oportunidades: Array.isArray(radar.oportunidades) ? radar.oportunidades : [],
+    persistenciaInsights: radar.persistenciaInsights && typeof radar.persistenciaInsights === 'object' ? radar.persistenciaInsights : {},
+    auditoria: {
+      versao: String(auditoria.versao || ''),
+      geradoEm: String(auditoria.geradoEm || ''),
+      tempoGeracaoMs: Number(auditoria.tempoGeracaoMs) || 0,
+      fontesUtilizadas: Array.isArray(auditoria.fontesUtilizadas) ? auditoria.fontesUtilizadas : [],
+      consistencia: {
+        scoreValido: Boolean(consistencia.scoreValido),
+        prioridadesValidas: Boolean(consistencia.prioridadesValidas),
+        acoesValidas: Boolean(consistencia.acoesValidas),
+        limitesRespeitados: Boolean(consistencia.limitesRespeitados)
+      },
+      qualidade: {
+        percentualPrioridadesComAcao: Number(qualidade.percentualPrioridadesComAcao) || 0,
+        percentualPrioridadesComGerente: Number(qualidade.percentualPrioridadesComGerente) || 0,
+        percentualObservacoesComResumo: Number(qualidade.percentualObservacoesComResumo) || 0
+      }
+    },
+    scoreExecutivo: {
+      valor: Number(scoreExecutivo.valor) || 0,
+      classificacao: String(scoreExecutivo.classificacao || ''),
+      diagnostico: String(scoreExecutivo.diagnostico || ''),
+      penalidades: Array.isArray(scoreExecutivo.penalidades) ? scoreExecutivo.penalidades : [],
+      pilares: {
+        comercial: pilares.comercial && typeof pilares.comercial === 'object' ? pilares.comercial : null,
+        operacional: pilares.operacional && typeof pilares.operacional === 'object' ? pilares.operacional : null,
+        produtos: pilares.produtos && typeof pilares.produtos === 'object' ? pilares.produtos : null,
+        inteligencia: pilares.inteligencia && typeof pilares.inteligencia === 'object' ? pilares.inteligencia : null
+      }
+    }
+  };
+}
+
 export async function renderAiDirectorPage(container, { apiClient } = {}) {
   const state = createAiDirectorState();
 
@@ -133,14 +180,14 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
 
     const dashboard = state.dashboard || {};
     const health = dashboard.health || {};
-    const radar = dashboard.radar || {};
-    const scoreExecutivo = radar.scoreExecutivo || {};
-    const prioridades = Array.isArray(radar.prioridades) ? radar.prioridades : [];
-    const observacoesPorModulo = Array.isArray(radar.observacoesPorModulo) ? radar.observacoesPorModulo : [];
-    const acoesSugeridas = Array.isArray(radar.acoesSugeridas) ? radar.acoesSugeridas : [];
-    const persistenciaInsights = radar.persistenciaInsights && typeof radar.persistenciaInsights === 'object' ? radar.persistenciaInsights : null;
-    const auditoriaRadar = radar.auditoria && typeof radar.auditoria === 'object' ? radar.auditoria : null;
-    const penalidades = Array.isArray(scoreExecutivo.penalidades) ? scoreExecutivo.penalidades : [];
+    const radar = normalizeRadarSnapshot(dashboard.radar || {});
+    const scoreExecutivo = radar.scoreExecutivo;
+    const prioridades = radar.prioridades;
+    const observacoesPorModulo = radar.observacoesPorModulo;
+    const acoesSugeridas = radar.acoesSugeridas;
+    const persistenciaInsights = radar.persistenciaInsights;
+    const auditoriaRadar = radar.auditoria;
+    const penalidades = scoreExecutivo.penalidades;
     const pilares = scoreExecutivo.pilares || {};
     const pillarEntries = [
       ['Comercial', pilares.comercial],
@@ -156,7 +203,7 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
         </div>
         <div style="font-size: 2rem; font-weight: 800; margin-top: 10px;">${esc(formatRadarMetric(pillar.valor))}</div>
         <div class="nh-mini" style="margin-top: 4px;">Valor do pilar</div>
-        <div class="nh-mini" style="margin-top: 10px;">${esc((Array.isArray(pillar.fatores) ? pillar.fatores : []).slice(0, 2).join(' · ') || 'Sem dados suficientes')}</div>
+          <div class="nh-mini" style="margin-top: 10px;">${esc((Array.isArray(pillar.fatores) ? pillar.fatores : []).slice(0, 2).join(' · ') || 'Sem dados suficientes')}</div>
       </section>
     ` : `
       <section class="nh-card" style="padding: 16px;">

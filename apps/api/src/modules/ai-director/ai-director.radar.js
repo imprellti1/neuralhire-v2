@@ -5,6 +5,78 @@ import { auditSummary } from '../product-audit/product-audit.repository.js';
 import { getRevenueIntelligence } from '../revenue-intelligence/revenue-intelligence.repository.js';
 import { createExecutiveMemory, listExecutiveMemories, listManagers } from './ai-director.repository.js';
 
+const RADAR_STATUS = {
+  SAUDAVEL: 'saudavel',
+  ATENCAO: 'atencao',
+  CRITICO: 'critico'
+};
+
+const RADAR_IMPACT = {
+  ALTO: 'alto',
+  MEDIO: 'medio',
+  BAIXO: 'baixo'
+};
+
+const RADAR_URGENCY = {
+  ALTA: 'alta',
+  MEDIA: 'media',
+  BAIXA: 'baixa'
+};
+
+const RADAR_CLASSIFICATION = {
+  EXCELENTE: 'Excelente',
+  BOA: 'Boa',
+  ATENCAO: 'Atenção',
+  CRITICA: 'Crítica'
+};
+
+const EMPTY_RADAR_SHAPE = {
+  observacoesPorModulo: [],
+  scoreExecutivo: {
+    valor: 0,
+    classificacao: RADAR_CLASSIFICATION.CRITICA,
+    pilares: {
+      comercial: { valor: 0, status: RADAR_STATUS.CRITICO, fatores: [] },
+      operacional: { valor: 0, status: RADAR_STATUS.CRITICO, fatores: [] },
+      produtos: { valor: 0, status: RADAR_STATUS.CRITICO, fatores: [] },
+      inteligencia: { valor: 0, status: RADAR_STATUS.CRITICO, fatores: [] }
+    },
+    penalidades: [],
+    diagnostico: 'Sem diagnóstico disponível.'
+  },
+  resumoModular: 'Nenhum resumo modular disponível no momento.',
+  resumoExecutivo: 'Sem resumo executivo disponível.',
+  alertas: [],
+  oportunidades: [],
+  prioridades: [],
+  acoesSugeridas: [],
+  persistenciaInsights: { candidatos: 0, persistidos: 0, ignorados: 0 },
+  auditoria: {
+    versao: '2.1',
+    geradoEm: new Date(0).toISOString(),
+    tempoGeracaoMs: 0,
+    fontesUtilizadas: [],
+    totalAlertas: 0,
+    totalOportunidades: 0,
+    totalPrioridades: 0,
+    totalAcoes: 0,
+    totalObservacoesModulares: 0,
+    scoreExecutivo: 0,
+    classificacaoExecutiva: RADAR_CLASSIFICATION.CRITICA,
+    consistencia: {
+      scoreValido: true,
+      prioridadesValidas: true,
+      acoesValidas: true,
+      limitesRespeitados: true
+    },
+    qualidade: {
+      percentualPrioridadesComAcao: 0,
+      percentualPrioridadesComGerente: 0,
+      percentualObservacoesComResumo: 0
+    }
+  }
+};
+
 function safeNumber(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
@@ -12,6 +84,10 @@ function safeNumber(value, fallback = 0) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function clampPercent(value) {
+  return clamp(Math.round(safeNumber(value, 0)), 0, 100);
 }
 
 function sanitizeText(value, maxLength = 500) {
@@ -24,18 +100,26 @@ function sanitizeList(list, maxLength = 500) {
   return Array.isArray(list) ? list.map((item) => sanitizeText(item, maxLength)).filter(Boolean) : [];
 }
 
+function ensureArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function ensureObject(value, fallback = {}) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback;
+}
+
 function classificationFromScore(score) {
-  if (score >= 90) return 'Excelente';
-  if (score >= 75) return 'Boa';
-  if (score >= 60) return 'Atenção';
-  return 'Crítica';
+  if (score >= 90) return RADAR_CLASSIFICATION.EXCELENTE;
+  if (score >= 75) return RADAR_CLASSIFICATION.BOA;
+  if (score >= 60) return RADAR_CLASSIFICATION.ATENCAO;
+  return RADAR_CLASSIFICATION.CRITICA;
 }
 
 function pillarStatusFromScore(score) {
   if (score >= 90) return 'excelente';
   if (score >= 75) return 'bom';
-  if (score >= 60) return 'atencao';
-  return 'critico';
+  if (score >= 60) return RADAR_STATUS.ATENCAO;
+  return RADAR_STATUS.CRITICO;
 }
 
 function buildPenalty(origem, pontos, motivo) {
@@ -44,11 +128,11 @@ function buildPenalty(origem, pontos, motivo) {
 }
 
 function buildPillar(value, fatores = []) {
-  const score = clamp(Math.round(value), 0, 100);
+  const score = clampPercent(value);
   return {
     valor: score,
     status: pillarStatusFromScore(score),
-    fatores: fatores.filter(Boolean)
+    fatores: ensureArray(fatores).filter(Boolean)
   };
 }
 
@@ -59,7 +143,7 @@ function moduleStatusFromScore(score) {
 }
 
 function moduleScoreForStatus(status, base = 0) {
-  const safeBase = clamp(Math.round(base), 0, 100);
+  const safeBase = clampPercent(base);
   if (status === 'saudavel') return clamp(Math.max(80, safeBase), 0, 100);
   if (status === 'atencao') return clamp(Math.max(60, safeBase), 0, 100);
   return clamp(Math.min(59, safeBase || 45), 0, 100);
@@ -69,7 +153,7 @@ function buildModuleObservation({ modulo, status, score, resumo, observacoes = [
   return {
     modulo: sanitizeText(modulo, 120),
     status,
-    score: clamp(Math.round(score), 0, 100),
+    score: clampPercent(score),
     resumo: sanitizeText(resumo, 500),
     observacoes: sanitizeList(observacoes, 500),
     gerenteResponsavel: sanitizeText(gerenteResponsavel, 120) || null
@@ -77,12 +161,13 @@ function buildModuleObservation({ modulo, status, score, resumo, observacoes = [
 }
 
 function summarizeModules(modulos = []) {
-  const total = modulos.length;
-  const counts = modulos.reduce((acc, item) => {
+  const items = ensureArray(modulos);
+  const total = items.length;
+  const counts = items.reduce((acc, item) => {
     acc[item.status] = (acc[item.status] || 0) + 1;
     return acc;
   }, { saudavel: 0, atencao: 0, critico: 0 });
-  const principal = [...modulos].sort((a, b) => {
+  const principal = [...items].sort((a, b) => {
     const rank = { critico: 3, atencao: 2, saudavel: 1 };
     if ((rank[b.status] || 0) !== (rank[a.status] || 0)) return (rank[b.status] || 0) - (rank[a.status] || 0);
     return a.score - b.score;
@@ -92,8 +177,9 @@ function summarizeModules(modulos = []) {
 }
 
 function summarizePenalties(penalidades = []) {
-  if (!penalidades.length) return null;
-  const main = penalidades[0];
+  const items = ensureArray(penalidades);
+  if (!items.length) return null;
+  const main = items[0];
   return `O principal impacto está no pilar ${String(main.origem || '').toLowerCase()}, com ${main.motivo.toLowerCase()}`;
 }
 
@@ -122,9 +208,9 @@ function normalizeCategory(value) {
 function normalizeSeverity(value) {
   const text = normalizeText(value);
   if (['critico', 'crítico'].includes(text)) return 'critica';
-  if (text === 'alto' || text === 'alta') return 'alta';
-  if (text === 'medio' || text === 'médio' || text === 'media' || text === 'média') return 'media';
-  return 'baixa';
+  if (text === 'alto' || text === 'alta') return RADAR_URGENCY.ALTA;
+  if (text === 'medio' || text === 'médio' || text === 'media' || text === 'média') return RADAR_URGENCY.MEDIA;
+  return RADAR_URGENCY.BAIXA;
 }
 
 function pickManagerNameByCategory(category) {
@@ -262,20 +348,20 @@ function buildOpportunity(tipo, descricao, origem) {
 
 function normalizeUrgency(value) {
   const text = String(value ?? '').toLowerCase();
-  if (text === 'alta') return 'alta';
-  if (text === 'media' || text === 'média') return 'media';
-  return 'baixa';
+  if (text === 'alta') return RADAR_URGENCY.ALTA;
+  if (text === 'media' || text === 'média') return RADAR_URGENCY.MEDIA;
+  return RADAR_URGENCY.BAIXA;
 }
 
 function normalizeImpact(value) {
   const text = String(value ?? '').toLowerCase();
-  if (text === 'alto' || text === 'alta') return 'alto';
-  if (text === 'medio' || text === 'médio' || text === 'media' || text === 'média') return 'medio';
-  return 'baixo';
+  if (text === 'alto' || text === 'alta') return RADAR_IMPACT.ALTO;
+  if (text === 'medio' || text === 'médio' || text === 'media' || text === 'média') return RADAR_IMPACT.MEDIO;
+  return RADAR_IMPACT.BAIXO;
 }
 
 function clampPriorityWeight(value) {
-  return clamp(Math.round(value), 0, 100);
+  return clampPercent(value);
 }
 
 function impactBonus(impacto) {
@@ -354,6 +440,83 @@ function buildPriority({
   };
 }
 
+function buildEmptyRadarFallback() {
+  return JSON.parse(JSON.stringify(EMPTY_RADAR_SHAPE));
+}
+
+function validateRadarShape(radar = {}) {
+  const fallback = buildEmptyRadarFallback();
+  const source = ensureObject(radar, {});
+  const scoreExecutivo = ensureObject(source.scoreExecutivo, {});
+  const pilares = ensureObject(scoreExecutivo.pilares, {});
+  const persistenciaInsights = ensureObject(source.persistenciaInsights, {});
+  const auditoria = ensureObject(source.auditoria, {});
+  const consistencia = ensureObject(auditoria.consistencia, {});
+  const qualidade = ensureObject(auditoria.qualidade, {});
+  return {
+    ...fallback,
+    ...source,
+    observacoesPorModulo: ensureArray(source.observacoesPorModulo),
+    alertas: ensureArray(source.alertas),
+    oportunidades: ensureArray(source.oportunidades),
+    prioridades: ensureArray(source.prioridades),
+    acoesSugeridas: ensureArray(source.acoesSugeridas),
+    persistenciaInsights: {
+      ...fallback.persistenciaInsights,
+      ...persistenciaInsights,
+      candidatos: clampPercent(persistenciaInsights.candidatos),
+      persistidos: clampPercent(persistenciaInsights.persistidos),
+      ignorados: clampPercent(persistenciaInsights.ignorados)
+    },
+    scoreExecutivo: {
+      ...fallback.scoreExecutivo,
+      ...scoreExecutivo,
+      valor: clampPercent(scoreExecutivo.valor),
+      classificacao: sanitizeText(scoreExecutivo.classificacao, 30) || fallback.scoreExecutivo.classificacao,
+      pilares: {
+        comercial: buildPillar(pilares.comercial?.valor ?? 0, pilares.comercial?.fatores),
+        operacional: buildPillar(pilares.operacional?.valor ?? 0, pilares.operacional?.fatores),
+        produtos: buildPillar(pilares.produtos?.valor ?? 0, pilares.produtos?.fatores),
+        inteligencia: buildPillar(pilares.inteligencia?.valor ?? 0, pilares.inteligencia?.fatores)
+      },
+      penalidades: ensureArray(scoreExecutivo.penalidades),
+      diagnostico: sanitizeText(scoreExecutivo.diagnostico, 500) || fallback.scoreExecutivo.diagnostico
+    },
+    resumoModular: sanitizeText(source.resumoModular, 500) || fallback.resumoModular,
+    resumoExecutivo: sanitizeText(source.resumoExecutivo, 800) || fallback.resumoExecutivo,
+    auditoria: {
+      ...fallback.auditoria,
+      ...auditoria,
+      versao: sanitizeText(auditoria.versao, 20) || fallback.auditoria.versao,
+      geradoEm: sanitizeText(auditoria.geradoEm, 80) || fallback.auditoria.geradoEm,
+      tempoGeracaoMs: Math.max(0, Math.round(safeNumber(auditoria.tempoGeracaoMs, 0))),
+      fontesUtilizadas: sanitizeList(auditoria.fontesUtilizadas, 120),
+      totalAlertas: clampPercent(auditoria.totalAlertas),
+      totalOportunidades: clampPercent(auditoria.totalOportunidades),
+      totalPrioridades: clampPercent(auditoria.totalPrioridades),
+      totalAcoes: clampPercent(auditoria.totalAcoes),
+      totalObservacoesModulares: clampPercent(auditoria.totalObservacoesModulares),
+      scoreExecutivo: clampPercent(auditoria.scoreExecutivo),
+      classificacaoExecutiva: sanitizeText(auditoria.classificacaoExecutiva, 30) || fallback.auditoria.classificacaoExecutiva,
+      consistencia: {
+        ...fallback.auditoria.consistencia,
+        ...consistencia,
+        scoreValido: Boolean(consistencia.scoreValido),
+        prioridadesValidas: Boolean(consistencia.prioridadesValidas),
+        acoesValidas: Boolean(consistencia.acoesValidas),
+        limitesRespeitados: Boolean(consistencia.limitesRespeitados)
+      },
+      qualidade: {
+        ...fallback.auditoria.qualidade,
+        ...qualidade,
+        percentualPrioridadesComAcao: clampPercent(qualidade.percentualPrioridadesComAcao),
+        percentualPrioridadesComGerente: clampPercent(qualidade.percentualPrioridadesComGerente),
+        percentualObservacoesComResumo: clampPercent(qualidade.percentualObservacoesComResumo)
+      }
+    }
+  };
+}
+
 function buildPriorityCandidate({
   titulo,
   impacto,
@@ -366,7 +529,7 @@ function buildPriorityCandidate({
   severidade = null,
   numericBoost = 0
 }) {
-  const peso = basePeso + impactBonus(impacto) + urgencyBonus(urgencia) + severityBonus(severidade) + quantBonus(numericBoost);
+  const peso = clampPriorityWeight(basePeso + impactBonus(impacto) + urgencyBonus(urgencia) + severityBonus(severidade) + quantBonus(numericBoost));
   return buildPriority({ titulo, impacto, urgencia, motivo, origem, acaoRecomendada, gerenteSugerido, peso });
 }
 
@@ -782,7 +945,7 @@ export async function buildStrategicRadar(context = {}) {
   if (persistenciaInsights && persistenciaInsights.candidatos > 0) fontesUtilizadas.add('executive_memories');
   if (prioridades.length) fontesUtilizadas.add('followup');
 
-  const scoreExecutivoValido = clamp(Number.isFinite(score) ? Math.round(score) : 0, 0, 100);
+  const scoreExecutivoValido = clampPercent(score);
   const classificacaoExecutiva = classificationFromScore(scoreExecutivoValido);
   const tempoGeracaoMs = Math.max(0, Date.now() - radarStart);
   const auditoria = {
@@ -804,13 +967,13 @@ export async function buildStrategicRadar(context = {}) {
       limitesRespeitados: prioridades.length <= 7 && acoesSugeridas.length <= 5
     },
     qualidade: {
-      percentualPrioridadesComAcao: prioridades.length ? Math.round((prioridades.filter((priority) => Boolean(priority?.acaoRecomendada)).length / prioridades.length) * 100) : 0,
-      percentualPrioridadesComGerente: prioridades.length ? Math.round((prioridades.filter((priority) => Boolean(priority?.gerenteSugerido)).length / prioridades.length) * 100) : 0,
-      percentualObservacoesComResumo: observacoesPorModulo.length ? Math.round((observacoesPorModulo.filter((item) => Boolean(item?.resumo)).length / observacoesPorModulo.length) * 100) : 0
+      percentualPrioridadesComAcao: prioridades.length ? clampPercent((prioridades.filter((priority) => Boolean(priority?.acaoRecomendada)).length / prioridades.length) * 100) : 0,
+      percentualPrioridadesComGerente: prioridades.length ? clampPercent((prioridades.filter((priority) => Boolean(priority?.gerenteSugerido)).length / prioridades.length) * 100) : 0,
+      percentualObservacoesComResumo: observacoesPorModulo.length ? clampPercent((observacoesPorModulo.filter((item) => Boolean(item?.resumo)).length / observacoesPorModulo.length) * 100) : 0
     }
   };
 
-  return {
+  return validateRadarShape({
     observacoesPorModulo,
     scoreExecutivo: {
       valor: scoreExecutivoValido,
@@ -836,5 +999,5 @@ export async function buildStrategicRadar(context = {}) {
     acoesSugeridas,
     persistenciaInsights,
     auditoria
-  };
+  });
 }

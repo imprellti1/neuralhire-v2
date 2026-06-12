@@ -112,14 +112,49 @@ function normalizeExecutiveMemoryPayload(data = {}) {
 export async function getAiDirectorDashboard(context = {}) {
   const radar = await buildStrategicRadar(context).catch(() => ({
     observacoesPorModulo: [],
-    scoreExecutivo: { valor: 100, classificacao: 'Excelente' },
-    resumoExecutivo: 'Radar Estratégico indisponível no momento.',
-    resumoModular: 'Nenhuma observação modular disponível no momento.',
+    scoreExecutivo: {
+      valor: 0,
+      classificacao: 'Crítica',
+      pilares: {
+        comercial: { valor: 0, status: 'critico', fatores: [] },
+        operacional: { valor: 0, status: 'critico', fatores: [] },
+        produtos: { valor: 0, status: 'critico', fatores: [] },
+        inteligencia: { valor: 0, status: 'critico', fatores: [] }
+      },
+      penalidades: [],
+      diagnostico: 'Sem diagnóstico disponível.'
+    },
+    resumoExecutivo: 'Sem resumo executivo disponível.',
+    resumoModular: 'Nenhum resumo modular disponível no momento.',
     alertas: [],
     oportunidades: [],
     prioridades: [],
     acoesSugeridas: [],
-    persistenciaInsights: { candidatos: 0, persistidos: 0, ignorados: 0 }
+    persistenciaInsights: { candidatos: 0, persistidos: 0, ignorados: 0 },
+    auditoria: {
+      versao: '2.1',
+      geradoEm: new Date(0).toISOString(),
+      tempoGeracaoMs: 0,
+      fontesUtilizadas: [],
+      totalAlertas: 0,
+      totalOportunidades: 0,
+      totalPrioridades: 0,
+      totalAcoes: 0,
+      totalObservacoesModulares: 0,
+      scoreExecutivo: 0,
+      classificacaoExecutiva: 'Crítica',
+      consistencia: {
+        scoreValido: true,
+        prioridadesValidas: true,
+        acoesValidas: true,
+        limitesRespeitados: true
+      },
+      qualidade: {
+        percentualPrioridadesComAcao: 0,
+        percentualPrioridadesComGerente: 0,
+        percentualObservacoesComResumo: 0
+      }
+    }
   }));
   return {
     health: {},
