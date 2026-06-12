@@ -105,16 +105,15 @@ export function getClientesCommercialHistoryTests() {
         __resetPedidosImportSessionsForTests();
         const app = createApiApp();
         __loadMemoryClientes([
-          { id: 'c7', account_id: 'acc-hist-import', nome: 'Cliente A', metadata: { codigo_cliente_fabricante: 'CLI-001' }, status_comercial: 'inativo' },
-          { id: 'c8', account_id: 'acc-hist-import', nome: 'Cliente B', metadata: { codigo_cliente_fabricante: 'CLI-002' }, status_comercial: 'inativo' }
+          { id: 'c7', account_id: 'acc-hist-import', nome: 'Cliente A', codigo: 'CLI-001', status_comercial: 'inativo' },
+          { id: 'c8', account_id: 'acc-hist-import', nome: 'Cliente B', codigo: 'CLI-002', status_comercial: 'inativo' }
         ]);
         __loadMemoryPedidos({ pedidos: [
-          { id: 'p7', account_id: 'acc-hist-import', cliente_id: 'c7', numero: 'PED-OLD', status: 'confirmado', data_emissao: '2026-01-01T00:00:00.000Z' },
-          { id: 'p8', account_id: 'acc-hist-import', cliente_id: 'c8', numero: 'PED-OLD-B', status: 'confirmado', data_emissao: '2025-01-01T00:00:00.000Z' }
+          { id: 'p7', account_id: 'acc-hist-import', cliente_id: 'c7', numero: 'PED-OLD', status: 'confirmado', data_emissao: '2026-01-01T00:00:00.000Z' }
         ] });
         const base64 = makeWorkbook([
-          { Cliente: 'CLI-001', Número: 'PED-001', Status: 'confirmado' },
-          { Cliente: 'CLI-001', Número: 'PED-002', Status: 'faturado' }
+          { Cliente: 'CLI-001', 'Número ERP': 'PED-001', Situação: 'Cancelado' },
+          { Cliente: 'CLI-001', 'Número ERP': 'PED-002', Situação: 'Faturado Total' }
         ]);
         const preview = await call(app, { method: 'POST', url: '/pedidos/importacao/preview', role: 'admin', accountId: 'acc-hist-import', body: { arquivo: { fileName: 'Pedidos.xlsx', base64 } } });
         const execute = await call(app, { method: 'POST', url: '/pedidos/importacao', role: 'admin', accountId: 'acc-hist-import', body: { importToken: preview.body.importToken } });

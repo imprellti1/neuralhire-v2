@@ -43,6 +43,27 @@ function parseMoney(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function normalizeSnakeCase(value) {
+  return normalizeText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function normalizeSituacaoPedido(value) {
+  const raw = normalizeText(value);
+  if (!raw) return { status: 'rascunho', original: null };
+  const mapped = {
+    'faturado total': 'faturado_total',
+    'faturado parcial': 'faturado_parcial',
+    cancelado: 'cancelado',
+    rejeitado: 'rejeitado',
+    estornado: 'estornado'
+  };
+  const normalizedKey = raw.toLowerCase();
+  return { status: mapped[normalizedKey] || normalizeSnakeCase(raw) || 'rascunho', original: raw };
+}
+
 function parseWorkbook(buffer) {
   if (!buffer) throw new BadRequestError('Arquivo XLSX obrigatorio', { domain: 'pedidos-import', code: 'INVALID_XLSX' });
   let workbook;
@@ -117,11 +138,13 @@ function buildRow(headers, row, rowNumber) {
     const idx = pickHeaderIndex(headers, [name]);
     return idx >= 0 ? row[idx] : '';
   };
+  const situacao = normalizeSituacaoPedido(get('Situação') || get('Situacao') || get('Status'));
   return {
     rowNumber,
     numero: normalizeText(get('Número ERP') || get('Número') || get('Numero') || get('Pedido')),
     clienteCodigo: normalizeText(get('Cliente')),
-    status: normalizeText(get('Status')) || 'rascunho',
+    status: situacao.status,
+    situacaoOriginal: situacao.original,
     observacoes: normalizeText(get('Observações') || get('Observacoes')) || null,
     subtotal: parseMoney(get('Subtotal')),
     desconto: parseMoney(get('Desconto')),
@@ -166,6 +189,7 @@ async function createPedidoImportRecord(row, accountId) {
       total: row.total ?? 0,
       metadata: {
         ...row.metadata,
+        situacao_original: row.situacaoOriginal || null,
         importacao: {
           origem: 'planilha',
           linha: row.rowNumber,
