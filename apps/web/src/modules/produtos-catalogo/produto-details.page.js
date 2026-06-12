@@ -126,6 +126,7 @@ function getPromocaoStatusNormalized(promocao = {}) {
   return promocao.ativaAgora ? 'ativa' : 'inativa';
 }
 function isPromocaoVigente(promocao = {}) {
+  if (promocao.ativaAgora === true) return true;
   if (getPromocaoStatusNormalized(promocao) !== 'ativa') return false;
   const today = promocao.todayDateOnly || todayDateOnly();
   const inicio = normalizePromoDate(promocao.data_inicio);

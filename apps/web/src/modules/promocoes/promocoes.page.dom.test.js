@@ -840,7 +840,7 @@ test('promoções: ao editar promoção hidratada, remover Produto A não deixa 
       if (path === '/produtos/prod-a') return { item: { id: 'prod-a', nome: 'Produto A', descricao: 'Descricao A', preco: 100 } };
       if (path === '/produtos/prod-b') return { item: { id: 'prod-b', nome: 'Produto B', descricao: 'Descricao B', preco: 120 } };
       if (path === '/produtos/prod-a/variacoes') return { items: [{ id: 'a1', produto_id: 'prod-a', sku: 'A1', cor: 'Azul', grade: 'G', preco: 100, estoque: 5 }] };
-      if (path === '/produtos/prod-b/variacoes') return { items: [{ id: 'b1', produto_id: 'prod-b', sku: 'B1', cor: 'Preto', grade: 'M', preco: 120, estoque: 3 }] };
+      if (path === '/produtos/prod-b/variacoes') return { items: [] };
       return { items: [], total: 0 };
     },
     post: async (path) => {

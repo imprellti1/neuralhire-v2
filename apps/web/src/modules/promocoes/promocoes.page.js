@@ -360,6 +360,71 @@ function getProductById(form, productId) {
   return normalizeFormProducts(form).find((item) => String(item.id) === String(productId)) || null;
 }
 
+function isValidVariationRecord(variacao = {}, produtoId = '') {
+  const variacaoId = String(variacao.id || variacao.variacao_id || variacao.variacaoId || '').trim();
+  const linkedProdutoId = String(variacao.produto_id || variacao.produtoId || '').trim();
+  if (!variacaoId) return false;
+  if (linkedProdutoId && produtoId && linkedProdutoId !== String(produtoId)) return false;
+  return true;
+}
+
+async function rehydratePromotionProduct(apiClient, produto = {}) {
+  const produtoId = String(produto.produto_id || produto.id || '').trim();
+  if (!produtoId) return normalizePromotionItem(produto);
+  try {
+    const [details, variations] = await Promise.all([
+      apiClient.get(`/produtos/${produtoId}`),
+      apiClient.get(`/produtos/${produtoId}/variacoes`)
+    ]);
+    const variacoesReais = (Array.isArray(variations?.items) ? variations.items : [])
+      .filter((variacao) => isValidVariationRecord(variacao, produtoId) && hasEstoqueDisponivel(variacao))
+      .map((variacao) => ({
+        ...variacao,
+        selecionada: false,
+        percentualDesconto: ''
+      }));
+    const selectedIds = new Set((Array.isArray(produto.variacoes) ? produto.variacoes : [])
+      .map((variacao) => String(variacao.variacao_id || variacao.variacaoId || variacao.id || '').trim())
+      .filter(Boolean));
+    const selectedVariacoes = variacoesReais.map((variacao) => {
+      const saved = (Array.isArray(produto.variacoes) ? produto.variacoes : []).find((item) => String(item.variacao_id || item.variacaoId || item.id || '').trim() === String(variacao.id));
+      return {
+        ...variacao,
+        selecionada: selectedIds.has(String(variacao.id)),
+        percentualDesconto: saved?.percentualDesconto ?? saved?.percentual_desconto ?? variacao.percentualDesconto ?? variacao.percentual_desconto ?? ''
+      };
+    });
+    const invalidSaved = (Array.isArray(produto.variacoes) ? produto.variacoes : []).some((variacao) => !variacoesReais.some((item) => String(item.id) === String(variacao.variacao_id || variacao.variacaoId || variacao.id)));
+    return {
+      ...normalizePromotionItem({
+        ...produto,
+        ...details?.item,
+        id: produtoId,
+        produto_id: produtoId,
+        nome: details?.item?.nome || produto.nome || '',
+        descricao: details?.item?.descricao || produto.descricao || '',
+        variacoes_disponiveis: selectedVariacoes,
+        variacoesSelecionadas: Array.isArray(produto.variacoes) ? produto.variacoes : []
+      }),
+      rehydrationError: invalidSaved ? 'Esta promoção possui uma variação inválida ou removida para este produto.' : ''
+    };
+  } catch {
+    return {
+      ...normalizePromotionItem(produto),
+      rehydrationError: 'Esta promoção possui uma variação inválida ou removida para este produto.'
+    };
+  }
+}
+
+async function rehydratePromotionProducts(apiClient, produtos = []) {
+  const list = Array.isArray(produtos) ? produtos : [];
+  const hydrated = [];
+  for (const produto of list) {
+    hydrated.push(await rehydratePromotionProduct(apiClient, produto));
+  }
+  return hydrated;
+}
+
 function normalizePromotionItem(item = {}) {
   const variacoes = Array.isArray(item.variacoes_disponiveis) && item.variacoes_disponiveis.length
     ? item.variacoes_disponiveis
@@ -569,6 +634,7 @@ function renderForm(state) {
   const selectedCount = variacoes.filter((variacao) => variacao.selecionada).length;
   const canAdd = Boolean(produtoAtivo?.id);
   const hasInvalidItem = produtosSelecionados.some((produto) => getItemResumoDesconto(produto, globalPercentual) === null);
+  const hasRehydrationError = produtosSelecionados.some((produto) => Boolean(produto.rehydrationError));
   const invalidSelectedVariationIds = getInvalidSelectedVariationIds(editor);
   const variationError = editor.error || (showSpecific && invalidSelectedVariationIds.length ? 'Informe um desconto válido para todas as variações selecionadas.' : '');
   const variationLoading = showSpecific && editor.variacoesLoading && produtoAtivo?.id && String(editor.variacoesProdutoId || '') === String(produtoAtivo.id);
@@ -576,7 +642,7 @@ function renderForm(state) {
   const canAddItem = Boolean(produtoAtivo?.id) && !variationLoading;
   const addItemLabel = variationLoading ? 'Carregando variações...' : 'Adicionar à promoção';
   const addItemHint = showSpecific && produtoAtivo?.id && !variationLoading && !variacoes.length ? 'Carregue as variações antes de adicionar este produto.' : showSpecific && produtoAtivo?.id && !variationLoading && !selectedCount ? 'Selecione pelo menos uma variação para adicionar este produto à promoção.' : '';
-  const saveDisabled = !produtosSelecionados.length || hasInvalidItem || !String(state.form.nome || '').trim() || !state.form.data_inicio || !state.form.data_fim || !String(state.form.status || '').trim();
+  const saveDisabled = !produtosSelecionados.length || hasInvalidItem || hasRehydrationError || !String(state.form.nome || '').trim() || !state.form.data_inicio || !state.form.data_fim || !String(state.form.status || '').trim();
   return `<section class="nhp-panel nhp-form">
     <div>
       <h2 style="margin:0;font-size:20px">Formulário</h2>
@@ -664,6 +730,7 @@ function renderForm(state) {
             <div class="nhp-item-stack">
               <strong>${formatProductLabel(produto)}</strong>
               <span>${scope} • ${vars.filter((v) => v.selecionada).length} variação(ões) • ${formatPercentValue(desconto ?? globalPercentual)}</span>
+              ${produto.rehydrationError ? `<small style="color:#b42318">${produto.rehydrationError}</small>` : ''}
             </div>
             <div class="nhp-actions">
               <button type="button" class="nhp-btn secondary nhp-edit-item" data-product-id="${produto.id}">Editar</button>
@@ -966,27 +1033,30 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
       render();
     });
     root.querySelectorAll('.nhp-edit-item').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-product-id');
         const selected = state.form.produtos.find((item) => String(item.produto_id) === String(id));
         if (!selected) return;
+        const hydratedProducts = await rehydratePromotionProducts(apiClient, state.form.produtos);
+        state.form.produtos = hydratedProducts;
+        const hydrated = hydratedProducts.find((produto) => String(produto.produto_id) === String(id)) || selected;
         state.form.itemEditor = {
-          produto: { id: selected.produto_id, nome: selected.nome, descricao: selected.descricao },
-          produto_id: selected.produto_id,
-          escopo: selected.aplicar_em_todas_variacoes !== false ? 'all' : 'specific',
-          aplicar_em_todas_variacoes: selected.aplicar_em_todas_variacoes !== false,
-          percentual_desconto: selected.percentual_desconto ?? '',
-          variacoes_disponiveis: (selected.variacoes_disponiveis || []).filter(hasEstoqueDisponivel).map((variacao) => ({
+          produto: { id: hydrated.produto_id, nome: hydrated.nome, descricao: hydrated.descricao },
+          produto_id: hydrated.produto_id,
+          escopo: hydrated.aplicar_em_todas_variacoes !== false ? 'all' : 'specific',
+          aplicar_em_todas_variacoes: hydrated.aplicar_em_todas_variacoes !== false,
+          percentual_desconto: hydrated.percentual_desconto ?? '',
+          variacoes_disponiveis: (hydrated.variacoes_disponiveis || []).filter(hasEstoqueDisponivel).map((variacao) => ({
             ...variacao,
-            selecionada: true,
+            selecionada: Boolean(variacao.selecionada),
             percentualDesconto: variacao.percentualDesconto ?? variacao.percentual_desconto ?? ''
           })),
-          variacao_ids: Array.isArray(selected.variacao_ids) ? selected.variacao_ids : [],
-          selectedVariationIds: Array.isArray(selected.selectedVariationIds) ? selected.selectedVariationIds : Array.isArray(selected.variacao_ids) ? selected.variacao_ids : [],
-          variacoesSelecionadas: Array.isArray(selected.variacoesSelecionadas) ? selected.variacoesSelecionadas : [],
-          descontosPorVariacao: selected.descontosPorVariacao || {},
+          variacao_ids: Array.isArray(hydrated.variacao_ids) ? hydrated.variacao_ids : [],
+          selectedVariationIds: Array.isArray(hydrated.selectedVariationIds) ? hydrated.selectedVariationIds : Array.isArray(hydrated.variacao_ids) ? hydrated.variacao_ids : [],
+          variacoesSelecionadas: Array.isArray(hydrated.variacoesSelecionadas) ? hydrated.variacoesSelecionadas : [],
+          descontosPorVariacao: hydrated.descontosPorVariacao || {},
           feedback: '',
-          error: ''
+          error: hydrated.rehydrationError || ''
         };
         state.productSearchOpen = false;
         render();
@@ -1055,6 +1125,12 @@ export function renderPromocoesPage(root, { apiClient } = {}) {
         const invalidItem = state.form.produtos.find((produto) => getItemResumoDesconto(produto, globalPercentual) === null);
         if (invalidItem) {
           state.form.itemEditor.error = 'Informe um desconto válido para o item da promoção.';
+          render();
+          return;
+        }
+        const invalidHydrated = state.form.produtos.find((produto) => Boolean(produto.rehydrationError));
+        if (invalidHydrated) {
+          state.form.itemEditor.error = invalidHydrated.rehydrationError;
           render();
           return;
         }
