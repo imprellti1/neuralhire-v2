@@ -86,6 +86,7 @@ const suiteSpecs = [
   ['Approval Intelligence', './approval-intelligence.test.js', 'getApprovalIntelligenceTests'],
   ['Portfolio Dashboard', './portfolio-dashboard.test.js', 'getPortfolioDashboardTests'],
   ['Legacy Import', './legacy-import.test.js', 'getLegacyImportTests'],
+  ['Clientes Import', './clientes-import.test.js', 'getClientesImportTests'],
   ['Legacy Import Staging', './legacy-import-staging.test.js', 'getLegacyImportStagingTests'],
   ['Legacy Import Approval', './legacy-import-approval.test.js', 'getLegacyImportApprovalTests'],
   ['Legacy Import Promotion', './legacy-import-promotion.test.js', 'getLegacyImportPromotionTests'],

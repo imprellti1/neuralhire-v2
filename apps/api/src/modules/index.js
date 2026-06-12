@@ -8,6 +8,8 @@ import { registerProdutosImportRoutes } from './produtos/produtos-import.routes.
 import { produtosModule } from './produtos/produtos.module.js';
 import { registerPriceTableImportRoutes } from './price-table-import/price-table-import.routes.js';
 import { priceTableImportModule } from './price-table-import/price-table-import.module.js';
+import { registerClientesImportRoutes } from './clientes-import/clientes-import.routes.js';
+import { clientesImportModule } from './clientes-import/clientes-import.module.js';
 import { registerProdutoCategoriasRoutes } from './produto-categorias/produto-categorias.routes.js';
 import { produtoCategoriasModule } from './produto-categorias/produto-categorias.module.js';
 import { registerPedidosRoutes } from './pedidos/pedidos.routes.js';
@@ -81,7 +83,7 @@ export const registeredModules = [
   customerSuccessTimelineModule, customerRetentionModule, executiveDashboardModule, executivePortfolioAnalyticsModule,
   revenueIntelligenceModule, portfolioDashboardModule, legacyImportModule, customerMemoryModule,
   whatsappConversationsModule, messageDraftsModule, messageApprovalsModule, approvalIntelligenceModule, whatsappDeliveryModule, commercialAgentModule, fabricantesModule, vendedoresModule,
-  priceTableImportModule
+  priceTableImportModule, clientesImportModule
   ,productAuditModule, productEditorModule, produtoImagensModule, auditLogsModule
   ,promocoesModule, aiDirectorModule
 ];
@@ -90,6 +92,7 @@ export function registerModules(router, options = {}) {
   registerHealthRoutes(router); registerSystemRoutes(router, { registeredModules, globalMiddlewares: options.globalMiddlewares || [] });
   registerClientesRoutes(router); registerProdutosRoutes(router); registerProdutosImportRoutes(router); registerPedidosRoutes(router); registerAnalyticsRoutes(router);
   registerPriceTableImportRoutes(router);
+  registerClientesImportRoutes(router);
   registerProdutoCategoriasRoutes(router);
   registerInterestLeadsRoutes(router); registerBillingRoutes(router); registerOnboardingRoutes(router); registerAccountActivationRoutes(router);
   registerImplementationTrackerRoutes(router); registerCustomerSuccessRoutes(router); registerCustomerSuccessAutomationRoutes(router);

@@ -29,6 +29,7 @@ const groups = [
     'src/modules/portfolio-dashboard/portfolio-dashboard.page.dom.test.js',
     'src/modules/portfolio-dashboard/portfolio-dashboard.routes.smoke.test.js',
     'src/modules/legacy-import/legacy-import.page.dom.test.js',
+    'src/modules/clientes-import/clientes-import.page.dom.test.js',
     'src/modules/legacy-import/legacy-import-audit.dom.test.js',
     'src/modules/legacy-import/legacy-import-audit-report.dom.test.js',
     'src/modules/legacy-import/legacy-import-approval.dom.test.js',
