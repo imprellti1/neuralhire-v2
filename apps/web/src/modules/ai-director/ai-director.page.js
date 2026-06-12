@@ -23,16 +23,61 @@ function managerNamesFor(ids, managers = []) {
   return ids.map((id) => map.get(id) || id);
 }
 
-function formatExecutiveDate(value) {
-  if (!value) return '';
+function formatCompactDate(value) {
+  if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString('pt-BR');
+  return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatMoney(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return '—';
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(numeric);
+}
+
+function formatCount(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return '—';
+  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(numeric);
 }
 
 function executiveMemoryMatchesFilter(memory, filter) {
   if (!filter || filter === 'all') return true;
   return String(memory?.categoria || '').toLowerCase() === filter;
+}
+
+function severityClass(value) {
+  const normalized = String(value || '').toLowerCase();
+  if (['high', 'alta', 'critica', 'crítica'].includes(normalized)) return 'danger';
+  if (['medium', 'media', 'média'].includes(normalized)) return 'warning';
+  if (['low', 'baixa'].includes(normalized)) return 'success';
+  return 'muted';
+}
+
+function safeSlice(list = [], max = 3) {
+  const items = Array.isArray(list) ? list : [];
+  const shown = items.slice(0, max);
+  const rest = Math.max(items.length - shown.length, 0);
+  return { shown, rest };
+}
+
+function executiveFactsSummary(facts) {
+  if (!facts || typeof facts !== 'object') return [];
+  const entries = [];
+  for (const [key, value] of Object.entries(facts)) {
+    let display = '—';
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      display = Object.keys(value).slice(0, 3).map((innerKey) => `${innerKey}: ${value[innerKey]}`).join(' · ') || '—';
+    } else if (Array.isArray(value)) {
+      display = value.slice(0, 3).map((item) => (typeof item === 'string' ? item : JSON.stringify(item))).join(' · ') || '—';
+    } else {
+      display = String(value);
+    }
+    entries.push({ key, value: display });
+    if (entries.length >= 4) break;
+  }
+  return entries;
 }
 
 export async function renderAiDirectorPage(container, { apiClient } = {}) {
@@ -58,125 +103,254 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
     const form = state.memoryForm || {};
     const delegation = state.delegationResult || {};
     const askResult = state.askResult || {};
+    const topManagers = managers;
+    const executiveFacts = executiveFactsSummary(askResult.facts);
 
     container.innerHTML = `
-      <section style="display:grid;gap:20px">
-        <header>
-          <h1>Diretor IA</h1>
-          <p>Painel executivo de observação do negócio.</p>
-        </header>
-        <article>
-          <h2>Saúde do Negócio</h2>
-          <div data-testid="health-grid" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
-            <div><strong>Receita do mês</strong><div>${esc(health.receita_mes ?? 0)}</div></div>
-            <div><strong>Pedidos do mês</strong><div>${esc(health.pedidos_mes ?? 0)}</div></div>
-            <div><strong>Clientes ativos</strong><div>${esc(health.clientes_ativos ?? 0)}</div></div>
-            <div><strong>Clientes em risco</strong><div>${esc(health.clientes_risco ?? 0)}</div></div>
+      <section style="--nh-bg:#071129;--nh-panel:rgba(10,18,43,.82);--nh-panel-strong:rgba(8,15,35,.94);--nh-border:rgba(122,146,255,.18);--nh-text:#eaf1ff;--nh-muted:#9cb0db;--nh-accent:#7c5cff;--nh-good:#4ce38a;--nh-warn:#ffb347;--nh-bad:#ff6b6b;display:grid;gap:18px;padding:10px;color:var(--nh-text);background:radial-gradient(circle at top right, rgba(124,92,255,.24), transparent 30%), radial-gradient(circle at left center, rgba(0,212,255,.12), transparent 26%), linear-gradient(180deg, rgba(5,10,24,.98), rgba(8,14,33,.98));border:1px solid var(--nh-border);border-radius:28px;box-shadow:0 30px 80px rgba(0,0,0,.35);">
+        <style>
+          .nh-shell { display: grid; gap: 18px; }
+          .nh-card, .nh-panel, .nh-box { background: linear-gradient(180deg, rgba(12,22,48,.96), rgba(8,15,34,.92)); border: 1px solid var(--nh-border); border-radius: 20px; box-shadow: inset 0 1px 0 rgba(255,255,255,.03); }
+          .nh-card { padding: 18px; }
+          .nh-grid-4 { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+          .nh-grid-2 { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+          .nh-flex { display:flex; gap: 12px; }
+          .nh-between { display:flex; justify-content:space-between; align-items:flex-start; gap: 12px; }
+          .nh-muted { color: var(--nh-muted); }
+          .nh-kpi-value { font-size: 2rem; font-weight: 700; line-height: 1.1; }
+          .nh-kpi-label { font-size: .82rem; text-transform: uppercase; letter-spacing: .08em; color: var(--nh-muted); }
+          .nh-kpi-delta { margin-top: 8px; color: #7bff9e; font-size: .9rem; }
+          .nh-title { font-size: 2.8rem; line-height: .95; margin: 0; letter-spacing: -0.04em; }
+          .nh-subtitle { margin: 6px 0 0; color: var(--nh-muted); font-size: 1rem; }
+          .nh-pill { display:inline-flex; align-items:center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: rgba(255,255,255,.04); border:1px solid var(--nh-border); color: var(--nh-muted); font-size: .84rem; }
+          .nh-input, .nh-select, .nh-textarea { width:100%; box-sizing:border-box; border-radius: 16px; border: 1px solid rgba(124, 92, 255, .3); background: rgba(4, 10, 24, .85); color: var(--nh-text); padding: 14px 16px; outline: none; }
+          .nh-button { border: 0; border-radius: 16px; padding: 14px 18px; color: white; background: linear-gradient(135deg, var(--nh-accent), #3f7cff); box-shadow: 0 18px 30px rgba(71, 102, 255, .24); cursor: pointer; }
+          .nh-button:disabled { opacity: .65; cursor: wait; }
+          .nh-section-title { margin: 0; font-size: 1.15rem; }
+          .nh-section-subtitle { margin: 4px 0 0; color: var(--nh-muted); font-size: .92rem; }
+          .nh-divider { border-top: 1px solid rgba(124,146,255,.12); margin: 16px 0; }
+          .nh-badge { display:inline-flex; align-items:center; gap: 6px; padding: 6px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600; border: 1px solid transparent; }
+          .nh-badge.danger { color: #ff8f8f; background: rgba(255, 91, 91, .12); border-color: rgba(255, 91, 91, .2); }
+          .nh-badge.warning { color: #ffd08b; background: rgba(255, 179, 71, .12); border-color: rgba(255, 179, 71, .2); }
+          .nh-badge.success { color: #85f0ad; background: rgba(76, 227, 138, .12); border-color: rgba(76, 227, 138, .2); }
+          .nh-badge.muted { color: #c4d0f5; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.08); }
+          .nh-table { width:100%; border-collapse: collapse; }
+          .nh-table th, .nh-table td { text-align:left; padding: 12px 10px; border-bottom: 1px solid rgba(124,146,255,.1); vertical-align: top; }
+          .nh-table th { color: var(--nh-muted); font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
+          .nh-mini { font-size: .82rem; color: var(--nh-muted); }
+          .nh-scroll { max-height: 360px; overflow: auto; }
+          .nh-manager-grid { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+          .nh-manager-card { padding: 16px; border-radius: 18px; background: rgba(255,255,255,.03); border: 1px solid rgba(124,146,255,.12); display:grid; gap: 10px; }
+          .nh-list { display:grid; gap: 10px; }
+          .nh-list-item { padding: 14px; border-radius: 16px; border: 1px solid rgba(124,146,255,.1); background: rgba(255,255,255,.03); }
+          @media (max-width: 1200px) { .nh-grid-4, .nh-manager-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .nh-grid-2 { grid-template-columns: 1fr; } .nh-title { font-size: 2.2rem; } }
+          @media (max-width: 760px) { .nh-grid-4, .nh-manager-grid { grid-template-columns: 1fr; } .nh-between, .nh-flex { flex-direction: column; } }
+        </style>
+        <header class="nh-card nh-between">
+          <div>
+            <div class="nh-pill">Diretor IA <span aria-hidden="true">✦</span></div>
+            <h1 class="nh-title">Diretor IA</h1>
+            <p class="nh-subtitle">Seu cockpit executivo do NeuralHire</p>
           </div>
+          <div class="nh-card" style="min-width: 280px; padding: 16px 18px;">
+            <div class="nh-between">
+              <div class="nh-mini">Última atualização</div>
+              <div class="nh-mini">online</div>
+            </div>
+            <div style="font-size: 1.05rem; font-weight: 600; margin-top: 6px;">${esc(formatCompactDate(health.updated_at || dashboard.updated_at || new Date()))}</div>
+            <div class="nh-mini" style="margin-top: 6px;">Gerentes ativos: ${esc(formatCount(managers.filter((manager) => String(manager.status || '').toLowerCase() === 'ativo').length || managers.length || 0))}</div>
+          </div>
+        </header>
+        <article class="nh-grid-4">
+          <div class="nh-card"><div class="nh-kpi-label">Receita do mês</div><div class="nh-kpi-value">${esc(formatMoney(health.receita_mes ?? 0))}</div><div class="nh-kpi-delta">Saúde do Negócio</div></div>
+          <div class="nh-card"><div class="nh-kpi-label">Pedidos do mês</div><div class="nh-kpi-value">${esc(formatCount(health.pedidos_mes ?? 0))}</div><div class="nh-kpi-delta">Fluxo operacional</div></div>
+          <div class="nh-card"><div class="nh-kpi-label">Clientes ativos</div><div class="nh-kpi-value">${esc(formatCount(health.clientes_ativos ?? 0))}</div><div class="nh-kpi-delta">Base engajada</div></div>
+          <div class="nh-card"><div class="nh-kpi-label">Clientes em risco</div><div class="nh-kpi-value">${esc(formatCount(health.clientes_risco ?? 0))}</div><div class="nh-kpi-delta" style="color:#ff9d7d">Monitoramento prioritário</div></div>
         </article>
-        <article>
-          <h2>Alertas Estratégicos</h2>
-          <ul>${alerts.map((item) => `<li><strong>${esc(item.severity)}</strong>: ${esc(item.title)}</li>`).join('')}</ul>
+        <article class="nh-card">
+          <div class="nh-between">
+            <div>
+              <h2 class="nh-section-title">Pergunte ao Diretor IA</h2>
+              <p class="nh-section-subtitle">Faça perguntas sobre desempenho, riscos, oportunidades e decisões estratégicas.</p>
+            </div>
+            <div class="nh-pill">Resposta executiva em tempo real</div>
+          </div>
+          <div class="nh-flex" style="margin-top: 16px; align-items: end;">
+            <input id="ai-director-question" class="nh-input" type="text" placeholder="Ex.: Quais clientes estão em risco e o motivo?" value="${esc(state.question)}" />
+            <button id="ai-director-analyze" class="nh-button" type="button" ${state.askLoading ? 'disabled' : ''}>${state.askLoading ? 'Analisando...' : 'Analisar'}</button>
+          </div>
+          ${state.askError ? `<p class="nh-mini" style="color:#ff8d8d; margin-top: 10px;">${esc(state.askError)}</p>` : ''}
+          <div class="nh-divider"></div>
+          ${state.askResult ? `
+            <div class="nh-grid-2">
+              <div class="nh-box" style="padding: 16px;">
+                <div class="nh-mini">Pergunta</div>
+                <div style="margin-top: 6px; font-size: 1.02rem;">${esc(askResult.question)}</div>
+                <div class="nh-mini" style="margin-top: 14px;">Resposta</div>
+                <div style="margin-top: 6px; font-size: 1rem; line-height: 1.6;">${esc(askResult.answer)}</div>
+                <div class="nh-mini" style="margin-top: 14px;">Gerentes consultados</div>
+                <div style="margin-top: 6px;">${esc((askResult.consultedManagers || []).join(', ') || '—')}</div>
+                ${Array.isArray(askResult.usedMemories) && askResult.usedMemories.length ? `<div class="nh-mini" style="margin-top: 14px;">Memórias usadas</div><div style="margin-top: 6px;">${esc(askResult.usedMemories.join(', '))}</div>` : ''}
+              </div>
+              <div class="nh-box" style="padding: 16px;">
+                <div class="nh-mini">Fatos e dados técnicos (facts)</div>
+                <div class="nh-list" style="margin-top: 10px;">
+                  ${executiveFacts.length ? executiveFacts.map((item) => `<div class="nh-list-item"><strong>${esc(item.key)}</strong><div class="nh-mini">${esc(item.value)}</div></div>`).join('') : '<div class="nh-mini">Sem dados estruturados adicionais.</div>'}
+                </div>
+              </div>
+            </div>
+            <div class="nh-mini" style="margin-top: 14px;">Status: ${esc(askResult.status || 'answered')}</div>
+            <div class="nh-mini">Resposta dos gerentes: ${(delegation.managerResponses || []).map((item) => `${esc(item.manager?.nome || '')} · ${esc(item.status || '')}`).join(' | ') || '—'}</div>
+          ` : `<p id="ai-director-answer" class="nh-mini" style="margin-top: 12px;">${esc(state.answer)}</p>`}
         </article>
-        <article>
-          <h2>Oportunidades</h2>
-          <ul>${opportunities.map((item) => `<li>${esc(item.title)}</li>`).join('')}</ul>
+        <article class="nh-grid-2">
+          <section class="nh-card">
+            <div class="nh-between">
+              <div>
+                <h2 class="nh-section-title">Alertas Estratégicos</h2>
+                <p class="nh-section-subtitle">Sinais críticos em observação contínua.</p>
+              </div>
+              <a href="#" class="nh-mini" style="color:#8ea2ff; text-decoration:none;">Ver todas</a>
+            </div>
+            <div class="nh-list" style="margin-top: 14px;">
+              ${alerts.map((item) => `<div class="nh-list-item"><div class="nh-between"><span class="nh-badge ${severityClass(item.severity)}">${esc(item.severity || 'alerta')}</span><span class="nh-mini">${esc(formatCompactDate(item.created_at || item.criado_em))}</span></div><div style="margin-top: 10px; font-weight: 600;">${esc(item.title)}</div></div>`).join('')}
+            </div>
+          </section>
+          <section class="nh-card">
+            <div class="nh-between">
+              <div>
+                <h2 class="nh-section-title">Oportunidades</h2>
+                <p class="nh-section-subtitle">Pontos de aceleração e expansão.</p>
+              </div>
+              <a href="#" class="nh-mini" style="color:#8ea2ff; text-decoration:none;">Ver todas</a>
+            </div>
+            <div class="nh-list" style="margin-top: 14px;">
+              ${opportunities.map((item) => `<div class="nh-list-item"><div class="nh-badge success">oportunidade</div><div style="margin-top: 10px; font-weight: 600;">${esc(item.title)}</div><div class="nh-mini" style="margin-top: 6px;">${esc(item.description || item.summary || '')}</div></div>`).join('')}
+            </div>
+          </section>
         </article>
-        <article>
-          <h2>Memória Estratégica</h2>
-          ${state.memoryError ? `<p>${esc(state.memoryError)}</p>` : ''}
-          <ul>${memories.map((item) => `<li><strong>${esc(item.tipo)}</strong> <span>${esc(item.prioridade)}</span> <strong>${esc(item.titulo)}</strong><p>${esc(item.conteudo)}</p><small>${esc(item.origem || 'diretor_ia')} - ${esc(item.created_at || '')}</small></li>`).join('')}</ul>
-          <form id="ai-director-memory-form" style="display:grid;gap:10px;max-width:640px">
-            <label>Tipo
-              <select id="ai-director-memory-tipo">
-                ${['observacao', 'alerta', 'oportunidade', 'diagnostico', 'decisao', 'plano_acao'].map((tipo) => `<option value="${tipo}"${form.tipo === tipo ? ' selected' : ''}>${tipo}</option>`).join('')}
-              </select>
-            </label>
-            <label>Prioridade
-              <select id="ai-director-memory-prioridade">
-                ${['baixa', 'media', 'alta', 'critica'].map((prioridade) => `<option value="${prioridade}"${form.prioridade === prioridade ? ' selected' : ''}>${prioridade}</option>`).join('')}
-              </select>
-            </label>
-            <label for="ai-director-memory-titulo">Título</label>
-            <input id="ai-director-memory-titulo" type="text" value="${esc(form.titulo)}" />
-            <label for="ai-director-memory-conteudo">Conteúdo</label>
-            <textarea id="ai-director-memory-conteudo" rows="4">${esc(form.conteudo)}</textarea>
-            <button id="ai-director-memory-submit" type="submit" ${state.savingMemory ? 'disabled' : ''}>Registrar observação</button>
-          </form>
-        </article>
-        <article>
-          <h2>Memória Executiva</h2>
-          <label for="ai-director-executive-filter">Filtrar por categoria</label>
-          <select id="ai-director-executive-filter">
-            ${['all', 'comercial', 'produtos', 'auditoria', 'followup', 'administrativo', 'geral'].map((categoria) => `<option value="${categoria}"${state.executiveMemoriesFilter === categoria ? ' selected' : ''}>${categoria === 'all' ? 'Todas' : categoria}</option>`).join('')}
-          </select>
-          <ul data-testid="executive-memories-list">
-            ${executiveMemories.map((item) => `
-              <li>
-                <strong>${esc(item.tipo)}</strong>
-                <span>${esc(item.categoria)}</span>
-                <span>${esc(item.severidade)}</span>
-                <strong>${esc(item.titulo)}</strong>
-                <p>${esc(item.descricao)}</p>
-                <small>${esc(formatExecutiveDate(item.criado_em || item.created_at))}</small>
-              </li>
-            `).join('')}
-          </ul>
-        </article>
-        <article>
-          <h2>Gerentes Especializados</h2>
-          ${state.managersLoading ? '<p>Carregando gerentes...</p>' : ''}
-          <div style="display:grid;gap:14px">
-            ${managers.map((manager) => {
+        <article class="nh-card">
+          <div class="nh-between">
+            <div>
+              <h2 class="nh-section-title">Gerentes Especializados</h2>
+              <p class="nh-section-subtitle">Rede de agentes operando com dados reais.</p>
+            </div>
+            <div class="nh-mini">Consultas sob demanda</div>
+          </div>
+          ${state.managersLoading ? '<p class="nh-mini" style="margin-top: 12px;">Carregando gerentes...</p>' : ''}
+          <div class="nh-manager-grid" style="margin-top: 14px;">
+            ${topManagers.map((manager) => {
               const consultation = state.managerConsultations?.[manager.id] || {};
+              const { shown: modulesShown, rest: modulesRest } = safeSlice(manager.modulos, 3);
+              const { shown: capabilitiesShown, rest: capabilitiesRest } = safeSlice(manager.capacidades, 3);
               return `
-                <section data-manager-id="${esc(manager.id)}" style="border:1px solid #ddd;padding:14px;border-radius:12px;display:grid;gap:10px">
-                  <div>
-                    <h3>${esc(manager.nome)}</h3>
-                    <p>${esc(manager.descricao)}</p>
-                    <p><strong>Status:</strong> ${esc(manager.status)}</p>
+                <section data-manager-id="${esc(manager.id)}" class="nh-manager-card">
+                  <div class="nh-between">
+                    <div>
+                      <div style="font-size: 1.05rem; font-weight: 700;">${esc(manager.nome)}</div>
+                      <div class="nh-mini">${esc(manager.descricao)}</div>
+                    </div>
+                    <span class="nh-badge success">${esc(manager.status || 'ativo')}</span>
                   </div>
                   <div>
-                    <strong>Módulos</strong>
-                    <ul>${(manager.modulos || []).map((modulo) => `<li>${esc(modulo)}</li>`).join('')}</ul>
+                    <div class="nh-mini">Módulos</div>
+                    <div class="nh-mini" style="margin-top: 4px;">${esc([...modulesShown, modulesRest ? `+${modulesRest}` : null].filter(Boolean).join(' · '))}</div>
                   </div>
                   <div>
-                    <strong>Capacidades</strong>
-                    <ul>${(manager.capacidades || []).map((capacidade) => `<li>${esc(capacidade)}</li>`).join('')}</ul>
+                    <div class="nh-mini">Capacidades</div>
+                    <div class="nh-mini" style="margin-top: 4px;">${esc([...capabilitiesShown, capabilitiesRest ? `+${capabilitiesRest}` : null].filter(Boolean).join(' · '))}</div>
                   </div>
-                  <label for="manager-question-${esc(manager.id)}">Pergunta</label>
-                  <input id="manager-question-${esc(manager.id)}" type="text" value="${esc(consultation.question || state.managerQuestion)}" />
-                  <button class="manager-consult-button" data-manager-id="${esc(manager.id)}" type="button">Consultar</button>
-                  ${consultation.summary ? `<div><strong>Resumo:</strong> <p>${esc(consultation.summary)}</p></div>` : ''}
-                  ${consultation.status ? `<div><strong>Status:</strong> <p>${esc(consultation.status)}</p></div>` : ''}
-                  ${Array.isArray(consultation.sources) ? `<div><strong>Fontes:</strong> <p>${esc(consultation.sources.join(', '))}</p></div>` : ''}
+                  <label class="nh-mini" for="manager-question-${esc(manager.id)}">Pergunta</label>
+                  <input id="manager-question-${esc(manager.id)}" class="nh-input" type="text" value="${esc(consultation.question || state.managerQuestion)}" />
+                  <button class="manager-consult-button nh-button" data-manager-id="${esc(manager.id)}" type="button" style="padding: 12px 14px;">Consultar</button>
+                  ${consultation.summary ? `<div class="nh-mini">Resumo: ${esc(consultation.summary)}</div>` : ''}
+                  ${consultation.status ? `<div class="nh-mini">Status: ${esc(consultation.status)}</div>` : ''}
                 </section>
               `;
             }).join('')}
           </div>
         </article>
-        <article>
-          <h2>Pergunte ao Diretor</h2>
-          <label for="ai-director-question">Pergunta</label>
-          <input id="ai-director-question" type="text" value="${esc(state.question)}" />
-          <button id="ai-director-analyze" type="button" ${state.askLoading ? 'disabled' : ''}>Perguntar</button>
-          ${state.askError ? `<p>${esc(state.askError)}</p>` : ''}
-          ${state.askResult ? `
-            <div data-testid="delegation-result" style="display:grid;gap:8px">
-              <p><strong>Pergunta:</strong> ${esc(askResult.question)}</p>
-              <p><strong>Resposta:</strong> <span id="ai-director-answer">${esc(askResult.answer)}</span></p>
-              <p><strong>Gerentes consultados:</strong> ${esc((askResult.consultedManagers || []).join(', '))}</p>
-              ${Array.isArray(askResult.usedMemories) && askResult.usedMemories.length ? `<p><strong>Memórias usadas:</strong> ${esc(askResult.usedMemories.join(', '))}</p>` : ''}
-              ${askResult.facts ? `<pre data-testid="director-facts">${esc(JSON.stringify(askResult.facts, null, 2))}</pre>` : ''}
-              <p><strong>Status:</strong> ${esc(askResult.status)}</p>
-            <div>
-                <strong>Respostas dos gerentes</strong>
-                <ul>
-                  ${(delegation.managerResponses || []).map((item) => `<li><strong>${esc(item.manager?.nome || '')}</strong>: ${esc(item.summary)} <span>${esc(item.status)}</span><div>Fontes: ${esc((item.sources || []).join(', '))}</div></li>`).join('')}
-                </ul>
+        <article class="nh-grid-2">
+          <section class="nh-card">
+            <div class="nh-between">
+              <div>
+                <h2 class="nh-section-title">Memória Executiva</h2>
+                <p class="nh-section-subtitle">Insights e fatos importantes identificados pela IA.</p>
               </div>
+              <select id="ai-director-executive-filter" class="nh-select" style="max-width: 220px;">
+                ${['all', 'comercial', 'produtos', 'auditoria', 'followup', 'administrativo', 'geral'].map((categoria) => `<option value="${categoria}"${state.executiveMemoriesFilter === categoria ? ' selected' : ''}>${categoria === 'all' ? 'Todas as categorias' : categoria}</option>`).join('')}
+              </select>
             </div>
-          ` : `<p id="ai-director-answer">${esc(state.answer)}</p>`}
+            <div class="nh-scroll" style="margin-top: 14px;">
+              <table class="nh-table" data-testid="executive-memories-list">
+                <thead>
+                  <tr><th>Tipo</th><th>Categoria</th><th>Severidade</th><th>Título</th><th>Data</th></tr>
+                </thead>
+                <tbody>
+                  ${executiveMemories.map((item) => `
+                    <tr>
+                      <td>${esc(item.tipo)}</td>
+                      <td>${esc(item.categoria)}</td>
+                      <td><span class="nh-badge ${severityClass(item.severidade)}">${esc(item.severidade)}</span></td>
+                      <td><strong>${esc(item.titulo)}</strong><div class="nh-mini">${esc(item.descricao)}</div></td>
+                      <td class="nh-mini">${esc(formatCompactDate(item.criado_em || item.created_at))}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </section>
+          <section class="nh-card">
+            <div class="nh-between">
+              <div>
+                <h2 class="nh-section-title">Memória Estratégica</h2>
+                <p class="nh-section-subtitle">Conhecimento armazenado manualmente.</p>
+              </div>
+              <span class="nh-mini">Atualização contínua</span>
+            </div>
+            ${state.memoryError ? `<p class="nh-mini" style="color:#ff8d8d; margin-top: 10px;">${esc(state.memoryError)}</p>` : ''}
+            <div class="nh-list" style="margin-top: 14px;">
+              ${memories.map((item) => `
+                <div class="nh-list-item">
+                  <div class="nh-between">
+                    <strong>${esc(item.titulo)}</strong>
+                    <span class="nh-badge ${severityClass(item.prioridade)}">${esc(item.prioridade)}</span>
+                  </div>
+                  <div class="nh-mini" style="margin-top: 6px;">${esc(item.tipo)} · ${esc(item.origem || 'diretor_ia')} · ${esc(formatCompactDate(item.created_at))}</div>
+                  <div style="margin-top: 8px;">${esc(item.conteudo)}</div>
+                </div>
+              `).join('')}
+            </div>
+          </section>
+        </article>
+        <article class="nh-card">
+          <div class="nh-between">
+            <div>
+              <h2 class="nh-section-title">Registrar memória</h2>
+              <p class="nh-section-subtitle">Capture observações, diagnósticos e decisões.</p>
+            </div>
+          </div>
+          <form id="ai-director-memory-form" style="display:grid;gap:10px;max-width:720px;margin-top: 14px;">
+            <label class="nh-mini">Tipo
+              <select id="ai-director-memory-tipo" class="nh-select">
+                ${['observacao', 'alerta', 'oportunidade', 'diagnostico', 'decisao', 'plano_acao'].map((tipo) => `<option value="${tipo}"${form.tipo === tipo ? ' selected' : ''}>${tipo}</option>`).join('')}
+              </select>
+            </label>
+            <label class="nh-mini">Prioridade
+              <select id="ai-director-memory-prioridade" class="nh-select">
+                ${['baixa', 'media', 'alta', 'critica'].map((prioridade) => `<option value="${prioridade}"${form.prioridade === prioridade ? ' selected' : ''}>${prioridade}</option>`).join('')}
+              </select>
+            </label>
+            <label class="nh-mini" for="ai-director-memory-titulo">Título</label>
+            <input id="ai-director-memory-titulo" class="nh-input" type="text" value="${esc(form.titulo)}" />
+            <label class="nh-mini" for="ai-director-memory-conteudo">Conteúdo</label>
+            <textarea id="ai-director-memory-conteudo" class="nh-textarea" rows="4">${esc(form.conteudo)}</textarea>
+            <button id="ai-director-memory-submit" class="nh-button" type="submit" ${state.savingMemory ? 'disabled' : ''}>Registrar observação</button>
+          </form>
+        </article>
+        <article class="nh-card nh-between">
+          <div class="nh-mini">Diretor IA aprende continuamente com os dados do seu negócio para gerar insights cada vez melhores.</div>
+          <div class="nh-pill">NeuralHire IA</div>
         </article>
       </section>
     `;
@@ -260,7 +434,7 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
     try {
       const [dashboardResult, memoriesResult, executiveMemoriesResult, managersResult] = await Promise.all([
         fetchAiDirectorDashboard(apiClient),
-        listMemories(apiClient).catch((error) => {
+        listMemories(apiClient).catch(() => {
           state.memoryError = 'Não foi possível carregar as memórias.';
           return { items: [] };
         }),
