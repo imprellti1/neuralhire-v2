@@ -63,6 +63,22 @@ function badgeClass(value) {
   return 'muted';
 }
 
+function moduleBadgeClass(value) {
+  const normalized = String(value || '').toLowerCase();
+  if (normalized === 'saudavel') return 'success';
+  if (normalized === 'atencao') return 'warning';
+  if (normalized === 'critico') return 'danger';
+  return 'muted';
+}
+
+function normalizeModuleStatus(value) {
+  const normalized = String(value || '').toLowerCase();
+  if (normalized === 'saudavel') return 'Saudável';
+  if (normalized === 'atencao') return 'Atenção';
+  if (normalized === 'critico') return 'Crítico';
+  return value || '—';
+}
+
 function normalizeClassificacao(value) {
   const normalized = String(value || '').toLowerCase();
   if (['excelente'].includes(normalized)) return 'Excelente';
@@ -120,6 +136,7 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
     const radar = dashboard.radar || {};
     const scoreExecutivo = radar.scoreExecutivo || {};
     const prioridades = Array.isArray(radar.prioridades) ? radar.prioridades : [];
+    const observacoesPorModulo = Array.isArray(radar.observacoesPorModulo) ? radar.observacoesPorModulo : [];
     const acoesSugeridas = Array.isArray(radar.acoesSugeridas) ? radar.acoesSugeridas : [];
     const penalidades = Array.isArray(scoreExecutivo.penalidades) ? scoreExecutivo.penalidades : [];
     const pilares = scoreExecutivo.pilares || {};
@@ -176,6 +193,23 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
         <div class="nh-mini" style="margin-top: 8px;">Critério de conclusão: ${esc(item.criterioConclusao || '—')}</div>
       </div>
     `).join('') : '<div class="nh-mini">Sem ações sugeridas no momento.</div>';
+    const modulesHtml = observacoesPorModulo.length ? observacoesPorModulo.map((item) => `
+      <section class="nh-card" style="padding: 16px;">
+        <div class="nh-between">
+          <div>
+            <strong>${esc(item.modulo || '—')}</strong>
+            <div class="nh-mini" style="margin-top: 4px;">${esc(item.resumo || '—')}</div>
+          </div>
+          <span class="nh-badge ${moduleBadgeClass(item.status)}">${esc(normalizeModuleStatus(item.status))}</span>
+        </div>
+        <div style="font-size: 2rem; font-weight: 800; margin-top: 10px;">${esc(formatRadarMetric(item.score))}</div>
+        <div class="nh-mini" style="margin-top: 4px;">Score do módulo</div>
+        <div class="nh-mini" style="margin-top: 10px;">Gerente responsável: ${esc(item.gerenteResponsavel || '—')}</div>
+        <div class="nh-list" style="margin-top: 10px;">
+          ${(Array.isArray(item.observacoes) ? item.observacoes : []).map((obs) => `<div class="nh-mini">• ${esc(obs)}</div>`).join('')}
+        </div>
+      </section>
+    `).join('') : '<div class="nh-mini">Nenhuma observação modular disponível no momento.</div>';
     const penalidadesHtml = penalidades.slice(0, 5).length ? penalidades.slice(0, 5).map((item) => `
       <div class="nh-list-item">
         <div class="nh-between">
@@ -377,6 +411,19 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
             </div>
           </div>
           <div class="nh-list" style="margin-top: 14px;">${prioritiesHtml || '<div class="nh-mini">Sem prioridades executivas no momento.</div>'}</div>
+        </article>
+        <article class="nh-card">
+          <div class="nh-between">
+            <div>
+              <h2 class="nh-section-title">Observação por Módulo</h2>
+              <p class="nh-section-subtitle">Leitura contínua por domínio do negócio com base nos dados já disponíveis.</p>
+            </div>
+          </div>
+          <div class="nh-card" style="margin-top: 14px; padding: 16px;">
+            <h3 class="nh-section-title" style="font-size: 1rem;">Resumo Modular</h3>
+            <p class="nh-mini" style="margin-top: 8px;">${esc(radar.resumoModular || 'Nenhum resumo modular disponível no momento.')}</p>
+          </div>
+          <div class="nh-grid-2" style="margin-top: 14px;">${modulesHtml}</div>
         </article>
         <article class="nh-card">
           <div class="nh-between">

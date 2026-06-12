@@ -35,7 +35,10 @@ export function getAiDirectorTests() {
         assert.equal(Array.isArray(dashboard.radar.alertas), true);
         assert.equal(Array.isArray(dashboard.radar.oportunidades), true);
         assert.equal(Array.isArray(dashboard.radar.prioridades), true);
+        assert.equal(Array.isArray(dashboard.radar.observacoesPorModulo), true);
+        assert.equal(dashboard.radar.observacoesPorModulo.length, 4);
         assert.equal(typeof dashboard.radar.resumoExecutivo, 'string');
+        assert.equal(typeof dashboard.radar.resumoModular, 'string');
         assert.equal(dashboard.radar.scoreExecutivo.valor >= 0 && dashboard.radar.scoreExecutivo.valor <= 100, true);
         assert.equal(typeof dashboard.radar.scoreExecutivo.classificacao, 'string');
         assert.ok(dashboard.radar.scoreExecutivo.pilares);
@@ -78,6 +81,15 @@ export function getAiDirectorTests() {
         dashboard.radar.prioridades.forEach((priority, index) => {
           assert.equal(priority.ordem, index + 1);
         });
+        for (const item of dashboard.radar.observacoesPorModulo) {
+          assert.equal(typeof item.modulo, 'string');
+          assert.equal(['saudavel', 'atencao', 'critico'].includes(item.status), true);
+          assert.equal(typeof item.score, 'number');
+          assert.equal(item.score >= 0 && item.score <= 100, true);
+          assert.equal(typeof item.resumo, 'string');
+          assert.equal(Array.isArray(item.observacoes), true);
+          assert.equal(item.gerenteResponsavel === null || typeof item.gerenteResponsavel === 'string', true);
+        }
         if (dashboard.radar.prioridades.length > 0) {
           assert.equal(dashboard.radar.resumoExecutivo.includes(dashboard.radar.prioridades[0].titulo), true);
           assert.equal(dashboard.radar.resumoExecutivo.includes('Ação sugerida'), true);
@@ -97,6 +109,18 @@ export function getAiDirectorTests() {
         for (let index = 1; index < dashboard.radar.acoesSugeridas.length; index += 1) {
           assert.equal(dashboard.radar.acoesSugeridas[index - 1].ordem < dashboard.radar.acoesSugeridas[index].ordem, true);
         }
+      }
+    },
+    {
+      name: 'GET /ai-director/dashboard inclui observacao modular e resumo',
+      run: async () => {
+        const dashboard = await getAiDirectorDashboard();
+        assert.ok(Array.isArray(dashboard.radar.observacoesPorModulo));
+        assert.ok(dashboard.radar.observacoesPorModulo.some((item) => item.modulo === 'Comercial'));
+        assert.ok(dashboard.radar.observacoesPorModulo.some((item) => item.modulo === 'Produtos'));
+        assert.ok(dashboard.radar.observacoesPorModulo.some((item) => item.modulo === 'Follow-up'));
+        assert.ok(dashboard.radar.observacoesPorModulo.some((item) => item.modulo === 'Inteligência'));
+        assert.equal(typeof dashboard.radar.resumoModular, 'string');
       }
     },
     {

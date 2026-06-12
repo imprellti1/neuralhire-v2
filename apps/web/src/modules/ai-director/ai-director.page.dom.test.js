@@ -28,22 +28,29 @@ function createApiClient({ dashboard, askResult = {}, managers = [], memories = 
 test('ai director page dom with radar', async () => {
   const dom = setupFrontendDom('#/diretor-ia');
   const { apiClient, calls } = createApiClient({
-    dashboard: {
-      health: {
-        receita_mes: 124550,
-        pedidos_mes: 358,
-        clientes_ativos: 78,
+      dashboard: {
+        health: {
+          receita_mes: 124550,
+          pedidos_mes: 358,
+          clientes_ativos: 78,
         clientes_risco: 15
       },
       alerts: [{ severity: 'high', title: 'Faturamento caiu 18% nos últimos 15 dias' }],
       opportunities: [{ title: '12 clientes demonstraram intenção de compra' }],
-      radar: {
-        resumoExecutivo: 'Receita estável, risco comercial em alta e oportunidade em produtos.',
-        alertas: [{ id: 'a1' }, { id: 'a2' }],
-        oportunidades: [{ id: 'o1' }],
-        prioridades: [
-          { ordem: 1, titulo: 'Recuperar carteira em risco', impacto: 'alto', urgencia: 'alta', motivo: 'Clientes-chave reduziram recompra.', acaoRecomendada: 'Priorizar contato comercial nas 24h', gerenteSugerido: 'Gerente Comercial', peso: 95 },
-          { ordem: 2, titulo: 'Ajustar promoções', impacto: 'medio', urgencia: 'media', motivo: 'Promoções pouco aderentes.', acaoRecomendada: 'Rever calendário promocional', peso: 78 }
+        radar: {
+          resumoExecutivo: 'Receita estável, risco comercial em alta e oportunidade em produtos.',
+          resumoModular: '4 módulos observados. 2 saudáveis, 1 em atenção e 1 crítico. O principal ponto de atenção está no módulo Comercial.',
+          alertas: [{ id: 'a1' }, { id: 'a2' }],
+          oportunidades: [{ id: 'o1' }],
+          observacoesPorModulo: [
+            { modulo: 'Comercial', status: 'atencao', score: 74, resumo: 'Clientes em risco exigem monitoramento.', observacoes: ['Clientes ativos: 78'], gerenteResponsavel: 'Gerente Comercial' },
+            { modulo: 'Produtos', status: 'saudavel', score: 92, resumo: 'Catálogo sem pendências relevantes.', observacoes: ['Produtos totais: 24'], gerenteResponsavel: 'Gerente de Produtos' },
+            { modulo: 'Follow-up', status: 'critico', score: 48, resumo: 'Clientes em risco exigem ação imediata.', observacoes: ['Oportunidades comerciais: 1'], gerenteResponsavel: 'Gerente de Follow-up' },
+            { modulo: 'Inteligência', status: 'saudavel', score: 88, resumo: 'Radar estratégico possui cobertura adequada.', observacoes: ['Memórias executivas críticas: 1'], gerenteResponsavel: 'Diretor IA' }
+          ],
+          prioridades: [
+            { ordem: 1, titulo: 'Recuperar carteira em risco', impacto: 'alto', urgencia: 'alta', motivo: 'Clientes-chave reduziram recompra.', acaoRecomendada: 'Priorizar contato comercial nas 24h', gerenteSugerido: 'Gerente Comercial', peso: 95 },
+            { ordem: 2, titulo: 'Ajustar promoções', impacto: 'medio', urgencia: 'media', motivo: 'Promoções pouco aderentes.', acaoRecomendada: 'Rever calendário promocional', peso: 78 }
         ],
         scoreExecutivo: {
           valor: 82,
@@ -108,6 +115,13 @@ test('ai director page dom with radar', async () => {
   assert.match(document.body.textContent, /Receita estável, risco comercial em alta e oportunidade em produtos\./);
   assert.match(document.body.textContent, /Pilares Executivos/);
   assert.match(document.body.textContent, /Prioridades Executivas/);
+  assert.match(document.body.textContent, /Observação por Módulo/);
+  assert.match(document.body.textContent, /Resumo Modular/);
+  assert.match(document.body.textContent, /Comercial/);
+  assert.match(document.body.textContent, /Produtos/);
+  assert.match(document.body.textContent, /Follow-up/);
+  assert.match(document.body.textContent, /Inteligência/);
+  assert.match(document.body.textContent, /Gerente responsável/);
   assert.match(document.body.textContent, /Ação recomendada: Priorizar contato comercial nas 24h/);
   assert.match(document.body.textContent, /Gerente sugerido: Gerente Comercial/);
   assert.match(document.body.textContent, /Penalidades do Score/);
@@ -179,6 +193,7 @@ test('ai director page dom without radar fallback', async () => {
   assert.match(document.body.textContent, /Nenhuma penalidade crítica identificada no Score Executivo\./);
   assert.match(document.body.textContent, /Sem ações sugeridas no momento\./);
   assert.match(document.body.textContent, /Sem dados suficientes/);
+  assert.match(document.body.textContent, /Nenhuma observação modular disponível no momento\./);
   assert.match(document.body.textContent, /Pergunte ao Diretor IA/);
   assert.match(document.body.textContent, /Memória Executiva/);
 

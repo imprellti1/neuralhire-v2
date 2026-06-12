@@ -111,11 +111,14 @@ function normalizeExecutiveMemoryPayload(data = {}) {
 
 export async function getAiDirectorDashboard(context = {}) {
   const radar = await buildStrategicRadar(context).catch(() => ({
+    observacoesPorModulo: [],
     scoreExecutivo: { valor: 100, classificacao: 'Excelente' },
     resumoExecutivo: 'Radar Estratégico indisponível no momento.',
+    resumoModular: 'Nenhuma observação modular disponível no momento.',
     alertas: [],
     oportunidades: [],
-    prioridades: []
+    prioridades: [],
+    acoesSugeridas: []
   }));
   return {
     health: {},

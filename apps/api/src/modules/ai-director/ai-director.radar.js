@@ -42,6 +42,45 @@ function buildPillar(value, fatores = []) {
   };
 }
 
+function moduleStatusFromScore(score) {
+  if (score >= 80) return 'saudavel';
+  if (score >= 60) return 'atencao';
+  return 'critico';
+}
+
+function moduleScoreForStatus(status, base = 0) {
+  const safeBase = clamp(Math.round(base), 0, 100);
+  if (status === 'saudavel') return clamp(Math.max(80, safeBase), 0, 100);
+  if (status === 'atencao') return clamp(Math.max(60, safeBase), 0, 100);
+  return clamp(Math.min(59, safeBase || 45), 0, 100);
+}
+
+function buildModuleObservation({ modulo, status, score, resumo, observacoes = [], gerenteResponsavel = null }) {
+  return {
+    modulo,
+    status,
+    score: clamp(Math.round(score), 0, 100),
+    resumo,
+    observacoes: Array.isArray(observacoes) ? observacoes.filter(Boolean) : [],
+    gerenteResponsavel
+  };
+}
+
+function summarizeModules(modulos = []) {
+  const total = modulos.length;
+  const counts = modulos.reduce((acc, item) => {
+    acc[item.status] = (acc[item.status] || 0) + 1;
+    return acc;
+  }, { saudavel: 0, atencao: 0, critico: 0 });
+  const principal = [...modulos].sort((a, b) => {
+    const rank = { critico: 3, atencao: 2, saudavel: 1 };
+    if ((rank[b.status] || 0) !== (rank[a.status] || 0)) return (rank[b.status] || 0) - (rank[a.status] || 0);
+    return a.score - b.score;
+  })[0];
+  const principalText = principal ? `O principal ponto de atenção está no módulo ${principal.modulo}.` : 'Nenhum módulo apresentou desvio relevante.';
+  return `${total} módulos observados. ${counts.saudavel} saudáveis, ${counts.atencao} em atenção e ${counts.critico} crítico${counts.critico === 1 ? '' : 's'}. ${principalText}`;
+}
+
 function summarizePenalties(penalidades = []) {
   if (!penalidades.length) return null;
   const main = penalidades[0];
@@ -443,6 +482,81 @@ export async function buildStrategicRadar(context = {}) {
     alertas.length > 0 ? `${alertas.length} alerta(s) sinalizam observabilidade ativa.` : 'Poucos alertas podem indicar baixa observabilidade.'
   ]);
 
+  const comercialModuleScore = moduleScoreForStatus(moduleStatusFromScore(comercialScore.valor), comercialScore.valor);
+  const produtosModuleScore = moduleScoreForStatus(moduleStatusFromScore(produtosScore.valor), produtosScore.valor);
+  const followupBaseScore = customersAtRisk > 0 ? 52 : prioridades.length > 0 ? 68 : 84;
+  const followupModuleScore = moduleScoreForStatus(moduleStatusFromScore(followupBaseScore), followupBaseScore);
+  const inteligenciaModuleScore = moduleScoreForStatus(moduleStatusFromScore(inteligenciaScore.valor), inteligenciaScore.valor);
+
+  const observacoesPorModulo = [
+    buildModuleObservation({
+      modulo: 'Comercial',
+      status: moduleStatusFromScore(comercialScore.valor),
+      score: comercialModuleScore,
+      resumo: customersActive > 0 && customersAtRisk <= 0 && ordersMonth > 0 && revenueMonth > 0
+        ? 'Base ativa presente e fluxo comercial em operação.'
+        : customersAtRisk > 0
+          ? 'Clientes em risco exigem monitoramento.'
+          : 'Receita ou pedidos zerados comprometem o desempenho comercial.',
+      observacoes: [
+        `Clientes ativos: ${customersActive}`,
+        `Clientes em risco: ${customersAtRisk}`,
+        `Pedidos do mês: ${ordersMonth}`,
+        `Receita do mês: ${revenueMonth > 0 ? revenueMonth : 0}`
+      ],
+      gerenteResponsavel: 'Gerente Comercial'
+    }),
+    buildModuleObservation({
+      modulo: 'Produtos',
+      status: moduleStatusFromScore(produtosScore.valor),
+      score: produtosModuleScore,
+      resumo: totalProducts > 0 && productIssues <= 0 && productsWithNoImage <= 0 && productsWithNoCategory <= 0
+        ? 'Catálogo sem pendências relevantes.'
+        : productIssues > 0 || auditCriticalProducts > 0
+          ? 'Problemas de auditoria podem impactar operação.'
+          : 'Foram encontradas pendências cadastrais.',
+      observacoes: [
+        `Produtos totais: ${totalProducts}`,
+        `Pendências de auditoria: ${productIssues}`,
+        `Críticos na auditoria: ${auditCriticalProducts}`,
+        `Produtos sem imagem: ${productsWithNoImage}`,
+        `Produtos sem categoria: ${productsWithNoCategory}`
+      ],
+      gerenteResponsavel: 'Gerente de Produtos'
+    }),
+    buildModuleObservation({
+      modulo: 'Follow-up',
+      status: moduleStatusFromScore(followupBaseScore),
+      score: followupModuleScore,
+      resumo: customersAtRisk > 0
+        ? 'Clientes em risco exigem ação imediata.'
+        : prioridades.length > 0
+          ? 'Existem oportunidades comerciais sem acompanhamento.'
+          : 'Fluxo de reativação operando normalmente.',
+      observacoes: [
+        `Oportunidades comerciais: ${oportunidades.length}`,
+        `Prioridades comerciais: ${prioridades.filter((priority) => ['clientes', 'comercial'].includes(String(priority?.origem || '').toLowerCase())).length}`,
+        `Clientes em risco: ${customersAtRisk}`
+      ],
+      gerenteResponsavel: 'Gerente de Follow-up'
+    }),
+    buildModuleObservation({
+      modulo: 'Inteligência',
+      status: moduleStatusFromScore(inteligenciaScore.valor),
+      score: inteligenciaModuleScore,
+      resumo: criticalMemories.length > 0 || alertas.length > 0
+        ? 'Alertas críticos e ações prioritárias pendentes.'
+        : 'Radar estratégico possui cobertura adequada.',
+      observacoes: [
+        `Memórias executivas críticas: ${criticalMemories.length}`,
+        `Alertas do radar: ${alertas.length}`,
+        `Prioridades ativas: ${prioridades.length}`,
+        `Ações sugeridas: ${acoesSugeridas.length}`
+      ],
+      gerenteResponsavel: 'Diretor IA'
+    })
+  ];
+
   const pillarEntries = [
     ...comercialPenalties,
     ...operacionalPenalties,
@@ -479,6 +593,7 @@ export async function buildStrategicRadar(context = {}) {
   const mainAction = acoesSugeridas[0] || null;
 
   return {
+    observacoesPorModulo,
     scoreExecutivo: {
       valor: score,
       classificacao: classificationFromScore(score),
@@ -493,6 +608,7 @@ export async function buildStrategicRadar(context = {}) {
         ? `Score Executivo em nível ${classificationFromScore(score)}. ${summarizePenalties(topPenalties) || 'O principal impacto está distribuído entre os pilares.'}`
         : `Score Executivo em nível ${classificationFromScore(score)}. O radar não identificou penalidades relevantes no momento.`
     },
+    resumoModular: summarizeModules(observacoesPorModulo),
     resumoExecutivo: principalPriority
       ? `Score Executivo ${score} (${classificationFromScore(score)}). O Radar identificou ${alertas.length} alertas, ${oportunidades.length} oportunidades e ${prioridades.length} prioridades. A prioridade máxima é ${principalPriority.titulo}. A ação sugerida é ${mainAction?.descricao || principalPriority.acaoRecomendada || 'definir o próximo passo'}${mainAction?.gerenteSugerido ? ` com apoio do ${mainAction.gerenteSugerido}` : ''}.`
       : `Score Executivo ${score} (${classificationFromScore(score)}). O Radar identificou ${alertas.length} alertas, ${oportunidades.length} oportunidades e ${prioridades.length} prioridades. Não há ações críticas pendentes no momento.`,
