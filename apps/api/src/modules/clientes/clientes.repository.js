@@ -276,6 +276,7 @@ export async function createCliente(data, options = {}) {
     const payload = {
       account_id: accountId,
       nome: data.nome,
+      codigo: data.codigo ?? null,
       documento: data.documento || null,
       email: data.email || null,
       telefone: data.telefone || null,
@@ -296,6 +297,7 @@ export async function createCliente(data, options = {}) {
     id: randomUUID(),
     account_id: accountId,
     nome: data.nome,
+    codigo: data.codigo ?? null,
     documento: data.documento || null,
     email: data.email || null,
     telefone: data.telefone || null,
@@ -329,6 +331,7 @@ export async function updateCliente(id, data, options = {}) {
   const next = {
     ...current,
     ...(data.nome !== undefined ? { nome: data.nome } : {}),
+    ...(data.codigo !== undefined ? { codigo: data.codigo ?? null } : {}),
     ...(data.documento !== undefined ? { documento: data.documento || null } : {}),
     ...(data.email !== undefined ? { email: data.email || null } : {}),
     ...(data.telefone !== undefined ? { telefone: data.telefone || null } : {}),
@@ -346,6 +349,7 @@ export async function updateCliente(id, data, options = {}) {
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data: updated, error } = await supabase.from('clientes').update({
       nome: next.nome,
+      codigo: next.codigo,
       documento: next.documento,
       email: next.email,
       telefone: next.telefone,

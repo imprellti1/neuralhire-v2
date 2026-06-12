@@ -93,8 +93,7 @@ async function loadExistingPedidoNumeroKeys(accountId, numeros = []) {
 }
 
 function getClienteCode(cliente = {}) {
-  const metadata = cliente?.metadata && typeof cliente.metadata === 'object' ? cliente.metadata : {};
-  return normalizeText(cliente.codigo || metadata.codigo_cliente_fabricante || metadata.codigo_cliente || metadata.codigo_fabrica || cliente.codigo_cliente_fabricante || cliente.codigo_cliente || '');
+  return normalizeText(cliente.codigo || '');
 }
 
 function findClienteByCode(clientes, codigo) {
@@ -145,6 +144,8 @@ function normalizeRowForPreview(row, clientes) {
   const cliente = findClienteByCode(clientes, row.clienteCodigo);
   return {
     ...row,
+    pedido: row.numero,
+    cliente: row.clienteCodigo,
     clienteId: cliente?.id || null,
     clienteEncontrado: Boolean(cliente),
     statusImportacao: cliente ? 'ok' : 'CLIENTE_NAO_ENCONTRADO',
@@ -189,7 +190,7 @@ export async function previewPedidosImport({ accountId, fileName, buffer }) {
     pedidos_duplicados: 0,
     pedidos_com_erro: 0,
     pedidos_sem_cliente: rows.filter((row) => !row.clienteEncontrado).length,
-    inconsistencias: rows.filter((row) => !row.clienteEncontrado).map((row) => ({ linha: row.rowNumber, codigo: 'CLIENTE_NAO_ENCONTRADO', cliente: row.clienteCodigo }))
+    inconsistencias: rows.filter((row) => !row.clienteEncontrado).map((row) => ({ linha: row.rowNumber, pedido: row.numero, cliente: row.clienteCodigo, codigo: 'CLIENTE_NAO_ENCONTRADO', motivo: `Cliente com código ${row.clienteCodigo || ''} não encontrado no cadastro` }))
   };
   const token = randomUUID();
   sessions.set(token, { accountId, fileName, rows, createdAt: new Date().toISOString() });
@@ -215,7 +216,7 @@ export async function executePedidosImport({ accountId, importToken }) {
     const cliente = findClienteByCode(existingClientes, row.clienteCodigo);
     if (!cliente) {
       pedidosSemCliente.push(row);
-      inconsistencias.push({ linha: row.rowNumber, codigo: 'CLIENTE_NAO_ENCONTRADO', cliente: row.clienteCodigo || null });
+      inconsistencias.push({ linha: row.rowNumber, pedido: row.numero || null, cliente: row.clienteCodigo || null, codigo: 'CLIENTE_NAO_ENCONTRADO', motivo: `Cliente com código ${row.clienteCodigo || ''} não encontrado no cadastro` });
       continue;
     }
     const duplicateKey = `${accountId}::${normalizeNumeroKey(row.numero)}`;

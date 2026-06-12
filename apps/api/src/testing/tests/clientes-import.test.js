@@ -83,14 +83,14 @@ export function getClientesImportTests() {
         __resetClientesImportSessionsForTests();
         const app = createApiApp();
         const base64 = makeWorkbook([
-          { Código: '001', CNPJ: '12.345.678/0001-90', 'Razão Social': 'Cliente A LTDA', Fantasia: 'Cliente A', Situação: 'Ativo', 'Limite de Crédito': 'R$200.000,00', 'Limite de Crédito Disponível': 'R$150.000,00', Cidade: 'São Paulo', Bairro: 'Centro', UF: 'sp', 'Tempo sem compra': '30', 'Painel do Cliente': 'x' }
+          { Cliente: '001', CNPJ: '12.345.678/0001-90', 'Razão Social': 'Cliente A LTDA', Fantasia: 'Cliente A', Situação: 'Ativo', 'Limite de Crédito': 'R$200.000,00', 'Limite de Crédito Disponível': 'R$150.000,00', Cidade: 'São Paulo', Bairro: 'Centro', UF: 'sp', 'Tempo sem compra': '30', 'Painel do Cliente': 'x' }
         ]);
         const out = await call(app, { method: 'POST', url: '/clientes/importacao/preview', role: 'admin', accountId: 'acc-clientes-import', body: { arquivo: { fileName: 'Clientes_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
         assert.equal(out.res.statusCode, 200);
         assert.equal(out.body.ok, true);
         assert.equal(out.body.summary.novos, 1);
-        assert.equal(out.body.rows[0].metadata.codigo_fabrica, '001');
         assert.equal(out.body.rows[0].metadata.nome_fantasia, 'Cliente A');
+        assert.equal(out.body.rows[0].codigo, '001');
         assert.equal(out.body.rows[0].metadata.limite_credito, 200000);
         assert.equal(out.body.rows[0].metadata.limite_credito_disponivel, 150000);
         assert.equal(out.body.rows[0].metadata.origem_importacao, 'clientes_fabrica');
@@ -114,15 +114,15 @@ export function getClientesImportTests() {
       }
     },
     {
-      name: 'detecta existente por documento e por codigo da fabrica',
+      name: 'detecta existente por documento',
       run: async () => {
         __resetMemoryClientesForTests();
         __resetClientesImportSessionsForTests();
         const app = createApiApp();
-        await createCliente({ nome: 'Cliente Existente', documento: '12345678000190', metadata: { codigo_fabrica: '001' } }, { accountId: 'acc-clientes-import' });
+        await createCliente({ nome: 'Cliente Existente', documento: '12345678000190', codigo: 'antigo' }, { accountId: 'acc-clientes-import' });
         const base64 = makeWorkbook([
-          { Código: '001', CNPJ: '12.345.678/0001-90', 'Razão Social': 'Cliente B LTDA', Cidade: 'São Paulo', UF: 'SP' },
-          { Código: '002', CNPJ: '98.765.432/0001-10', 'Razão Social': 'Cliente C LTDA', Cidade: 'São Paulo', UF: 'SP' }
+          { Cliente: '001', CNPJ: '12.345.678/0001-90', 'Razão Social': 'Cliente B LTDA', Cidade: 'São Paulo', UF: 'SP' },
+          { Cliente: '002', CNPJ: '98.765.432/0001-10', 'Razão Social': 'Cliente C LTDA', Cidade: 'São Paulo', UF: 'SP' }
         ]);
         const out = await call(app, { method: 'POST', url: '/clientes/importacao/preview', role: 'admin', accountId: 'acc-clientes-import', body: { arquivo: { fileName: 'Clientes_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
         assert.equal(out.body.summary.existentes, 1);
@@ -130,51 +130,39 @@ export function getClientesImportTests() {
       }
     },
     {
-      name: 'bloqueia linha sem Razão Social e CNPJ invalido',
+      name: 'bloqueia linha sem CNPJ e CNPJ invalido',
       run: async () => {
         __resetMemoryClientesForTests();
         __resetClientesImportSessionsForTests();
         const app = createApiApp();
         const base64 = makeWorkbook([
-          { Código: '001', CNPJ: '', 'Razão Social': '', Cidade: 'São Paulo', UF: 'SP' },
-          { Código: '002', CNPJ: '123', 'Razão Social': 'Cliente D LTDA', Cidade: 'São Paulo', UF: 'SP' }
+          { Cliente: '001', CNPJ: '', 'Razão Social': '', Cidade: 'São Paulo', UF: 'SP' },
+          { Cliente: '002', CNPJ: '123', 'Razão Social': 'Cliente D LTDA', Cidade: 'São Paulo', UF: 'SP' }
         ]);
         const out = await call(app, { method: 'POST', url: '/clientes/importacao/preview', role: 'admin', accountId: 'acc-clientes-import', body: { arquivo: { fileName: 'Clientes_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
         assert.equal(out.body.summary.invalidos, 2);
         assert.equal(out.body.rows[0].status, 'invalido');
-        assert.match(out.body.rows[0].errors.join(' '), /Razão Social obrigatória/);
+        assert.match(out.body.rows[0].errors.join(' '), /CNPJ ausente/);
       }
     },
     {
-      name: 'importacao insere somente novos e ignora existentes e duplicados',
+      name: 'reimportacao atualiza codigo pelo documento e insere novo cliente',
       run: async () => {
         __resetMemoryClientesForTests();
         __resetClientesImportSessionsForTests();
         const app = createApiApp();
-        const previous = { supabaseUrl: env.SUPABASE_URL, supabaseKey: env.SUPABASE_SERVICE_ROLE_KEY, mock: globalThis.__NEURALHIRE_SUPABASE_MOCK__ };
-        env.SUPABASE_URL = '';
-        env.SUPABASE_SERVICE_ROLE_KEY = '';
-        if (previous.mock === undefined) delete globalThis.__NEURALHIRE_SUPABASE_MOCK__;
-        else globalThis.__NEURALHIRE_SUPABASE_MOCK__ = previous.mock;
-        await createCliente({ nome: 'Cliente Existente', documento: '12345678000190', metadata: { codigo_fabrica: '001' } }, { accountId: 'acc-clientes-import' });
-        try {
-          const base64 = makeWorkbook([
-            { Código: '001', CNPJ: '12.345.678/0001-90', 'Razão Social': 'Cliente B LTDA', Cidade: 'São Paulo', UF: 'SP' },
-            { Código: '002', CNPJ: '98.765.432/0001-10', 'Razão Social': 'Cliente C LTDA', Cidade: 'São Paulo', UF: 'SP' },
-            { Código: '003', CNPJ: '98.765.432/0001-10', 'Razão Social': 'Cliente C LTDA', Cidade: 'São Paulo', UF: 'SP' }
-          ]);
-          const preview = await call(app, { method: 'POST', url: '/clientes/importacao/preview', role: 'admin', accountId: 'acc-clientes-import', body: { arquivo: { fileName: 'Clientes_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
-          const run = await call(app, { method: 'POST', url: '/clientes/importacao', role: 'admin', accountId: 'acc-clientes-import', body: { importToken: preview.body.importToken } });
-          assert.equal(run.body.ok, true);
-          assert.equal(run.body.inserted.length >= 1, true);
-          assert.equal(run.body.ignorados_existentes.length >= 1, true);
-          assert.equal(__dumpMemoryClientes().filter((item) => item.account_id === 'acc-clientes-import').length >= 2, true);
-        } finally {
-          env.SUPABASE_URL = previous.supabaseUrl;
-          env.SUPABASE_SERVICE_ROLE_KEY = previous.supabaseKey;
-          if (previous.mock === undefined) delete globalThis.__NEURALHIRE_SUPABASE_MOCK__;
-          else globalThis.__NEURALHIRE_SUPABASE_MOCK__ = previous.mock;
-        }
+        await createCliente({ nome: 'Cliente Existente', documento: '12345678000190', codigo: 'antigo' }, { accountId: 'acc-clientes-import' });
+        const base64 = makeWorkbook([
+          { Cliente: '001', CNPJ: '12.345.678/0001-90', 'Razão Social': 'Cliente B LTDA', Cidade: 'São Paulo', UF: 'SP' },
+          { Cliente: '002', CNPJ: '98.765.432/0001-10', 'Razão Social': 'Cliente C LTDA', Cidade: 'São Paulo', UF: 'SP' }
+        ]);
+        const preview = await call(app, { method: 'POST', url: '/clientes/importacao/preview', role: 'admin', accountId: 'acc-clientes-import', body: { arquivo: { fileName: 'Clientes_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
+        const run = await call(app, { method: 'POST', url: '/clientes/importacao', role: 'admin', accountId: 'acc-clientes-import', body: { importToken: preview.body.importToken } });
+        assert.equal(run.body.ok, true);
+        assert.equal(run.body.updated.length, 1);
+        assert.equal(run.body.inserted.length, 1);
+        assert.equal(__dumpMemoryClientes().filter((item) => item.account_id === 'acc-clientes-import').length, 2);
+        assert.equal(__dumpMemoryClientes().find((item) => item.documento === '12345678000190')?.codigo, '001');
       }
     },
     {
@@ -196,11 +184,13 @@ export function getClientesImportTests() {
             cidade: 'São Paulo',
             estado: 'SP',
             ativo: true,
-            metadata: { codigo_fabrica: '001', origem_importacao: 'clientes_fabrica' },
+            codigo: '001',
+            metadata: { origem_importacao: 'clientes_fabrica' },
             tags: []
           }, { accountId: 'acc-clientes-import' });
           assert.equal(created.nome, 'Cliente com metadata');
-          assert.equal(captured[0].metadata.codigo_fabrica, '001');
+          assert.equal(captured[0].codigo, '001');
+          assert.equal(captured[0].metadata.origem_importacao, 'clientes_fabrica');
           assert.equal(captured[0].account_id, 'acc-clientes-import');
           assert.equal('owner_user_id' in captured[0], false);
         } finally {
@@ -225,7 +215,7 @@ export function getClientesImportTests() {
             insertError: { message: 'null value in column "nome" violates not-null constraint', code: '23502' }
           });
           const base64 = makeWorkbook([
-            { Código: '009', CNPJ: '11.111.111/1111-11', 'Razão Social': 'Cliente X LTDA', Cidade: 'Curitiba', UF: 'PR' }
+            { Cliente: '009', CNPJ: '11.111.111/1111-11', 'Razão Social': 'Cliente X LTDA', Cidade: 'Curitiba', UF: 'PR' }
           ]);
           const preview = await call(app, { method: 'POST', url: '/clientes/importacao/preview', role: 'admin', accountId: 'acc-clientes-import', body: { arquivo: { fileName: 'Clientes_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
           const run = await call(app, { method: 'POST', url: '/clientes/importacao', role: 'admin', accountId: 'acc-clientes-import', body: { importToken: preview.body.importToken } });
@@ -248,7 +238,7 @@ export function getClientesImportTests() {
         __resetClientesImportSessionsForTests();
         const app = createApiApp();
         const base64 = makeWorkbook([
-          { Código: '009', CNPJ: '11.111.111/1111-11', 'Razão Social': 'Cliente X LTDA', Cidade: 'Curitiba', UF: 'PR' }
+          { Cliente: '009', CNPJ: '11.111.111/1111-11', 'Razão Social': 'Cliente X LTDA', Cidade: 'Curitiba', UF: 'PR' }
         ]);
         const out = await call(app, { method: 'POST', url: '/clientes/importacao/preview', role: 'admin', accountId: 'acc-real', body: { account_id: 'acc-forged', arquivo: { fileName: 'Clientes_288.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', base64 } } });
         assert.equal(out.res.statusCode, 200);

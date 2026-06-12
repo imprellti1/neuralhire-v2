@@ -25,6 +25,11 @@ export const createClienteSchema = {
     minLength: 2,
     maxLength: 120
   },
+  codigo: {
+    required: false,
+    type: 'string',
+    maxLength: 120
+  },
   documento: {
     required: false,
     type: 'string',
@@ -63,6 +68,7 @@ export const createClienteSchema = {
 
 export const updateClienteSchema = {
   nome: { required: false, type: 'string', minLength: 2, maxLength: 120 },
+  codigo: { required: false, type: 'string', maxLength: 120 },
   documento: { required: false, type: 'string', maxLength: 30 },
   email: { required: false, type: 'string', maxLength: 120 },
   telefone: { required: false, type: 'string', maxLength: 30 },

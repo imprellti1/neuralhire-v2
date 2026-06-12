@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import xlsx from 'xlsx';
 import { BadRequestError, DatabaseError } from '../../core/errors.js';
-import { getClientesRepositoryMode, listClientes, createCliente } from '../clientes/clientes.repository.js';
+import { getClientesRepositoryMode, listClientes, createCliente, updateCliente } from '../clientes/clientes.repository.js';
 
 const importSessions = new Map();
 
@@ -86,8 +86,8 @@ async function listAllClientes(accountId) {
   return items;
 }
 
-function getMetadataValue(cliente, key) {
-  return cliente?.metadata && Object.prototype.hasOwnProperty.call(cliente.metadata, key) ? cliente.metadata[key] : null;
+function normalizeValue(value) {
+  return String(value ?? '').trim();
 }
 
 function findExistingByDocumento(clients, documento) {
@@ -95,25 +95,10 @@ function findExistingByDocumento(clients, documento) {
   return clients.find((cliente) => normalizeDigits(cliente.documento) === normalized) || null;
 }
 
-function findExistingByCodigo(clients, codigo) {
-  const normalized = normalizeText(codigo);
-  if (!normalized) return null;
-  return clients.find((cliente) => normalizeText(getMetadataValue(cliente, 'codigo_fabrica')) === normalized) || null;
-}
-
-function findPossibleDuplicate(clients, row) {
-  const nome = normalizeText(row.nome).toLowerCase();
-  const cidade = normalizeText(row.cidade).toLowerCase();
-  const estado = normalizeUf(row.estado).toLowerCase();
-  if (!nome || !cidade || !estado) return null;
-  return clients.find((cliente) => normalizeText(cliente.nome).toLowerCase() === nome && normalizeText(cliente.cidade).toLowerCase() === cidade && normalizeUf(cliente.estado).toLowerCase() === estado) || null;
-}
-
 function buildMetadata(row) {
   const metadata = {
     origem_importacao: 'clientes_fabrica'
   };
-  if (row.codigo) metadata.codigo_fabrica = row.codigo;
   if (row.fantasia) metadata.nome_fantasia = row.fantasia;
   if (row.situacaoOriginal) metadata.situacao_original = row.situacaoOriginal;
   if (row.limiteCredito !== null) metadata.limite_credito = row.limiteCredito;
@@ -134,6 +119,7 @@ function buildImportPayload(row) {
   return {
     account_id: row.accountId,
     nome: normalizeText(row.razaoSocial),
+    codigo: normalizeValue(row.codigo) || null,
     documento: row.cnpj || null,
     cidade: row.cidade || null,
     estado: row.uf || null,
@@ -190,49 +176,36 @@ function buildRowFromSheet(headers, row, rowNumber) {
   };
 }
 
-function classifyRow(row, existingClientes, seenDocumento, seenCodigo) {
+function classifyRow(row, existingClientes, seenDocumento) {
   const errors = [];
-  if (!row.razaoSocial) errors.push('Razão Social obrigatória.');
   if (!row.cnpj) errors.push('CNPJ ausente.');
   if (row.cnpj && row.cnpj.length !== 14) errors.push('CNPJ inválido.');
-  if (row.uf && row.uf.length !== 2) errors.push('UF inválida.');
-  if (!row.razaoSocial || !row.cnpj || row.cnpj.length !== 14 || (row.uf && row.uf.length !== 2)) {
+  if (!row.cnpj || row.cnpj.length !== 14) {
     return { status: 'invalido', errors };
   }
   if (seenDocumento.has(row.cnpj) || findExistingByDocumento(existingClientes, row.cnpj)) {
     return { status: 'existente', errors: [] };
   }
-  if (row.codigo && (seenCodigo.has(row.codigo) || findExistingByCodigo(existingClientes, row.codigo))) {
-    return { status: 'existente', errors: [] };
-  }
-  const possibleDuplicate = findPossibleDuplicate(existingClientes, row);
-  if (possibleDuplicate) {
-    return { status: 'possivel_duplicado', errors: [], possibleDuplicate };
-  }
   seenDocumento.add(row.cnpj);
-  if (row.codigo) seenCodigo.add(row.codigo);
   return { status: 'novo', errors: [] };
 }
 
 function buildPreviewRows(workbookRows, existingClientes) {
   const seenDocumento = new Set();
-  const seenCodigo = new Set();
   const rows = [];
-  const summary = { novos: 0, existentes: 0, invalidos: 0, possiveis_duplicados: 0 };
+  const summary = { novos: 0, existentes: 0, invalidos: 0 };
 
   for (const entry of workbookRows) {
     const row = buildRowFromSheet(entry.headers, entry.row, entry.rowNumber);
-    const classification = classifyRow(row, existingClientes, seenDocumento, seenCodigo);
+    const classification = classifyRow(row, existingClientes, seenDocumento);
     if (classification.status === 'novo') summary.novos += 1;
     else if (classification.status === 'existente') summary.existentes += 1;
     else if (classification.status === 'invalido') summary.invalidos += 1;
-    else if (classification.status === 'possivel_duplicado') summary.possiveis_duplicados += 1;
     rows.push({
       ...row,
       status: classification.status,
       ativoLabel: row.ativo ? 'Sim' : 'Não',
       errors: classification.errors,
-      possibleDuplicate: classification.possibleDuplicate ? { id: classification.possibleDuplicate.id, nome: classification.possibleDuplicate.nome, cidade: classification.possibleDuplicate.cidade, estado: classification.possibleDuplicate.estado } : null,
       metadata: buildMetadata(row)
     });
   }
@@ -257,30 +230,27 @@ export async function executeClientesImport({ accountId, importToken }) {
     throw new BadRequestError('Prévia da importação não encontrada.', { domain: 'clientes-import', code: 'IMPORT_TOKEN_INVALID' });
   }
   const existingClientes = await listAllClientes(accountId);
-  const existingByDocumento = new Set(existingClientes.map((cliente) => normalizeDigits(cliente.documento)).filter(Boolean));
-  const existingByCodigo = new Set(existingClientes.map((cliente) => normalizeText(getMetadataValue(cliente, 'codigo_fabrica'))).filter(Boolean));
+  const existingByDocumento = new Map(existingClientes.map((cliente) => [normalizeDigits(cliente.documento), cliente]).filter(([key]) => Boolean(key)));
   const inserted = [];
-  const ignoredExistentes = [];
+  const updated = [];
   const invalidos = [];
-  const possiveisDuplicados = [];
 
   for (const row of session.rows) {
     if (row.status === 'invalido') {
       invalidos.push(row);
       continue;
     }
-    if (row.status === 'possivel_duplicado') {
-      possiveisDuplicados.push(row);
-      continue;
-    }
-    if (existingByDocumento.has(row.cnpj) || (row.codigo && existingByCodigo.has(row.codigo))) {
-      ignoredExistentes.push(row);
-      continue;
-    }
-    const payload = buildImportPayload({ ...row, accountId });
     try {
-      const created = await createCliente(payload, { accountId });
-      inserted.push({ id: created.id, nome: created.nome, documento: created.documento });
+      const current = existingByDocumento.get(row.cnpj) || null;
+      if (current) {
+        const updatedCliente = await updateCliente(current.id, { codigo: normalizeValue(row.codigo) || null }, { accountId });
+        updated.push({ id: updatedCliente.id, nome: updatedCliente.nome, documento: updatedCliente.documento, codigo: updatedCliente.codigo ?? null });
+        existingByDocumento.set(row.cnpj, updatedCliente);
+        continue;
+      }
+      const created = await createCliente(buildImportPayload({ ...row, accountId }), { accountId });
+      inserted.push({ id: created.id, nome: created.nome, documento: created.documento, codigo: created.codigo ?? null });
+      existingByDocumento.set(row.cnpj, created);
     } catch (error) {
       const motivo = extractErrorMessage(error);
       throw new DatabaseError(`Falha ao criar cliente no repository na linha ${row.rowNumber}${motivo ? `: ${motivo}` : ''}`, {
@@ -296,21 +266,17 @@ export async function executeClientesImport({ accountId, importToken }) {
         }
       });
     }
-    existingByDocumento.add(row.cnpj);
-    if (row.codigo) existingByCodigo.add(row.codigo);
   }
 
   return {
     ok: true,
     inserted,
-    ignorados_existentes: ignoredExistentes,
+    updated,
     invalidos,
-    possiveis_duplicados: possiveisDuplicados,
     summary: {
       inserted: inserted.length,
-      ignoredExisting: ignoredExistentes.length,
-      invalidRows: invalidos.length,
-      possibleDuplicates: possiveisDuplicados.length
+      updated: updated.length,
+      invalidRows: invalidos.length
     }
   };
 }
