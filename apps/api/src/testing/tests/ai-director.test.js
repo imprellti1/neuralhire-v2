@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { __resetMemoryAiDirectorForTests, consultManager, createAiDirectorMemory, getAiDirectorDashboard, listAiDirectorMemories, listManagers } from '../../modules/ai-director/ai-director.repository.js';
+import { delegateAiDirectorQuestion } from '../../modules/ai-director/ai-director.orchestrator.js';
 
 function resetState() {
   __resetMemoryAiDirectorForTests();
@@ -91,6 +92,61 @@ export function getAiDirectorTests() {
       name: 'POST consult rejeita manager inexistente',
       run: async () => {
         assert.throws(() => consultManager({ accountId: 'acc-a' }, 'inexistente', { question: 'Teste' }));
+      }
+    },
+    {
+      name: 'POST /ai-director/delegate roteia faturamento para comercial',
+      run: async () => {
+        const result = await delegateAiDirectorQuestion({ question: 'Por que o faturamento caiu?' }, { accountId: 'acc-a' });
+        assert.equal(result.intent, 'analise_faturamento');
+        assert.deepEqual(result.selectedManagers, ['comercial']);
+        assert.equal(result.managerResponses[0].manager.id, 'comercial');
+      }
+    },
+    {
+      name: 'POST /ai-director/delegate roteia clientes em risco para comercial e followup',
+      run: async () => {
+        const result = await delegateAiDirectorQuestion({ question: 'Quais clientes estão em risco?' }, { accountId: 'acc-a' });
+        assert.equal(result.intent, 'analise_clientes');
+        assert.deepEqual(result.selectedManagers, ['comercial', 'followup']);
+      }
+    },
+    {
+      name: 'POST /ai-director/delegate roteia fabricante para produtos',
+      run: async () => {
+        const result = await delegateAiDirectorQuestion({ question: 'Qual fabricante mais vendeu?' }, { accountId: 'acc-a' });
+        assert.equal(result.intent, 'analise_produtos');
+        assert.deepEqual(result.selectedManagers, ['produtos']);
+      }
+    },
+    {
+      name: 'POST /ai-director/delegate roteia auditoria',
+      run: async () => {
+        const result = await delegateAiDirectorQuestion({ question: 'Tem erro de auditoria?' }, { accountId: 'acc-a' });
+        assert.equal(result.intent, 'analise_auditoria');
+        assert.deepEqual(result.selectedManagers, ['auditoria']);
+      }
+    },
+    {
+      name: 'POST /ai-director/delegate roteia administrativo',
+      run: async () => {
+        const result = await delegateAiDirectorQuestion({ question: 'Revisar permissões dos usuários' }, { accountId: 'acc-a' });
+        assert.equal(result.intent, 'analise_administrativa');
+        assert.deepEqual(result.selectedManagers, ['administrativo']);
+      }
+    },
+    {
+      name: 'POST /ai-director/delegate pergunta generica usa analise_geral',
+      run: async () => {
+        const result = await delegateAiDirectorQuestion({ question: 'Me ajude a priorizar a operação' }, { accountId: 'acc-a' });
+        assert.equal(result.intent, 'analise_geral');
+        assert.deepEqual(result.selectedManagers, ['comercial', 'produtos']);
+      }
+    },
+    {
+      name: 'POST /ai-director/delegate rejeita question vazia',
+      run: async () => {
+        await assert.rejects(() => delegateAiDirectorQuestion({ question: '   ' }, { accountId: 'acc-a' }));
       }
     }
   ];

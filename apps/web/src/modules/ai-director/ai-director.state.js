@@ -17,6 +17,9 @@ export function createAiDirectorState() {
     savingMemory: false,
     memoryError: null,
     question: '',
-    answer: 'Módulo de perguntas será ativado na ETAPA 5.'
+    answer: 'Módulo de perguntas será ativado na ETAPA 5.',
+    delegationLoading: false,
+    delegationResult: null,
+    delegationError: null
   };
 }

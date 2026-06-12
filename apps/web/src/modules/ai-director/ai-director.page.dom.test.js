@@ -39,6 +39,23 @@ test('ai director page dom', async () => {
             ]
           };
         }
+        if (url === '/ai-director/delegate') {
+          return {
+            question: 'Por que o faturamento caiu?',
+            intent: 'analise_faturamento',
+            selectedManagers: ['comercial'],
+            managerResponses: [
+              {
+                manager: { id: 'comercial', nome: 'Gerente Comercial' },
+                summary: 'Consulta recebida pelo Gerente Comercial.',
+                status: 'mocked',
+                sources: ['Clientes', 'Pedidos', 'Pipeline', 'Revenue']
+              }
+            ],
+            summary: 'O Diretor IA consultou Gerente Comercial e consolidou uma resposta inicial.',
+            status: 'delegated'
+          };
+        }
         return {};
       },
       post: async (url, payload) => {
@@ -70,6 +87,14 @@ test('ai director page dom', async () => {
   assert.match(document.body.textContent, /Gerente Follow-up/);
   assert.match(document.body.textContent, /Gerente Administrativo/);
   assert.match(document.body.textContent, /Pergunte ao Diretor/);
+  document.querySelector('#ai-director-question').value = 'Por que o faturamento caiu?';
+  document.querySelector('#ai-director-analyze').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+  await flush();
+  await flush();
+  await flush();
+  assert.match(document.body.textContent, /analise_faturamento/);
+  assert.match(document.body.textContent, /Gerente Comercial/);
+  assert.match(document.body.textContent, /O Diretor IA consultou Gerente Comercial e consolidou uma resposta inicial\./);
   document.querySelector('[data-manager-id="comercial"] input').value = 'Quais clientes estão em risco?';
   document.querySelector('[data-manager-id="comercial"] .manager-consult-button').click();
   await flush();

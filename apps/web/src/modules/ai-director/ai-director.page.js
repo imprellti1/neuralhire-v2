@@ -1,8 +1,26 @@
-import { consultManager, createMemory, fetchAiDirectorDashboard, listManagers, listMemories } from './ai-director.service.js';
+import { consultManager, createMemory, delegateQuestion, fetchAiDirectorDashboard, listManagers, listMemories } from './ai-director.service.js';
 import { createAiDirectorState } from './ai-director.state.js';
 
 function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
+
+function classifyDelegationFallback(question) {
+  const normalized = String(question ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const rules = [
+    { intent: 'analise_clientes', keywords: ['cliente', 'clientes', 'risco', 'carteira', 'recompra'], managers: ['comercial', 'followup'] },
+    { intent: 'analise_faturamento', keywords: ['faturamento', 'receita', 'venda', 'vendas', 'pedido', 'pedidos'], managers: ['comercial'] },
+    { intent: 'analise_produtos', keywords: ['produto', 'produtos', 'categoria', 'categorias', 'fabricante', 'fabricantes', 'promoção', 'promoções', 'importação', 'importações'], managers: ['produtos'] },
+    { intent: 'analise_auditoria', keywords: ['erro', 'erros', 'log', 'logs', 'auditoria', 'inconsistência', 'inconsistencias', 'integridade'], managers: ['auditoria'] },
+    { intent: 'analise_administrativa', keywords: ['usuário', 'usuarios', 'permissão', 'permissoes', 'configuração', 'configuracoes', 'tenant', 'conta'], managers: ['administrativo'] }
+  ];
+  const match = rules.find((rule) => rule.keywords.some((keyword) => normalized.includes(keyword)));
+  return match || { intent: 'analise_geral', managers: ['comercial', 'produtos'] };
+}
+
+function managerNamesFor(ids, managers = []) {
+  const map = new Map(managers.map((manager) => [manager.id, manager.nome]));
+  return ids.map((id) => map.get(id) || id);
 }
 
 export async function renderAiDirectorPage(container, { apiClient } = {}) {
@@ -25,6 +43,7 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
     const memories = state.memories || [];
     const managers = state.managers || [];
     const form = state.memoryForm || {};
+    const delegation = state.delegationResult || {};
 
     container.innerHTML = `
       <section style="display:grid;gap:20px">
@@ -107,17 +126,54 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
           <h2>Pergunte ao Diretor</h2>
           <label for="ai-director-question">Pergunta</label>
           <input id="ai-director-question" type="text" value="${esc(state.question)}" />
-          <button id="ai-director-analyze" type="button">Analisar</button>
-          <p id="ai-director-answer">${esc(state.answer)}</p>
+          <button id="ai-director-analyze" type="button" ${state.delegationLoading ? 'disabled' : ''}>Analisar</button>
+          ${state.delegationError ? `<p>${esc(state.delegationError)}</p>` : ''}
+          ${state.delegationResult ? `
+            <div data-testid="delegation-result" style="display:grid;gap:8px">
+              <p><strong>Pergunta:</strong> ${esc(delegation.question)}</p>
+              <p><strong>Intenção:</strong> ${esc(delegation.intent)}</p>
+              <p><strong>Gerentes consultados:</strong> ${esc((delegation.selectedManagers || []).join(', '))}</p>
+              <p><strong>Resumo consolidado:</strong> ${esc(delegation.summary)}</p>
+              <p><strong>Status:</strong> ${esc(delegation.status)}</p>
+              <div>
+                <strong>Respostas dos gerentes</strong>
+                <ul>
+                  ${(delegation.managerResponses || []).map((item) => `<li><strong>${esc(item.manager?.nome || '')}</strong>: ${esc(item.summary)} <span>${esc(item.status)}</span><div>Fontes: ${esc((item.sources || []).join(', '))}</div></li>`).join('')}
+                </ul>
+              </div>
+            </div>
+          ` : `<p id="ai-director-answer">${esc(state.answer)}</p>`}
         </article>
       </section>
     `;
 
     const questionInput = container.querySelector('#ai-director-question');
-    const answer = container.querySelector('#ai-director-answer');
-    container.querySelector('#ai-director-analyze')?.addEventListener('click', () => {
+    container.querySelector('#ai-director-analyze')?.addEventListener('click', async () => {
       state.question = questionInput?.value || '';
-      if (answer) answer.textContent = 'Módulo de perguntas será ativado na ETAPA 5.';
+      if (!apiClient) return;
+      state.delegationLoading = true;
+      state.delegationError = null;
+      state.delegationResult = null;
+      render();
+      try {
+        const result = await delegateQuestion(apiClient, { question: state.question });
+        const fallback = classifyDelegationFallback(state.question);
+        const selectedManagers = Array.isArray(result?.selectedManagers) && result.selectedManagers.length ? result.selectedManagers : fallback.managers;
+        const selectedNames = managerNamesFor(selectedManagers, state.managers || []);
+        state.delegationResult = {
+          question: result?.question || state.question,
+          intent: result?.intent || fallback.intent,
+          selectedManagers,
+          managerResponses: Array.isArray(result?.managerResponses) ? result.managerResponses : [],
+          summary: result?.summary || `O Diretor IA consultou ${selectedNames.join(' e ')} e consolidou uma resposta inicial.`,
+          status: result?.status || 'delegated'
+        };
+      } catch (error) {
+        state.delegationError = 'Não foi possível consultar o Diretor IA.';
+      } finally {
+        state.delegationLoading = false;
+        render();
+      }
     });
 
     container.querySelectorAll('.manager-consult-button').forEach((button) => {
