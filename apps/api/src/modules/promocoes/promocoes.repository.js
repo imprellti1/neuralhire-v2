@@ -469,6 +469,17 @@ export async function updatePromocao(id, data = {}, options = {}) {
   payload.aplicar_em_todas_variacoes = produtos[0]?.aplicar_em_todas_variacoes !== false;
   payload.produto_id = produtos[0]?.id || payload.produto_id || null;
 
+  const buildResponsePromocao = async (persistedPromocao, { ativaAgoraOverride } = {}) => {
+    const response = {
+      ...persistedPromocao,
+      produtos,
+      produto: produtos[0] || null
+    };
+    const normalized = normalizeRow(response);
+    if (ativaAgoraOverride === true) normalized.ativaAgora = true;
+    return attachProdutoData(attachMeta(normalized, []), accountId);
+  };
+
   if (getPromocoesRepositoryMode().mode === 'supabase') {
     const supabase = resolveSupabaseClient();
     const promocaoPayload = pickPromocaoPersistFields(payload);
@@ -486,7 +497,7 @@ export async function updatePromocao(id, data = {}, options = {}) {
       selectedVariacoesPayload.forEach((variacao) => variationInsertRows.push({ id: randomUUID(), account_id: accountId, promocao_id: id, promocao_produto_id: produtoRowMap.get(String(produto.id)) || null, produto_id: produto.id, variacao_id: variacao.variacaoId, percentual_desconto: variacao.percentualDesconto ?? produto.percentual_desconto ?? payload.percentual_desconto ?? null, created_at: new Date().toISOString() }));
     }
     if (variationInsertRows.length) await supabase.from('produto_promocao_variacoes').insert(variationInsertRows);
-    return getPromocaoById(id, { accountId });
+    return buildResponsePromocao(updated || promocaoPayload, { ativaAgoraOverride: current.ativaAgora === true });
   }
 
   const idx = memoryPromocoes.findIndex((row) => row.id === id && row.account_id === accountId);
@@ -501,7 +512,7 @@ export async function updatePromocao(id, data = {}, options = {}) {
     const produtoRow = produtoRows.find((row) => String(row.produto_id) === String(produto.id));
     selectedVariacoesPayload.forEach((variacao) => memoryPromocaoVariacoes.push({ id: randomUUID(), account_id: accountId, promocao_id: id, promocao_produto_id: produtoRow?.id || null, produto_id: produto.id, variacao_id: variacao.variacaoId, percentual_desconto: variacao.percentualDesconto ?? produto.percentual_desconto ?? payload.percentual_desconto ?? null, created_at: new Date().toISOString() }));
   }
-  return getPromocaoById(id, { accountId });
+  return buildResponsePromocao(payload, { ativaAgoraOverride: current.ativaAgora === true });
 }
 
 export async function deletePromocao(id, options = {}) {

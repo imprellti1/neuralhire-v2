@@ -5,6 +5,7 @@ import { createTestResponse } from '../create-test-response.js';
 import { __loadMemoryProdutos, __resetMemoryProdutosForTests, createProduto } from '../../modules/produtos/produtos.repository.js';
 import { __resetMemoryProductEditorForTests, createVariation } from '../../modules/product-editor/product-editor.repository.js';
 import { __resetMemoryPromocoesForTests, __setPromocoesSupabaseClientForTests, calcularPrecoPromocional, isPromocaoAtiva } from '../../modules/promocoes/promocoes.repository.js';
+import { todayDateOnly } from '../../modules/promocoes/promocoes.date.js';
 
 function createSupabaseMock() {
   const state = { promocoes: [], produtos: [], variacoes: [], lastInsert: null, lastUpdate: null };
@@ -754,6 +755,7 @@ export function getPromocoesTests() {
         __resetMemoryPromocoesForTests();
         const app = createApiApp();
         const produto = await createProduto({ nome: 'Produto Date Only', preco: 100 }, { accountId: 'acc-date-only' });
+        const today = todayDateOnly();
         const created = await call(app, {
           method: 'POST',
           url: '/promocoes',
@@ -762,14 +764,14 @@ export function getPromocoesTests() {
             produto_id: produto.id,
             nome: 'Promo Date Only',
             percentual_desconto: 10,
-            data_inicio: '2026-06-11',
-            data_fim: '2026-06-11',
+            data_inicio: today,
+            data_fim: today,
             aplicar_em_todas_variacoes: true
           }
         });
         assert.equal(created.res.statusCode, 200);
-        assert.equal(created.body.item.data_inicio, '2026-06-11');
-        assert.equal(created.body.item.data_fim, '2026-06-11');
+        assert.equal(created.body.item.data_inicio, today);
+        assert.equal(created.body.item.data_fim, today);
         assert.equal(created.body.item.ativaAgora, true);
 
         const promocaoId = created.body.item.id;
@@ -778,13 +780,13 @@ export function getPromocoesTests() {
           url: `/promocoes/${promocaoId}`,
           accountId: 'acc-date-only',
           body: {
-            data_inicio: '2026-06-11',
-            data_fim: '2026-06-11'
+            data_inicio: today,
+            data_fim: today
           }
         });
         assert.equal(updated.res.statusCode, 200);
-        assert.equal(updated.body.item.data_inicio, '2026-06-11');
-        assert.equal(updated.body.item.data_fim, '2026-06-11');
+        assert.equal(updated.body.item.data_inicio, today);
+        assert.equal(updated.body.item.data_fim, today);
         assert.equal(updated.body.item.ativaAgora, true);
       }
     },
