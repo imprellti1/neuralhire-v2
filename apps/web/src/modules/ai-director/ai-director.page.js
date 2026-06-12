@@ -139,6 +139,7 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
     const observacoesPorModulo = Array.isArray(radar.observacoesPorModulo) ? radar.observacoesPorModulo : [];
     const acoesSugeridas = Array.isArray(radar.acoesSugeridas) ? radar.acoesSugeridas : [];
     const persistenciaInsights = radar.persistenciaInsights && typeof radar.persistenciaInsights === 'object' ? radar.persistenciaInsights : null;
+    const auditoriaRadar = radar.auditoria && typeof radar.auditoria === 'object' ? radar.auditoria : null;
     const penalidades = Array.isArray(scoreExecutivo.penalidades) ? scoreExecutivo.penalidades : [];
     const pilares = scoreExecutivo.pilares || {};
     const pillarEntries = [
@@ -207,6 +208,31 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
         <div class="nh-list-item">
           <div class="nh-mini">Ignorados</div>
           <div style="margin-top: 6px; font-size: 1.5rem; font-weight: 800;">${esc(formatRadarMetric(persistenciaInsights?.ignorados ?? 0))}</div>
+        </div>
+      </div>
+    `;
+    const auditoriaHtml = `
+      <div class="nh-grid-2" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;">
+        <div class="nh-list-item">
+          <div class="nh-mini">Versão</div>
+          <div style="margin-top: 6px; font-size: 1.2rem; font-weight: 800;">${esc(auditoriaRadar?.versao || '—')}</div>
+        </div>
+        <div class="nh-list-item">
+          <div class="nh-mini">Tempo de geração</div>
+          <div style="margin-top: 6px; font-size: 1.2rem; font-weight: 800;">${esc(formatRadarMetric(auditoriaRadar?.tempoGeracaoMs ?? 0))} ms</div>
+        </div>
+        <div class="nh-list-item">
+          <div class="nh-mini">Score validado</div>
+          <div style="margin-top: 6px; font-size: 1.2rem; font-weight: 800;">${esc(auditoriaRadar?.consistencia?.scoreValido ? 'Sim' : 'Não')}</div>
+        </div>
+        <div class="nh-list-item">
+          <div class="nh-mini">Total de fontes</div>
+          <div style="margin-top: 6px; font-size: 1.2rem; font-weight: 800;">${esc(formatRadarMetric(Array.isArray(auditoriaRadar?.fontesUtilizadas) ? auditoriaRadar.fontesUtilizadas.length : 0))}</div>
+        </div>
+        <div class="nh-list-item" style="grid-column: 1 / -1;">
+          <div class="nh-mini">Qualidade</div>
+          <div style="margin-top: 6px; font-size: 1.2rem; font-weight: 800;">${esc(formatRadarMetric(Math.round(((auditoriaRadar?.qualidade?.percentualPrioridadesComAcao ?? 0) + (auditoriaRadar?.qualidade?.percentualPrioridadesComGerente ?? 0) + (auditoriaRadar?.qualidade?.percentualObservacoesComResumo ?? 0)) / 3)))}%</div>
+          <div class="nh-mini" style="margin-top: 6px;">Ações, gerente e resumo modular</div>
         </div>
       </div>
     `;
@@ -410,6 +436,16 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
               ${opportunities.map((item) => `<div class="nh-list-item"><div class="nh-badge success">oportunidade</div><div style="margin-top: 10px; font-weight: 600;">${esc(item.title)}</div><div class="nh-mini" style="margin-top: 6px;">${esc(item.description || item.summary || '')}</div></div>`).join('')}
             </div>
           </section>
+        </article>
+        <article class="nh-card">
+          <div class="nh-between">
+            <div>
+              <h2 class="nh-section-title">Auditoria do Radar</h2>
+              <p class="nh-section-subtitle">Sinais de higiene, rastreabilidade e consistência do radar executivo.</p>
+            </div>
+          </div>
+          ${auditoriaHtml}
+          <div class="nh-mini" style="margin-top: 10px;">Fontes: ${esc(Array.isArray(auditoriaRadar?.fontesUtilizadas) && auditoriaRadar.fontesUtilizadas.length ? auditoriaRadar.fontesUtilizadas.join(', ') : '—')}</div>
         </article>
         <article class="nh-card">
           <div class="nh-between">

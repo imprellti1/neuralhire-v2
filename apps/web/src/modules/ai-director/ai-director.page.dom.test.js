@@ -40,6 +40,14 @@ test('ai director page dom with radar', async () => {
         radar: {
           resumoExecutivo: 'Receita estável, risco comercial em alta e oportunidade em produtos.',
           resumoModular: '4 módulos observados. 2 saudáveis, 1 em atenção e 1 crítico. O principal ponto de atenção está no módulo Comercial.',
+          auditoria: {
+            versao: '2.1',
+            geradoEm: '2026-06-12T15:10:00.000Z',
+            tempoGeracaoMs: 43,
+            fontesUtilizadas: ['dashboard', 'executive_memories', 'managers'],
+            consistencia: { scoreValido: true, prioridadesValidas: true, acoesValidas: true, limitesRespeitados: true },
+            qualidade: { percentualPrioridadesComAcao: 100, percentualPrioridadesComGerente: 50, percentualObservacoesComResumo: 100 }
+          },
           alertas: [{ id: 'a1' }, { id: 'a2' }],
           oportunidades: [{ id: 'o1' }],
           observacoesPorModulo: [
@@ -132,6 +140,11 @@ test('ai director page dom with radar', async () => {
   assert.match(document.body.textContent, /Penalidades do Score/);
   assert.match(document.body.textContent, /Ações Sugeridas/);
   assert.match(document.body.textContent, /Persistência Inteligente/);
+  assert.match(document.body.textContent, /Auditoria do Radar/);
+  assert.match(document.body.textContent, /2\.1/);
+  assert.match(document.body.textContent, /43 ms/);
+  assert.match(document.body.textContent, /dashboard/);
+  assert.match(document.body.textContent, /qualidade/i);
   assert.match(document.body.textContent, /Candidatos/);
   assert.match(document.body.textContent, /Persistidos/);
   assert.match(document.body.textContent, /Ignorados/);
@@ -202,6 +215,7 @@ test('ai director page dom without radar fallback', async () => {
   assert.match(document.body.textContent, /Nenhuma penalidade crítica identificada no Score Executivo\./);
   assert.match(document.body.textContent, /Sem ações sugeridas no momento\./);
   assert.match(document.body.textContent, /Persistência Inteligente/);
+  assert.match(document.body.textContent, /Auditoria do Radar/);
   assert.match(document.body.textContent, /0/);
   assert.match(document.body.textContent, /Sem dados suficientes/);
   assert.match(document.body.textContent, /Nenhuma observação modular disponível no momento\./);

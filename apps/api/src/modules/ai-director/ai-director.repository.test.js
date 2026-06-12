@@ -13,6 +13,14 @@ test('ai director repository returns executive dashboard mock', async () => {
   assert.equal(Object.keys(dashboard.health).length, 0);
   assert.equal(dashboard.alerts.length, 0);
   assert.equal(dashboard.opportunities.length, 0);
+  assert.ok(dashboard.radar.auditoria);
+  assert.equal(typeof dashboard.radar.auditoria.versao, 'string');
+  assert.equal(typeof dashboard.radar.auditoria.geradoEm, 'string');
+  assert.equal(dashboard.radar.auditoria.tempoGeracaoMs >= 0, true);
+  assert.equal(Array.isArray(dashboard.radar.auditoria.fontesUtilizadas), true);
+  assert.equal(dashboard.radar.auditoria.consistencia && typeof dashboard.radar.auditoria.consistencia === 'object', true);
+  assert.equal(dashboard.radar.auditoria.qualidade && typeof dashboard.radar.auditoria.qualidade === 'object', true);
+  assert.equal(typeof dashboard.radar.auditoria.consistencia.scoreValido, 'boolean');
   assert.ok(Array.isArray(dashboard.radar.observacoesPorModulo));
   assert.equal(dashboard.radar.observacoesPorModulo.length, 4);
   assert.deepEqual(dashboard.radar.observacoesPorModulo.map((item) => item.modulo), ['Comercial', 'Produtos', 'Follow-up', 'Inteligência']);

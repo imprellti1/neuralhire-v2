@@ -40,6 +40,11 @@ export function getAiDirectorTests() {
         assert.equal(dashboard.radar.observacoesPorModulo.length, 4);
         assert.equal(typeof dashboard.radar.resumoExecutivo, 'string');
         assert.equal(typeof dashboard.radar.resumoModular, 'string');
+        assert.equal(typeof dashboard.radar.auditoria.versao, 'string');
+        assert.equal(typeof dashboard.radar.auditoria.geradoEm, 'string');
+        assert.equal(dashboard.radar.auditoria.tempoGeracaoMs >= 0, true);
+        assert.equal(Array.isArray(dashboard.radar.auditoria.fontesUtilizadas), true);
+        assert.equal(typeof dashboard.radar.auditoria.consistencia.scoreValido, 'boolean');
         assert.equal(dashboard.radar.scoreExecutivo.valor >= 0 && dashboard.radar.scoreExecutivo.valor <= 100, true);
         assert.equal(typeof dashboard.radar.scoreExecutivo.classificacao, 'string');
         assert.ok(dashboard.radar.scoreExecutivo.pilares);

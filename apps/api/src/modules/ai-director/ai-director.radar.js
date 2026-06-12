@@ -14,6 +14,16 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function sanitizeText(value, maxLength = 500) {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  return text.length > maxLength ? text.slice(0, maxLength).trimEnd() : text;
+}
+
+function sanitizeList(list, maxLength = 500) {
+  return Array.isArray(list) ? list.map((item) => sanitizeText(item, maxLength)).filter(Boolean) : [];
+}
+
 function classificationFromScore(score) {
   if (score >= 90) return 'Excelente';
   if (score >= 75) return 'Boa';
@@ -57,12 +67,12 @@ function moduleScoreForStatus(status, base = 0) {
 
 function buildModuleObservation({ modulo, status, score, resumo, observacoes = [], gerenteResponsavel = null }) {
   return {
-    modulo,
+    modulo: sanitizeText(modulo, 120),
     status,
     score: clamp(Math.round(score), 0, 100),
-    resumo,
-    observacoes: Array.isArray(observacoes) ? observacoes.filter(Boolean) : [],
-    gerenteResponsavel
+    resumo: sanitizeText(resumo, 500),
+    observacoes: sanitizeList(observacoes, 500),
+    gerenteResponsavel: sanitizeText(gerenteResponsavel, 120) || null
   };
 }
 
@@ -233,11 +243,21 @@ async function persistStrategicRadarInsights(context, candidates = []) {
 }
 
 function buildAlert(tipo, descricao, origem) {
-  return { tipo, titulo: tipo, descricao, origem };
+  return {
+    tipo: sanitizeText(tipo, 120),
+    titulo: sanitizeText(tipo, 120),
+    descricao: sanitizeText(descricao, 500),
+    origem: sanitizeText(origem, 120)
+  };
 }
 
 function buildOpportunity(tipo, descricao, origem) {
-  return { tipo, titulo: tipo, descricao, origem };
+  return {
+    tipo: sanitizeText(tipo, 120),
+    titulo: sanitizeText(tipo, 120),
+    descricao: sanitizeText(descricao, 500),
+    origem: sanitizeText(origem, 120)
+  };
 }
 
 function normalizeUrgency(value) {
@@ -323,13 +343,13 @@ function buildPriority({
 }) {
   return {
     ordem: 0,
-    titulo,
+    titulo: sanitizeText(titulo, 120),
     impacto: normalizeImpact(impacto),
     urgencia: normalizeUrgency(urgencia),
-    motivo,
-    origem,
-    acaoRecomendada,
-    gerenteSugerido: gerenteSugerido ?? null,
+    motivo: sanitizeText(motivo, 300),
+    origem: sanitizeText(origem, 120),
+    acaoRecomendada: sanitizeText(acaoRecomendada, 500),
+    gerenteSugerido: sanitizeText(gerenteSugerido, 120) || null,
     peso: clampPriorityWeight(peso)
   };
 }
@@ -417,11 +437,11 @@ function buildSuggestedActions(prioridades = []) {
     const prioridade = String(priority?.urgencia || '').toLowerCase() === 'alta' ? 'alta' : String(priority?.urgencia || '').toLowerCase() === 'media' || String(priority?.urgencia || '').toLowerCase() === 'média' ? 'media' : 'baixa';
     actions.push({
       ordem: actions.length + 1,
-      titulo,
-      descricao: String(priority?.acaoRecomendada || priority?.motivo || '').trim() || 'Ação sugerida pelo radar executivo.',
+      titulo: sanitizeText(titulo, 120),
+      descricao: sanitizeText(priority?.acaoRecomendada || priority?.motivo || '', 500) || 'Ação sugerida pelo radar executivo.',
       tipo,
       prioridade,
-      origem: String(priority?.origem || 'geral'),
+      origem: sanitizeText(priority?.origem || 'geral', 120),
       gerenteSugerido: priority?.gerenteSugerido ?? null,
       prazoSugerido: mapActionDeadline(priority),
       criterioConclusao: actionConclusionForType(tipo)
@@ -432,7 +452,9 @@ function buildSuggestedActions(prioridades = []) {
 }
 
 export async function buildStrategicRadar(context = {}) {
+  const radarStart = Date.now();
   const accountId = context?.accountId || context?.account_id || null;
+  const fontesUtilizadas = new Set();
   const [clientes, pedidos, produtos, audit, revenue, executiveMemories, managers] = await Promise.all([
     accountId ? safeCall(() => listClientes({ limit: 200 }, { accountId }), { items: [], total: 0 }) : { items: [], total: 0 },
     accountId ? safeCall(() => listPedidos({ limit: 200 }, { accountId }), { items: [], total: 0 }) : { items: [], total: 0 },
@@ -442,6 +464,15 @@ export async function buildStrategicRadar(context = {}) {
     accountId ? safeCall(() => listExecutiveMemories({ limit: 10 }, { accountId }), { items: [] }) : { items: [] },
     listManagers()
   ]);
+  if (accountId) {
+    if (Array.isArray(clientes?.items) && clientes.items.length) fontesUtilizadas.add('dashboard');
+    if (Array.isArray(pedidos?.items) && pedidos.items.length) fontesUtilizadas.add('dashboard');
+    if (Array.isArray(produtos?.items) && produtos.items.length) fontesUtilizadas.add('dashboard');
+    if (revenue && Object.keys(revenue).length) fontesUtilizadas.add('revenue');
+    if (audit && Object.keys(audit).length) fontesUtilizadas.add('auditoria');
+    if (Array.isArray(executiveMemories?.items) && executiveMemories.items.length) fontesUtilizadas.add('executive_memories');
+  }
+  if (Array.isArray(managers) && managers.length) fontesUtilizadas.add('managers');
 
   const activeCustomers = Array.isArray(clientes?.items) ? clientes.items.filter((item) => item.ativo !== false) : [];
   const riskCustomers = activeCustomers.filter((item) => String(item.status || item.risco || item.health || '').toLowerCase().includes('risco'));
@@ -748,12 +779,42 @@ export async function buildStrategicRadar(context = {}) {
     persistidos: 0,
     ignorados: uniquePersistenceCandidates.length
   }));
+  if (persistenciaInsights && persistenciaInsights.candidatos > 0) fontesUtilizadas.add('executive_memories');
+  if (prioridades.length) fontesUtilizadas.add('followup');
+
+  const scoreExecutivoValido = clamp(Number.isFinite(score) ? Math.round(score) : 0, 0, 100);
+  const classificacaoExecutiva = classificationFromScore(scoreExecutivoValido);
+  const tempoGeracaoMs = Math.max(0, Date.now() - radarStart);
+  const auditoria = {
+    versao: '2.1',
+    geradoEm: new Date().toISOString(),
+    tempoGeracaoMs,
+    fontesUtilizadas: [...fontesUtilizadas],
+    totalAlertas: alertas.length,
+    totalOportunidades: oportunidades.length,
+    totalPrioridades: prioridades.length,
+    totalAcoes: acoesSugeridas.length,
+    totalObservacoesModulares: observacoesPorModulo.length,
+    scoreExecutivo: scoreExecutivoValido,
+    classificacaoExecutiva,
+    consistencia: {
+      scoreValido: scoreExecutivoValido >= 0 && scoreExecutivoValido <= 100,
+      prioridadesValidas: prioridades.every((priority, index, array) => index === 0 || array[index - 1].peso >= priority.peso),
+      acoesValidas: acoesSugeridas.every((acao, index, array) => index === 0 || array[index - 1].ordem < acao.ordem),
+      limitesRespeitados: prioridades.length <= 7 && acoesSugeridas.length <= 5
+    },
+    qualidade: {
+      percentualPrioridadesComAcao: prioridades.length ? Math.round((prioridades.filter((priority) => Boolean(priority?.acaoRecomendada)).length / prioridades.length) * 100) : 0,
+      percentualPrioridadesComGerente: prioridades.length ? Math.round((prioridades.filter((priority) => Boolean(priority?.gerenteSugerido)).length / prioridades.length) * 100) : 0,
+      percentualObservacoesComResumo: observacoesPorModulo.length ? Math.round((observacoesPorModulo.filter((item) => Boolean(item?.resumo)).length / observacoesPorModulo.length) * 100) : 0
+    }
+  };
 
   return {
     observacoesPorModulo,
     scoreExecutivo: {
-      valor: score,
-      classificacao: classificationFromScore(score),
+      valor: scoreExecutivoValido,
+      classificacao: classificacaoExecutiva,
       pilares: {
         comercial: comercialScore,
         operacional: operacionalScore,
@@ -762,17 +823,18 @@ export async function buildStrategicRadar(context = {}) {
       },
       penalidades: topPenalties,
       diagnostico: principalPenalty
-        ? `Score Executivo em nível ${classificationFromScore(score)}. ${summarizePenalties(topPenalties) || 'O principal impacto está distribuído entre os pilares.'}`
-        : `Score Executivo em nível ${classificationFromScore(score)}. O radar não identificou penalidades relevantes no momento.`
+        ? `Score Executivo em nível ${classificacaoExecutiva}. ${summarizePenalties(topPenalties) || 'O principal impacto está distribuído entre os pilares.'}`
+        : `Score Executivo em nível ${classificacaoExecutiva}. O radar não identificou penalidades relevantes no momento.`
     },
     resumoModular: summarizeModules(observacoesPorModulo),
     resumoExecutivo: principalPriority
-      ? `Score Executivo ${score} (${classificationFromScore(score)}). O Radar identificou ${alertas.length} alertas, ${oportunidades.length} oportunidades e ${prioridades.length} prioridades. A prioridade máxima é ${principalPriority.titulo}. A ação sugerida é ${mainAction?.descricao || principalPriority.acaoRecomendada || 'definir o próximo passo'}${mainAction?.gerenteSugerido ? ` com apoio do ${mainAction.gerenteSugerido}` : ''}.`
-      : `Score Executivo ${score} (${classificationFromScore(score)}). O Radar identificou ${alertas.length} alertas, ${oportunidades.length} oportunidades e ${prioridades.length} prioridades. Não há ações críticas pendentes no momento.`,
+      ? `Score Executivo ${scoreExecutivoValido} (${classificacaoExecutiva}). O Radar identificou ${alertas.length} alertas, ${oportunidades.length} oportunidades e ${prioridades.length} prioridades. A prioridade máxima é ${principalPriority.titulo}. A ação sugerida é ${mainAction?.descricao || principalPriority.acaoRecomendada || 'definir o próximo passo'}${mainAction?.gerenteSugerido ? ` com apoio do ${mainAction.gerenteSugerido}` : ''}.`
+      : `Score Executivo ${scoreExecutivoValido} (${classificacaoExecutiva}). O Radar identificou ${alertas.length} alertas, ${oportunidades.length} oportunidades e ${prioridades.length} prioridades. Não há ações críticas pendentes no momento.`,
     alertas,
     oportunidades,
     prioridades,
     acoesSugeridas,
-    persistenciaInsights
+    persistenciaInsights,
+    auditoria
   };
 }

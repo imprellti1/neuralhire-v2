@@ -13,6 +13,8 @@ test('ai director controller returns dashboard payload', async () => {
   assert.equal(typeof result.radar.scoreExecutivo.classificacao, 'string');
   assert.ok(result.radar.scoreExecutivo.pilares);
   assert.ok(Array.isArray(result.radar.acoesSugeridas));
+  assert.ok(result.radar.auditoria);
+  assert.equal(typeof result.radar.auditoria.versao, 'string');
 });
 
 export function getAiDirectorControllerTests() {
