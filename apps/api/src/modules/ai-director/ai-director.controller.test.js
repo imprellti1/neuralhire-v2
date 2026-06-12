@@ -8,6 +8,8 @@ test('ai director controller returns dashboard payload', async () => {
   assert.ok(result.health);
   assert.ok(result.alerts);
   assert.ok(result.opportunities);
+  assert.ok(result.radar);
+  assert.equal(typeof result.radar.resumoExecutivo, 'string');
 });
 
 export function getAiDirectorControllerTests() {

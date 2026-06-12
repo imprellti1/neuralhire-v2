@@ -14,6 +14,7 @@ import { getCustomerSuccess } from '../customer-success/customer-success.reposit
 import { getCustomerRetention } from '../customer-retention/customer-retention.repository.js';
 import { getImplementationStatus } from '../implementation-tracker/implementation-tracker.repository.js';
 import { ROLE_PERMISSIONS } from '../../core/permissions.js';
+import { buildStrategicRadar } from './ai-director.radar.js';
 
 const validTipos = new Set(['observacao', 'alerta', 'oportunidade', 'diagnostico', 'decisao', 'plano_acao']);
 const validPrioridades = new Set(['baixa', 'media', 'alta', 'critica']);
@@ -108,11 +109,19 @@ function normalizeExecutiveMemoryPayload(data = {}) {
   return { tipo, titulo, descricao, categoria, severidade, dados_json };
 }
 
-export function getAiDirectorDashboard() {
+export async function getAiDirectorDashboard(context = {}) {
+  const radar = await buildStrategicRadar(context).catch(() => ({
+    scoreExecutivo: { valor: 100, classificacao: 'Excelente' },
+    resumoExecutivo: 'Radar Estratégico indisponível no momento.',
+    alertas: [],
+    oportunidades: [],
+    prioridades: []
+  }));
   return {
     health: {},
     alerts: [],
-    opportunities: []
+    opportunities: [],
+    radar
   };
 }
 
@@ -226,7 +235,7 @@ async function collectManagerFacts(managerId, context = {}, question = '') {
   }
   const accountId = context?.accountId || null;
   if (!accountId) throw new ForbiddenError('Contexto de tenant obrigatorio', { code: 'TENANT_REQUIRED', domain: 'ai-director' });
-  const dashboard = getAiDirectorDashboard();
+  const dashboard = await getAiDirectorDashboard(context);
   if (managerId === 'comercial') {
     const [customers, orders, revenue, retention, customerSuccess] = await Promise.all([
       safeCall('clientes', () => listClientes({ limit: 200 }, { accountId }), { items: [], total: 0 }),

@@ -27,9 +27,16 @@ export function getAiDirectorTests() {
     {
       name: 'GET /ai-director/dashboard continua retornando payload',
       run: async () => {
-        const dashboard = getAiDirectorDashboard();
+        const dashboard = await getAiDirectorDashboard();
         assert.ok(dashboard.health && typeof dashboard.health === 'object');
         assert.ok(Array.isArray(dashboard.alerts));
+        assert.ok(dashboard.radar);
+        assert.equal(typeof dashboard.radar.scoreExecutivo.valor, 'number');
+        assert.equal(Array.isArray(dashboard.radar.alertas), true);
+        assert.equal(Array.isArray(dashboard.radar.oportunidades), true);
+        assert.equal(Array.isArray(dashboard.radar.prioridades), true);
+        assert.equal(typeof dashboard.radar.resumoExecutivo, 'string');
+        assert.equal(dashboard.radar.scoreExecutivo.valor >= 0 && dashboard.radar.scoreExecutivo.valor <= 100, true);
       }
     },
     {

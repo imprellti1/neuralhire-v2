@@ -3,7 +3,7 @@ import { createAiDirectorMemory, consultManager, getAiDirectorDashboard, listAiD
 import { answerAiDirectorQuestion, delegateAiDirectorQuestion } from './ai-director.orchestrator.js';
 
 export async function getAiDirectorDashboardHandler() {
-  return { ok: true, ...getAiDirectorDashboard() };
+  return { ok: true, ...(await getAiDirectorDashboard()) };
 }
 
 export async function listAiDirectorMemoriesHandler(context = {}) {

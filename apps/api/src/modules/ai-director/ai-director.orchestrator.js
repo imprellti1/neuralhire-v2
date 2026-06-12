@@ -74,7 +74,7 @@ export async function delegateAiDirectorQuestion(payload = {}, options = {}) {
 export async function answerAiDirectorQuestion(payload = {}, options = {}) {
   const question = normalizeQuestion(payload.question);
   const delegation = await delegateAiDirectorQuestion({ question }, options);
-  const dashboard = getAiDirectorDashboard();
+  const dashboard = await getAiDirectorDashboard(options.context || {});
   const memoriesResult = await listAiDirectorMemories({ limit: 8 }, { accountId: options.accountId, context: options.context }).catch(() => ({ items: [] }));
   const executiveMemoriesResult = await findRelevantExecutiveMemories({ limit: 8, question }, { accountId: options.accountId, context: options.context }).catch(() => ({ items: [] }));
   const insights = analyzeExecutiveFacts(delegation.managerResponses || [], executiveMemoriesResult.items || []);
