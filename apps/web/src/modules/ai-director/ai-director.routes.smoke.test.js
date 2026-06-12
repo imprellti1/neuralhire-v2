@@ -8,13 +8,21 @@ test('ai director route smoke', async () => {
   const dom = setupFrontendDom('#/diretor-ia');
   mockAuthenticatedSession();
   installFetchMock({
-    'GET /ai-director/overview': () => ({ gerentes: [], eventosRecentes: [], recomendacoesPendentes: [], contadoresPorCriticidade: { baixa: 0, media: 0, alta: 0, critica: 0 }, contadoresPorStatus: { novo: 0, lido: 0, arquivado: 0 } }),
-    'GET /ai-director/agents': () => ({ items: [] }),
-    'GET /ai-director/events': () => ({ items: [] }),
-    'GET /ai-director/recommendations': () => ({ items: [] })
+    'GET /ai-director/dashboard': () => ({
+      health: {
+        receita_mes: 124550,
+        pedidos_mes: 358,
+        clientes_ativos: 78,
+        clientes_risco: 15
+      },
+      alerts: [{ severity: 'high', title: 'Faturamento caiu 18% nos últimos 15 dias' }],
+      opportunities: [{ title: '12 clientes demonstraram intenção de compra' }]
+    })
   });
   bootstrapWebApp();
-  await flush(); await flush();
+  await flush();
+  await flush();
   assert.match(document.body.textContent, /Diretor IA/);
+  assert.ok(document.querySelector('[data-route="#/diretor-ia"]'));
   teardownFrontendDom(dom);
 });

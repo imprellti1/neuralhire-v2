@@ -1,19 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { __resetAiDirectorMemoryForTests, createAiDirectorEvent, getAiDirectorOverview } from './ai-director.repository.js';
+import { getAiDirectorDashboard } from './ai-director.repository.js';
 
-test('ai director overview starts with seed agents', () => {
-  __resetAiDirectorMemoryForTests();
-  const overview = getAiDirectorOverview();
-  assert.equal(overview.gerentes.length, 5);
-  assert.equal(overview.gerentes[0].nome, 'Diretor IA');
+test('ai director repository returns executive dashboard mock', () => {
+  const dashboard = getAiDirectorDashboard();
+  assert.equal(dashboard.health.receita_mes, 124550);
+  assert.equal(dashboard.health.pedidos_mes, 358);
+  assert.ok(Array.isArray(dashboard.alerts));
+  assert.ok(Array.isArray(dashboard.opportunities));
 });
 
-test('product event without image generates recommendation', () => {
-  __resetAiDirectorMemoryForTests();
-  const item = createAiDirectorEvent({ tipo: 'produto editado', entidade: 'produto', titulo: 'Produto sem imagem', resumo: 'Sem imagem principal', metadata: { sem_imagem: true } });
-  const overview = getAiDirectorOverview();
-  assert.equal(item.criticidade, 'baixa');
-  assert.equal(overview.recomendacoesPendentes.length, 1);
-  assert.match(overview.recomendacoesPendentes[0].descricao, /imagem principal/i);
-});
+export function getAiDirectorRepositoryTests() {
+  return [];
+}
