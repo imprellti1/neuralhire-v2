@@ -55,6 +55,28 @@ function severityClass(value) {
   return 'muted';
 }
 
+function badgeClass(value) {
+  const normalized = String(value || '').toLowerCase();
+  if (['high', 'alta', 'critica', 'crítica', 'critico', 'crítico'].includes(normalized)) return 'danger';
+  if (['medium', 'media', 'média', 'atencao', 'atenção', 'bom'].includes(normalized)) return 'warning';
+  if (['low', 'baixa', 'excelente'].includes(normalized)) return 'success';
+  return 'muted';
+}
+
+function normalizeClassificacao(value) {
+  const normalized = String(value || '').toLowerCase();
+  if (['excelente'].includes(normalized)) return 'Excelente';
+  if (['boa'].includes(normalized)) return 'Boa';
+  if (['atencao', 'atenção'].includes(normalized)) return 'Atenção';
+  if (['critica', 'crítica'].includes(normalized)) return 'Crítica';
+  return value || '—';
+}
+
+function formatRadarMetric(value) {
+  if (value === null || value === undefined || value === '') return '0';
+  return formatCount(value);
+}
+
 function safeSlice(list = [], max = 3) {
   const items = Array.isArray(list) ? list : [];
   const shown = items.slice(0, max);
@@ -95,6 +117,58 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
 
     const dashboard = state.dashboard || {};
     const health = dashboard.health || {};
+    const radar = dashboard.radar || {};
+    const scoreExecutivo = radar.scoreExecutivo || {};
+    const prioridades = Array.isArray(radar.prioridades) ? radar.prioridades : [];
+    const penalidades = Array.isArray(scoreExecutivo.penalidades) ? scoreExecutivo.penalidades : [];
+    const pilares = scoreExecutivo.pilares || {};
+    const pillarEntries = [
+      ['Comercial', pilares.comercial],
+      ['Operacional', pilares.operacional],
+      ['Produtos', pilares.produtos],
+      ['Inteligência', pilares.inteligencia]
+    ];
+    const pillarsHtml = pillarEntries.map(([label, pillar]) => pillar ? `
+      <section class="nh-card" style="padding: 16px;">
+        <div class="nh-between">
+          <strong>${esc(label)}</strong>
+          <span class="nh-badge ${badgeClass(pillar.status)}">${esc(normalizeClassificacao(pillar.status))}</span>
+        </div>
+        <div style="font-size: 2rem; font-weight: 800; margin-top: 10px;">${esc(formatRadarMetric(pillar.valor))}</div>
+        <div class="nh-mini" style="margin-top: 4px;">Valor do pilar</div>
+        <div class="nh-mini" style="margin-top: 10px;">${esc((Array.isArray(pillar.fatores) ? pillar.fatores : []).slice(0, 2).join(' · ') || 'Sem dados suficientes')}</div>
+      </section>
+    ` : `
+      <section class="nh-card" style="padding: 16px;">
+        <strong>${esc(label)}</strong>
+        <div class="nh-mini" style="margin-top: 10px;">Sem dados suficientes</div>
+      </section>
+    `).join('');
+    const prioritiesHtml = prioridades.slice(0, 7).map((item) => `
+      <div class="nh-list-item" style="${Number(item.ordem) === 1 ? 'border-color: rgba(76,227,138,.45); box-shadow: 0 0 0 1px rgba(76,227,138,.18) inset;' : ''}">
+        <div class="nh-between">
+          <div class="nh-badge ${Number(item.ordem) === 1 ? 'success' : 'muted'}">Prioridade ${esc(item.ordem || '—')}</div>
+          <div class="nh-mini">Peso ${esc(formatRadarMetric(item.peso))}</div>
+        </div>
+        <div style="margin-top: 10px; font-size: 1.05rem; font-weight: 700;">${esc(item.titulo)}</div>
+        <div class="nh-flex" style="margin-top: 10px; flex-wrap: wrap;">
+          <span class="nh-badge ${badgeClass(item.impacto)}">Impacto: ${esc(normalizeClassificacao(item.impacto))}</span>
+          <span class="nh-badge ${badgeClass(item.urgencia)}">Urgência: ${esc(normalizeClassificacao(item.urgencia))}</span>
+        </div>
+        <div class="nh-mini" style="margin-top: 10px;">Motivo: ${esc(item.motivo || '—')}</div>
+        <div class="nh-mini" style="margin-top: 6px;">Ação recomendada: ${esc(item.acaoRecomendada || '—')}</div>
+        ${item.gerenteSugerido ? `<div class="nh-mini" style="margin-top: 6px;">Gerente sugerido: ${esc(item.gerenteSugerido)}</div>` : ''}
+      </div>
+    `).join('');
+    const penalidadesHtml = penalidades.slice(0, 5).length ? penalidades.slice(0, 5).map((item) => `
+      <div class="nh-list-item">
+        <div class="nh-between">
+          <strong>${esc(item.origem || 'origem desconhecida')}</strong>
+          <span class="nh-badge danger">-${esc(formatRadarMetric(item.pontos))}</span>
+        </div>
+        <div class="nh-mini" style="margin-top: 8px;">${esc(item.motivo || '—')}</div>
+      </div>
+    `).join('') : '<div class="nh-mini">Nenhuma penalidade crítica identificada no Score Executivo.</div>';
     const alerts = dashboard.alerts || [];
     const opportunities = dashboard.opportunities || [];
     const memories = state.memories || [];
@@ -161,6 +235,47 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
             <div class="nh-mini" style="margin-top: 6px;">Gerentes ativos: ${esc(formatCount(managers.filter((manager) => String(manager.status || '').toLowerCase() === 'ativo').length || managers.length || 0))}</div>
           </div>
         </header>
+        <article class="nh-card">
+          <div class="nh-between">
+            <div>
+              <h2 class="nh-section-title">Radar Executivo</h2>
+              <p class="nh-section-subtitle">Painel proativo com leitura consolidada do negócio.</p>
+            </div>
+            <span class="nh-badge ${badgeClass(scoreExecutivo.classificacao)}">${esc(normalizeClassificacao(scoreExecutivo.classificacao))}</span>
+          </div>
+          <div class="nh-grid-2" style="margin-top: 14px; align-items: stretch;">
+            <div class="nh-card" style="padding: 22px; display:grid; gap: 12px; background: linear-gradient(180deg, rgba(124,92,255,.18), rgba(8,15,34,.96));">
+              <div class="nh-mini">Score Executivo</div>
+              <div style="font-size: 4rem; line-height: .9; font-weight: 800;">${esc(formatRadarMetric(scoreExecutivo.valor))}</div>
+              <div class="nh-mini">Classificação: <strong>${esc(normalizeClassificacao(scoreExecutivo.classificacao))}</strong></div>
+              <div style="font-size: 1rem; line-height: 1.65; color: var(--nh-text);">${esc(scoreExecutivo.diagnostico || 'Sem diagnóstico disponível.')}</div>
+              <div class="nh-mini">Resumo executivo</div>
+              <div style="line-height: 1.6;">${esc(radar.resumoExecutivo || 'Sem resumo executivo disponível.')}</div>
+            </div>
+            <div class="nh-grid-2">
+              <div class="nh-card" style="padding: 18px;">
+                <div class="nh-kpi-label">Alertas</div>
+                <div class="nh-kpi-value">${esc(formatRadarMetric(Array.isArray(radar.alertas) ? radar.alertas.length : 0))}</div>
+                <div class="nh-mini">Sinais críticos monitorados</div>
+              </div>
+              <div class="nh-card" style="padding: 18px;">
+                <div class="nh-kpi-label">Oportunidades</div>
+                <div class="nh-kpi-value">${esc(formatRadarMetric(Array.isArray(radar.oportunidades) ? radar.oportunidades.length : 0))}</div>
+                <div class="nh-mini">Ganhos potenciais priorizados</div>
+              </div>
+              <div class="nh-card" style="padding: 18px;">
+                <div class="nh-kpi-label">Prioridades</div>
+                <div class="nh-kpi-value">${esc(formatRadarMetric(prioridades.length))}</div>
+                <div class="nh-mini">Ações executivas recomendadas</div>
+              </div>
+              <div class="nh-card" style="padding: 18px;">
+                <div class="nh-kpi-label">Penalidades</div>
+                <div class="nh-kpi-value">${esc(formatRadarMetric(penalidades.length))}</div>
+                <div class="nh-mini">Fatores que pressionam o score</div>
+              </div>
+            </div>
+          </div>
+        </article>
         <article class="nh-grid-4">
           <div class="nh-card"><div class="nh-kpi-label">Receita do mês</div><div class="nh-kpi-value">${esc(formatMoney(health.receita_mes ?? 0))}</div><div class="nh-kpi-delta">Saúde do Negócio</div></div>
           <div class="nh-card"><div class="nh-kpi-label">Pedidos do mês</div><div class="nh-kpi-value">${esc(formatCount(health.pedidos_mes ?? 0))}</div><div class="nh-kpi-delta">Fluxo operacional</div></div>
@@ -228,6 +343,33 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
               ${opportunities.map((item) => `<div class="nh-list-item"><div class="nh-badge success">oportunidade</div><div style="margin-top: 10px; font-weight: 600;">${esc(item.title)}</div><div class="nh-mini" style="margin-top: 6px;">${esc(item.description || item.summary || '')}</div></div>`).join('')}
             </div>
           </section>
+        </article>
+        <article class="nh-card">
+          <div class="nh-between">
+            <div>
+              <h2 class="nh-section-title">Pilares Executivos</h2>
+              <p class="nh-section-subtitle">Leitura dos quatro eixos que compõem o Score Executivo.</p>
+            </div>
+          </div>
+          <div class="nh-grid-4" style="margin-top: 14px;">${pillarsHtml}</div>
+        </article>
+        <article class="nh-card">
+          <div class="nh-between">
+            <div>
+              <h2 class="nh-section-title">Prioridades Executivas</h2>
+              <p class="nh-section-subtitle">Até sete iniciativas que exigem ação imediata.</p>
+            </div>
+          </div>
+          <div class="nh-list" style="margin-top: 14px;">${prioritiesHtml || '<div class="nh-mini">Sem prioridades executivas no momento.</div>'}</div>
+        </article>
+        <article class="nh-card">
+          <div class="nh-between">
+            <div>
+              <h2 class="nh-section-title">Penalidades do Score</h2>
+              <p class="nh-section-subtitle">Principais fatores que reduzem a leitura executiva.</p>
+            </div>
+          </div>
+          <div class="nh-list" style="margin-top: 14px;">${penalidadesHtml}</div>
         </article>
         <article class="nh-card">
           <div class="nh-between">
