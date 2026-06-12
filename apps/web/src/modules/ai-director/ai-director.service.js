@@ -21,3 +21,7 @@ export async function consultManager(apiClient, managerId, payload) {
 export async function delegateQuestion(apiClient, payload) {
   return apiClient.post('/ai-director/delegate', payload);
 }
+
+export async function askDirector(apiClient, payload) {
+  return apiClient.post('/ai-director/ask', payload);
+}

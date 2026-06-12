@@ -60,6 +60,19 @@ test('ai director page dom', async () => {
       },
       post: async (url, payload) => {
         calls.push({ url, payload });
+        if (url === '/ai-director/ask') {
+          return {
+            question: payload.question,
+            answer: 'O faturamento caiu por redução no volume e queda em clientes em risco.',
+            consultedManagers: ['comercial', 'followup'],
+            usedMemories: ['1'],
+            facts: {
+              health: { receita_mes: 124550, pedidos_mes: 358 },
+              managers: []
+            },
+            status: 'answered'
+          };
+        }
         if (url === '/ai-director/managers/comercial/consult') {
           return {
             manager: { id: 'comercial', nome: 'Gerente Comercial' },
@@ -92,9 +105,10 @@ test('ai director page dom', async () => {
   await flush();
   await flush();
   await flush();
-  assert.match(document.body.textContent, /analise_faturamento/);
-  assert.match(document.body.textContent, /Gerente Comercial/);
-  assert.match(document.body.textContent, /O Diretor IA consultou Gerente Comercial e consolidou uma resposta inicial\./);
+  assert.match(document.body.textContent, /O faturamento caiu por redução no volume/);
+  assert.match(document.body.textContent, /comercial, followup/);
+  assert.match(document.body.textContent, /1/);
+  assert.match(document.body.textContent, /answered/);
   document.querySelector('[data-manager-id="comercial"] input').value = 'Quais clientes estão em risco?';
   document.querySelector('[data-manager-id="comercial"] .manager-consult-button').click();
   await flush();

@@ -1,4 +1,4 @@
-import { consultManager, createMemory, delegateQuestion, fetchAiDirectorDashboard, listManagers, listMemories } from './ai-director.service.js';
+import { askDirector, consultManager, createMemory, fetchAiDirectorDashboard, listManagers, listMemories } from './ai-director.service.js';
 import { createAiDirectorState } from './ai-director.state.js';
 
 function esc(value) {
@@ -44,6 +44,7 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
     const managers = state.managers || [];
     const form = state.memoryForm || {};
     const delegation = state.delegationResult || {};
+    const askResult = state.askResult || {};
 
     container.innerHTML = `
       <section style="display:grid;gap:20px">
@@ -126,16 +127,17 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
           <h2>Pergunte ao Diretor</h2>
           <label for="ai-director-question">Pergunta</label>
           <input id="ai-director-question" type="text" value="${esc(state.question)}" />
-          <button id="ai-director-analyze" type="button" ${state.delegationLoading ? 'disabled' : ''}>Analisar</button>
-          ${state.delegationError ? `<p>${esc(state.delegationError)}</p>` : ''}
-          ${state.delegationResult ? `
+          <button id="ai-director-analyze" type="button" ${state.askLoading ? 'disabled' : ''}>Perguntar</button>
+          ${state.askError ? `<p>${esc(state.askError)}</p>` : ''}
+          ${state.askResult ? `
             <div data-testid="delegation-result" style="display:grid;gap:8px">
-              <p><strong>Pergunta:</strong> ${esc(delegation.question)}</p>
-              <p><strong>Intenção:</strong> ${esc(delegation.intent)}</p>
-              <p><strong>Gerentes consultados:</strong> ${esc((delegation.selectedManagers || []).join(', '))}</p>
-              <p><strong>Resumo consolidado:</strong> ${esc(delegation.summary)}</p>
-              <p><strong>Status:</strong> ${esc(delegation.status)}</p>
-              <div>
+              <p><strong>Pergunta:</strong> ${esc(askResult.question)}</p>
+              <p><strong>Resposta:</strong> <span id="ai-director-answer">${esc(askResult.answer)}</span></p>
+              <p><strong>Gerentes consultados:</strong> ${esc((askResult.consultedManagers || []).join(', '))}</p>
+              ${Array.isArray(askResult.usedMemories) && askResult.usedMemories.length ? `<p><strong>Memórias usadas:</strong> ${esc(askResult.usedMemories.join(', '))}</p>` : ''}
+              ${askResult.facts ? `<pre data-testid="director-facts">${esc(JSON.stringify(askResult.facts, null, 2))}</pre>` : ''}
+              <p><strong>Status:</strong> ${esc(askResult.status)}</p>
+            <div>
                 <strong>Respostas dos gerentes</strong>
                 <ul>
                   ${(delegation.managerResponses || []).map((item) => `<li><strong>${esc(item.manager?.nome || '')}</strong>: ${esc(item.summary)} <span>${esc(item.status)}</span><div>Fontes: ${esc((item.sources || []).join(', '))}</div></li>`).join('')}
@@ -151,27 +153,33 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
     container.querySelector('#ai-director-analyze')?.addEventListener('click', async () => {
       state.question = questionInput?.value || '';
       if (!apiClient) return;
-      state.delegationLoading = true;
-      state.delegationError = null;
-      state.delegationResult = null;
+      state.askLoading = true;
+      state.askError = null;
+      state.askResult = null;
       render();
       try {
-        const result = await delegateQuestion(apiClient, { question: state.question });
+        const result = await askDirector(apiClient, { question: state.question });
         const fallback = classifyDelegationFallback(state.question);
-        const selectedManagers = Array.isArray(result?.selectedManagers) && result.selectedManagers.length ? result.selectedManagers : fallback.managers;
+        const selectedManagers = Array.isArray(result?.consultedManagers) && result.consultedManagers.length ? result.consultedManagers : fallback.managers;
         const selectedNames = managerNamesFor(selectedManagers, state.managers || []);
+        state.askResult = {
+          question: result?.question || state.question,
+          answer: result?.answer || `O Diretor IA consultou ${selectedNames.join(' e ')} e consolidou uma resposta inicial.`,
+          consultedManagers: selectedManagers,
+          usedMemories: Array.isArray(result?.usedMemories) ? result.usedMemories : [],
+          facts: result?.facts || {},
+          status: result?.status || 'answered'
+        };
         state.delegationResult = {
           question: result?.question || state.question,
-          intent: result?.intent || fallback.intent,
+          intent: fallback.intent,
           selectedManagers,
-          managerResponses: Array.isArray(result?.managerResponses) ? result.managerResponses : [],
-          summary: result?.summary || `O Diretor IA consultou ${selectedNames.join(' e ')} e consolidou uma resposta inicial.`,
-          status: result?.status || 'delegated'
+          managerResponses: Array.isArray(result?.consultedManagers) ? selectedNames.map((name) => ({ manager: { nome: name }, summary: 'Consulta concluida.', status: 'answered', sources: [] })) : []
         };
       } catch (error) {
-        state.delegationError = 'Não foi possível consultar o Diretor IA.';
+        state.askError = 'Não foi possível consultar o Diretor IA.';
       } finally {
-        state.delegationLoading = false;
+        state.askLoading = false;
         render();
       }
     });

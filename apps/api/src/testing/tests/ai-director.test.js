@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { __resetMemoryAiDirectorForTests, consultManager, createAiDirectorMemory, getAiDirectorDashboard, listAiDirectorMemories, listManagers } from '../../modules/ai-director/ai-director.repository.js';
-import { delegateAiDirectorQuestion } from '../../modules/ai-director/ai-director.orchestrator.js';
+import { answerAiDirectorQuestion, delegateAiDirectorQuestion } from '../../modules/ai-director/ai-director.orchestrator.js';
+import { askAiDirectorLlm } from '../../modules/ai-director/ai-director.llm.js';
 
 function resetState() {
   __resetMemoryAiDirectorForTests();
@@ -74,12 +75,14 @@ export function getAiDirectorTests() {
       }
     },
     {
-      name: 'POST /ai-director/managers/comercial/consult retorna mocked',
+      name: 'POST /ai-director/managers/comercial/consult retorna fatos estruturados',
       run: async () => {
         const response = consultManager({ accountId: 'acc-a' }, 'comercial', { question: 'Quais clientes estão em risco?' });
         assert.equal(response.manager.id, 'comercial');
-        assert.equal(response.status, 'mocked');
+        assert.equal(response.status, 'answered');
         assert.deepEqual(response.sources, ['Clientes', 'Pedidos', 'Pipeline', 'Revenue']);
+        assert.ok(response.facts);
+        assert.ok(Array.isArray(response.facts.observations));
       }
     },
     {
@@ -141,6 +144,57 @@ export function getAiDirectorTests() {
         const result = await delegateAiDirectorQuestion({ question: 'Me ajude a priorizar a operação' }, { accountId: 'acc-a' });
         assert.equal(result.intent, 'analise_geral');
         assert.deepEqual(result.selectedManagers, ['comercial', 'produtos']);
+      }
+    },
+    {
+      name: 'POST /ai-director/ask rejeita question vazia',
+      run: async () => {
+        await assert.rejects(() => answerAiDirectorQuestion({ question: '   ' }, { accountId: 'acc-a' }));
+      }
+    },
+    {
+      name: 'POST /ai-director/ask seleciona gerentes corretamente',
+      run: async () => {
+        const result = await answerAiDirectorQuestion({ question: 'Qual fabricante mais vendeu?' }, { accountId: 'acc-a' });
+        assert.deepEqual(result.consultedManagers, ['produtos']);
+        assert.ok(['answered', 'answered_with_fallback'].includes(result.status));
+        assert.ok(result.facts.managers.length > 0);
+      }
+    },
+    {
+      name: 'POST /ai-director/ask usa memórias relevantes quando existirem',
+      run: async () => {
+        resetState();
+        const memory = await createAiDirectorMemory({ tipo: 'alerta', titulo: 'Faturamento caiu', conteudo: 'Queda de receita observada no periodo atual', prioridade: 'alta' }, { accountId: 'acc-a' });
+        const result = await answerAiDirectorQuestion({ question: 'Por que o faturamento caiu?' }, { accountId: 'acc-a' });
+        assert.ok(result.usedMemories.includes(memory.id));
+      }
+    },
+    {
+      name: 'POST /ai-director/ask fallback controlado quando LLM nao estiver configurada',
+      run: async () => {
+        const result = await askAiDirectorLlm({ question: 'Teste', facts: {}, usedMemories: [], managerFacts: [] });
+        assert.equal(result.answer, null);
+        assert.equal(result.error, 'LLM nao configurada');
+      }
+    },
+    {
+      name: 'POST /ai-director/ask cobre clientes, faturamento, pedidos, fabricante, promocoes e auditoria',
+      run: async () => {
+        const cases = [
+          ['Quais clientes estão em risco?', ['comercial', 'followup']],
+          ['Qual o faturamento do mês?', ['comercial']],
+          ['Quantos pedidos tivemos?', ['comercial']],
+          ['Qual fabricante mais vendeu?', ['produtos']],
+          ['Quais promoções estão ativas?', ['produtos']],
+          ['Existe algum problema crítico no sistema?', ['auditoria']],
+          ['Por que o faturamento caiu?', ['comercial']]
+        ];
+        for (const [question, managers] of cases) {
+          const result = await answerAiDirectorQuestion({ question }, { accountId: 'acc-a' });
+          assert.deepEqual(result.consultedManagers, managers);
+          assert.equal(result.status === 'answered' || result.status === 'answered_with_fallback', true);
+        }
       }
     },
     {

@@ -20,6 +20,9 @@ export function createAiDirectorState() {
     answer: 'Módulo de perguntas será ativado na ETAPA 5.',
     delegationLoading: false,
     delegationResult: null,
-    delegationError: null
+    delegationError: null,
+    askLoading: false,
+    askResult: null,
+    askError: null
   };
 }

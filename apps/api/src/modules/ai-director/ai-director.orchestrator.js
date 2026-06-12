@@ -1,32 +1,14 @@
-import { consultManager, listManagers } from './ai-director.repository.js';
+import { consultManager, getAiDirectorDashboard, listAiDirectorMemories, listManagers } from './ai-director.repository.js';
 import { BadRequestError } from '../../core/errors.js';
+import { buildAiDirectorContext } from './ai-director.context-builder.js';
+import { askAiDirectorLlm } from './ai-director.llm.js';
 
 const intentRules = [
-  {
-    intent: 'analise_clientes',
-    keywords: ['cliente', 'clientes', 'risco', 'carteira', 'recompra'],
-    managers: ['comercial', 'followup']
-  },
-  {
-    intent: 'analise_faturamento',
-    keywords: ['faturamento', 'receita', 'venda', 'vendas', 'pedido', 'pedidos'],
-    managers: ['comercial']
-  },
-  {
-    intent: 'analise_produtos',
-    keywords: ['produto', 'produtos', 'categoria', 'categorias', 'fabricante', 'fabricantes', 'promoção', 'promoções', 'importação', 'importações'],
-    managers: ['produtos']
-  },
-  {
-    intent: 'analise_auditoria',
-    keywords: ['erro', 'erros', 'log', 'logs', 'auditoria', 'inconsistência', 'inconsistencias', 'integridade'],
-    managers: ['auditoria']
-  },
-  {
-    intent: 'analise_administrativa',
-    keywords: ['usuário', 'usuarios', 'permissão', 'permissoes', 'configuração', 'configuracoes', 'tenant', 'conta'],
-    managers: ['administrativo']
-  }
+  { intent: 'analise_clientes', keywords: ['cliente', 'clientes', 'risco', 'carteira', 'recompra'], managers: ['comercial', 'followup'] },
+  { intent: 'analise_faturamento', keywords: ['faturamento', 'receita', 'venda', 'vendas', 'pedido', 'pedidos'], managers: ['comercial'] },
+  { intent: 'analise_produtos', keywords: ['produto', 'produtos', 'categoria', 'categorias', 'fabricante', 'fabricantes', 'promoção', 'promocoes', 'promoções', 'importação', 'importações'], managers: ['produtos'] },
+  { intent: 'analise_auditoria', keywords: ['erro', 'erros', 'log', 'logs', 'auditoria', 'inconsistência', 'inconsistencias', 'integridade', 'problema critico', 'problema crítico'], managers: ['auditoria'] },
+  { intent: 'analise_administrativa', keywords: ['usuário', 'usuarios', 'permissão', 'permissoes', 'configuração', 'configuracoes', 'tenant', 'conta'], managers: ['administrativo'] }
 ];
 
 function normalizeQuestion(question) {
@@ -67,5 +49,33 @@ export async function delegateAiDirectorQuestion(payload = {}, options = {}) {
     managerResponses,
     summary: `O Diretor IA consultou ${managerResponses.map((item) => item.manager.nome).join(' e ')} e consolidou uma resposta inicial.`,
     status: 'delegated'
+  };
+}
+
+export async function answerAiDirectorQuestion(payload = {}, options = {}) {
+  const question = normalizeQuestion(payload.question);
+  const delegation = await delegateAiDirectorQuestion({ question }, options);
+  const dashboard = getAiDirectorDashboard();
+  const memoriesResult = await listAiDirectorMemories({ limit: 8 }, { accountId: options.accountId, context: options.context }).catch(() => ({ items: [] }));
+  const context = await buildAiDirectorContext({
+    question,
+    delegation,
+    dashboard,
+    memories: memoriesResult.items || []
+  });
+  const llmResult = await askAiDirectorLlm(context, options).catch((error) => ({
+    answer: null,
+    error: error?.message || 'LLM indisponivel'
+  }));
+
+  const answer = llmResult.answer || context.safeFallbackAnswer;
+  return {
+    question,
+    answer,
+    consultedManagers: delegation.selectedManagers,
+    usedMemories: context.usedMemories.map((memory) => memory.id),
+    facts: context.facts,
+    status: llmResult.answer ? 'answered' : 'answered_with_fallback',
+    llm: llmResult.error ? { error: llmResult.error } : undefined
   };
 }

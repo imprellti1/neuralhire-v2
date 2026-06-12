@@ -1,6 +1,6 @@
 import { asyncHandler } from '../../core/async-handler.js';
 import { sendSuccess } from '../../core/response.js';
-import { consultAiDirectorManagerHandler, createAiDirectorMemoryHandler, delegateAiDirectorQuestionHandler, getAiDirectorDashboardHandler, listAiDirectorMemoriesHandler, listAiDirectorManagersHandler } from './ai-director.controller.js';
+import { askAiDirectorQuestionHandler, consultAiDirectorManagerHandler, createAiDirectorMemoryHandler, delegateAiDirectorQuestionHandler, getAiDirectorDashboardHandler, listAiDirectorMemoriesHandler, listAiDirectorManagersHandler } from './ai-director.controller.js';
 
 export function registerAiDirectorRoutes(router) {
   router.registerRoute({
@@ -38,5 +38,11 @@ export function registerAiDirectorRoutes(router) {
     path: '/ai-director/delegate',
     domain: 'ai-director',
     handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await delegateAiDirectorQuestionHandler(context)))
+  });
+  router.registerRoute({
+    method: 'POST',
+    path: '/ai-director/ask',
+    domain: 'ai-director',
+    handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await askAiDirectorQuestionHandler(context)))
   });
 }

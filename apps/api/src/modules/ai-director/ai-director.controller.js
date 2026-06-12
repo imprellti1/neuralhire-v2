@@ -1,6 +1,6 @@
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { createAiDirectorMemory, consultManager, getAiDirectorDashboard, listAiDirectorMemories, listManagers } from './ai-director.repository.js';
-import { delegateAiDirectorQuestion } from './ai-director.orchestrator.js';
+import { answerAiDirectorQuestion, delegateAiDirectorQuestion } from './ai-director.orchestrator.js';
 
 export async function getAiDirectorDashboardHandler() {
   return { ok: true, ...getAiDirectorDashboard() };
@@ -38,5 +38,12 @@ export async function delegateAiDirectorQuestionHandler(context = {}) {
   const accountId = getAccountIdFromContext(context);
   const body = { ...(context.body || {}) };
   const result = await delegateAiDirectorQuestion(body, { accountId, context });
+  return { ok: true, ...result };
+}
+
+export async function askAiDirectorQuestionHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const body = { ...(context.body || {}) };
+  const result = await answerAiDirectorQuestion(body, { accountId, context });
   return { ok: true, ...result };
 }
