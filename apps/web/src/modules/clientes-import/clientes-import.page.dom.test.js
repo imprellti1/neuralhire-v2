@@ -16,7 +16,18 @@ test('clientes import page renders preview and confirm flow', async () => {
     post: async (path, body) => {
       calls.push({ path, body });
       if (path === '/clientes/importacao/preview') {
-        return { ok: true, importToken: 'token-1', fileName: 'Clientes_288.xlsx', summary: { novos: 1, existentes: 1, invalidos: 1, possiveis_duplicados: 1 }, rows: [{ rowNumber: 2, razaoSocial: 'Cliente A', cnpj: '123', codigo: '001', status: 'novo', errors: [] }, { rowNumber: 3, razaoSocial: '', cnpj: '', codigo: '', status: 'invalido', errors: ['Razão Social obrigatória.'] }] };
+        return {
+          ok: true,
+          importToken: 'token-1',
+          fileName: 'Clientes_288.xlsx',
+          summary: { novos: 1, existentes: 1, invalidos: 1, possiveis_duplicados: 1 },
+          rows: [
+            { rowNumber: 2, razaoSocial: 'Cliente A', cnpj: '123', codigo: '001', situacaoOriginal: 'Inativo', status: 'novo', errors: [] },
+            { rowNumber: 3, razaoSocial: '', cnpj: '', codigo: '', situacaoOriginal: 'Ativo', status: 'invalido', errors: ['Razão Social obrigatória.'] },
+            { rowNumber: 4, razaoSocial: 'Cliente B', cnpj: '456', codigo: '002', situacaoOriginal: 'Ativo', status: 'existente', errors: [] },
+            { rowNumber: 5, razaoSocial: 'Cliente C', cnpj: '789', codigo: '003', situacaoOriginal: 'Ativo', status: 'possivel_duplicado', errors: [] }
+          ]
+        };
       }
       return { ok: true, summary: { inserted: 1, ignoredExisting: 1, invalidRows: 1, possibleDuplicates: 1 } };
     }
@@ -32,8 +43,14 @@ test('clientes import page renders preview and confirm flow', async () => {
   document.querySelector('#nci-preview').click();
   await flush();
   await flush();
+  assert.match(document.body.textContent, /Situação/);
+  assert.match(document.body.textContent, /Importação/);
+  assert.match(document.body.textContent, /Inativo/);
+  assert.match(document.body.textContent, /Ativo/);
   assert.match(document.body.textContent, /Novos/);
   assert.match(document.body.textContent, /Inválidos/);
+  assert.match(document.body.textContent, /Existentes/);
+  assert.match(document.body.textContent, /Possíveis duplicados/);
   assert.match(document.body.textContent, /Razão Social obrigatória/);
   const previewCall = calls.find((call) => call.path === '/clientes/importacao/preview');
   assert.ok(previewCall?.body instanceof FormData);
