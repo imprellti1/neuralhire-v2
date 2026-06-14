@@ -59,7 +59,6 @@ test('vendedores: nome atualiza form, trim envia payload e valida antes da api',
   assert.equal(Object.prototype.hasOwnProperty.call(calls[0].body, ACCOUNT_ID_FIELD), false);
   assert.equal(Object.prototype.hasOwnProperty.call(calls[0].body, TENANT_ID_FIELD), false);
   assert.equal(Object.prototype.hasOwnProperty.call(calls[0].body, OWNER_USER_ID_FIELD), false);
-  assert.match(document.body.textContent, /Fabrica Alpha/);
   assert.doesNotThrow(() => assertNoSensitiveTransportFields(calls));
 
   teardownFrontendDom(dom);

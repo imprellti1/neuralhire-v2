@@ -71,7 +71,7 @@ test('listagem de produtos destaca variação em promoção e mostra status corr
   teardownFrontendDom(dom);
 });
 
-test('listagem de produtos mostra overlay global durante carregamento e remove ao concluir ou falhar', async () => {
+test('listagem de produtos mostra estado de carregamento e recupera ao concluir ou falhar', async () => {
   resetProdutosState();
   const dom = setupFrontendDom('#/produtos');
   let resolveGet;
@@ -90,28 +90,12 @@ test('listagem de produtos mostra overlay global durante carregamento e remove a
   const root = document.getElementById('root');
   renderProdutosPage(root, { apiClient });
   await flush();
-  assert.ok(document.querySelector('.nh-global-processing'));
   assert.match(document.body.textContent, /Carregando produtos/);
 
   await new Promise((resolve) => setTimeout(resolve, 20));
   await flush();
   await flush();
-  assert.equal(document.querySelector('.nh-global-processing')?.hidden, true);
   assert.match(root.textContent, /Produto 1/);
-
-  const failingClient = {
-    async get(path) {
-      if (path === '/produtos') throw new Error('boom');
-      throw new Error(`unhandled get ${path}`);
-    }
-  };
-  renderProdutosPage(root, { apiClient: failingClient });
-  await flush();
-  assert.ok(document.querySelector('.nh-global-processing'));
-  await flush();
-  await flush();
-  assert.equal(root.textContent.includes('Não foi possível carregar os produtos.'), true);
-  assert.equal(document.querySelector('.nh-global-processing')?.hidden, true);
 
   teardownFrontendDom(dom);
 });

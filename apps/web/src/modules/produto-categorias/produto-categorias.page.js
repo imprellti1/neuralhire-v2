@@ -7,23 +7,23 @@ function injectStyles() {
     .nhpc-head{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
     .nhpc-title{font-size:30px;font-weight:800;letter-spacing:-.03em}
     .nhpc-sub{color:#61708f;font-size:14px;margin-top:6px;max-width:72ch}
-    .nhpc-card{background:#fff;border:1px solid #dbe4f2;border-radius:18px;padding:16px;box-shadow:0 10px 28px rgba(16,34,68,.06)}
+    .nhpc-card{background:#0f1b2f;border:1px solid rgba(148,163,184,.18);border-radius:18px;padding:16px;box-shadow:0 10px 28px rgba(0,0,0,.22)}
     .nhpc-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-    .nhpc-input,.nhpc-select,.nhpc-field input,.nhpc-field select,.nhpc-field textarea{height:38px;border:1px solid #d4deee;border-radius:10px;padding:0 10px;background:#fff}
+    .nhpc-input,.nhpc-select,.nhpc-field input,.nhpc-field select,.nhpc-field textarea{height:38px;border:1px solid rgba(148,163,184,.22);border-radius:10px;padding:0 10px;background:#0b1628;color:#e7eefb}
     .nhpc-field textarea{height:88px;padding:10px;resize:vertical}
-    .nhpc-btn{height:38px;border:1px solid #d4deee;border-radius:10px;padding:0 12px;background:#fff;cursor:pointer;font-weight:600}
-    .nhpc-btn.primary{background:#1f56dc;color:#fff;border-color:#1f56dc}
-    .nhpc-btn.danger{background:#fff1f2;color:#b42318;border-color:#fecdd3}
+    .nhpc-btn{height:38px;border:1px solid rgba(148,163,184,.22);border-radius:10px;padding:0 12px;background:#0b1628;color:#e7eefb;cursor:pointer;font-weight:600}
+    .nhpc-btn.primary{background:#4f8cff;color:#fff;border-color:#4f8cff}
+    .nhpc-btn.danger{background:#0b1628;color:#fca5a5;border-color:rgba(248,113,113,.22)}
     .nhpc-grid{overflow:auto}
     .nhpc-table{width:100%;border-collapse:collapse;min-width:1060px}
     .nhpc-table th,.nhpc-table td{padding:12px 10px;border-bottom:1px solid #edf2f8;text-align:left;vertical-align:top;font-size:13px}
-    .nhpc-table th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#61708f}
+    .nhpc-table th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#a9bbd8}
     .nhpc-badge{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:700}
-    .nhpc-badge.ok{background:#ecfdf3;color:#047857}.nhpc-badge.off{background:#fff7ed;color:#b45309}
-    .nhpc-state{padding:28px;text-align:center;color:#61708f}
+    .nhpc-badge.ok{background:rgba(52,211,153,.16);color:#34d399}.nhpc-badge.off{background:rgba(251,191,36,.16);color:#fbbf24}
+    .nhpc-state{padding:28px;text-align:center;color:#91a4c4}
     .nhpc-empty{display:grid;gap:10px;place-items:center;padding:30px 14px}
     .nhpc-modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.42);display:grid;place-items:center;padding:16px;z-index:40}
-    .nhpc-modal{width:min(780px,100%);background:#fff;border-radius:18px;border:1px solid #dbe4f2;box-shadow:0 24px 72px rgba(15,23,42,.28);padding:18px}
+    .nhpc-modal{width:min(780px,100%);background:#0f1b2f;border-radius:18px;border:1px solid rgba(148,163,184,.18);box-shadow:0 24px 72px rgba(0,0,0,.32);padding:18px}
     .nhpc-modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
     .nhpc-modal-title{font-size:22px;font-weight:800}
     .nhpc-form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -31,7 +31,7 @@ function injectStyles() {
     .nhpc-field.full{grid-column:1/-1}
     .nhpc-ferr{font-size:12px;color:#b42318}
     .nhpc-msg{padding:10px 12px;border-radius:10px;font-size:13px}
-    .nhpc-msg.error{background:#fff1f2;color:#b42318}.nhpc-msg.ok{background:#ecfdf3;color:#047857}
+    .nhpc-msg.error{background:rgba(248,113,113,.12);color:#fca5a5}.nhpc-msg.ok{background:rgba(52,211,153,.16);color:#34d399}
     @media (max-width:900px){.nhpc-form{grid-template-columns:1fr}}
   `;
   document.head.appendChild(style);

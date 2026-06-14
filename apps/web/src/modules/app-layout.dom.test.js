@@ -25,9 +25,12 @@ test('shell autenticado usa scroll independente na sidebar e no conteúdo', asyn
   assert.ok(main);
   assert.ok(style);
   assert.equal(document.body.classList.contains('nh-shell-active'), true);
-  assert.match(style.textContent, /\.nh-shell\{display:grid;grid-template-columns:260px minmax\(0,1fr\);height:100vh;overflow:hidden\}/);
-  assert.match(style.textContent, /\.nh-sidebar\{height:100vh;overflow-y:auto;overscroll-behavior:contain/);
+  assert.match(style.textContent, /\.nh-shell\{display:grid;grid-template-columns:280px minmax\(0,1fr\);height:100vh;overflow:hidden\}/);
+  assert.match(style.textContent, /\.nh-sidebar\{height:100vh;overflow-y:auto;overscroll-behavior:contain;padding:22px 16px;border-right:1px solid var\(--line\);background:linear-gradient\(180deg,rgba\(12,22,39,.96\),rgba\(9,17,31,.92\)\)/);
   assert.match(style.textContent, /\.nh-main\{height:100vh;overflow-y:auto;overscroll-behavior:contain/);
+  assert.match(document.querySelector('.nh-menu-heading')?.textContent || '', /Principal/);
+  assert.ok(document.querySelector('[data-route="#/clientes"]'));
+  assert.ok(document.querySelector('[data-route="#/auditoria"]'));
   assert.equal(document.body.style.overflow, '');
 
   teardownFrontendDom(dom);

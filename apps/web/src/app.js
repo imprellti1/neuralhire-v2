@@ -54,14 +54,89 @@ function injectAppStyles() {
   if (document.getElementById('nh-app-style')) return;
   const style = document.createElement('style');
   style.id = 'nh-app-style';
-  style.textContent = `:root{--bg:#f4f7fc;--bg-soft:#eef3fb;--panel:#ffffff;--text:#12203a;--muted:#61708f;--line:#dbe4f2;--brand:#2563eb;--brand-soft:#dbe7ff;--ok:#047857;--warn:#b45309;--danger:#b42318;--shadow:0 14px 34px rgba(15,35,74,.08)}*{box-sizing:border-box}body{margin:0;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;color:var(--text);background:radial-gradient(1000px 500px at 90% -20%,#dbe8ff 0%,rgba(219,232,255,0) 70%),linear-gradient(180deg,#f8fbff 0%,var(--bg) 100%)}body.nh-shell-active{overflow:hidden}.nh-shell{display:grid;grid-template-columns:260px minmax(0,1fr);height:100vh;overflow:hidden}.nh-sidebar{height:100vh;overflow-y:auto;overscroll-behavior:contain;padding:24px 18px;border-right:1px solid var(--line);background:rgba(255,255,255,.8);backdrop-filter:blur(8px)}.nh-brand{padding:12px 14px;border-radius:14px;background:linear-gradient(135deg,#1948bf,#2563eb);color:#fff;font-weight:700;letter-spacing:.02em;box-shadow:var(--shadow)}.nh-brand small{display:block;font-weight:500;opacity:.85;margin-top:4px}.nh-nav{margin-top:18px;display:grid;gap:8px}.nh-menu-item{display:block;padding:12px 14px;border-radius:12px;color:#20304f;text-decoration:none;font-weight:600;transition:.2s background,.2s color,.2s transform}.nh-menu-item:hover{background:#edf3ff;transform:translateY(-1px)}.nh-menu-item.is-active{background:var(--brand-soft);color:#0f3da8;box-shadow:inset 0 0 0 1px #c8dafd}.nh-main{height:100vh;overflow-y:auto;overscroll-behavior:contain;padding:0 24px 28px;min-width:0}.nh-content{max-width:1360px;width:100%;min-height:100%;margin:0 auto;padding-top:24px;padding-bottom:24px}.nh-login-shell{min-height:100vh;display:grid;place-items:center;padding:24px}.nh-login-shell .nh-content{max-width:100%;margin:0;padding:0}@media (max-width:1280px){.nh-shell{grid-template-columns:220px minmax(0,1fr)}.nh-main{padding:0 20px 24px}.nh-content{padding-top:20px}}@media (max-width:1024px){.nh-shell{grid-template-columns:1fr;height:auto;min-height:100vh}.nh-sidebar{display:none}.nh-main{height:auto;min-height:100vh;overflow-y:visible;padding:0 12px 20px}.nh-content{padding-top:12px;padding-bottom:12px}}`;
+  style.textContent = `:root{--bg:#07111f;--bg-2:#0d1a2e;--bg-soft:#11233d;--panel:#0f1b2f;--panel-2:#12243d;--text:#e7eefb;--muted:#91a4c4;--line:rgba(148,163,184,.18);--brand:#4f8cff;--brand-soft:rgba(79,140,255,.16);--ok:#34d399;--warn:#fbbf24;--danger:#f87171;--shadow:0 18px 42px rgba(0,0,0,.25)}*{box-sizing:border-box}body{margin:0;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;color:var(--text);background:radial-gradient(1100px 600px at 85% -15%,rgba(79,140,255,.22) 0%,rgba(79,140,255,0) 60%),radial-gradient(800px 500px at 10% 0%,rgba(20,184,166,.12) 0%,rgba(20,184,166,0) 55%),linear-gradient(180deg,var(--bg) 0%,#0a1628 100%)}body.nh-shell-active{overflow:hidden}.nh-shell{display:grid;grid-template-columns:280px minmax(0,1fr);height:100vh;overflow:hidden}.nh-sidebar{height:100vh;overflow-y:auto;overscroll-behavior:contain;padding:22px 16px;border-right:1px solid var(--line);background:linear-gradient(180deg,rgba(12,22,39,.96),rgba(9,17,31,.92));backdrop-filter:blur(12px)}.nh-brand{padding:14px 15px;border-radius:18px;background:linear-gradient(135deg,#13294b,#2457d6);color:#fff;font-weight:800;letter-spacing:.02em;box-shadow:var(--shadow)}.nh-brand small{display:block;font-weight:500;opacity:.82;margin-top:4px}.nh-nav{margin-top:18px;display:grid;gap:10px}.nh-menu-group{display:grid;gap:8px;padding:8px 0 2px}.nh-menu-heading{font-size:11px;color:#8ea3c5;text-transform:uppercase;letter-spacing:.1em;padding:6px 10px 2px}.nh-menu-item{display:block;padding:11px 13px;border-radius:14px;color:#d7e4f8;text-decoration:none;font-weight:600;border:1px solid transparent;transition:.2s background,.2s color,.2s transform,.2s border-color}.nh-menu-item:hover{background:rgba(79,140,255,.12);border-color:rgba(79,140,255,.18);transform:translateY(-1px)}.nh-menu-item.is-active{background:linear-gradient(135deg,rgba(79,140,255,.22),rgba(79,140,255,.12));color:#fff;border-color:rgba(79,140,255,.32);box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}.nh-main{height:100vh;overflow-y:auto;overscroll-behavior:contain;padding:0 24px 28px;min-width:0}.nh-content{max-width:1360px;width:100%;min-height:100%;margin:0 auto;padding-top:24px;padding-bottom:24px}.nh-content :where(section,article,.nh-panel,.nh-card,.nh-box,.nhf-panel,.nhv-panel,.nha-panel,.nhc-panel,.npi2-card,.nhp-panel,.nhpr-card,.nhpd-panel,.nhpc-card,.npe-panel,.nha-modal-card,.nhf-modal,.nhv-modal,.nhp-modal,.npi2-card,.nha-panel,.nha-modal-card,.nha-detail,.nhpc-modal,.npi2-card,.npi2-note){color:var(--text)}.nh-login-shell{min-height:100vh;display:grid;place-items:center;padding:24px}.nh-login-shell .nh-content{max-width:100%;margin:0;padding:0}.nh-shell-active .nh-content :where(.nh-panel,.nh-card,.nh-box,.nhf-panel,.nhv-panel,.nha-panel,.nhc-panel,.npi2-card,.nhp-panel,.nhpr-card,.nhpd-panel,.nhpc-card,.npe-panel,.nha-modal-card,.nhf-modal,.nhv-modal,.nhp-modal,.nhpc-modal,section[style*="background:#fff"],article[style*="background:#fff"]){background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98));border-color:var(--line);box-shadow:var(--shadow)}.nh-shell-active .nh-content :where(input,select,textarea){background:#0b1628;color:var(--text);border-color:rgba(148,163,184,.22)}.nh-shell-active .nh-content :where(table){color:var(--text)}.nh-shell-active .nh-content :where(th){background:rgba(255,255,255,.03);color:#a9bbd8}.nh-shell-active .nh-content :where(td){border-color:rgba(148,163,184,.12)}@media (max-width:1280px){.nh-shell{grid-template-columns:240px minmax(0,1fr)}.nh-main{padding:0 20px 24px}.nh-content{padding-top:20px}}@media (max-width:1024px){.nh-shell{grid-template-columns:1fr;height:auto;min-height:100vh}.nh-sidebar{display:none}.nh-main{height:auto;min-height:100vh;overflow-y:visible;padding:0 12px 20px}.nh-content{padding-top:12px;padding-bottom:12px}}`;
   document.head.appendChild(style);
 }
+
+const menuSections = [
+  {
+    title: 'Principal',
+    items: [
+      ['#/dashboard-comercial', 'Visão Geral'],
+      ['#/diretor-ia', 'Diretor IA'],
+      ['#/pipeline-ia', 'Pipeline IA / Comercial']
+    ]
+  },
+  {
+    title: 'Clientes & CRM',
+    items: [
+      ['#/clientes', 'Clientes'],
+      ['#/importacoes', 'Importação de Clientes'],
+      ['#/interest-leads', 'Leads / Lista de Interesse'],
+      ['#/interest-leads/dashboard', 'Dashboard de Leads'],
+      ['#/interest-leads/launch', 'Follow-up / Lançamento'],
+      ['#/customer-memory/cliente-demo', 'Follow-up / Customer Memory']
+    ]
+  },
+  {
+    title: 'Pedidos & Comercial',
+    items: [
+      ['#/pedidos', 'Pedidos'],
+      ['#/importacao-pedidos', 'Importação de Pedidos'],
+      ['#/revenue-intelligence', 'Revenue Intelligence'],
+      ['#/promocoes', 'Promoções'],
+      ['#/launch/templates', 'Templates de Lançamento']
+    ]
+  },
+  {
+    title: 'Produtos & Catálogo',
+    items: [
+      ['#/produtos', 'Produtos'],
+      ['#/product-audit', 'Produto 360 / Auditoria de Produtos'],
+      ['#/produto-categorias', 'Categorias'],
+      ['#/fabricantes', 'Fabricantes / Fábricas'],
+      ['#/produtos/importacao', 'Importação de Produtos'],
+      ['#/produtos/importacao-tabela-preco', 'Imagens / Variações / Tabela de Preço'],
+      ['#/product-editor', 'Editor de Produtos']
+    ]
+  },
+  {
+    title: 'Equipe & Operação',
+    items: [
+      ['#/vendedores', 'Vendedores'],
+      ['#/whatsapp-conversations', 'WhatsApp / Evolution'],
+      ['#/importacoes', 'Importações gerais'],
+      ['#/legacy-import', 'Importação Legado'],
+      ['#/onboarding', 'Onboarding'],
+      ['#/activation', 'Ativação Inicial'],
+      ['#/implementation', 'Implementação'],
+      ['#/customer-success', 'Customer Success'],
+      ['#/customer-success-automation', 'Automações CS'],
+      ['#/customer-success-timeline', 'Timeline CS'],
+      ['#/customer-retention', 'Renovação & Expansão'],
+      ['#/billing', 'Billing']
+    ]
+  },
+  {
+    title: 'Auditoria & Sistema',
+    items: [
+      ['#/auditoria', 'Auditoria'],
+      ['#/message-approvals', 'Aprovação Humana'],
+      ['#/approval-intelligence', 'Inteligência Comercial'],
+      ['#/executive-dashboard', 'Dashboard Executivo'],
+      ['#/executive-portfolio-analytics', 'Executive Analytics'],
+      ['#/portfolio-dashboard', 'Portfolio Dashboard'],
+      ['#/ia-memorias', 'Memória IA'],
+      ['#/login', 'Login Supabase'],
+      ['#/logout', 'Logout']
+    ]
+  }
+];
 
 function createLayout() {
   const root = document.createElement('div');
   root.className = 'nh-shell';
-  root.innerHTML = `<aside class="nh-sidebar"><div class="nh-brand">NeuralHire v2<small>Cockpit Executivo</small></div><nav class="nh-nav"><div style="font-size:11px;color:#71809b;text-transform:uppercase;letter-spacing:.06em;padding:6px 10px 2px">Comercial</div><a class="nh-menu-item" data-route="#/dashboard-comercial" href="#/dashboard-comercial">Dashboard Comercial</a><a class="nh-menu-item" data-route="#/clientes" href="#/clientes">Clientes CRM</a><a class="nh-menu-item" data-route="#/vendedores" href="#/vendedores">Vendedores</a><a class="nh-menu-item" data-route="#/fabricantes" href="#/fabricantes">Fábricas</a><a class="nh-menu-item" data-route="#/product-audit" href="#/product-audit">Auditoria de Produtos</a><a class="nh-menu-item" data-route="#/produto-categorias" href="#/produto-categorias">Categorias de Produtos</a><a class="nh-menu-item" data-route="#/produtos" href="#/produtos">Produtos</a><a class="nh-menu-item" data-route="#/promocoes" href="#/promocoes">Promoções</a><a class="nh-menu-item" data-route="#/produtos/importacao" href="#/produtos/importacao">Importação de Produtos</a><a class="nh-menu-item" data-route="#/produtos/importacao-tabela-preco" href="#/produtos/importacao-tabela-preco">Importação de Tabela de Preço</a><a class="nh-menu-item" data-route="#/importacoes" href="#/importacoes">Importações</a><a class="nh-menu-item" data-route="#/product-editor" href="#/product-editor">Editor de Produtos</a><a class="nh-menu-item" data-route="#/pedidos" href="#/pedidos">Pedidos</a><a class="nh-menu-item" data-route="#/importacao-pedidos" href="#/importacao-pedidos">Importação de Pedidos</a><a class="nh-menu-item" data-route="#/interest-leads" href="#/interest-leads">Lista de Interesse</a><a class="nh-menu-item" data-route="#/launch/templates" href="#/launch/templates">Templates Lancamento</a><a class="nh-menu-item" data-route="#/onboarding" href="#/onboarding">Onboarding</a><a class="nh-menu-item" data-route="#/activation" href="#/activation">Ativacao Inicial</a><a class="nh-menu-item" data-route="#/implementation" href="#/implementation">Acompanhamento</a><a class="nh-menu-item" data-route="#/customer-success" href="#/customer-success">Customer Success</a><a class="nh-menu-item" data-route="#/customer-success-automation" href="#/customer-success-automation">Automações CS</a><a class="nh-menu-item" data-route="#/customer-success-timeline" href="#/customer-success-timeline">Timeline CS</a><a class="nh-menu-item" data-route="#/customer-retention" href="#/customer-retention">Renovacoes & Expansao</a><a class="nh-menu-item" data-route="#/customer-memory/cliente-demo" href="#/customer-memory/cliente-demo">Customer Memory</a><a class="nh-menu-item" data-route="#/ia-memorias" href="#/ia-memorias">Memória IA</a><a class="nh-menu-item" data-route="#/whatsapp-conversations" href="#/whatsapp-conversations">WhatsApp</a><a class="nh-menu-item" data-route="#/message-approvals" href="#/message-approvals">Aprovação Humana</a><a class="nh-menu-item" data-route="#/approval-intelligence" href="#/approval-intelligence">Inteligência Comercial</a><a class="nh-menu-item" data-route="#/diretor-ia" href="#/diretor-ia">Diretor IA</a><div style="font-size:11px;color:#71809b;text-transform:uppercase;letter-spacing:.06em;padding:10px 10px 2px">Operação</div><a class="nh-menu-item" data-route="#/dashboard-operacional" href="#/dashboard-operacional">Dashboard Operacional</a><a class="nh-menu-item" data-route="#/executive-dashboard" href="#/executive-dashboard">Executive Dashboard</a><a class="nh-menu-item" data-route="#/executive-portfolio-analytics" href="#/executive-portfolio-analytics">Executive Analytics</a><a class="nh-menu-item" data-route="#/revenue-intelligence" href="#/revenue-intelligence">Revenue Intelligence</a><a class="nh-menu-item" data-route="#/portfolio-dashboard" href="#/portfolio-dashboard">Portfolio Dashboard</a><a class="nh-menu-item" data-route="#/legacy-import" href="#/legacy-import">Importacao Legado</a><div style="font-size:11px;color:#71809b;text-transform:uppercase;letter-spacing:.06em;padding:10px 10px 2px">Importações</div><a class="nh-menu-item" data-route="#/importacoes" href="#/importacoes">Clientes</a><a class="nh-menu-item" data-route="#/importacao-pedidos" href="#/importacao-pedidos">Pedidos</a><div style="font-size:11px;color:#71809b;text-transform:uppercase;letter-spacing:.06em;padding:10px 10px 2px">Administração</div><a class="nh-menu-item" data-route="#/auditoria" href="#/auditoria">Auditoria</a><a class="nh-menu-item" data-route="#/login" href="#/login">Login Supabase</a><a class="nh-menu-item" data-route="#/logout" href="#/logout">Logout</a></nav></aside><main class="nh-main"><section class="nh-content" id="app-content"></section></main>`;
+  root.innerHTML = `<aside class="nh-sidebar"><div class="nh-brand">NeuralHire v2<small>Cockpit Executivo</small></div><nav class="nh-nav">${menuSections.map((section) => `<div class="nh-menu-group"><div class="nh-menu-heading">${section.title}</div>${section.items.map(([route, label]) => `<a class="nh-menu-item" data-route="${route}" href="${route}">${label}</a>`).join('')}</div>`).join('')}</nav></aside><main class="nh-main"><section class="nh-content" id="app-content"></section></main>`;
   return root;
 }
 
@@ -200,12 +275,12 @@ export function bootstrapWebApp() {
     const content = document.getElementById('app-content');
     const activeRoute = route.startsWith('#/pedidos/') ? '#/pedidos'
       : route.startsWith('#/clientes/') ? '#/clientes'
-    : route.startsWith('#/fabricantes/') ? '#/fabricantes'
-    : route === '#/fabricas' ? '#/fabricantes'
+      : route.startsWith('#/fabricantes/') ? '#/fabricantes'
+      : route === '#/fabricas' ? '#/fabricantes'
       : route.startsWith('#/product-audit/') ? '#/product-audit'
       : route.startsWith('#/interest-leads/') ? '#/interest-leads'
-    : route.startsWith('#/customer-memory/') ? '#/customer-memory/cliente-demo'
-    : route === '#/importacao-pedidos' ? '#/importacao-pedidos'
+      : route.startsWith('#/customer-memory/') ? '#/customer-memory/cliente-demo'
+      : route === '#/importacao-pedidos' ? '#/importacao-pedidos'
       : route;
     setActiveMenu(activeRoute);
 
