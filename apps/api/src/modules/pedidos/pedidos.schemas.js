@@ -3,15 +3,23 @@ export const PEDIDO_STATUS = {
   CONFIRMADO: 'confirmado',
   APROVADO: 'aprovado',
   FATURADO: 'faturado',
-  CANCELADO: 'cancelado'
+  FATURADO_TOTAL: 'faturado_total',
+  FATURADO_PARCIAL: 'faturado_parcial',
+  CANCELADO: 'cancelado',
+  REJEITADO: 'rejeitado',
+  ESTORNADO: 'estornado'
 };
 
 export const PEDIDO_STATUS_FLOW = {
-  rascunho: ['aprovado', 'cancelado'],
-  aprovado: ['confirmado', 'faturado', 'cancelado'],
-  confirmado: ['faturado', 'cancelado'],
+  rascunho: ['aprovado', 'cancelado', 'rejeitado'],
+  aprovado: ['confirmado', 'faturado', 'faturado_total', 'faturado_parcial', 'cancelado', 'rejeitado', 'estornado'],
+  confirmado: ['faturado', 'faturado_total', 'faturado_parcial', 'cancelado', 'rejeitado', 'estornado'],
   faturado: [],
-  cancelado: ['rascunho']
+  faturado_total: [],
+  faturado_parcial: ['faturado_total', 'cancelado', 'estornado'],
+  cancelado: ['rascunho'],
+  rejeitado: [],
+  estornado: []
 };
 
 export function isValidPedidoStatus(status) {

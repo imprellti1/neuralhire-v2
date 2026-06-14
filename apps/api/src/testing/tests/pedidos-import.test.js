@@ -56,6 +56,7 @@ export function getPedidosImportTests() {
         assert.equal(__dumpMemoryPedidos().pedidos[0].cliente_id, cliente.id);
         assert.equal(__dumpMemoryPedidos().pedidos[0].numero, 'PED-001');
         assert.equal(__dumpMemoryPedidos().pedidos[0].status, 'faturado_total');
+        assert.equal(__dumpMemoryPedidos().pedidos[0].metadata.situacao_original, 'Faturado Total');
         assert.equal(__dumpMemoryClientes().length > 0, true);
       }
     },
