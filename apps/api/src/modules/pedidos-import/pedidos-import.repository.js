@@ -7,7 +7,7 @@ import { createPedidoFromImport } from '../pedidos/pedidos.repository.js';
 import { getSupabaseClient } from '../../database/supabase.client.js';
 
 const sessions = new Map();
-const IGNORED_COLUMNS = new Set(['lote gravação', 'data prev.fatur.', 'razão social', 'qt. peças', 'valor total', 'valor cancelado', 'origem', 'duplicar', 'imprimir']);
+const IGNORED_COLUMNS = new Set(['lote gravacao', 'data prev fatur', 'razao social', 'qt pecas', 'valor total', 'valor cancelado', 'origem', 'duplicar', 'imprimir']);
 const MATCH_KEYS = ['codigo_cliente_fabricante', 'codigo_cliente', 'codigo', 'cliente'];
 
 function assertAccountId(accountId) {
@@ -23,14 +23,35 @@ function normalizeNumeroKey(numero) {
 }
 
 function normalizeHeader(value) {
-  return normalizeText(value).toLowerCase();
+  const text = normalizeText(value);
+  if (!text) return '';
+  const normalized = text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  return normalized
+    .replace(/Ã¡|á/g, 'a')
+    .replace(/Ã©|é/g, 'e')
+    .replace(/Ã­|í/g, 'i')
+    .replace(/Ã³|ó/g, 'o')
+    .replace(/Ãº|ú/g, 'u')
+    .replace(/Ã£|ã/g, 'a')
+    .replace(/Ãµ|õ/g, 'o')
+    .replace(/Ã§|ç/g, 'c')
+    .replace(/â€™/g, "'")
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 }
 
 function pickHeaderIndex(headers, names) {
   const normalized = headers.map((header) => normalizeHeader(header));
+  const compact = normalized.map((value) => value.replace(/\s+/g, ''));
   for (const name of names) {
-    const idx = normalized.indexOf(normalizeHeader(name));
+    const target = normalizeHeader(name);
+    const idx = normalized.indexOf(target);
     if (idx >= 0) return idx;
+    const compactIdx = compact.indexOf(target.replace(/\s+/g, ''));
+    if (compactIdx >= 0) return compactIdx;
   }
   return -1;
 }
@@ -60,7 +81,7 @@ function normalizeSituacaoPedido(value) {
     rejeitado: 'rejeitado',
     estornado: 'estornado'
   };
-  const normalizedKey = raw.toLowerCase();
+  const normalizedKey = normalizeHeader(raw);
   return { status: mapped[normalizedKey] || normalizeSnakeCase(raw) || 'rascunho', original: raw };
 }
 
@@ -134,30 +155,31 @@ function buildIgnoredValues(headers, row) {
 }
 
 function buildRow(headers, row, rowNumber) {
-  const get = (name) => {
-    const idx = pickHeaderIndex(headers, [name]);
+  const get = (...names) => {
+    const idx = pickHeaderIndex(headers, names.flat());
     return idx >= 0 ? row[idx] : '';
   };
-  const situacao = normalizeSituacaoPedido(get('Situação') || get('Situacao') || get('Status'));
+  const situacao = normalizeSituacaoPedido(get('Situação', 'Situacao', 'Status'));
   return {
     rowNumber,
-    numero: normalizeText(get('Número ERP') || get('Número') || get('Numero') || get('Pedido')),
+    numero: normalizeText(get('Número ERP', 'Numero ERP', 'NÃºmero ERP', 'Número', 'Numero', 'Pedido')),
     clienteCodigo: normalizeText(get('Cliente')),
     status: situacao.status,
     situacaoOriginal: situacao.original,
-    observacoes: normalizeText(get('Observações') || get('Observacoes')) || null,
+    observacoes: normalizeText(get('Observações', 'Observacoes')) || null,
     subtotal: parseMoney(get('Subtotal')),
     desconto: parseMoney(get('Desconto')),
     total: parseMoney(get('Total')),
     metadata: {
-      lote_gravacao: get('Lote Gravação') || null,
-      data_prev_fatur: get('Data Prev.Fatur.') || null,
-      qt_pecas: get('Qt. Peças') || null,
+      lote_gravacao: get('Lote Gravação', 'Lote Gravacao', 'Lote GravaÃ§Ã£o') || null,
+      data_prev_fatur: get('Data Prev.Fatur.', 'Data Prev. Fatur.', 'Data Prev Fatur.') || null,
+      qt_pecas: get('Qt. Peças', 'Qt. Pecas', 'Qt. PeÃ§as') || null,
       valor_total: get('Valor Total') || null,
-      valor_cancelado: get('Valor cancelado') || null,
+      valor_cancelado: get('Valor Cancelado', 'Valor cancelado') || null,
       origem_planilha: get('Origem') || null,
       duplicar: get('Duplicar') || null,
-      imprimir: get('Imprimir') || null
+      imprimir: get('Imprimir') || null,
+      situacao_original: situacao.original
     },
     ignored: buildIgnoredValues(headers, row)
   };

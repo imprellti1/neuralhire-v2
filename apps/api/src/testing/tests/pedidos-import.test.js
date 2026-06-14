@@ -60,6 +60,42 @@ export function getPedidosImportTests() {
       }
     },
     {
+      name: 'lê cabeçalhos acentuados reais e mantém status e metadata',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        __resetMemoryPedidosForTests();
+        __resetPedidosImportSessionsForTests();
+        const app = createApiApp();
+        const cliente = await createCliente({ nome: 'Cliente B', codigo: 'CLI-010' }, { accountId: 'acc-pedidos-import-real' });
+        const base64 = makeWorkbook([
+          {
+            Cliente: 'CLI-010',
+            'Número ERP': 'PED-010',
+            Situação: 'Faturado Total',
+            Observações: 'pedido com acento',
+            'Lote Gravação': 'LG-1',
+            'Qt. Peças': '42',
+            'Valor Cancelado': '0',
+            'Razão Social': 'Cliente que deve ser ignorado'
+          }
+        ]);
+        const preview = await call(app, { method: 'POST', url: '/pedidos/importacao/preview', role: 'admin', accountId: 'acc-pedidos-import-real', body: { arquivo: { fileName: 'Pedidos.xlsx', base64 } } });
+        assert.equal(preview.res.statusCode, 200);
+        assert.equal(preview.body.rows[0].clienteId, cliente.id);
+        assert.equal(preview.body.rows[0].pedido, 'PED-010');
+        assert.equal(preview.body.rows[0].status, 'faturado_total');
+        assert.equal(preview.body.rows[0].metadata.situacao_original, 'Faturado Total');
+        assert.equal(preview.body.rows[0].metadata.lote_gravacao, 'LG-1');
+        assert.equal(preview.body.rows[0].metadata.qt_pecas, '42');
+        assert.equal(preview.body.rows[0].metadata.valor_cancelado, '0');
+        assert.equal(preview.body.rows[0].observacoes, 'pedido com acento');
+        assert.equal(preview.body.rows[0].ignored['Razão Social'], 'Cliente que deve ser ignorado');
+        const execute = await call(app, { method: 'POST', url: '/pedidos/importacao', role: 'admin', accountId: 'acc-pedidos-import-real', body: { importToken: preview.body.importToken } });
+        assert.equal(execute.body.summary.pedidos_criados, 1);
+        assert.equal(execute.body.pedidos_criados[0].status, 'faturado_total');
+      }
+    },
+    {
       name: 'situação vazia cai para rascunho e preserva original nulo',
       run: async () => {
         __resetMemoryClientesForTests();
