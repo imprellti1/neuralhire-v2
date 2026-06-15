@@ -97,7 +97,6 @@ function getVendedorDisplayValue(item = {}) {
 export function renderPedidosAuditoriaPage(root, { apiClient }) {
   injectStyles();
   const state = createPedidosAuditoriaState();
-  console.info('AUDITORIA_BUILD_MARKER_ACOES_V2');
 
   async function load(page = 1) {
     state.loading = true;
@@ -212,7 +211,6 @@ export function renderPedidosAuditoriaPage(root, { apiClient }) {
         <div>
           <div class="nha2-title">Auditoria de Pedidos</div>
           <div class="nha2-sub">Lista operacional para corrigir comissão, visualizar pedidos sem itens, definir vendedor e marcar faturamento total.</div>
-          <div data-testid="auditoria-build-marker" style="margin-top:8px;padding:8px 10px;border:1px dashed rgba(148,163,184,.35);border-radius:10px;color:#fbbf24;font-size:12px;font-weight:700;letter-spacing:.06em;">AUDITORIA_BUILD_MARKER_ACOES_V2</div>
         </div>
         <div class="nha2-tools">
           <input id="nha2-search" class="nha2-input" placeholder="Buscar por ERP ou cliente" value="${state.filters.search}">
@@ -226,11 +224,19 @@ export function renderPedidosAuditoriaPage(root, { apiClient }) {
           <div class="nha2-meta"><div>Página ${state.pagination.page} de ${state.pagination.totalPages}</div><div>Total: ${state.pagination.total}</div></div>
           <div class="nha2-table-wrap">
           <table class="nha2-table">
-            <thead><tr><th class="nha2-col-num">Número ERP</th><th class="nha2-col-cliente">Cliente</th><th class="nha2-col-vendedor">Vendedor</th><th class="nha2-col-status">Status</th><th class="nha2-col-date">Emissão</th><th class="nha2-col-date">Faturamento</th><th class="nha2-col-money">Total</th><th class="nha2-col-commission">Comissão Principal %</th><th class="nha2-col-commission">Comissão Preposto %</th><th class="nha2-col-itens">Itens</th><th class="nha2-col-problems">Problemas</th><th class="nha2-col-actions">AÇÕES</th></tr></thead>
+            <thead><tr><th class="nha2-col-num">Número ERP</th><th class="nha2-col-cliente">Cliente</th><th class="nha2-col-vendedor">Vendedor</th><th class="nha2-col-status">Status</th><th class="nha2-col-date">Emissão</th><th class="nha2-col-date">Faturamento</th><th class="nha2-col-money">Total</th><th class="nha2-col-commission">Comissão Principal %</th><th class="nha2-col-commission">Comissão Preposto %</th><th class="nha2-col-itens">Itens</th><th class="nha2-col-problems">Problemas</th></tr></thead>
             <tbody>
               ${state.items.map((item) => `
                 <tr class="nha2-row">
-                  <td><a href="${getPedidoDetailRoute(item.id)}" data-action="open-detail" data-id="${item.id}" style="color:#93c5fd;text-decoration:none;font-weight:700;word-break:break-word">${item.numero || item.id}</a><div><button class="nha2-btn nha2-small" data-action="open-detail" data-id="${item.id}" style="margin-top:6px">Abrir</button></div></td>
+                  <td>
+                    <div style="display:grid;gap:6px;min-width:180px">
+                      <a href="${getPedidoDetailRoute(item.id)}" data-action="open" data-id="${item.id}" style="color:#93c5fd;text-decoration:none;font-weight:700;word-break:break-word">${item.numero || item.id}</a>
+                      <button class="nha2-btn nha2-small" data-action="open" data-id="${item.id}">Abrir</button>
+                      <button class="nha2-btn nha2-small" data-action="vendedor" data-id="${item.id}" aria-label="Definir ou alterar vendedor">Vendedor</button>
+                      <button class="nha2-btn nha2-small" data-action="comissao" data-id="${item.id}" aria-label="Corrigir comissão principal e preposto">Comissão</button>
+                      <button class="nha2-btn nha2-small" data-action="faturamento" data-id="${item.id}" aria-label="Marcar ou alterar faturamento">Faturamento</button>
+                    </div>
+                  </td>
                   <td>${item.cliente_nome || getClienteDisplayValue(item)}</td>
                   <td>${getVendedorDisplayValue(item)}</td>
                   <td>${item.status || '-'}</td>
@@ -241,13 +247,6 @@ export function renderPedidosAuditoriaPage(root, { apiClient }) {
                   <td>${item.comissao_preposto_percentual ?? '-'}</td>
                   <td>${Number(item.itens_count || 0)}</td>
                   <td>${(item.issues || []).map((issue) => `<span class="nha2-badge ${issue === 'sem_itens' || issue === 'sem_vendedor' ? 'warn' : issue === 'sem_comissao' ? 'danger' : 'ok'}">${issueLabel(issue)}</span>`).join('')}</td>
-                  <td>
-                    <div class="nha2-actions" aria-label="Ações do pedido">
-                      <button class="nha2-btn nha2-small" data-action="vendedor" data-id="${item.id}" aria-label="Definir ou alterar vendedor">Vendedor</button>
-                      <button class="nha2-btn nha2-small" data-action="comissao" data-id="${item.id}" aria-label="Corrigir comissão principal e preposto">Comissão</button>
-                      <button class="nha2-btn nha2-small" data-action="faturamento" data-id="${item.id}" aria-label="Marcar ou alterar faturamento">Faturamento</button>
-                    </div>
-                  </td>
                 </tr>
               `).join('')}
             </tbody>
@@ -262,7 +261,7 @@ export function renderPedidosAuditoriaPage(root, { apiClient }) {
     root.querySelector('#nha2-refresh').onclick = () => load(state.pagination.page);
     root.querySelectorAll('button[data-action]').forEach((btn) => {
       btn.onclick = () => {
-        if (btn.getAttribute('data-action') === 'open-detail') {
+        if (btn.getAttribute('data-action') === 'open') {
           window.location.hash = getPedidoDetailRoute(btn.getAttribute('data-id'));
           return;
         }
@@ -271,7 +270,7 @@ export function renderPedidosAuditoriaPage(root, { apiClient }) {
         openModal(btn.getAttribute('data-action'), pedido);
       };
     });
-    root.querySelectorAll('a[data-action="open-detail"]').forEach((link) => {
+    root.querySelectorAll('a[data-action="open"]').forEach((link) => {
       link.onclick = (e) => {
         e.preventDefault();
         window.location.hash = getPedidoDetailRoute(link.getAttribute('data-id'));

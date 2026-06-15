@@ -33,20 +33,24 @@ test('pedidos auditoria page renders list and opens modals', async () => {
   await flush();
 
   assert.ok(root.textContent.includes('Auditoria de Pedidos'));
-  assert.ok(root.textContent.includes('AUDITORIA_BUILD_MARKER_ACOES_V2'));
   assert.ok(root.textContent.includes('Sem itens'));
   assert.ok(root.textContent.includes('Sem vendedor'));
-  assert.ok(root.textContent.includes('AÇÕES'));
   assert.ok(root.textContent.includes('Comissão'));
   assert.ok(root.textContent.includes('Faturamento'));
   assert.ok(root.textContent.includes('Vendedor'));
-  assert.ok(root.querySelector('[data-testid="auditoria-build-marker"]'));
-  assert.ok(root.querySelector('button[data-action="vendedor"]'));
-  assert.ok(root.querySelector('button[data-action="comissao"]'));
-  assert.ok(root.querySelector('button[data-action="faturamento"]'));
   assert.ok(root.textContent.includes('ZAPEM COMERCIO ATACADISTA E VAREJISTA LTDA'));
   assert.ok(root.textContent.includes('11/06/2024'));
-  assert.ok(root.querySelector('a[data-action="open-detail"]'));
+  const firstCell = root.querySelector('tbody tr td');
+  assert.ok(firstCell);
+  assert.ok(firstCell.textContent.includes('ERP-1'));
+  assert.ok(firstCell.textContent.includes('Abrir'));
+  assert.ok(firstCell.textContent.includes('Vendedor'));
+  assert.ok(firstCell.textContent.includes('Comissão'));
+  assert.ok(firstCell.textContent.includes('Faturamento'));
+  assert.ok(firstCell.querySelector('a[data-action="open"]'));
+  assert.ok(firstCell.querySelector('button[data-action="vendedor"]'));
+  assert.ok(firstCell.querySelector('button[data-action="comissao"]'));
+  assert.ok(firstCell.querySelector('button[data-action="faturamento"]'));
   assert.equal(calls[0].url, '/pedidos/auditoria');
   const styleText = document.getElementById('nh-pedidos-auditoria-style').textContent;
   assert.ok(styleText.includes('.nha2-table-wrap{'));
@@ -56,13 +60,9 @@ test('pedidos auditoria page renders list and opens modals', async () => {
   assert.ok(styleText.includes('.nha2-table{'));
   assert.ok(styleText.includes('width:max-content'));
   assert.ok(styleText.includes('min-width:1300px'));
-  assert.ok(styleText.includes('.nha2-col-actions{'));
-  assert.ok(styleText.includes('min-width:180px'));
-  assert.ok(styleText.includes('width:180px'));
-  assert.ok(styleText.includes('.nha2-actions{display:flex;gap:6px;flex-direction:column;align-items:stretch}'));
   assert.ok(styleText.includes('.nha2-panel{background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98));border:1px solid rgba(148,163,184,.18);border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.22);max-width:100%;overflow:visible}'));
 
-  root.querySelector('a[data-action="open-detail"]').click();
+  firstCell.querySelector('a[data-action="open"]').click();
   await flush();
   assert.equal(window.location.hash, '#/pedidos/1');
   window.location.hash = '#/auditoria-pedidos';
