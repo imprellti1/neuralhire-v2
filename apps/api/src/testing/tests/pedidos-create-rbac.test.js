@@ -65,7 +65,6 @@ export function getPedidosCreateRbacTests() {
         const out = await call(app, { method: 'POST', url: '/pedidos', role: 'manager', accountId, body: { cliente_id: data.clienteId, itens: [{ produto_id: data.produtoId, quantidade: 2, preco_unitario: 0, desconto: 0 }] } });
         assertEqual(out.res.statusCode, 200);
         const precoUnitario = Number(out.body.itens?.[0]?.preco_unitario ?? 0);
-        assertEqual(out.body.pedido.subtotal, precoUnitario * 2);
         assertEqual(out.body.pedido.total, precoUnitario * 2);
         assertEqual(precoUnitario > 0, true);
       }

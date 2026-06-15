@@ -51,7 +51,7 @@ async function enrichPedidosWithClienteNome(items = [], accountId) {
   return items.map((item) => ({ ...item, cliente_nome: byId.get(item?.cliente_id) || null }));
 }
 
-export function calculatePedidoTotals(itens = [], descontoPedido = 0) {
+export function calculatePedidoTotals(itens = []) {
   const itensCalculados = itens.map((item) => {
     const quantidade = Number(item.quantidade || 0);
     const precoUnitario = Number(item.preco_unitario || 0);
@@ -62,8 +62,7 @@ export function calculatePedidoTotals(itens = [], descontoPedido = 0) {
     return { ...item, quantidade, preco_unitario: precoUnitario, desconto, subtotal, total };
   });
   const totalItens = round2(itensCalculados.reduce((a, i) => a + i.total, 0));
-  const desconto = round2(Number(descontoPedido || 0));
-  return { total: round2(totalItens - desconto), itensCalculados };
+  return { total: totalItens, itensCalculados };
 }
 
 export function getPedidosRepositoryMode() { return { mode: isSupabaseConfigured() ? 'supabase' : 'memory', supabaseConfigured: isSupabaseConfigured() }; }
@@ -173,7 +172,7 @@ export async function getPedidoById(id, options = {}) {
 export async function createPedido(data = {}, options = {}) {
   const accountId = options.accountId || null; assertAccountId(accountId); assertItens(data.itens); const cliente = await getClienteById(data.cliente_id, { accountId, context: options.context });
   if (options.context && !canAccessAllTenantData(options.context) && cliente.owner_user_id !== getUserIdFromContext(options.context)) throw new ForbiddenError('Sem permissao para criar pedido para este cliente', { code: 'OWNER_SCOPE_FORBIDDEN', domain: 'pedidos-comercial' });
-  const descontoPedido = Number(data.desconto || 0); const repositoryMode = getPedidosRepositoryMode();
+  const repositoryMode = getPedidosRepositoryMode();
   const itensEnriquecidos = [];
   for (const item of data.itens) {
     const produto = await getProdutoById(item.produto_id, { accountId });
@@ -184,7 +183,7 @@ export async function createPedido(data = {}, options = {}) {
       preco_unitario: Number(produto.preco ?? produto.preco_unitario ?? 0)
     });
   }
-  const totals = calculatePedidoTotals(itensEnriquecidos, descontoPedido);
+  const totals = calculatePedidoTotals(itensEnriquecidos);
   const status = data.status || PEDIDO_STATUS.RASCUNHO;
   if (!isValidPedidoStatus(status)) throw new BadRequestError('Status do pedido invalido', { code: 'VALIDATION_ERROR', domain: 'pedidos-comercial' });
   const pedidoPayload = { account_id: accountId, cliente_id: data.cliente_id, numero: data.numero || null, status, origem: data.origem || 'manual', observacoes: data.observacoes || null, total: totals.total, metadata: data.metadata || {}, owner_user_id: cliente.owner_user_id || null, data_faturamento: data.data_faturamento || null };
@@ -272,7 +271,7 @@ export async function updatePedidoItens(id, data = {}, options = {}) {
     });
   }
 
-  const totals = calculatePedidoTotals(itensEnriquecidos, Number(pedido?.desconto || 0));
+  const totals = calculatePedidoTotals(itensEnriquecidos);
   if (getPedidosRepositoryMode().mode === 'supabase') {
     const supabase = getSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { error: deleteError } = await supabase.from('pedido_itens').delete().eq('account_id', accountId).eq('pedido_id', id);

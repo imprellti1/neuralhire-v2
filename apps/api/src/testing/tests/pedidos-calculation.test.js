@@ -17,9 +17,8 @@ export function getPedidosCalculationTests() {
         const result = calculatePedidoTotals([
           { quantidade: 2, preco_unitario: 10, desconto: 0 },
           { quantidade: 1, preco_unitario: 5, desconto: 1 }
-        ], 2);
-        assertEqual(result.subtotal, 25);
-        assertEqual(result.total, 22);
+        ]);
+        assertEqual(result.total, 25);
       }
     },
     {

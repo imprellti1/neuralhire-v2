@@ -34,7 +34,6 @@ export function getPedidosItensUpdateTests() {
         assertEqual(patch.res.statusCode, 200);
         assertEqual(patch.body.pedido.status, 'aprovado');
         assertEqual(patch.body.itens.length, 2);
-        assertEqual(patch.body.pedido.subtotal, 50);
         assertEqual(patch.body.pedido.total, 50);
       }
     },

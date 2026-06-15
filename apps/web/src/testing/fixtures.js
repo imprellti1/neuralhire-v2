@@ -54,8 +54,6 @@ export function makePedido(overrides = {}) {
     cliente_nome: 'Cliente A',
     status: 'aprovado',
     origem: 'manual',
-    subtotal: 100,
-    desconto: 0,
     total: 100,
     itens: [makePedidoItem()],
     created_at: DEFAULT_DATE_CREATED,
