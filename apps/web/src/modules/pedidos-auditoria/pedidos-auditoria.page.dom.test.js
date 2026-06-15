@@ -63,24 +63,33 @@ test('pedidos auditoria page renders list and opens modals', async () => {
   assert.equal(rows.length, 4);
   const [rowSemItens, rowSemComissao, rowSemVendedor, rowSemFaturamento] = rows;
   const firstCells = rows.map((row) => row.querySelector('td'));
-  firstCells.forEach((cell) => {
+  firstCells.forEach((cell, index) => {
     assert.ok(cell);
-    assert.ok(cell.querySelector('.nha2-row-actions'));
     assert.ok(cell.querySelector('a[data-action="open"]'));
     assert.ok(cell.textContent.includes('Abrir'));
+    assert.ok(cell.textContent.includes(`ERP-${index + 1}`));
+    assert.ok(!cell.querySelector('button[data-action="vendedor"]'));
+    assert.ok(!cell.querySelector('button[data-action="comissao"]'));
+    assert.ok(!cell.querySelector('button[data-action="faturamento"]'));
   });
-  assert.ok(!rowSemItens.querySelector('button[data-action="vendedor"]'));
-  assert.ok(!rowSemItens.querySelector('button[data-action="comissao"]'));
-  assert.ok(!rowSemItens.querySelector('button[data-action="faturamento"]'));
-  assert.ok(rowSemComissao.querySelector('button[data-action="comissao"]'));
-  assert.ok(!rowSemComissao.querySelector('button[data-action="vendedor"]'));
-  assert.ok(!rowSemComissao.querySelector('button[data-action="faturamento"]'));
-  assert.ok(rowSemVendedor.querySelector('button[data-action="vendedor"]'));
-  assert.ok(!rowSemVendedor.querySelector('button[data-action="comissao"]'));
-  assert.ok(!rowSemVendedor.querySelector('button[data-action="faturamento"]'));
-  assert.ok(rowSemFaturamento.querySelector('button[data-action="faturamento"]'));
-  assert.ok(!rowSemFaturamento.querySelector('button[data-action="vendedor"]'));
-  assert.ok(!rowSemFaturamento.querySelector('button[data-action="comissao"]'));
+  const problemsCells = rows.map((row) => row.querySelector('.nha2-problems-cell'));
+  problemsCells.forEach((cell) => {
+    assert.ok(cell);
+    assert.ok(cell.querySelector('.nha2-badge'));
+  });
+  assert.ok(!rowSemItens.querySelector('.nha2-problems-cell button[data-action="vendedor"]'));
+  assert.ok(!rowSemItens.querySelector('.nha2-problems-cell button[data-action="comissao"]'));
+  assert.ok(!rowSemItens.querySelector('.nha2-problems-cell button[data-action="faturamento"]'));
+  assert.ok(rowSemItens.querySelector('.nha2-problems-cell .nha2-badge'));
+  assert.ok(rowSemComissao.querySelector('.nha2-problems-cell button[data-action="comissao"]'));
+  assert.ok(!rowSemComissao.querySelector('.nha2-problems-cell button[data-action="vendedor"]'));
+  assert.ok(!rowSemComissao.querySelector('.nha2-problems-cell button[data-action="faturamento"]'));
+  assert.ok(rowSemVendedor.querySelector('.nha2-problems-cell button[data-action="vendedor"]'));
+  assert.ok(!rowSemVendedor.querySelector('.nha2-problems-cell button[data-action="comissao"]'));
+  assert.ok(!rowSemVendedor.querySelector('.nha2-problems-cell button[data-action="faturamento"]'));
+  assert.ok(rowSemFaturamento.querySelector('.nha2-problems-cell button[data-action="faturamento"]'));
+  assert.ok(!rowSemFaturamento.querySelector('.nha2-problems-cell button[data-action="vendedor"]'));
+  assert.ok(!rowSemFaturamento.querySelector('.nha2-problems-cell button[data-action="comissao"]'));
   const styleText = document.getElementById('nh-pedidos-auditoria-style').textContent;
   assert.ok(styleText.includes('.nha2-table-wrap{'));
   assert.ok(styleText.includes('overflow-x:auto'));
@@ -89,8 +98,10 @@ test('pedidos auditoria page renders list and opens modals', async () => {
   assert.ok(styleText.includes('.nha2-table{'));
   assert.ok(styleText.includes('width:max-content'));
   assert.ok(styleText.includes('min-width:1120px'));
-  assert.ok(styleText.includes('.nha2-row-actions{display:flex;flex-direction:column;gap:4px;margin-top:6px;max-width:120px}'));
-  assert.ok(styleText.includes('.nha2-row-actions .btn,.nha2-row-actions button,.nha2-row-actions .nha2-btn{width:110px;min-height:24px;padding:4px 8px;font-size:11px;border-radius:8px;line-height:1.1;text-align:center;white-space:normal}'));
+  assert.ok(styleText.includes('.nha2-table th,.nha2-table td{padding:7px 10px;border-bottom:1px solid rgba(148,163,184,.12);text-align:left;vertical-align:top;white-space:normal;overflow-wrap:anywhere}'));
+  assert.ok(styleText.includes('.nha2-problems-cell{display:flex;align-items:center;justify-content:flex-start;gap:6px;flex-wrap:wrap}'));
+  assert.ok(styleText.includes('.nha2-row-actions{display:inline-flex;flex-direction:row;gap:6px;margin-left:6px}'));
+  assert.ok(styleText.includes('.nha2-row-actions .btn,.nha2-row-actions button,.nha2-row-actions .nha2-btn{width:auto;min-width:72px;min-height:24px;padding:4px 8px;font-size:11px;border-radius:8px;line-height:1.1;text-align:center;white-space:nowrap}'));
   assert.ok(styleText.includes('.nha2-panel{background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98));border:1px solid rgba(148,163,184,.18);border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.22);max-width:100%;overflow:visible}'));
 
   rowSemItens.querySelector('a[data-action="open"]').click();

@@ -15,15 +15,16 @@ function injectStyles() {
   .nha2-btn{background:#1f56dc;color:#fff;font-weight:700;cursor:pointer}
   .nha2-table-wrap{display:block;max-width:100%;width:100%;overflow-x:auto;overflow-y:visible;border-radius:14px;overscroll-behavior-x:contain;scrollbar-gutter:stable both-edges}
   .nha2-table{width:max-content;min-width:1120px;border-collapse:collapse;font-size:13px;table-layout:fixed}
-  .nha2-table th,.nha2-table td{padding:10px;border-bottom:1px solid rgba(148,163,184,.12);text-align:left;vertical-align:top;white-space:normal;overflow-wrap:anywhere}
+  .nha2-table th,.nha2-table td{padding:7px 10px;border-bottom:1px solid rgba(148,163,184,.12);text-align:left;vertical-align:top;white-space:normal;overflow-wrap:anywhere}
   .nha2-table th{font-size:12px;color:#91a4c4;text-transform:uppercase;letter-spacing:.04em;background:rgba(255,255,255,.03)}
   .nha2-row:hover td{background:rgba(79,140,255,.08)}
   .nha2-badge{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;font-size:12px;font-weight:700;background:#eaf1ff;color:#1d4ed8;margin-right:6px;margin-bottom:4px}
   .nha2-badge.warn{background:rgba(251,191,36,.16);color:#fbbf24}
   .nha2-badge.danger{background:rgba(248,113,113,.16);color:#f87171}
   .nha2-badge.ok{background:rgba(52,211,153,.16);color:#34d399}
-  .nha2-row-actions{display:flex;flex-direction:column;gap:4px;margin-top:6px;max-width:120px}
-  .nha2-row-actions .btn,.nha2-row-actions button,.nha2-row-actions .nha2-btn{width:110px;min-height:24px;padding:4px 8px;font-size:11px;border-radius:8px;line-height:1.1;text-align:center;white-space:normal}
+  .nha2-problems-cell{display:flex;align-items:center;justify-content:flex-start;gap:6px;flex-wrap:wrap}
+  .nha2-row-actions{display:inline-flex;flex-direction:row;gap:6px;margin-left:6px}
+  .nha2-row-actions .btn,.nha2-row-actions button,.nha2-row-actions .nha2-btn{width:auto;min-width:72px;min-height:24px;padding:4px 8px;font-size:11px;border-radius:8px;line-height:1.1;text-align:center;white-space:nowrap}
   .nha2-col-num{width:130px}
   .nha2-col-cliente{width:220px}
   .nha2-col-vendedor{width:150px}
@@ -258,13 +259,8 @@ export function renderPedidosAuditoriaPage(root, { apiClient }) {
               ${state.items.map((item) => `
                 <tr class="nha2-row">
                   <td>
-                    <div class="nha2-row-actions">
-                      <a href="${getPedidoDetailRoute(item.id)}" data-action="open" data-id="${item.id}" style="color:#93c5fd;text-decoration:none;font-weight:700;word-break:break-word">${item.numero || item.id}</a>
-                      <button class="nha2-btn nha2-small" data-action="open" data-id="${item.id}">Abrir</button>
-                      ${hasPedidoIssue(item, ['sem_vendedor']) ? renderPedidoActionButton('vendedor', 'Vendedor', 'Definir ou alterar vendedor', item) : ''}
-                      ${hasPedidoIssue(item, ['sem_comissao']) ? renderPedidoActionButton('comissao', 'Comissão', 'Corrigir comissão principal e preposto', item) : ''}
-                      ${hasPedidoIssue(item, ['nao_faturado_total']) ? renderPedidoActionButton('faturamento', 'Faturamento', 'Marcar ou alterar faturamento', item) : ''}
-                    </div>
+                    <a href="${getPedidoDetailRoute(item.id)}" data-action="open" data-id="${item.id}" style="display:inline-flex;align-items:center;gap:6px;color:#93c5fd;text-decoration:none;font-weight:700;word-break:break-word">${item.numero || item.id}</a>
+                    <div><button class="nha2-btn nha2-small" data-action="open" data-id="${item.id}" style="margin-top:6px">Abrir</button></div>
                   </td>
                   <td>${item.cliente_nome || getClienteDisplayValue(item)}</td>
                   <td>${getVendedorDisplayValue(item)}</td>
@@ -273,7 +269,14 @@ export function renderPedidosAuditoriaPage(root, { apiClient }) {
                   <td>${fmtMoney(item.total)}</td>
                   <td>${item.comissao_principal_percentual ?? '-'}</td>
                   <td>${item.comissao_preposto_percentual ?? '-'}</td>
-                  <td>${(item.issues || []).map((issue) => `<span class="nha2-badge ${issue === 'sem_itens' || issue === 'sem_vendedor' ? 'warn' : issue === 'sem_comissao' ? 'danger' : 'ok'}">${issueLabel(issue)}</span>`).join('')}</td>
+                  <td class="nha2-problems-cell">
+                    ${(item.issues || []).map((issue) => `<span class="nha2-badge ${issue === 'sem_itens' || issue === 'sem_vendedor' ? 'warn' : issue === 'sem_comissao' ? 'danger' : 'ok'}">${issueLabel(issue)}</span>`).join('')}
+                    <div class="nha2-row-actions">
+                      ${hasPedidoIssue(item, ['sem_vendedor']) ? renderPedidoActionButton('vendedor', 'Vendedor', 'Definir ou alterar vendedor', item) : ''}
+                      ${hasPedidoIssue(item, ['sem_comissao']) ? renderPedidoActionButton('comissao', 'Comissão', 'Corrigir comissão principal e preposto', item) : ''}
+                      ${hasPedidoIssue(item, ['nao_faturado_total']) ? renderPedidoActionButton('faturamento', 'Faturamento', 'Marcar ou alterar faturamento', item) : ''}
+                    </div>
+                  </td>
                 </tr>
               `).join('')}
             </tbody>
