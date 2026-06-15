@@ -49,8 +49,16 @@ test('pedidos auditoria page renders list and opens modals', async () => {
   assert.ok(root.querySelector('a[data-action="open-detail"]'));
   assert.equal(calls[0].url, '/pedidos/auditoria');
   const styleText = document.getElementById('nh-pedidos-auditoria-style').textContent;
-  assert.ok(styleText.includes('.nha2-table-wrap{display:block;max-width:100%;width:100%;overflow-x:auto;overflow-y:hidden;border-radius:14px;overscroll-behavior-x:contain}'));
-  assert.ok(styleText.includes('.nha2-col-actions{width:180px}'));
+  assert.ok(styleText.includes('.nha2-table-wrap{'));
+  assert.ok(styleText.includes('overflow-x:auto'));
+  assert.ok(styleText.includes('overflow-y:visible'));
+  assert.ok(styleText.includes('scrollbar-gutter:stable both-edges'));
+  assert.ok(styleText.includes('.nha2-table{'));
+  assert.ok(styleText.includes('width:max-content'));
+  assert.ok(styleText.includes('min-width:1300px'));
+  assert.ok(styleText.includes('.nha2-col-actions{'));
+  assert.ok(styleText.includes('min-width:180px'));
+  assert.ok(styleText.includes('width:180px'));
   assert.ok(styleText.includes('.nha2-actions{display:flex;gap:6px;flex-direction:column;align-items:stretch}'));
   assert.ok(styleText.includes('.nha2-panel{background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98));border:1px solid rgba(148,163,184,.18);border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.22);max-width:100%;overflow:visible}'));
 
