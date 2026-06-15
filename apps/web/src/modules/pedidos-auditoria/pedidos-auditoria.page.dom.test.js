@@ -45,14 +45,27 @@ test('pedidos auditoria page renders list and opens modals', async () => {
   assert.ok(root.textContent.includes('Cliente 2'));
   assert.ok(root.textContent.includes('Cliente 3'));
   assert.ok(root.textContent.includes('Cliente 4'));
-  assert.ok(root.textContent.includes('11/06/2024'));
+  assert.ok(root.textContent.includes('12/06/2024'));
   assert.equal(calls[0].url, '/pedidos/auditoria');
+  const headers = Array.from(root.querySelectorAll('thead th')).map((th) => th.textContent.trim());
+  assert.ok(headers.includes('Número ERP'));
+  assert.ok(headers.includes('Cliente'));
+  assert.ok(headers.includes('Vendedor'));
+  assert.ok(headers.includes('Status'));
+  assert.ok(headers.includes('Faturamento'));
+  assert.ok(headers.includes('Total'));
+  assert.ok(headers.includes('Comissão Principal %'));
+  assert.ok(headers.includes('Comissão Preposto %'));
+  assert.ok(headers.includes('Problemas'));
+  assert.ok(!headers.includes('Itens'));
+  assert.ok(!headers.includes('Emissão'));
   const rows = Array.from(root.querySelectorAll('tbody tr'));
   assert.equal(rows.length, 4);
   const [rowSemItens, rowSemComissao, rowSemVendedor, rowSemFaturamento] = rows;
   const firstCells = rows.map((row) => row.querySelector('td'));
   firstCells.forEach((cell) => {
     assert.ok(cell);
+    assert.ok(cell.querySelector('.nha2-row-actions'));
     assert.ok(cell.querySelector('a[data-action="open"]'));
     assert.ok(cell.textContent.includes('Abrir'));
   });
@@ -75,7 +88,9 @@ test('pedidos auditoria page renders list and opens modals', async () => {
   assert.ok(styleText.includes('scrollbar-gutter:stable both-edges'));
   assert.ok(styleText.includes('.nha2-table{'));
   assert.ok(styleText.includes('width:max-content'));
-  assert.ok(styleText.includes('min-width:1300px'));
+  assert.ok(styleText.includes('min-width:1120px'));
+  assert.ok(styleText.includes('.nha2-row-actions{display:flex;flex-direction:column;gap:4px;margin-top:6px;max-width:120px}'));
+  assert.ok(styleText.includes('.nha2-row-actions .btn,.nha2-row-actions button,.nha2-row-actions .nha2-btn{width:110px;min-height:24px;padding:4px 8px;font-size:11px;border-radius:8px;line-height:1.1;text-align:center;white-space:normal}'));
   assert.ok(styleText.includes('.nha2-panel{background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98));border:1px solid rgba(148,163,184,.18);border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.22);max-width:100%;overflow:visible}'));
 
   rowSemItens.querySelector('a[data-action="open"]').click();
