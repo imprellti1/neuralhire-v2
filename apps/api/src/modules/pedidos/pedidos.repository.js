@@ -73,10 +73,25 @@ export async function listPedidos(filters = {}, options = {}) {
   const scopedFilters = options.context ? applyOwnerFilter(options.context, filters) : filters;
   if (repositoryMode.mode === 'supabase') {
     const supabase = getSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    let query = supabase.from('pedidos').select('*', { count: 'exact' }).eq('account_id', accountId).order('created_at', { ascending: false });
+    let query = supabase.from('pedidos').select(`
+      id,
+      account_id,
+      cliente_id,
+      numero,
+      status,
+      origem,
+      observacoes,
+      total,
+      metadata,
+      created_at,
+      updated_at,
+      data_faturamento,
+      comissao_principal_percentual,
+      comissao_preposto_percentual
+    `, { count: 'exact' }).eq('account_id', accountId).order('created_at', { ascending: false });
     if (scopedFilters.status) query = query.eq('status', scopedFilters.status); if (scopedFilters.cliente_id) query = query.eq('cliente_id', scopedFilters.cliente_id);
     if (scopedFilters.owner_user_id) query = query.eq('owner_user_id', scopedFilters.owner_user_id);
-    const from = (page - 1) * limit; const { data, error, count } = await query.range(from, from + limit - 1); if (error) throw new DatabaseError('Falha ao listar pedidos', { details: error });
+    const from = (page - 1) * limit; const { data, error, count } = await query.range(from, from + limit - 1); if (error) { console.error('PEDIDOS_QUERY_ERROR', { message: error.message, code: error.code, details: error.details, hint: error.hint }); throw new DatabaseError('Falha ao listar pedidos', { details: error }); }
     const total = count || 0;
     const enrichedItems = await enrichPedidosWithClienteNome(data || [], accountId).catch(() => (data || []).map((item) => ({ ...item, cliente_nome: null })));
     return { items: enrichedItems, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
