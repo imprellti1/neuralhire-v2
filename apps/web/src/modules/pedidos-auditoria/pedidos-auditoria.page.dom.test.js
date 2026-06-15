@@ -33,12 +33,14 @@ test('pedidos auditoria page renders list and opens modals', async () => {
   await flush();
 
   assert.ok(root.textContent.includes('Auditoria de Pedidos'));
+  assert.ok(root.textContent.includes('AUDITORIA_BUILD_MARKER_ACOES_V2'));
   assert.ok(root.textContent.includes('Sem itens'));
   assert.ok(root.textContent.includes('Sem vendedor'));
   assert.ok(root.textContent.includes('AÇÕES'));
   assert.ok(root.textContent.includes('Comissão'));
   assert.ok(root.textContent.includes('Faturamento'));
   assert.ok(root.textContent.includes('Vendedor'));
+  assert.ok(root.querySelector('[data-testid="auditoria-build-marker"]'));
   assert.ok(root.querySelector('button[data-action="vendedor"]'));
   assert.ok(root.querySelector('button[data-action="comissao"]'));
   assert.ok(root.querySelector('button[data-action="faturamento"]'));

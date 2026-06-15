@@ -97,6 +97,7 @@ function getVendedorDisplayValue(item = {}) {
 export function renderPedidosAuditoriaPage(root, { apiClient }) {
   injectStyles();
   const state = createPedidosAuditoriaState();
+  console.info('AUDITORIA_BUILD_MARKER_ACOES_V2');
 
   async function load(page = 1) {
     state.loading = true;
@@ -211,6 +212,7 @@ export function renderPedidosAuditoriaPage(root, { apiClient }) {
         <div>
           <div class="nha2-title">Auditoria de Pedidos</div>
           <div class="nha2-sub">Lista operacional para corrigir comissão, visualizar pedidos sem itens, definir vendedor e marcar faturamento total.</div>
+          <div data-testid="auditoria-build-marker" style="margin-top:8px;padding:8px 10px;border:1px dashed rgba(148,163,184,.35);border-radius:10px;color:#fbbf24;font-size:12px;font-weight:700;letter-spacing:.06em;">AUDITORIA_BUILD_MARKER_ACOES_V2</div>
         </div>
         <div class="nha2-tools">
           <input id="nha2-search" class="nha2-input" placeholder="Buscar por ERP ou cliente" value="${state.filters.search}">
