@@ -37,6 +37,28 @@ export function getPedidosAuditTests() {
       }
     },
     {
+      name: 'auditoria usa razao social e fallback de nome do cliente',
+      run: async () => {
+        __resetMemoryPedidosForTests();
+        const produto = await createProduto({ nome: 'P' }, { accountId });
+        const casos = [
+          { cliente: { nome: 'Nome Cliente', razao_social: 'Razao Social LTDA' }, esperado: 'Razao Social LTDA' },
+          { cliente: { nome: 'Nome Cliente', empresa: 'Empresa SA' }, esperado: 'Empresa SA' },
+          { cliente: { nome: 'Nome Cliente' }, esperado: 'Nome Cliente' },
+          { cliente: { nome_contato: 'Contato Cliente' }, esperado: 'Contato Cliente' }
+        ];
+        for (const caso of casos) {
+          const c = await createCliente(caso.cliente, { accountId });
+          const created = await createPedido({ cliente_id: c.id, itens: [{ produto_id: produto.id, quantidade: 1, preco_unitario: 10 }] }, { accountId });
+          const snapshot = { pedidos: [{ ...created.pedido, status: 'confirmado' }], pedidoItens: [{ ...created.itens[0] }], pedidoStatusHistory: [] };
+          const { __loadMemoryPedidos } = await import('../../modules/pedidos/pedidos.repository.js');
+          __loadMemoryPedidos(snapshot);
+          const audit = await listPedidosAuditoria({}, { accountId });
+          assertEqual(audit.items[0].cliente_nome, caso.esperado);
+        }
+      }
+    },
+    {
       name: 'auditoria exclui pedidos cancelados',
       run: async () => {
         __resetMemoryPedidosForTests();

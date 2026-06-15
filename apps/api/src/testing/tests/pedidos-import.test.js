@@ -375,6 +375,47 @@ export function getPedidosImportTests() {
       }
     },
     {
+      name: 'importacao interpreta datas BR textuais sem inverter dia e mes',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        __resetMemoryPedidosForTests();
+        __resetPedidosImportSessionsForTests();
+        const app = createApiApp();
+        await createCliente({ nome: 'Cliente BR', codigo: 'CLI-BR' }, { accountId: 'acc-pedidos-import-br' });
+        const base64 = makeWorkbook([
+          { Cliente: 'CLI-BR', 'Número ERP': 'PED-BR-1', Situação: 'Faturado Total', 'Data Emissão': '11/06/2024', 'Valor Total': '10' },
+          { Cliente: 'CLI-BR', 'Número ERP': 'PED-BR-2', Situação: 'Faturado Total', 'Data Emissão': '05/11/2024', 'Valor Total': '10' },
+          { Cliente: 'CLI-BR', 'Número ERP': 'PED-BR-3', Situação: 'Faturado Total', 'Data Emissão': '11-06-2024', 'Valor Total': '10' },
+          { Cliente: 'CLI-BR', 'Número ERP': 'PED-BR-4', Situação: 'Faturado Total', 'Data Emissão': '2024-06-11', 'Valor Total': '10' }
+        ]);
+        const preview = await call(app, { method: 'POST', url: '/pedidos/importacao/preview', role: 'admin', accountId: 'acc-pedidos-import-br', body: { arquivo: { fileName: 'Pedidos.xlsx', base64 } } });
+        assert.equal(preview.body.rows[0].data_emissao_preview, '2024-06-11');
+        assert.equal(preview.body.rows[1].data_emissao_preview, '2024-11-05');
+        assert.equal(preview.body.rows[2].data_emissao_preview, '2024-06-11');
+        assert.equal(preview.body.rows[3].data_emissao_preview, '2024-06-11');
+        const execute = await call(app, { method: 'POST', url: '/pedidos/importacao', role: 'admin', accountId: 'acc-pedidos-import-br', body: { importToken: preview.body.importToken } });
+        assert.equal(execute.body.summary.pedidos_criados, 4);
+        assert.equal(__dumpMemoryPedidos().pedidos[0].data_emissao, '2024-06-11');
+        assert.equal(__dumpMemoryPedidos().pedidos[1].data_emissao, '2024-11-05');
+      }
+    },
+    {
+      name: 'importacao conta data invalida em pedidos_data_emissao_invalidas',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        __resetMemoryPedidosForTests();
+        __resetPedidosImportSessionsForTests();
+        const app = createApiApp();
+        await createCliente({ nome: 'Cliente Inv', codigo: 'CLI-INV' }, { accountId: 'acc-pedidos-import-inv' });
+        const base64 = makeWorkbook([{ Cliente: 'CLI-INV', 'Número ERP': 'PED-INV', Situação: 'Faturado Total', 'Data Emissão': '31/02/2024', 'Valor Total': '10' }]);
+        const preview = await call(app, { method: 'POST', url: '/pedidos/importacao/preview', role: 'admin', accountId: 'acc-pedidos-import-inv', body: { arquivo: { fileName: 'Pedidos.xlsx', base64 } } });
+        assert.equal(preview.body.rows[0].data_emissao_preview, null);
+        const execute = await call(app, { method: 'POST', url: '/pedidos/importacao', role: 'admin', accountId: 'acc-pedidos-import-inv', body: { importToken: preview.body.importToken } });
+        assert.equal(execute.body.summary.pedidos_data_emissao_invalidas, 1);
+        assert.equal(execute.body.pedidos_criados[0].data_emissao, null);
+      }
+    },
+    {
       name: 'importacao sem Data Emissao persiste null',
       run: async () => {
         __resetMemoryClientesForTests();

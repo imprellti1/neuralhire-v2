@@ -30,27 +30,43 @@ function assertAccountId(accountId) { if (!accountId) throw new ForbiddenError('
 function normalizePagination(filters = {}) { const page = Number.isFinite(filters.page) && filters.page > 0 ? Math.floor(filters.page) : 1; const rawLimit = Number.isFinite(filters.limit) && filters.limit > 0 ? Math.floor(filters.limit) : 20; return { page, limit: Math.min(rawLimit, 100) }; }
 function assertItens(itens) { if (!Array.isArray(itens) || itens.length === 0) throw new BadRequestError('Pedido precisa de pelo menos um item', { code: 'PEDIDO_ITENS_REQUIRED', domain: 'pedidos-comercial' }); }
 const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+function toIsoDateOnly(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
+}
+function parseBrDateText(text) {
+  const match = String(text || '').trim().match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+  if (!match) return null;
+  const [, d, m, y] = match;
+  const year = y.length === 2 ? Number(`20${y}`) : Number(y);
+  if (!Number.isInteger(year)) return null;
+  const day = Number(d);
+  const month = Number(m);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (Number.isNaN(parsed.getTime())) return null;
+  if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month - 1 || parsed.getUTCDate() !== day) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+function resolveClienteDisplayName(cliente = {}, fallback = null) {
+  const nome = cliente?.razao_social || cliente?.empresa || cliente?.nome || cliente?.nome_contato || fallback || null;
+  const normalized = String(nome || '').trim();
+  if (!normalized) return fallback || null;
+  if (isUuid(normalized)) return fallback || null;
+  return normalized;
+}
 function normalizeDateOnlyValue(value) {
   if (value === null || value === undefined || value === '') return null;
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString().slice(0, 10);
+  if (value instanceof Date) return toIsoDateOnly(value);
   if (typeof value === 'number') {
     const excelEpoch = Math.round((value - 25569) * 86400 * 1000);
     if (!Number.isFinite(excelEpoch)) return null;
     const date = new Date(excelEpoch);
-    return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+    return toIsoDateOnly(date);
   }
   const text = String(value).trim();
   if (!text) return null;
-  const date = new Date(text);
-  if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, 10);
-  const match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
-  if (match) {
-    const [, d, m, y] = match;
-    const fullYear = y.length === 2 ? Number(`20${y}`) : Number(y);
-    const parsed = new Date(Date.UTC(fullYear, Number(m) - 1, Number(d)));
-    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
-  }
-  return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  return parseBrDateText(text);
 }
 function getPedidoClienteFallback(item = {}) {
   return item?.cliente_id || '-';
@@ -113,8 +129,7 @@ async function enrichPedidosWithClienteNome(items = [], accountId) {
       const byId = new Map((data || []).map((c) => [c.id, c]));
       return items.map((item) => {
         const cliente = byId.get(item?.cliente_id);
-        const nome = cliente?.razao_social || cliente?.empresa || cliente?.nome || cliente?.nome_contato || null;
-        return { ...item, cliente_nome: isUuid(nome) ? getClienteNomeFallback(item) : (nome || getClienteNomeFallback(item)) };
+        return { ...item, cliente_nome: resolveClienteDisplayName(cliente, getClienteNomeFallback(item)) };
       });
     } catch {
       return items.map((item) => ({ ...item, cliente_nome: getClienteNomeFallback(item) }));
@@ -127,8 +142,7 @@ async function enrichPedidosWithClienteNome(items = [], accountId) {
     if (!clienteId || byId.has(clienteId)) continue;
     try {
     const cliente = await getClienteById(clienteId, { accountId });
-      const nome = cliente?.razao_social || cliente?.empresa || cliente?.nome || cliente?.nome_contato || null;
-      byId.set(clienteId, isUuid(nome) ? null : nome);
+      byId.set(clienteId, resolveClienteDisplayName(cliente, getClienteNomeFallback({ cliente_id: clienteId })));
     } catch {
       byId.set(clienteId, getClienteNomeFallback(item));
     }

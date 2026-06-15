@@ -64,6 +64,25 @@ function parseMoney(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function toIsoDateOnly(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
+}
+
+function parseBrDateText(value) {
+  const text = normalizeText(value);
+  const match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+  if (!match) return null;
+  const [, d, m, y] = match;
+  const year = y.length === 2 ? Number(`20${y}`) : Number(y);
+  const day = Number(d);
+  const month = Number(m);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (Number.isNaN(parsed.getTime())) return null;
+  if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month - 1 || parsed.getUTCDate() !== day) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
 function normalizeSnakeCase(value) {
   return normalizeText(value)
     .toLowerCase()
@@ -73,26 +92,20 @@ function normalizeSnakeCase(value) {
 
 function parseExcelDate(value) {
   if (value === null || value === undefined || value === '') return null;
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString().slice(0, 10);
+  if (value instanceof Date) return toIsoDateOnly(value);
   if (typeof value === 'number') {
     const parsed = xlsx.SSF?.parse_date_code ? xlsx.SSF.parse_date_code(value) : null;
     if (parsed && parsed.y && parsed.m && parsed.d) {
       const date = new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
-      return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+      return toIsoDateOnly(date);
     }
     const fallback = new Date(Math.round((value - 25569) * 86400 * 1000));
-    return Number.isNaN(fallback.getTime()) ? null : fallback.toISOString().slice(0, 10);
+    return toIsoDateOnly(fallback);
   }
   const text = normalizeText(value);
   if (!text) return null;
-  const direct = new Date(text);
-  if (!Number.isNaN(direct.getTime())) return direct.toISOString().slice(0, 10);
-  const match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
-  if (!match) return null;
-  const [, d, m, y] = match;
-  const year = y.length === 2 ? Number(`20${y}`) : Number(y);
-  const date = new Date(Date.UTC(year, Number(m) - 1, Number(d)));
-  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  return parseBrDateText(text);
 }
 
 function normalizeSituacaoPedido(value) {
@@ -190,6 +203,7 @@ function buildRow(headers, row, rowNumber) {
     clienteCodigo: normalizeText(get('Cliente')),
     status: situacao.status,
     situacaoOriginal: situacao.original,
+    dataEmissaoRaw: get('Data Emissão', 'Data Emissao', 'Data de Emissão', 'Data de Emissao', 'Data Emissão ERP'),
     dataEmissao: parseExcelDate(get('Data Emissão', 'Data Emissao', 'Data de Emissão', 'Data de Emissao', 'Data Emissão ERP')),
     observacoes: normalizeText(get('Observações', 'Observacoes')) || null,
     total: parseMoney(get('Valor Total', 'Valor do pedido', 'Valor Cancelado')),
@@ -314,7 +328,8 @@ export async function executePedidosImport({ accountId, importToken }) {
 
   for (const row of session.rows) {
     const dataEmissaoValida = row.dataEmissao || null;
-    if (row.dataEmissao !== null && row.dataEmissao !== undefined) pedidosComDataEmissaoLida += 1;
+    const dataEmissaoInformada = String(row.dataEmissaoRaw || '').trim();
+    if (dataEmissaoInformada) pedidosComDataEmissaoLida += 1;
     const cliente = findClienteByCode(existingClientes, row.clienteCodigo);
     if (!cliente) {
       pedidosSemCliente.push(row);
@@ -330,7 +345,7 @@ export async function executePedidosImport({ accountId, importToken }) {
           pedidosAtualizados.push(pedidoAtualizado);
           if (dataEmissaoValida && !existingPedido.data_emissao) pedidosDataEmissaoAtualizada += 1;
           if (dataEmissaoValida && existingPedido.data_emissao) pedidosDataEmissaoIgnoradasExistentes += 1;
-          if (!dataEmissaoValida) pedidosDataEmissaoInvalidas += 1;
+          if (dataEmissaoInformada && !dataEmissaoValida) pedidosDataEmissaoInvalidas += 1;
           existingPedidoKeys.set(duplicateKey, { numero: row.numero, data_emissao: pedidoAtualizado?.data_emissao || existingPedido.data_emissao || null });
           continue;
         }
@@ -347,12 +362,12 @@ export async function executePedidosImport({ accountId, importToken }) {
       pedidosCriados.push(pedido);
       impactedClientIds.add(cliente.id);
       if (row.numero) {
-        existingPedidoKeys.set(duplicateKey, { numero: row.numero, data_emissao: row.dataEmissao || null });
+          existingPedidoKeys.set(duplicateKey, { numero: row.numero, data_emissao: row.dataEmissao || null });
+        }
+      } catch (error) {
+        pedidosComErro.push({ ...row, error: error?.message || String(error) });
       }
-    } catch (error) {
-      pedidosComErro.push({ ...row, error: error?.message || String(error) });
     }
-  }
 
   if (impactedClientIds.size > 0) {
     try {

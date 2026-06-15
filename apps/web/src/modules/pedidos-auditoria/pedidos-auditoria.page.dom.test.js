@@ -13,7 +13,7 @@ test('pedidos auditoria page renders list and opens modals', async () => {
       if (url === '/pedidos/auditoria') {
         return {
           items: [
-            { id: '1', numero: 'ERP-1', cliente_nome: 'Cliente A', razao_social: 'Cliente A LTDA', status: 'confirmado', data_emissao: '2026-06-01', data_faturamento: null, total: 100, comissao_principal_percentual: null, comissao_preposto_percentual: null, itens_count: 0, issues: ['sem_comissao', 'sem_itens', 'sem_vendedor', 'nao_faturado_total'], vendedor_nome: 'Sem vendedor' }
+            { id: '1', numero: 'ERP-1', cliente_nome: 'Cliente A LTDA', razao_social: 'Cliente A LTDA', status: 'confirmado', data_emissao: '2026-06-11', data_faturamento: null, total: 100, comissao_principal_percentual: null, comissao_preposto_percentual: null, itens_count: 0, issues: ['sem_comissao', 'sem_itens', 'sem_vendedor', 'nao_faturado_total'], vendedor_nome: 'Sem vendedor' }
           ],
           pagination: { page: 1, limit: 10, total: 1, totalPages: 1 }
         };
@@ -39,9 +39,12 @@ test('pedidos auditoria page renders list and opens modals', async () => {
   assert.ok(root.textContent.includes('Marcar faturado'));
   assert.ok(root.textContent.includes('Definir vendedor'));
   assert.ok(root.textContent.includes('Cliente A LTDA'));
+  assert.ok(root.textContent.includes('11/06/2026'));
   assert.ok(root.querySelector('a[data-action="open-detail"]'));
   assert.equal(calls[0].url, '/pedidos/auditoria');
-  assert.ok(document.getElementById('nh-pedidos-auditoria-style').textContent.includes('.nha2-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}'));
+  const styleText = document.getElementById('nh-pedidos-auditoria-style').textContent;
+  assert.ok(styleText.includes('.nha2-table-wrap{max-width:100%;overflow-x:auto;overflow-y:hidden;border-radius:14px}'));
+  assert.ok(styleText.includes('.nha2-col-actions{width:180px}'));
 
   root.querySelector('a[data-action="open-detail"]').click();
   await flush();

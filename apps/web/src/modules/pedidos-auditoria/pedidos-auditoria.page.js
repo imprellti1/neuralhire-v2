@@ -6,15 +6,16 @@ function injectStyles() {
   const style = document.createElement('style');
   style.id = 'nh-pedidos-auditoria-style';
   style.textContent = `
-  .nha2-panel{background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98));border:1px solid rgba(148,163,184,.18);border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.22)}
+  .nha2-panel{background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98));border:1px solid rgba(148,163,184,.18);border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.22);max-width:100%;overflow:hidden}
   .nha2-head{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
   .nha2-title{font-size:30px;font-weight:800;letter-spacing:-.03em}
   .nha2-sub{margin-top:6px;color:#91a4c4;max-width:70ch}
   .nha2-tools{display:grid;grid-template-columns:1.5fr 1fr 1fr 120px;gap:10px}
   .nha2-input,.nha2-select,.nha2-btn{height:38px;border:1px solid rgba(148,163,184,.22);border-radius:10px;padding:0 10px;background:#0b1628;color:#e7eefb}
   .nha2-btn{background:#1f56dc;color:#fff;font-weight:700;cursor:pointer}
-  .nha2-table{width:100%;border-collapse:collapse;font-size:13px}
-  .nha2-table th,.nha2-table td{padding:10px;border-bottom:1px solid rgba(148,163,184,.12);text-align:left;vertical-align:top;white-space:nowrap}
+  .nha2-table-wrap{max-width:100%;overflow-x:auto;overflow-y:hidden;border-radius:14px}
+  .nha2-table{width:100%;min-width:1180px;border-collapse:collapse;font-size:13px;table-layout:fixed}
+  .nha2-table th,.nha2-table td{padding:10px;border-bottom:1px solid rgba(148,163,184,.12);text-align:left;vertical-align:top;white-space:normal;overflow-wrap:anywhere}
   .nha2-table th{font-size:12px;color:#91a4c4;text-transform:uppercase;letter-spacing:.04em;background:rgba(255,255,255,.03)}
   .nha2-row:hover td{background:rgba(79,140,255,.08)}
   .nha2-badge{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;font-size:12px;font-weight:700;background:#eaf1ff;color:#1d4ed8;margin-right:6px;margin-bottom:4px}
@@ -23,6 +24,16 @@ function injectStyles() {
   .nha2-badge.ok{background:rgba(52,211,153,.16);color:#34d399}
   .nha2-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
   .nha2-actions .nha2-btn{white-space:nowrap}
+  .nha2-col-num{width:116px}
+  .nha2-col-cliente{width:210px}
+  .nha2-col-vendedor{width:150px}
+  .nha2-col-status{width:110px}
+  .nha2-col-date{width:108px}
+  .nha2-col-money{width:110px}
+  .nha2-col-commission{width:88px}
+  .nha2-col-itens{width:72px}
+  .nha2-col-problems{width:170px}
+  .nha2-col-actions{width:180px}
   .nha2-small{padding:8px 10px;height:auto}
   .nha2-empty,.nha2-error{padding:24px;text-align:center;color:#91a4c4}
   .nha2-meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:8px 0 12px;color:#91a4c4}
@@ -42,7 +53,8 @@ function injectStyles() {
 function fmtDate(value) {
   if (!value) return '-';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('pt-BR');
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(date);
 }
 
 function fmtMoney(value) {
@@ -198,12 +210,13 @@ export function renderPedidosAuditoriaPage(root, { apiClient }) {
       <section class="nha2-panel">
         ${state.loading ? '<div class="nha2-empty">Carregando pedidos...</div>' : state.error ? '<div class="nha2-error">Não foi possível carregar a auditoria.</div>' : !state.items.length ? '<div class="nha2-empty">Nenhum pedido com problema encontrado.</div>' : `
           <div class="nha2-meta"><div>Página ${state.pagination.page} de ${state.pagination.totalPages}</div><div>Total: ${state.pagination.total}</div></div>
+          <div class="nha2-table-wrap">
           <table class="nha2-table">
-            <thead><tr><th>Número ERP</th><th>Cliente</th><th>Vendedor</th><th>Status</th><th>Emissão</th><th>Faturamento</th><th>Total</th><th>Comissão Principal %</th><th>Comissão Preposto %</th><th>Itens</th><th>Problemas</th><th>Ações</th></tr></thead>
+            <thead><tr><th class="nha2-col-num">Número ERP</th><th class="nha2-col-cliente">Cliente</th><th class="nha2-col-vendedor">Vendedor</th><th class="nha2-col-status">Status</th><th class="nha2-col-date">Emissão</th><th class="nha2-col-date">Faturamento</th><th class="nha2-col-money">Total</th><th class="nha2-col-commission">Comissão Principal %</th><th class="nha2-col-commission">Comissão Preposto %</th><th class="nha2-col-itens">Itens</th><th class="nha2-col-problems">Problemas</th><th class="nha2-col-actions">Ações</th></tr></thead>
             <tbody>
               ${state.items.map((item) => `
                 <tr class="nha2-row">
-                  <td><a href="${getPedidoDetailRoute(item.id)}" data-action="open-detail" data-id="${item.id}" style="color:#93c5fd;text-decoration:none;font-weight:700">${item.numero || item.id}</a><div><button class="nha2-btn nha2-small" data-action="open-detail" data-id="${item.id}" style="margin-top:6px">Abrir</button></div></td>
+                  <td><a href="${getPedidoDetailRoute(item.id)}" data-action="open-detail" data-id="${item.id}" style="color:#93c5fd;text-decoration:none;font-weight:700;word-break:break-word">${item.numero || item.id}</a><div><button class="nha2-btn nha2-small" data-action="open-detail" data-id="${item.id}" style="margin-top:6px">Abrir</button></div></td>
                   <td>${getClienteDisplayValue(item)}</td>
                   <td>${getVendedorDisplayValue(item)}</td>
                   <td>${item.status || '-'}</td>
@@ -224,7 +237,7 @@ export function renderPedidosAuditoriaPage(root, { apiClient }) {
                 </tr>
               `).join('')}
             </tbody>
-          </table>`}
+          </table></div>`}
       </section>
       ${renderModal()}
     `;
