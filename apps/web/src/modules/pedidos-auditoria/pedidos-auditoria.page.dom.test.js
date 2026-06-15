@@ -13,7 +13,7 @@ test('pedidos auditoria page renders list and opens modals', async () => {
       if (url === '/pedidos/auditoria') {
         return {
           items: [
-            { id: '1', numero: 'ERP-1', cliente_nome: 'Cliente A LTDA', razao_social: 'Cliente A LTDA', status: 'confirmado', data_emissao: '2026-06-11', data_faturamento: null, total: 100, comissao_principal_percentual: null, comissao_preposto_percentual: null, itens_count: 0, issues: ['sem_comissao', 'sem_itens', 'sem_vendedor', 'nao_faturado_total'], vendedor_nome: 'Sem vendedor' }
+            { id: '1', numero: 'ERP-1', cliente_id: '98dc5941-b756-48bc-a29f-1dedafb81003', cliente_nome: 'ZAPEM COMERCIO ATACADISTA E VAREJISTA LTDA', razao_social: 'ZAPEM COMERCIO ATACADISTA E VAREJISTA LTDA', status: 'confirmado', data_emissao: '2024-06-11', data_faturamento: null, total: 100, comissao_principal_percentual: null, comissao_preposto_percentual: null, itens_count: 0, issues: ['sem_comissao', 'sem_itens', 'sem_vendedor', 'nao_faturado_total'], vendedor_nome: 'Sem vendedor' }
           ],
           pagination: { page: 1, limit: 10, total: 1, totalPages: 1 }
         };
@@ -38,8 +38,8 @@ test('pedidos auditoria page renders list and opens modals', async () => {
   assert.ok(root.textContent.includes('Definir comissão'));
   assert.ok(root.textContent.includes('Marcar faturado'));
   assert.ok(root.textContent.includes('Definir vendedor'));
-  assert.ok(root.textContent.includes('Cliente A LTDA'));
-  assert.ok(root.textContent.includes('11/06/2026'));
+  assert.ok(root.textContent.includes('ZAPEM COMERCIO ATACADISTA E VAREJISTA LTDA'));
+  assert.ok(root.textContent.includes('11/06/2024'));
   assert.ok(root.querySelector('a[data-action="open-detail"]'));
   assert.equal(calls[0].url, '/pedidos/auditoria');
   const styleText = document.getElementById('nh-pedidos-auditoria-style').textContent;

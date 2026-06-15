@@ -467,6 +467,27 @@ export function getPedidosImportTests() {
       }
     },
     {
+      name: 'pedido existente com data_emissao divergente recebe ajuste da planilha ERP',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        __resetMemoryPedidosForTests();
+        __resetPedidosImportSessionsForTests();
+        const app = createApiApp();
+        const cliente = await createCliente({ nome: 'ZAPEM COMERCIO ATACADISTA E VAREJISTA', codigo: 'CLI-9497', razao_social: 'ZAPEM COMERCIO ATACADISTA E VAREJISTA LTDA' }, { accountId: 'acc-pedidos-import-9497' });
+        await (await import('../../modules/pedidos/pedidos.repository.js')).createPedidoFromImport({ cliente_id: cliente.id, numero: '9497', status: 'rascunho', origem: 'importacao', total: 0, metadata: {}, data_emissao: '2024-11-05' }, { accountId: 'acc-pedidos-import-9497' });
+        const base64 = makeWorkbook([{ Cliente: 'CLI-9497', 'Número ERP': '9497', Situação: 'Faturado Total', 'Data Emissão': '11/06/2024', 'Valor Total': '10' }]);
+        const preview = await call(app, { method: 'POST', url: '/pedidos/importacao/preview', role: 'admin', accountId: 'acc-pedidos-import-9497', body: { arquivo: { fileName: 'Pedidos.xlsx', base64 } } });
+        assert.equal(preview.body.rows[0].dataEmissaoRaw, '11/06/2024');
+        assert.equal(preview.body.rows[0].dataEmissao, '2024-06-11');
+        assert.equal(preview.body.rows[0].data_emissao_preview, '2024-06-11');
+        const execute = await call(app, { method: 'POST', url: '/pedidos/importacao', role: 'admin', accountId: 'acc-pedidos-import-9497', body: { importToken: preview.body.importToken } });
+        assert.equal(execute.body.summary.pedidos_atualizados, 1);
+        assert.equal(execute.body.summary.pedidos_data_emissao_atualizada, 1);
+        assert.equal(execute.body.summary.pedidos_data_emissao_ignoradas_existentes, 0);
+        assert.equal(__dumpMemoryPedidos().pedidos[0].data_emissao, '2024-06-11');
+      }
+    },
+    {
       name: 'serial Excel converte corretamente',
       run: async () => {
         __resetMemoryClientesForTests();

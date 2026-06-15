@@ -73,8 +73,17 @@ function getPedidoDetailRoute(pedidoId) {
   return `#/pedidos/${pedidoId}`;
 }
 
+function isUuidLike(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+}
+
 function getClienteDisplayValue(item = {}) {
-  return item?.razao_social || item?.cliente_nome || item?.nome || item?.cliente_id || '-';
+  const candidates = [item?.cliente_nome, item?.razao_social, item?.empresa, item?.nome, item?.nome_contato, item?.cliente_id];
+  const value = candidates.find((candidate) => {
+    const text = String(candidate || '').trim();
+    return text && !isUuidLike(text);
+  });
+  return value || '-';
 }
 
 function getVendedorDisplayValue(item = {}) {

@@ -83,6 +83,12 @@ function parseBrDateText(value) {
   return parsed.toISOString().slice(0, 10);
 }
 
+function datesDiffer(a, b) {
+  const left = String(a || '').trim() || null;
+  const right = String(b || '').trim() || null;
+  return left !== right;
+}
+
 function normalizeSnakeCase(value) {
   return normalizeText(value)
     .toLowerCase()
@@ -268,7 +274,7 @@ async function updatePedidoImportRecord(row, accountId) {
     const { data: existing, error: fetchError } = await supabase.from('pedidos').select('id, data_emissao').eq('account_id', accountId).eq('numero', row.numero).maybeSingle();
     if (fetchError) throw new DatabaseError(`Falha ao consultar pedido na linha ${row.rowNumber}`, { domain: 'pedidos-import', details: { rowNumber: row.rowNumber, clienteCodigo: row.clienteCodigo || null, cause: fetchError?.details || fetchError?.message || String(fetchError) } });
     const nextPayload = { total: row.total ?? 0 };
-    if (!existing?.data_emissao && row.dataEmissao) nextPayload.data_emissao = row.dataEmissao;
+    if (row.dataEmissao && datesDiffer(existing?.data_emissao, row.dataEmissao)) nextPayload.data_emissao = row.dataEmissao;
     const { data: updated, error } = await supabase.from('pedidos').update(nextPayload).eq('account_id', accountId).eq('numero', row.numero).select('*').single();
     if (error) throw new DatabaseError(`Falha ao atualizar pedido na linha ${row.rowNumber}`, { domain: 'pedidos-import', details: { rowNumber: row.rowNumber, clienteCodigo: row.clienteCodigo || null, cause: error?.details || error?.message || String(error) } });
     return updated || null;
@@ -282,7 +288,7 @@ async function updatePedidoImportRecord(row, accountId) {
   snapshot.pedidos[idx] = {
     ...existing,
     total: row.total ?? 0,
-    data_emissao: !existing?.data_emissao && row.dataEmissao ? row.dataEmissao : existing?.data_emissao || null
+    data_emissao: row.dataEmissao && datesDiffer(existing?.data_emissao, row.dataEmissao) ? row.dataEmissao : existing?.data_emissao || null
   };
   __loadMemoryPedidos(snapshot);
   return snapshot.pedidos[idx];
