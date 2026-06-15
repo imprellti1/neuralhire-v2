@@ -94,6 +94,36 @@ function getVendedorDisplayValue(item = {}) {
   return item?.vendedor?.nome || item?.vendedor_nome || 'Sem vendedor';
 }
 
+function getPedidoIssueList(item = {}) {
+  const raw = Array.isArray(item?.problemas)
+    ? item.problemas
+    : Array.isArray(item?.issues)
+      ? item.issues
+      : [];
+  return raw.map((issue) => String(issue || '').trim()).filter(Boolean);
+}
+
+function hasPedidoIssue(item, candidates) {
+  const issues = getPedidoIssueList(item);
+  if (issues.length) return candidates.some((candidate) => issues.includes(candidate) || (candidate === 'sem_vendedor' && issues.includes('Sem vendedor')) || (candidate === 'sem_comissao' && issues.includes('Sem comissão')) || (candidate === 'nao_faturado_total' && issues.includes('Não faturado total')));
+  return candidates.some((candidate) => {
+    if (candidate === 'sem_vendedor') {
+      return !item?.vendedor_id || !item?.vendedor || !item?.vendedor_nome;
+    }
+    if (candidate === 'sem_comissao') {
+      return item?.comissao_principal_percentual == null || item?.comissao_preposto_percentual == null;
+    }
+    if (candidate === 'nao_faturado_total') {
+      return !item?.data_faturamento;
+    }
+    return false;
+  });
+}
+
+function renderPedidoActionButton(action, label, ariaLabel, item) {
+  return `<button class="nha2-btn nha2-small" data-action="${action}" data-id="${item.id}" aria-label="${ariaLabel}">${label}</button>`;
+}
+
 export function renderPedidosAuditoriaPage(root, { apiClient }) {
   injectStyles();
   const state = createPedidosAuditoriaState();
@@ -232,9 +262,9 @@ export function renderPedidosAuditoriaPage(root, { apiClient }) {
                     <div style="display:grid;gap:6px;min-width:180px">
                       <a href="${getPedidoDetailRoute(item.id)}" data-action="open" data-id="${item.id}" style="color:#93c5fd;text-decoration:none;font-weight:700;word-break:break-word">${item.numero || item.id}</a>
                       <button class="nha2-btn nha2-small" data-action="open" data-id="${item.id}">Abrir</button>
-                      <button class="nha2-btn nha2-small" data-action="vendedor" data-id="${item.id}" aria-label="Definir ou alterar vendedor">Vendedor</button>
-                      <button class="nha2-btn nha2-small" data-action="comissao" data-id="${item.id}" aria-label="Corrigir comissão principal e preposto">Comissão</button>
-                      <button class="nha2-btn nha2-small" data-action="faturamento" data-id="${item.id}" aria-label="Marcar ou alterar faturamento">Faturamento</button>
+                      ${hasPedidoIssue(item, ['sem_vendedor']) ? renderPedidoActionButton('vendedor', 'Vendedor', 'Definir ou alterar vendedor', item) : ''}
+                      ${hasPedidoIssue(item, ['sem_comissao']) ? renderPedidoActionButton('comissao', 'Comissão', 'Corrigir comissão principal e preposto', item) : ''}
+                      ${hasPedidoIssue(item, ['nao_faturado_total']) ? renderPedidoActionButton('faturamento', 'Faturamento', 'Marcar ou alterar faturamento', item) : ''}
                     </div>
                   </td>
                   <td>${item.cliente_nome || getClienteDisplayValue(item)}</td>
