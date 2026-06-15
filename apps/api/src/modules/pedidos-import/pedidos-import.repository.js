@@ -167,7 +167,7 @@ function buildRow(headers, row, rowNumber) {
     status: situacao.status,
     situacaoOriginal: situacao.original,
     observacoes: normalizeText(get('Observações', 'Observacoes')) || null,
-    total: parseMoney(get('Total')),
+    total: parseMoney(get('Valor Total', 'Valor do pedido', 'Valor Cancelado')),
     metadata: {
       lote_gravacao: get('Lote Gravação', 'Lote Gravacao', 'Lote GravaÃ§Ã£o') || null,
       qt_pecas: get('Qt. Peças', 'Qt. Pecas', 'Qt. PeÃ§as') || null,
@@ -219,6 +219,25 @@ async function createPedidoImportRecord(row, accountId) {
   }
 }
 
+async function updatePedidoImportRecord(row, accountId) {
+  const repositoryMode = getPedidosRepositoryMode();
+  if (repositoryMode.mode === 'supabase') {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data: updated, error } = await supabase.from('pedidos').update({ total: row.total ?? 0 }).eq('account_id', accountId).eq('numero', row.numero).select('*').single();
+    if (error) throw new DatabaseError(`Falha ao atualizar pedido na linha ${row.rowNumber}`, { domain: 'pedidos-import', details: { rowNumber: row.rowNumber, clienteCodigo: row.clienteCodigo || null, cause: error?.details || error?.message || String(error) } });
+    return updated || null;
+  }
+
+  const { __dumpMemoryPedidos, __loadMemoryPedidos } = await import('../pedidos/pedidos.repository.js');
+  const snapshot = __dumpMemoryPedidos();
+  const idx = (snapshot.pedidos || []).findIndex((pedido) => pedido.account_id === accountId && normalizeNumeroKey(pedido.numero) === normalizeNumeroKey(row.numero));
+  if (idx < 0) return null;
+  snapshot.pedidos[idx] = { ...snapshot.pedidos[idx], total: row.total ?? 0 };
+  __loadMemoryPedidos(snapshot);
+  return snapshot.pedidos[idx];
+}
+
 export async function previewPedidosImport({ accountId, fileName, buffer }) {
   assertAccountId(accountId);
   const parsed = parseWorkbook(buffer);
@@ -245,6 +264,7 @@ export async function executePedidosImport({ accountId, importToken }) {
   const existingClientes = await listAllClientes(accountId);
   const existingPedidoKeys = await loadExistingPedidoNumeroKeys(accountId, session.rows.map((row) => row.numero));
   const pedidosCriados = [];
+  const pedidosAtualizados = [];
   const pedidosIgnorados = [];
   const pedidosDuplicados = [];
   const pedidosComErro = [];
@@ -261,6 +281,17 @@ export async function executePedidosImport({ accountId, importToken }) {
     }
     const duplicateKey = `${accountId}::${normalizeNumeroKey(row.numero)}`;
     if (row.numero && existingPedidoKeys.has(duplicateKey)) {
+      try {
+        const pedidoAtualizado = await updatePedidoImportRecord(row, accountId);
+        if (pedidoAtualizado) {
+          pedidosAtualizados.push(pedidoAtualizado);
+          existingPedidoKeys.add(duplicateKey);
+          continue;
+        }
+      } catch (error) {
+        pedidosComErro.push({ ...row, error: error?.message || String(error) });
+        continue;
+      }
       pedidosDuplicados.push(row);
       inconsistencias.push({ linha: row.rowNumber, codigo: 'PEDIDO_DUPLICADO_EXISTENTE', numero: row.numero || null });
       continue;
@@ -295,6 +326,7 @@ export async function executePedidosImport({ accountId, importToken }) {
 
   const summary = {
     pedidos_criados: pedidosCriados.length,
+    pedidos_atualizados: pedidosAtualizados.length,
     pedidos_ignorados: pedidosIgnorados.length,
     pedidos_duplicados: pedidosDuplicados.length,
     pedidos_com_erro: pedidosComErro.length,
@@ -305,6 +337,7 @@ export async function executePedidosImport({ accountId, importToken }) {
   return {
     ok: true,
     pedidos_criados: pedidosCriados,
+    pedidos_atualizados: pedidosAtualizados,
     pedidos_ignorados: pedidosIgnorados,
     pedidos_duplicados: pedidosDuplicados,
     pedidos_com_erro: pedidosComErro,

@@ -265,7 +265,7 @@ export function getPedidosImportTests() {
       }
     },
     {
-      name: 'detecta duplicado existente no tenant por account_id e numero',
+      name: 'atualiza total de pedido existente no tenant por account_id e numero',
       run: async () => {
         __resetMemoryClientesForTests();
         __resetMemoryPedidosForTests();
@@ -273,13 +273,16 @@ export function getPedidosImportTests() {
         const app = createApiApp();
         const cliente = await createCliente({ nome: 'Cliente A', codigo: 'CLI-001' }, { accountId: 'acc-pedidos-import-5' });
         await createCliente({ nome: 'Cliente B', codigo: 'CLI-002' }, { accountId: 'acc-pedidos-import-outra' });
-        await (await import('../../modules/pedidos/pedidos.repository.js')).createPedidoFromImport({ cliente_id: cliente.id, numero: 'PED-EXISTE', status: 'rascunho', origem: 'manual', total: 0, metadata: {} }, { accountId: 'acc-pedidos-import-5' });
-        const base64 = makeWorkbook([{ Cliente: 'CLI-001', 'Número ERP': 'PED-EXISTE', Situação: 'Estornado', 'Valor Total': '15' }]);
+        await (await import('../../modules/pedidos/pedidos.repository.js')).createPedidoFromImport({ cliente_id: cliente.id, numero: '44541', status: 'rascunho', origem: 'manual', total: 0, metadata: {} }, { accountId: 'acc-pedidos-import-5' });
+        const base64 = makeWorkbook([{ Cliente: 'CLI-001', 'Número ERP': '44541', Situação: 'Estornado', 'Valor Total': 'R$2.237,28' }]);
         const preview = await call(app, { method: 'POST', url: '/pedidos/importacao/preview', role: 'admin', accountId: 'acc-pedidos-import-5', body: { arquivo: { fileName: 'Pedidos.xlsx', base64 } } });
+        assert.equal(preview.body.rows[0].total, 2237.28);
         const execute = await call(app, { method: 'POST', url: '/pedidos/importacao', role: 'admin', accountId: 'acc-pedidos-import-5', body: { importToken: preview.body.importToken } });
         assert.equal(execute.body.summary.pedidos_criados, 0);
-        assert.equal(execute.body.summary.pedidos_duplicados, 1);
-        assert.equal(execute.body.inconsistencias[0].codigo, 'PEDIDO_DUPLICADO_EXISTENTE');
+        assert.equal(execute.body.summary.pedidos_atualizados, 1);
+        assert.equal(execute.body.summary.pedidos_duplicados, 0);
+        assert.equal(__dumpMemoryPedidos().pedidos[0].numero, '44541');
+        assert.equal(__dumpMemoryPedidos().pedidos[0].total, 2237.28);
         assert.equal(__dumpMemoryPedidos().pedidos.length, 1);
       }
     },
