@@ -104,6 +104,23 @@ function renderWorkflow(state) {
   `;
 }
 
+function shellStyles() {
+  return `
+    .nhw-shell{display:grid;gap:16px;color:#e7eefb}
+    .nhw-shell h1,.nhw-shell h2,.nhw-shell h3,.nhw-shell p{margin-top:0;color:inherit}
+    .nhw-layout{display:grid;grid-template-columns:280px minmax(0,1fr) 360px;gap:16px;align-items:start}
+    .nhw-panel{background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98));border:1px solid rgba(148,163,184,.18);border-radius:16px;padding:16px;color:#e7eefb;box-shadow:0 8px 24px rgba(0,0,0,.22)}
+    .nhw-conv-btn{display:block;width:100%;text-align:left;margin:0 0 8px;padding:10px 12px;border:1px solid rgba(148,163,184,.22);border-radius:12px;background:#0b1628;color:#e7eefb}
+    .nhw-conv-btn.is-active{background:rgba(79,140,255,.16)}
+    .nhw-muted{font-size:12px;color:#91a4c4}
+    .nhw-message{padding:10px 0;border-bottom:1px solid rgba(148,163,184,.12)}
+    .nhw-textarea{width:100%;margin-top:12px;min-height:110px;background:#0b1628;border:1px solid rgba(148,163,184,.22);border-radius:12px;color:#e7eefb}
+    .nhw-btn{height:38px;border:1px solid rgba(148,163,184,.22);border-radius:10px;padding:0 12px;background:#0b1628;color:#e7eefb;cursor:pointer}
+    .nhw-btn.primary{background:#1f56dc;border-color:#1f56dc;color:#fff}
+    .nhw-split-card{margin-top:20px;padding-top:16px;border-top:1px solid rgba(148,163,184,.12)}
+  `;
+}
+
 export async function renderWhatsappConversationsPage(container, { apiClient } = {}) {
   const state = createWhatsappConversationsState();
   const agentState = createCommercialAgentState();
@@ -114,49 +131,55 @@ export async function renderWhatsappConversationsPage(container, { apiClient } =
   state.agent = agentState.item;
   state.agentLoading = agentState.loading;
   state.agentError = agentState.error;
+  if (!document.getElementById('nhw-style')) {
+    const style = document.createElement('style');
+    style.id = 'nhw-style';
+    style.textContent = shellStyles();
+    document.head.appendChild(style);
+  }
 
   const render = () => {
     const selectedConversation = state.selected?.conversation || null;
     const customer = state.context?.customer || null;
     container.innerHTML = `
-      <section style="display:grid;gap:16px">
+      <section class="nhw-shell">
         <header>
           <h1>WhatsApp Inbox</h1>
           <p>Central comercial contextual com memória de cliente.</p>
         </header>
         ${state.error ? `<p>${esc(state.error.message || 'Erro ao carregar')}</p>` : ''}
         ${state.loading ? '<p>Carregando contexto...</p>' : ''}
-        <div style="display:grid;grid-template-columns:280px minmax(0,1fr) 360px;gap:16px;align-items:start">
-          <aside style="background:#fff;border:1px solid #dbe4f2;border-radius:16px;padding:12px">
+        <div class="nhw-layout">
+          <aside class="nhw-panel">
             ${state.items.map((item) => `
-              <button type="button" data-conversation-id="${esc(item.id)}" style="display:block;width:100%;text-align:left;margin:0 0 8px;padding:10px 12px;border:1px solid #dbe4f2;border-radius:12px;background:${selectedConversation?.id === item.id ? '#eaf2ff' : '#fff'}">
+              <button type="button" data-conversation-id="${esc(item.id)}" class="nhw-conv-btn ${selectedConversation?.id === item.id ? 'is-active' : ''}">
                 <strong>${esc(item.contact_name || item.phone || 'Contato')}</strong>
-                <div style="font-size:12px;color:#61708f">${esc(item.status)}</div>
-                <div style="font-size:12px;color:#61708f">${esc(item.phone)}</div>
+                <div class="nhw-muted">${esc(item.status)}</div>
+                <div class="nhw-muted">${esc(item.phone)}</div>
               </button>
             `).join('') || '<p>Sem conversas</p>'}
-            <button id="new-conv" type="button">Nova Conversa</button>
+            <button id="new-conv" type="button" class="nhw-btn primary">Nova Conversa</button>
           </aside>
-          <main style="background:#fff;border:1px solid #dbe4f2;border-radius:16px;padding:16px;min-height:520px">
+          <main class="nhw-panel" style="min-height:520px">
             ${selectedConversation ? `
               <h2>${esc(selectedConversation.contactName || selectedConversation.phone)}</h2>
               <div id="msg-list">
                 ${(state.messages || []).map((m) => `
-                  <article style="padding:10px 0;border-bottom:1px solid #eef3fb">
+                  <article class="nhw-message">
                     <strong>${esc(m.direction)}</strong>
                     <p>${esc(m.body)}</p>
                   </article>
                 `).join('') || '<p>Sem mensagens</p>'}
               </div>
-              <textarea id="message-body" rows="4" style="width:100%;margin-top:12px"></textarea>
+              <textarea id="message-body" rows="4" class="nhw-textarea"></textarea>
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-                <button id="save-message" type="button">Salvar Mensagem</button>
-                <button id="close-conv" type="button">Fechar</button>
-                <button id="reopen-conv" type="button">Reabrir</button>
+                <button id="save-message" type="button" class="nhw-btn primary">Salvar Mensagem</button>
+                <button id="close-conv" type="button" class="nhw-btn">Fechar</button>
+                <button id="reopen-conv" type="button" class="nhw-btn">Reabrir</button>
               </div>
             ` : '<p>Selecione uma conversa</p>'}
           </main>
-          <aside style="background:#fff;border:1px solid #dbe4f2;border-radius:16px;padding:16px">
+          <aside class="nhw-panel">
             <h2>Customer Memory</h2>
             ${customer ? `
               <div>
@@ -166,26 +189,26 @@ export async function renderWhatsappConversationsPage(container, { apiClient } =
               </div>
             ` : '<p>Conversa ainda não vinculada a um cliente.</p>'}
             ${memoryMarkup(state.context?.memory)}
-              <section style="margin-top:20px;padding-top:16px;border-top:1px solid #e8eef7">
+              <section class="nhw-split-card">
                 <h2>Agente Comercial</h2>
                 ${state.agentError ? `<p>${esc(state.agentError.message || 'Erro ao carregar agente comercial')}</p>` : ''}
                 ${state.agentLoading ? '<p>Gerando próxima melhor ação...</p>' : ''}
                 ${state.agent ? agentMarkup(state.agent) : '<p>Nenhuma ação sugerida ainda.</p>'}
                 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-                  <button id="analyze-commercial-agent" type="button">Analisar</button>
-                  <button id="reanalyze-commercial-agent" type="button">Reanalisar</button>
+                  <button id="analyze-commercial-agent" type="button" class="nhw-btn">Analisar</button>
+                  <button id="reanalyze-commercial-agent" type="button" class="nhw-btn">Reanalisar</button>
                 </div>
               </section>
-              <section style="margin-top:20px;padding-top:16px;border-top:1px solid #e8eef7">
+              <section class="nhw-split-card">
                 <h2>Sugestão Comercial</h2>
                 ${state.draft ? draftMarkup(state.draft) : '<p>Nenhuma sugestão comercial gerada.</p>'}
                 ${state.draftError ? `<p>${esc(state.draftError.message || 'Erro ao gerar sugestão')}</p>` : ''}
                 ${state.draftLoading ? '<p>Gerando sugestão...</p>' : ''}
                 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
-                  ${state.draft?.draftId ? '<button id="send-whatsapp" type="button">Enviar via WhatsApp</button>' : ''}
-                  <button id="generate-draft" type="button">Gerar Sugestão</button>
-                  <button id="regenerate-draft" type="button">Regerar Draft</button>
-                  <button id="copy-draft" type="button">Copiar</button>
+                  ${state.draft?.draftId ? '<button id="send-whatsapp" type="button" class="nhw-btn">Enviar via WhatsApp</button>' : ''}
+                  <button id="generate-draft" type="button" class="nhw-btn">Gerar Sugestão</button>
+                  <button id="regenerate-draft" type="button" class="nhw-btn">Regerar Draft</button>
+                  <button id="copy-draft" type="button" class="nhw-btn">Copiar</button>
                 </div>
                 ${renderWorkflow(state)}
               </section>

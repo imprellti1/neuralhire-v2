@@ -53,43 +53,43 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId }) {
     style.id = 'nh-pedido-details-style';
     style.textContent = `
     .nho2d-wrap{max-width:1280px;width:100%;margin:0 auto}
-    .nho2d-panel{background:#fff;border:1px solid #dbe4f2;border-radius:16px;padding:20px;box-shadow:0 8px 24px rgba(16,34,68,.06)}
+    .nho2d-panel{background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98));border:1px solid rgba(148,163,184,.18);border-radius:16px;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,.22);color:#e7eefb}
     .nho2d-header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap;margin-bottom:18px}
     .nho2d-title{font-size:32px;font-weight:700;letter-spacing:-.02em}
-    .nho2d-sub{margin-top:4px;color:#61708f;font-size:14px}
+    .nho2d-sub{margin-top:4px;color:#91a4c4;font-size:14px}
     .nho2d-meta{margin-top:10px;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;color:#31456f;font-size:14px}
     .nho2d-grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(300px,1fr);gap:16px}
     .nho2d-stack{display:grid;gap:14px}
-    .nho2d-card{background:#fff;border:1px solid #e5ecf8;border-radius:14px;padding:20px;box-shadow:0 4px 14px rgba(16,34,68,.04)}
+    .nho2d-card{background:linear-gradient(180deg,rgba(15,27,47,.94),rgba(11,21,37,.98));border:1px solid rgba(148,163,184,.18);border-radius:14px;padding:20px;box-shadow:0 4px 14px rgba(0,0,0,.16)}
     .nho2d-card h3{margin:0 0 10px;font-size:16px}
     .nho2d-dl{display:grid;grid-template-columns:160px minmax(0,1fr);gap:10px 14px;margin:0}
-    .nho2d-dt{color:#5e6f93;font-weight:600}
-    .nho2d-dd{margin:0;color:#1d2e4f}
+    .nho2d-dt{color:#91a4c4;font-weight:600}
+    .nho2d-dd{margin:0;color:#e7eefb}
     .nho2d-right{text-align:right}
     .nho2d-total{font-size:22px;font-weight:700;color:#0f3ea8}
     .nho2d-table-wrap{overflow:auto}
     .nho2d-table{width:100%;border-collapse:separate;border-spacing:0}
-    .nho2d-table th{background:#f2f6ff;color:#284276;text-align:left;font-size:13px;padding:10px 12px}
-    .nho2d-table td{padding:12px;border-top:1px solid #e8eef8;color:#23355c}
-    .nho2d-table tbody tr:nth-child(even){background:#fcfdff}
-    .nho2d-table tbody tr:hover{background:#f7faff}
-    .nho2d-empty{padding:16px 6px;color:#5b6c90}
+    .nho2d-table th{background:rgba(255,255,255,.03);color:#91a4c4;text-align:left;font-size:13px;padding:10px 12px}
+    .nho2d-table td{padding:12px;border-top:1px solid rgba(148,163,184,.12);color:#e7eefb}
+    .nho2d-table tbody tr:nth-child(even){background:rgba(255,255,255,.015)}
+    .nho2d-table tbody tr:hover{background:rgba(79,140,255,.08)}
+    .nho2d-empty{padding:16px 6px;color:#91a4c4}
     .nho2d-actions{display:flex;flex-wrap:wrap;gap:8px}
     .nho2d-actions .nho2-btn[disabled]{opacity:.55;cursor:not-allowed}
-    .nho2d-actions-error{margin-top:10px;color:#b42318;font-size:13px}
-    .nho2d-actions-success{margin-top:10px;color:#0c6a3f;font-size:13px}
-    .nho2d-actions-card{border:1px solid #cbdaf8;background:linear-gradient(180deg,#f8fbff 0%,#ffffff 100%)}
+    .nho2d-actions-error{margin-top:10px;color:#fda4af;font-size:13px}
+    .nho2d-actions-success{margin-top:10px;color:#86efac;font-size:13px}
+    .nho2d-actions-card{border:1px solid rgba(148,163,184,.18);background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98))}
     .nho2d-actions-head{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:10px}
     .nho2d-actions-list{display:grid;gap:10px}
-    .nho2d-action-item{border:1px solid #dbe6fb;border-radius:10px;padding:10px;background:#fff}
-    .nho2d-action-desc{margin:0 0 8px;color:#5b6c90;font-size:13px}
+    .nho2d-action-item{border:1px solid rgba(148,163,184,.18);border-radius:10px;padding:10px;background:rgba(11,22,40,.94)}
+    .nho2d-action-desc{margin:0 0 8px;color:#91a4c4;font-size:13px}
     .nho2d-confirm-backdrop{position:fixed;inset:0;background:rgba(13,26,52,.35);display:flex;align-items:center;justify-content:center;z-index:50;padding:14px}
-    .nho2d-confirm{width:min(460px,100%);background:#fff;border:1px solid #dbe4f2;border-radius:14px;padding:18px;box-shadow:0 16px 38px rgba(16,34,68,.22)}
-    .nho2d-confirm h4{margin:0 0 8px;font-size:18px;color:#1b2f55}
-    .nho2d-confirm p{margin:0 0 6px;color:#4c5f86}
+    .nho2d-confirm{width:min(460px,100%);background:linear-gradient(180deg,rgba(15,27,47,.98),rgba(11,21,37,.99));border:1px solid rgba(148,163,184,.18);border-radius:14px;padding:18px;box-shadow:0 16px 38px rgba(0,0,0,.28);color:#e7eefb}
+    .nho2d-confirm h4{margin:0 0 8px;font-size:18px;color:#e7eefb}
+    .nho2d-confirm p{margin:0 0 6px;color:#91a4c4}
     .nho2d-confirm-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
     .nho2d-inline-actions{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
-    .nho2d-input,.nho2d-select{border:1px solid #d0dcf5;border-radius:8px;padding:8px 10px;font-size:13px}
+    .nho2d-input,.nho2d-select{border:1px solid rgba(148,163,184,.22);border-radius:8px;padding:8px 10px;font-size:13px;background:#0b1628;color:#e7eefb}
     @media (max-width:1280px){.nho2d-wrap{max-width:1180px}.nho2d-title{font-size:28px}}
     @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}}
     `;
@@ -125,13 +125,13 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId }) {
             <span><strong>Criado em:</strong> ${fmtDate(d?.criadoEm) || '-'}</span>
           </div>
         </div>
-        <button id="nho2d-back" class="nho2-btn" style="background:#fff;color:#1f56dc">Voltar</button>
+        <button id="nho2d-back" class="nho2-btn" style="background:#0b1628;color:#91a4c4;border-color:rgba(148,163,184,.22)">Voltar</button>
       </div>
       <div class="nho2d-grid">
         <div class="nho2d-stack">
-          <article class="nho2d-card"><h3>Resumo do Pedido</h3>${geralEditMode ? `<div class="nho2d-inline-actions"><select id="nho2d-geral-cliente" class="nho2d-select"><option value="">Selecione o cliente...</option>${clientesCatalog.map((c) => `<option value="${c.id}" ${String(geralDraft.cliente_id)===String(c.id)?'selected':''}>${c.empresa || c.razao_social || c.nome || 'Cliente'}</option>`).join('')}</select><select id="nho2d-geral-origem" class="nho2d-select"><option value="manual" ${geralDraft.origem==='manual'?'selected':''}>manual</option><option value="site" ${geralDraft.origem==='site'?'selected':''}>site</option><option value="whatsapp" ${geralDraft.origem==='whatsapp'?'selected':''}>whatsapp</option></select><button id="nho2d-geral-save" class="nho2-btn" ${geralSaving ? 'disabled' : ''}>${geralSaving ? 'Salvando...' : 'Salvar Alterações'}</button><button id="nho2d-geral-cancel" class="nho2-btn" style="background:#fff;color:#1f56dc" ${geralSaving ? 'disabled' : ''}>Cancelar</button></div><label class="nhpc-field">Observações<textarea id="nho2d-geral-obs" class="nho2d-input" style="width:100%;min-height:82px">${geralDraft.observacoes || ''}</textarea></label>` : `<div class="nho2d-inline-actions"><button id="nho2d-geral-edit" class="nho2-btn">Editar Pedido</button></div>`}${geralMessage ? `<p class="${geralMessage.includes('sucesso') ? 'nho2d-actions-success' : 'nho2d-actions-error'}">${geralMessage}</p>` : ''}<dl class="nho2d-dl"><dt class="nho2d-dt">Número</dt><dd class="nho2d-dd">${d?.numeroExibicao || '-'}</dd><dt class="nho2d-dt">Cliente</dt><dd class="nho2d-dd">${d?.clienteExibicao || 'Cliente não identificado'}</dd><dt class="nho2d-dt">Status</dt><dd class="nho2d-dd"><span class="nho2-badge ${statusClass(d?.statusExibicao)}">${d?.statusExibicao || '-'}</span></dd><dt class="nho2d-dt">Origem</dt><dd class="nho2d-dd">${d?.origemExibicao || '-'}</dd><dt class="nho2d-dt">Data de criação</dt><dd class="nho2d-dd">${fmtDate(d?.criadoEm) || '-'}</dd></dl></article>
+          <article class="nho2d-card"><h3>Resumo do Pedido</h3>${geralEditMode ? `<div class="nho2d-inline-actions"><select id="nho2d-geral-cliente" class="nho2d-select"><option value="">Selecione o cliente...</option>${clientesCatalog.map((c) => `<option value="${c.id}" ${String(geralDraft.cliente_id)===String(c.id)?'selected':''}>${c.empresa || c.razao_social || c.nome || 'Cliente'}</option>`).join('')}</select><select id="nho2d-geral-origem" class="nho2d-select"><option value="manual" ${geralDraft.origem==='manual'?'selected':''}>manual</option><option value="site" ${geralDraft.origem==='site'?'selected':''}>site</option><option value="whatsapp" ${geralDraft.origem==='whatsapp'?'selected':''}>whatsapp</option></select><button id="nho2d-geral-save" class="nho2-btn" ${geralSaving ? 'disabled' : ''}>${geralSaving ? 'Salvando...' : 'Salvar Alterações'}</button><button id="nho2d-geral-cancel" class="nho2-btn" style="background:#0b1628;color:#91a4c4;border-color:rgba(148,163,184,.22)" ${geralSaving ? 'disabled' : ''}>Cancelar</button></div><label class="nhpc-field">Observações<textarea id="nho2d-geral-obs" class="nho2d-input" style="width:100%;min-height:82px">${geralDraft.observacoes || ''}</textarea></label>` : `<div class="nho2d-inline-actions"><button id="nho2d-geral-edit" class="nho2-btn">Editar Pedido</button></div>`}${geralMessage ? `<p class="${geralMessage.includes('sucesso') ? 'nho2d-actions-success' : 'nho2d-actions-error'}">${geralMessage}</p>` : ''}<dl class="nho2d-dl"><dt class="nho2d-dt">Número</dt><dd class="nho2d-dd">${d?.numeroExibicao || '-'}</dd><dt class="nho2d-dt">Cliente</dt><dd class="nho2d-dd">${d?.clienteExibicao || 'Cliente não identificado'}</dd><dt class="nho2d-dt">Status</dt><dd class="nho2d-dd"><span class="nho2-badge ${statusClass(d?.statusExibicao)}">${d?.statusExibicao || '-'}</span></dd><dt class="nho2d-dt">Origem</dt><dd class="nho2d-dd">${d?.origemExibicao || '-'}</dd><dt class="nho2d-dt">Data de criação</dt><dd class="nho2d-dd">${fmtDate(d?.criadoEm) || '-'}</dd></dl></article>
           <article class="nho2d-card"><h3>Itens do Pedido</h3>
-          ${editMode ? `<div class="nho2d-inline-actions"><select id="nho2d-add-produto" class="nho2d-select"><option value="">Adicionar produto...</option>${produtosCatalog.map((p) => `<option value="${p.id}">${p.nome || p.sku || 'Produto'}</option>`).join('')}</select><button id="nho2d-add-item" class="nho2-btn" ${itensSaving ? 'disabled' : ''}>Adicionar item</button><button id="nho2d-save-itens" class="nho2-btn" ${itensSaving ? 'disabled' : ''}>${itensSaving ? 'Salvando...' : 'Salvar alterações'}</button><button id="nho2d-cancel-itens" class="nho2-btn" style="background:#fff;color:#1f56dc" ${itensSaving ? 'disabled' : ''}>Cancelar edição</button></div>` : `<div class="nho2d-inline-actions"><button id="nho2d-edit-itens" class="nho2-btn">Editar itens</button></div>`}
+          ${editMode ? `<div class="nho2d-inline-actions"><select id="nho2d-add-produto" class="nho2d-select"><option value="">Adicionar produto...</option>${produtosCatalog.map((p) => `<option value="${p.id}">${p.nome || p.sku || 'Produto'}</option>`).join('')}</select><button id="nho2d-add-item" class="nho2-btn" ${itensSaving ? 'disabled' : ''}>Adicionar item</button><button id="nho2d-save-itens" class="nho2-btn" ${itensSaving ? 'disabled' : ''}>${itensSaving ? 'Salvando...' : 'Salvar alterações'}</button><button id="nho2d-cancel-itens" class="nho2-btn" style="background:#0b1628;color:#91a4c4;border-color:rgba(148,163,184,.22)" ${itensSaving ? 'disabled' : ''}>Cancelar edição</button></div>` : `<div class="nho2d-inline-actions"><button id="nho2d-edit-itens" class="nho2-btn">Editar itens</button></div>`}
           ${itensMessage ? `<p class="${itensMessage.includes('sucesso') ? 'nho2d-actions-success' : 'nho2d-actions-error'}">${itensMessage}</p>` : ''}
           <div class="nho2d-table-wrap"><table class="nho2d-table"><thead><tr><th>Produto</th><th>Qtde</th><th class="nho2d-right">Unitário</th><th class="nho2d-right">Total</th>${editMode ? '<th>Ações</th>' : ''}</tr></thead><tbody>${itensRows || `<tr><td colspan="${editMode ? 5 : 4}" class="nho2d-empty">Nenhum item encontrado.</td></tr>`}</tbody></table></div></article>
         </div>
@@ -142,8 +142,8 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId }) {
         </div>
       </div>
       <article class="nho2d-card" style="margin-top:14px"><h3>Histórico</h3>${historicoRows ? `<div class="nho2d-table-wrap"><table class="nho2d-table"><thead><tr><th>Status anterior</th><th>Status novo</th><th>Data</th></tr></thead><tbody>${historicoRows}</tbody></table></div>` : '<p class="nho2d-empty">Nenhuma movimentação registrada ainda.<br/>As alterações de status aparecerão aqui.</p>'}</article>
-      ${confirmAction ? `<div class="nho2d-confirm-backdrop"><div class="nho2d-confirm"><h4>Confirmar ação</h4><p>Deseja realmente ${confirmAction.verb} este pedido?</p><p>Esta ação atualizará o status e registrará histórico.</p><div class="nho2d-confirm-actions"><button id="nho2d-confirm-cancel" class="nho2-btn" style="background:#fff;color:#1f56dc">Cancelar</button><button id="nho2d-confirm-submit" class="nho2-btn">Confirmar</button></div></div></div>` : ''}
-      ${removeItemIndex !== null ? `<div class="nho2d-confirm-backdrop"><div class="nho2d-confirm"><h4>Remover item</h4><p>Deseja remover este item do pedido?</p><div class="nho2d-confirm-actions"><button id="nho2d-remove-cancel" class="nho2-btn" style="background:#fff;color:#1f56dc">Cancelar</button><button id="nho2d-remove-submit" class="nho2-btn">Confirmar</button></div></div></div>` : ''}
+      ${confirmAction ? `<div class="nho2d-confirm-backdrop"><div class="nho2d-confirm"><h4>Confirmar ação</h4><p>Deseja realmente ${confirmAction.verb} este pedido?</p><p>Esta ação atualizará o status e registrará histórico.</p><div class="nho2d-confirm-actions"><button id="nho2d-confirm-cancel" class="nho2-btn" style="background:#0b1628;color:#91a4c4;border-color:rgba(148,163,184,.22)">Cancelar</button><button id="nho2d-confirm-submit" class="nho2-btn">Confirmar</button></div></div></div>` : ''}
+      ${removeItemIndex !== null ? `<div class="nho2d-confirm-backdrop"><div class="nho2d-confirm"><h4>Remover item</h4><p>Deseja remover este item do pedido?</p><div class="nho2d-confirm-actions"><button id="nho2d-remove-cancel" class="nho2-btn" style="background:#0b1628;color:#91a4c4;border-color:rgba(148,163,184,.22)">Cancelar</button><button id="nho2d-remove-submit" class="nho2-btn">Confirmar</button></div></div></div>` : ''}
     </section>`;
   }
 

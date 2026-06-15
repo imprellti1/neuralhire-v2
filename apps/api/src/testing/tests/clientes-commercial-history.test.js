@@ -98,6 +98,24 @@ export function getClientesCommercialHistoryTests() {
       }
     },
     {
+      name: 'pedidos cancelado rejeitado e estornado nao contam no historico comercial',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        __resetMemoryPedidosForTests();
+        __loadMemoryClientes([{ id: 'c7x', account_id: 'acc-hist', nome: 'Filtros', status_comercial: 'inativo' }]);
+        __loadMemoryPedidos({ pedidos: [
+          { id: 'p7x1', account_id: 'acc-hist', cliente_id: 'c7x', status: 'cancelado', data_emissao: '2026-05-10T00:00:00.000Z' },
+          { id: 'p7x2', account_id: 'acc-hist', cliente_id: 'c7x', status: 'rejeitado', data_emissao: '2026-05-11T00:00:00.000Z' },
+          { id: 'p7x3', account_id: 'acc-hist', cliente_id: 'c7x', status: 'estornado', data_emissao: '2026-05-12T00:00:00.000Z' },
+          { id: 'p7x4', account_id: 'acc-hist', cliente_id: 'c7x', status: 'faturado_total', data_emissao: '2026-05-13T00:00:00.000Z' }
+        ] });
+        await recalculateClientCommercialHistory('c7x', { accountId: 'acc-hist', now: new Date('2026-06-12T00:00:00.000Z') });
+        const updated = __dumpMemoryClientes().find((i) => i.id === 'c7x');
+        assert.equal(updated.ultima_compra_em, '2026-05-13T00:00:00.000Z');
+        assert.equal(updated.status_comercial, 'ativo');
+      }
+    },
+    {
       name: 'importacao atualiza somente clientes impactados e consolida mais recente',
       run: async () => {
         __resetMemoryClientesForTests();

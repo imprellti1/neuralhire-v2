@@ -4,7 +4,7 @@ import xlsx from 'xlsx';
 import { createApiApp } from '../../app.js';
 import { createTestRequest } from '../create-test-request.js';
 import { createTestResponse } from '../create-test-response.js';
-import { createCliente, __resetMemoryClientesForTests, __dumpMemoryClientes } from '../../modules/clientes/clientes.repository.js';
+import { createCliente, __resetMemoryClientesForTests, __dumpMemoryClientes, __setClientesSupabaseClientForTests } from '../../modules/clientes/clientes.repository.js';
 import { __resetMemoryPedidosForTests, __dumpMemoryPedidos } from '../../modules/pedidos/pedidos.repository.js';
 import { __resetPedidosImportSessionsForTests } from '../../modules/pedidos-import/pedidos-import.repository.js';
 
@@ -23,6 +23,67 @@ function makeWorkbook(rows) {
   const wb = xlsx.utils.book_new();
   xlsx.utils.book_append_sheet(wb, ws, 'Pedidos');
   return xlsx.write(wb, { type: 'base64', bookType: 'xlsx' });
+}
+
+function createSupabaseMock({ clientes = [], pedidos = [], failPedidosQuery = false } = {}) {
+  const state = { clientes: clientes.map((item) => ({ ...item })), pedidos: pedidos.map((item) => ({ ...item })) };
+  const matches = (row, filter = {}) => Object.entries(filter).every(([key, value]) => {
+    if (value === undefined) return true;
+    if (Array.isArray(value)) return value.map(String).includes(String(row[key]));
+    return String(row[key]) === String(value);
+  });
+  const buildQuery = (table) => {
+    const q = {
+      _filter: {},
+      _table: table,
+      select() { return this; },
+      eq(key, value) { this._filter[key] = value; return this; },
+      order() { return this; },
+      limit() { return this; },
+      range() { return this; },
+      not(key, op, value) { this._not = { key, op, value }; return this; },
+      in(key, values) { this._filter[key] = values; return this; },
+      then(resolve) {
+        if (table === 'pedidos' && failPedidosQuery) {
+          return Promise.resolve({ data: null, error: { message: 'boom pedidos query' } }).then(resolve);
+        }
+        const rows = state[table].filter((row) => matches(row, this._filter));
+        return Promise.resolve({ data: rows, count: rows.length, error: null }).then(resolve);
+      },
+      single() {
+        const rows = state[table].filter((row) => matches(row, this._filter));
+        return Promise.resolve({ data: rows[0] || null, error: null });
+      },
+      maybeSingle() { return this.single(); },
+      update(payload) {
+        return {
+          eq() { return this; },
+          select() {
+            return {
+              single() {
+                const idx = state[table].findIndex((row) => matches(row, q._filter));
+                if (idx >= 0) state[table][idx] = { ...state[table][idx], ...payload };
+                return Promise.resolve({ data: state[table][idx] || null, error: null });
+              }
+            };
+          }
+        };
+      },
+      insert(payload) {
+        const rows = Array.isArray(payload) ? payload : [payload];
+        state[table].push(...rows.map((row) => ({ ...row })));
+        return {
+          select() {
+            return {
+              single() { return Promise.resolve({ data: rows[0] || null, error: null }); }
+            };
+          }
+        };
+      }
+    };
+    return q;
+  };
+  return { state, from: (table) => buildQuery(table) };
 }
 
 export function getPedidosImportTests() {
@@ -173,6 +234,31 @@ export function getPedidosImportTests() {
         assert.equal(execute.body.pedidos_criados.length, 0);
         assert.equal(execute.body.pedidos_sem_cliente.length, 1);
         assert.equal(__dumpMemoryPedidos().pedidos.length, 0);
+      }
+    },
+    {
+      name: 'importacao conclui mesmo se recálculo comercial falhar para um cliente',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        __resetMemoryPedidosForTests();
+        __resetPedidosImportSessionsForTests();
+        const app = createApiApp();
+        const mock = createSupabaseMock({
+          clientes: [{ id: 'c1', account_id: 'acc-pedidos-import-recalc', nome: 'Cliente A', codigo: 'CLI-001' }],
+          failPedidosQuery: true
+        });
+        __setClientesSupabaseClientForTests(mock, true);
+        try {
+          const base64 = makeWorkbook([{ Cliente: 'CLI-001', 'Número ERP': 'PED-REC', Situação: 'Faturado Total' }]);
+          const preview = await call(app, { method: 'POST', url: '/pedidos/importacao/preview', role: 'admin', accountId: 'acc-pedidos-import-recalc', body: { arquivo: { fileName: 'Pedidos.xlsx', base64 } } });
+          assert.equal(preview.res.statusCode, 200);
+          const execute = await call(app, { method: 'POST', url: '/pedidos/importacao', role: 'admin', accountId: 'acc-pedidos-import-recalc', body: { importToken: preview.body.importToken } });
+          assert.equal(execute.res.statusCode, 200);
+          assert.equal(execute.body.summary.pedidos_criados, 1);
+          assert.equal(execute.body.inconsistencias.some((item) => item.codigo === 'HISTORICO_COMERCIAL_NAO_RECALCULADO'), true);
+        } finally {
+          __setClientesSupabaseClientForTests(null, false);
+        }
       }
     },
     {

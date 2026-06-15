@@ -14,19 +14,19 @@ function injectStyles() {
   .nhpc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap}
   .nhpc-title{font-size:30px;font-weight:700}
   .nhpc-sub{color:#61708f;font-size:14px}
-  .nhpc-btn{height:38px;border:1px solid #d4deee;border-radius:10px;padding:0 12px;background:#fff;cursor:pointer}
+  .nhpc-btn{height:38px;border:1px solid rgba(148,163,184,.22);border-radius:10px;padding:0 12px;background:#0b1628;color:#e7eefb;cursor:pointer}
   .nhpc-btn.primary{background:#1f56dc;border-color:#1f56dc;color:#fff;font-weight:700}
   .nhpc-btn[disabled]{opacity:.5;cursor:not-allowed}
   .nhpc-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-  .nhpc-card{background:#fff;border:1px solid #dbe4f2;border-radius:16px;padding:16px}
+  .nhpc-card{background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98));border:1px solid rgba(148,163,184,.18);border-radius:16px;padding:16px;color:#e7eefb}
   .nhpc-card h3{margin:0 0 12px}
   .nhpc-field{display:grid;gap:6px;margin-bottom:10px}
-  .nhpc-field input,.nhpc-field select,.nhpc-field textarea{height:38px;border:1px solid #d4deee;border-radius:10px;padding:0 10px}
+  .nhpc-field input,.nhpc-field select,.nhpc-field textarea{height:38px;border:1px solid rgba(148,163,184,.22);border-radius:10px;padding:0 10px;background:#0b1628;color:#e7eefb}
   .nhpc-field textarea{height:90px;padding:10px;resize:vertical}
   .nhpc-items{display:grid;gap:10px}
   .nhpc-item{display:grid;grid-template-columns:1fr 120px 120px 96px;gap:8px;align-items:end}
   .nhpc-msg{padding:10px;border-radius:10px;font-size:13px;margin:10px 0}
-  .nhpc-msg.error{background:#fff1f2;color:#b42318}
+  .nhpc-msg.error{background:rgba(248,113,113,.12);color:#fda4af}
   .nhpc-msg.ok{background:#ecfdf3;color:#047857}
   .nhpc-row{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
   @media (max-width:1024px){.nhpc-grid{grid-template-columns:1fr}.nhpc-item{grid-template-columns:1fr 1fr}.nhpc-item .full{grid-column:1/-1}}

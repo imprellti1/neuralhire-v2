@@ -81,10 +81,30 @@ function resolvePurchaseDate(pedido = {}) {
 async function listClientePedidos(accountId, clienteId) {
   const repositoryMode = getClientesRepositoryMode();
   if (repositoryMode.mode === 'supabase') {
-    const supabase = getSupabaseClient();
+    const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data, error } = await supabase.from('pedidos').select('id, account_id, cliente_id, status, data_emissao, data_faturamento, metadata, created_at, createdAt').eq('account_id', accountId).eq('cliente_id', clienteId);
-    if (error) throw new DatabaseError('Falha ao buscar pedidos do cliente', { details: error });
+    let query = supabase
+      .from('pedidos')
+      .select('id, account_id, cliente_id, status, data_emissao, data_faturamento, metadata, created_at, createdAt')
+      .eq('account_id', accountId)
+      .eq('cliente_id', clienteId)
+      .order('created_at', { ascending: false })
+      .limit(250);
+    query = query.not('status', 'in', '(cancelado,rejeitado,estornado)');
+    const { data, error } = await query;
+    if (error) {
+      debugRepository('listClientePedidos fallback', { accountId, clienteId, error: error?.message || error });
+      const fallbackQuery = supabase
+        .from('pedidos')
+        .select('id, account_id, cliente_id, status, data_emissao, data_faturamento, metadata, created_at, createdAt')
+        .eq('account_id', accountId)
+        .eq('cliente_id', clienteId)
+        .order('created_at', { ascending: false })
+        .limit(250);
+      const fallback = await fallbackQuery;
+      if (fallback?.error) throw new DatabaseError('Falha ao buscar pedidos do cliente', { details: fallback.error });
+      return fallback.data || [];
+    }
     return data || [];
   }
 
@@ -143,9 +163,15 @@ export async function recalculateClientCommercialHistory(clienteId, options = {}
 export async function recalculateClientsCommercialHistory(clienteIds = [], options = {}) {
   const uniqueIds = [...new Set((Array.isArray(clienteIds) ? clienteIds : [clienteIds]).map((id) => String(id || '').trim()).filter(Boolean))];
   const results = [];
+  const warnings = [];
   for (const clienteId of uniqueIds) {
-    results.push(await recalculateClientCommercialHistory(clienteId, options));
+    try {
+      results.push(await recalculateClientCommercialHistory(clienteId, options));
+    } catch (error) {
+      warnings.push({ clienteId, error: error?.message || String(error) });
+    }
   }
+  if (warnings.length) results.warnings = warnings;
   return results;
 }
 

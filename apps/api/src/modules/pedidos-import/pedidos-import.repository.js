@@ -282,7 +282,21 @@ export async function executePedidosImport({ accountId, importToken }) {
   }
 
   if (impactedClientIds.size > 0) {
-    await recalculateClientsCommercialHistory([...impactedClientIds], { accountId });
+    try {
+      const recalcResults = await recalculateClientsCommercialHistory([...impactedClientIds], { accountId });
+      if (Array.isArray(recalcResults?.warnings) && recalcResults.warnings.length) {
+        inconsistencias.push(...recalcResults.warnings.map((item) => ({
+          codigo: 'HISTORICO_COMERCIAL_NAO_RECALCULADO',
+          cliente: item.clienteId,
+          motivo: item.error
+        })));
+      }
+    } catch (error) {
+      inconsistencias.push({
+        codigo: 'HISTORICO_COMERCIAL_NAO_RECALCULADO',
+        motivo: error?.message || String(error)
+      });
+    }
   }
 
   const summary = {
