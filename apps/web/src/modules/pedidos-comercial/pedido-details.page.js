@@ -37,7 +37,7 @@ function getStatusActions(statusExibicao) {
   return [];
 }
 
-export function renderPedidoDetailsPage(root, { apiClient, pedidoId }) {
+export function renderPedidoDetailsPage(root, { apiClient, pedidoId, routeQuery = new URLSearchParams() }) {
   const state = createPedidoDetailsState();
   let actionLoading = null;
   let actionError = '';
@@ -109,6 +109,9 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId }) {
     if (state.notFound || !state.data) return '<section class="nho2d-panel nho2-state">Pedido não encontrado.</section>';
 
     const d = state.data;
+    const fromAuditoria = String(routeQuery.get('origin') || '') === 'auditoria';
+    const backLabel = fromAuditoria ? '← Voltar para Auditoria' : 'Voltar';
+    const backRoute = fromAuditoria ? '#/auditoria-pedidos' : '#/pedidos';
     const actions = getStatusActions(d?.statusExibicao);
     const itensRows = editMode
       ? (itensDraft || []).map((item, index) => `<tr><td>${item.produto || 'Produto não identificado'}</td><td><input class="nho2d-input js-item-qty" data-index="${index}" type="number" min="1" value="${item.quantidade ?? 1}" /></td><td class="nho2d-right">${fmtCurrency(item?.valorUnitario)}</td><td class="nho2d-right">${fmtCurrency(Number(item?.valorUnitario || 0) * Number(item?.quantidade || 0))}</td><td><button class="nho2-btn js-remove-item" data-index="${index}" ${itensSaving ? 'disabled' : ''}>Remover</button></td></tr>`).join('')
@@ -133,7 +136,7 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId }) {
             <span><strong>Criado em:</strong> ${fmtDate(d?.criadoEm) || '-'}</span>
           </div>
         </div>
-        <button id="nho2d-back" class="nho2-btn" style="background:#0b1628;color:#91a4c4;border-color:rgba(148,163,184,.22)">Voltar</button>
+        <button id="nho2d-back" class="nho2-btn" data-back-route="${backRoute}" style="background:#0b1628;color:#91a4c4;border-color:rgba(148,163,184,.22)">${backLabel}</button>
       </div>
       <div class="nho2d-grid">
         <div class="nho2d-stack">
@@ -161,7 +164,7 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId }) {
     const retry = root.querySelector('#nho2d-retry');
     if (retry) retry.onclick = () => load();
     const back = root.querySelector('#nho2d-back');
-    if (back) back.onclick = () => { window.location.hash = '#/pedidos'; };
+    if (back) back.onclick = () => { window.location.hash = back.getAttribute('data-back-route') || '#/pedidos'; };
     const confirmCancel = root.querySelector('#nho2d-confirm-cancel');
     if (confirmCancel) confirmCancel.onclick = () => { confirmAction = null; render(); };
     const confirmSubmit = root.querySelector('#nho2d-confirm-submit');

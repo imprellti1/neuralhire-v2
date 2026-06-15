@@ -155,6 +155,13 @@ function setActiveMenu(route) {
   });
 }
 
+function parseHashRoute(hash) {
+  const raw = String(hash || '#/').trim() || '#/';
+  const [path, queryString = ''] = raw.split('?');
+  const query = new URLSearchParams(queryString);
+  return { path, query, raw };
+}
+
 function getRuntimeConfig() {
   const runtime = typeof window !== 'undefined' ? window.__NEURALHIRE_CONFIG__ || {} : {};
   const env = typeof import.meta !== 'undefined' ? import.meta.env || {} : {};
@@ -275,7 +282,8 @@ export function bootstrapWebApp() {
     document.body.classList.add('nh-shell-active');
 
     const content = document.getElementById('app-content');
-    const activeRoute = route.startsWith('#/pedidos/') ? '#/pedidos'
+    const { path, query } = parseHashRoute(route);
+    const activeRoute = path.startsWith('#/pedidos/') ? '#/pedidos'
       : route.startsWith('#/clientes/') ? '#/clientes'
       : route.startsWith('#/fabricantes/') ? '#/fabricantes'
       : route === '#/fabricas' ? '#/fabricantes'
@@ -299,9 +307,9 @@ export function bootstrapWebApp() {
     if (route === '#/product-editor') return renderProductEditorPage(content, { apiClient: api });
     if (route === '#/produtos/novo') return renderProdutoCreatePage(content, { apiClient: api });
     if (route.startsWith('#/produtos/')) return renderProdutoDetailsPage(content, { apiClient: api, produtoId: route.slice('#/produtos/'.length).split('?')[0] });
-    if (route === '#/pedidos') return renderPedidosPage(content, { apiClient: api });
-    if (route === '#/pedidos/novo') return renderPedidoCreatePage(content, { apiClient: api });
-    if (route.startsWith('#/pedidos/')) return renderPedidoDetailsPage(content, { apiClient: api, pedidoId: route.slice('#/pedidos/'.length).split('?')[0] });
+    if (path === '#/pedidos') return renderPedidosPage(content, { apiClient: api });
+    if (path === '#/pedidos/novo') return renderPedidoCreatePage(content, { apiClient: api });
+    if (path.startsWith('#/pedidos/')) return renderPedidoDetailsPage(content, { apiClient: api, pedidoId: path.slice('#/pedidos/'.length), routeQuery: query });
     if (route === '#/interest-leads') return renderInterestLeadsPage(content, { apiClient: api });
     if (route === '#/interest-leads/dashboard') return renderInterestLeadsDashboardPage(content, { apiClient: api });
     if (route === '#/interest-leads/launch') return renderInterestLeadsLaunchPage(content, { apiClient: api });

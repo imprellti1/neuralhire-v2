@@ -70,7 +70,7 @@ function issueLabel(issue) {
 }
 
 function getPedidoDetailRoute(pedidoId) {
-  return `#/pedidos/${pedidoId}`;
+  return `#/pedidos/${pedidoId}?origin=auditoria`;
 }
 
 function isUuidLike(value) {

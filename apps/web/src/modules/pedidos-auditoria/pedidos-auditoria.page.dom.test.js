@@ -106,7 +106,7 @@ test('pedidos auditoria page renders list and opens modals', async () => {
 
   rowSemItens.querySelector('a[data-action="open"]').click();
   await flush();
-  assert.equal(window.location.hash, '#/pedidos/1');
+  assert.equal(window.location.hash, '#/pedidos/1?origin=auditoria');
   window.location.hash = '#/auditoria-pedidos';
   await flush();
 

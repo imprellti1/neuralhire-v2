@@ -50,3 +50,46 @@ test('pedido details page shows emission date in summary and keeps audit dates',
 
   teardownFrontendDom(dom);
 });
+
+test('pedido details page shows auditoria back button when origin is auditoria', async () => {
+  const dom = setupFrontendDom('#/pedidos/1?origin=auditoria');
+  const root = document.getElementById('root');
+  const apiClient = {
+    get: async (url) => {
+      if (url === '/pedidos/1') {
+        return {
+          pedido: {
+            id: '1',
+            numero: 'PED-1',
+            cliente_nome: 'Cliente Teste',
+            status: 'confirmado',
+            origem: 'manual',
+            data_emissao: '2024-06-11',
+            created_at: '2024-06-10T10:00:00Z',
+            updated_at: '2024-06-12T11:30:00Z',
+            observacoes: '',
+            total: 150,
+            cliente_id: 'cliente-1'
+          },
+          itens: []
+        };
+      }
+      if (url === '/pedidos/1/history') {
+        return { items: [] };
+      }
+      return { items: [] };
+    },
+    patch: async () => ({ item: { id: '1' } })
+  };
+
+  renderPedidoDetailsPage(root, { apiClient, pedidoId: '1', routeQuery: new URLSearchParams('origin=auditoria') });
+  await flush();
+
+  const backButton = root.querySelector('#nho2d-back');
+  assert.ok(backButton);
+  assert.equal(backButton.textContent.trim(), '← Voltar para Auditoria');
+  backButton.click();
+  assert.equal(window.location.hash, '#/auditoria-pedidos');
+
+  teardownFrontendDom(dom);
+});
