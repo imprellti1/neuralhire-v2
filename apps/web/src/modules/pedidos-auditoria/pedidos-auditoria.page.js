@@ -13,8 +13,8 @@ function injectStyles() {
   .nha2-tools{display:grid;grid-template-columns:1.5fr 1fr 1fr 120px;gap:10px}
   .nha2-input,.nha2-select,.nha2-btn{height:38px;border:1px solid rgba(148,163,184,.22);border-radius:10px;padding:0 10px;background:#0b1628;color:#e7eefb}
   .nha2-btn{background:#1f56dc;color:#fff;font-weight:700;cursor:pointer}
-  .nha2-table-wrap{display:block;max-width:100%;width:100%;overflow-x:auto;overflow-y:hidden;border-radius:14px;overscroll-behavior-x:contain}
-  .nha2-table{width:100%;min-width:1180px;border-collapse:collapse;font-size:13px;table-layout:fixed}
+  .nha2-table-wrap{display:block;max-width:100%;width:100%;overflow-x:auto;overflow-y:visible;border-radius:14px;overscroll-behavior-x:contain;scrollbar-gutter:stable both-edges}
+  .nha2-table{width:max-content;min-width:1300px;border-collapse:collapse;font-size:13px;table-layout:fixed}
   .nha2-table th,.nha2-table td{padding:10px;border-bottom:1px solid rgba(148,163,184,.12);text-align:left;vertical-align:top;white-space:normal;overflow-wrap:anywhere}
   .nha2-table th{font-size:12px;color:#91a4c4;text-transform:uppercase;letter-spacing:.04em;background:rgba(255,255,255,.03)}
   .nha2-row:hover td{background:rgba(79,140,255,.08)}
@@ -33,7 +33,7 @@ function injectStyles() {
   .nha2-col-commission{width:88px}
   .nha2-col-itens{width:72px}
   .nha2-col-problems{width:170px}
-  .nha2-col-actions{width:180px}
+  .nha2-col-actions{min-width:180px;width:180px}
   .nha2-small{padding:8px 10px;height:auto}
   .nha2-empty,.nha2-error{padding:24px;text-align:center;color:#91a4c4}
   .nha2-meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:8px 0 12px;color:#91a4c4}
