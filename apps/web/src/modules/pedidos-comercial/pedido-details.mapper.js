@@ -73,6 +73,7 @@ export function mapPedidoDetailsData(pedidoResponse = {}, historyResponse = {}) 
     statusExibicao: normalizeStatus(pedido?.status),
     origemExibicao: pedido?.origem || '-',
     observacoes: pedido?.observacoes || '',
+    dataEmissao: pedido?.data_emissao || pedido?.dataEmissao || null,
     criadoEm: pedido?.created_at || pedido?.createdAt || null,
     atualizadoEm: pedido?.updated_at || pedido?.updatedAt || null,
     requestId: pedidoResponse?.requestId || historyResponse?.requestId || null,

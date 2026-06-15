@@ -207,7 +207,7 @@ export function renderPedidosAuditoriaPage(root, { apiClient }) {
                   <td>${getClienteDisplayValue(item)}</td>
                   <td>${getVendedorDisplayValue(item)}</td>
                   <td>${item.status || '-'}</td>
-                  <td>${fmtDate(item.data_emissao || item.created_at)}</td>
+                  <td>${fmtDate(item.data_emissao)}</td>
                   <td>${fmtDate(item.data_faturamento)}</td>
                   <td>${fmtMoney(item.total)}</td>
                   <td>${item.comissao_principal_percentual ?? '-'}</td>

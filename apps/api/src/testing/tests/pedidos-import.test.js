@@ -346,6 +346,43 @@ export function getPedidosImportTests() {
         assert.equal(__dumpMemoryPedidos().pedidos[0].total, 1234.56);
         assert.equal(__dumpMemoryPedidos().pedidos[0].data_faturamento, null);
       }
+    },
+    {
+      name: 'importacao mapeia Data Emissao e aceita data Excel',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        __resetMemoryPedidosForTests();
+        __resetPedidosImportSessionsForTests();
+        const app = createApiApp();
+        await createCliente({ nome: 'Cliente Data', codigo: 'CLI-DATA' }, { accountId: 'acc-pedidos-import-data' });
+        const workbook = xlsx.utils.book_new();
+        const sheet = xlsx.utils.aoa_to_sheet([
+          ['Cliente', 'Número ERP', 'Situação', 'Data Emissão', 'Valor Total'],
+          ['CLI-DATA', 'PED-DATA', 'Faturado Total', 45366, '12,34']
+        ]);
+        xlsx.utils.book_append_sheet(workbook, sheet, 'Pedidos');
+        const base64 = xlsx.write(workbook, { type: 'base64', bookType: 'xlsx' });
+        const preview = await call(app, { method: 'POST', url: '/pedidos/importacao/preview', role: 'admin', accountId: 'acc-pedidos-import-data', body: { arquivo: { fileName: 'Pedidos.xlsx', base64 } } });
+        assert.equal(preview.body.rows[0].dataEmissao, '2024-04-01');
+        const execute = await call(app, { method: 'POST', url: '/pedidos/importacao', role: 'admin', accountId: 'acc-pedidos-import-data', body: { importToken: preview.body.importToken } });
+        assert.equal(execute.body.pedidos_criados[0].data_emissao, '2024-04-01');
+        assert.equal(__dumpMemoryPedidos().pedidos[0].data_emissao, '2024-04-01');
+      }
+    },
+    {
+      name: 'importacao sem Data Emissao persiste null',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        __resetMemoryPedidosForTests();
+        __resetPedidosImportSessionsForTests();
+        const app = createApiApp();
+        await createCliente({ nome: 'Cliente Sem Data', codigo: 'CLI-SD' }, { accountId: 'acc-pedidos-import-null' });
+        const base64 = makeWorkbook([{ Cliente: 'CLI-SD', 'Número ERP': 'PED-SD', Situação: 'Faturado Total', 'Valor Total': '10' }]);
+        const preview = await call(app, { method: 'POST', url: '/pedidos/importacao/preview', role: 'admin', accountId: 'acc-pedidos-import-null', body: { arquivo: { fileName: 'Pedidos.xlsx', base64 } } });
+        assert.equal(preview.body.rows[0].dataEmissao, null);
+        const execute = await call(app, { method: 'POST', url: '/pedidos/importacao', role: 'admin', accountId: 'acc-pedidos-import-null', body: { importToken: preview.body.importToken } });
+        assert.equal(execute.body.pedidos_criados[0].data_emissao, null);
+      }
     }
   ];
 }

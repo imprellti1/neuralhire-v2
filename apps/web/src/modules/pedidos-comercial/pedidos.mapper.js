@@ -83,7 +83,8 @@ export function mapPedidosData(response = {}, filters = {}) {
         statusExibicao,
         origemExibicao: item?.origem || item?.canal || item?.source || '-',
         valorTotalExibicao: Number(item?.valor_total ?? item?.total ?? item?.valor ?? 0),
-        criadoEmExibicao
+        criadoEmExibicao,
+        dataEmissaoExibicao: asDate(item?.data_emissao || item?.dataEmissao)
       };
     })
     .filter((item) => {

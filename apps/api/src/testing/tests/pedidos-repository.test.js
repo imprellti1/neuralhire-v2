@@ -88,6 +88,19 @@ export function getPedidosRepositoryTests() {
       }
     },
     {
+      name: 'createPedido e createPedidoFromImport preservam data_emissao',
+      run: async () => {
+        __resetMemoryPedidosForTests();
+        const cliente = await createCliente({ nome: 'Cliente Data' }, { accountId });
+        const produto = await createProduto({ nome: 'Produto Data', sku: 'SKU-D', preco: 5 }, { accountId });
+        const created = await createPedido({ cliente_id: cliente.id, data_emissao: '2026-03-15', itens: [{ produto_id: produto.id, quantidade: 1, preco_unitario: 5 }] }, { accountId });
+        assertEqual(created.pedido.data_emissao, '2026-03-15');
+
+        const imported = await (await import('../../modules/pedidos/pedidos.repository.js')).createPedidoFromImport({ cliente_id: cliente.id, numero: 'IMP-1', data_emissao: '2026-03-16', total: 10, metadata: {} }, { accountId });
+        assertEqual(imported.pedido.data_emissao, '2026-03-16');
+      }
+    },
+    {
       name: 'listPedidos nao envia filtro owner_user_id quando usa supabase',
       run: async () => {
         __resetMemoryPedidosForTests();

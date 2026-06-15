@@ -38,8 +38,23 @@ export function getPedidosUpdateTests() {
         assertEqual(out.body.pedido.account_id, accountId);
         assertEqual(out.body.pedido.status, beforeStatus);
         assertEqual(out.body.pedido.total, beforeTotal);
+        assertEqual(out.body.pedido.data_emissao, null);
         assertEqual(Array.isArray(out.body.itens), true);
         assertEqual(out.body.itens.length, 1);
+      }
+    },
+    {
+      name: 'GET /pedidos e GET /pedidos/:id retornam data_emissao',
+      run: async () => {
+        const app = createApiApp();
+        const accountId = 'acc-ped-edit-data';
+        const cliente = await call(app, { method: 'POST', url: '/clientes', role: 'admin', accountId, body: { nome: 'Cliente Data' } });
+        const produto = await call(app, { method: 'POST', url: '/produtos', role: 'admin', accountId, body: { nome: 'Produto Data', preco: 30 } });
+        const created = await call(app, { method: 'POST', url: '/pedidos', role: 'admin', accountId, body: { cliente_id: cliente.body.item.id, data_emissao: '2026-03-15', origem: 'manual', itens: [{ produto_id: produto.body.item.id, quantidade: 1 }] } });
+        const list = await call(app, { method: 'GET', url: '/pedidos', role: 'manager', accountId });
+        assertEqual(list.body.items[0].data_emissao, '2026-03-15');
+        const detail = await call(app, { method: 'GET', url: `/pedidos/${created.body.pedido.id}`, role: 'manager', accountId });
+        assertEqual(detail.body.pedido.data_emissao, '2026-03-15');
       }
     },
     {

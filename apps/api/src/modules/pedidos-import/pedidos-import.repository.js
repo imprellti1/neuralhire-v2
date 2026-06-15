@@ -71,6 +71,30 @@ function normalizeSnakeCase(value) {
     .replace(/^_+|_+$/g, '');
 }
 
+function parseExcelDate(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString().slice(0, 10);
+  if (typeof value === 'number') {
+    const parsed = xlsx.SSF?.parse_date_code ? xlsx.SSF.parse_date_code(value) : null;
+    if (parsed && parsed.y && parsed.m && parsed.d) {
+      const date = new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
+      return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+    }
+    const fallback = new Date(Math.round((value - 25569) * 86400 * 1000));
+    return Number.isNaN(fallback.getTime()) ? null : fallback.toISOString().slice(0, 10);
+  }
+  const text = normalizeText(value);
+  if (!text) return null;
+  const direct = new Date(text);
+  if (!Number.isNaN(direct.getTime())) return direct.toISOString().slice(0, 10);
+  const match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+  if (!match) return null;
+  const [, d, m, y] = match;
+  const year = y.length === 2 ? Number(`20${y}`) : Number(y);
+  const date = new Date(Date.UTC(year, Number(m) - 1, Number(d)));
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+}
+
 function normalizeSituacaoPedido(value) {
   const raw = normalizeText(value);
   if (!raw) return { status: 'rascunho', original: null };
@@ -166,6 +190,7 @@ function buildRow(headers, row, rowNumber) {
     clienteCodigo: normalizeText(get('Cliente')),
     status: situacao.status,
     situacaoOriginal: situacao.original,
+    dataEmissao: parseExcelDate(get('Data Emissão', 'Data Emissao', 'Data de Emissão', 'Data de Emissao', 'Data Emissão ERP')),
     observacoes: normalizeText(get('Observações', 'Observacoes')) || null,
     total: parseMoney(get('Valor Total', 'Valor do pedido', 'Valor Cancelado')),
     metadata: {
@@ -203,6 +228,7 @@ async function createPedidoImportRecord(row, accountId) {
       origem: 'importacao',
       observacoes: row.observacoes || null,
       total: row.total ?? 0,
+      data_emissao: row.dataEmissao || null,
       metadata: {
         ...row.metadata,
         situacao_original: row.situacaoOriginal || null,

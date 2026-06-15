@@ -30,6 +30,28 @@ function assertAccountId(accountId) { if (!accountId) throw new ForbiddenError('
 function normalizePagination(filters = {}) { const page = Number.isFinite(filters.page) && filters.page > 0 ? Math.floor(filters.page) : 1; const rawLimit = Number.isFinite(filters.limit) && filters.limit > 0 ? Math.floor(filters.limit) : 20; return { page, limit: Math.min(rawLimit, 100) }; }
 function assertItens(itens) { if (!Array.isArray(itens) || itens.length === 0) throw new BadRequestError('Pedido precisa de pelo menos um item', { code: 'PEDIDO_ITENS_REQUIRED', domain: 'pedidos-comercial' }); }
 const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+function normalizeDateOnlyValue(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString().slice(0, 10);
+  if (typeof value === 'number') {
+    const excelEpoch = Math.round((value - 25569) * 86400 * 1000);
+    if (!Number.isFinite(excelEpoch)) return null;
+    const date = new Date(excelEpoch);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+  }
+  const text = String(value).trim();
+  if (!text) return null;
+  const date = new Date(text);
+  if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, 10);
+  const match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+  if (match) {
+    const [, d, m, y] = match;
+    const fullYear = y.length === 2 ? Number(`20${y}`) : Number(y);
+    const parsed = new Date(Date.UTC(fullYear, Number(m) - 1, Number(d)));
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+  }
+  return null;
+}
 function getPedidoClienteFallback(item = {}) {
   return item?.cliente_id || '-';
 }
@@ -149,6 +171,7 @@ export async function listPedidos(filters = {}, options = {}) {
       metadata,
       created_at,
       updated_at,
+      data_emissao,
       data_faturamento,
       comissao_principal_percentual,
       comissao_preposto_percentual
@@ -288,7 +311,7 @@ export async function createPedido(data = {}, options = {}) {
   const totals = calculatePedidoTotals(itensEnriquecidos);
   const status = data.status || PEDIDO_STATUS.RASCUNHO;
   if (!isValidPedidoStatus(status)) throw new BadRequestError('Status do pedido invalido', { code: 'VALIDATION_ERROR', domain: 'pedidos-comercial' });
-  const pedidoPayload = { account_id: accountId, cliente_id: data.cliente_id, numero: data.numero || null, status, origem: data.origem || 'manual', observacoes: data.observacoes || null, total: totals.total, metadata: data.metadata || {}, owner_user_id: cliente.owner_user_id || null, data_faturamento: data.data_faturamento || null };
+  const pedidoPayload = { account_id: accountId, cliente_id: data.cliente_id, numero: data.numero || null, status, origem: data.origem || 'manual', observacoes: data.observacoes || null, total: totals.total, metadata: data.metadata || {}, owner_user_id: cliente.owner_user_id || null, data_emissao: normalizeDateOnlyValue(data.data_emissao), data_faturamento: data.data_faturamento || null };
   if (repositoryMode.mode === 'supabase') {
     const supabase = getSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data: pedido, error: pe } = await supabase.from('pedidos').insert(pedidoPayload).select('*').single(); if (pe) throw new DatabaseError('Falha ao criar pedido', { details: pe });
@@ -316,7 +339,8 @@ export async function createPedidoFromImport(data = {}, options = {}) {
     origem: data.origem || 'importacao',
     observacoes: data.observacoes || null,
     total: Number.isFinite(Number(data.total)) ? Number(data.total) : 0,
-    metadata: data.metadata || {}
+    metadata: data.metadata || {},
+    data_emissao: normalizeDateOnlyValue(data.data_emissao)
   };
 
   if (repositoryMode.mode === 'supabase') {
