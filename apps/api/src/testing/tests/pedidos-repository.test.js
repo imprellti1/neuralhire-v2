@@ -5,6 +5,7 @@ import {
   __dumpMemoryPedidos,
   __loadMemoryPedidos,
   __resetMemoryPedidosForTests,
+  __setPedidosSupabaseClientForTests,
   createPedido,
   getPedidoById,
   getPedidosRepositoryMode,
@@ -12,6 +13,32 @@ import {
 } from '../../modules/pedidos/pedidos.repository.js';
 
 const accountId = 'acc-pedidos-repo';
+
+function createSupabaseMock() {
+  const state = { pedidos: [], clientes: [] };
+  const query = {
+    _filter: {},
+    select() { return this; },
+    eq(key, value) { this._filter[key] = value; return this; },
+    order() { return this; },
+    in() { return this; },
+    range() { return Promise.resolve({ data: state.pedidos, count: state.pedidos.length, error: null }); }
+  };
+  return {
+    query,
+    from(table) {
+      if (table === 'pedidos') return query;
+      if (table === 'clientes') {
+        return {
+          select() { return this; },
+          eq() { return this; },
+          in() { return Promise.resolve({ data: state.clientes, error: null }); }
+        };
+      }
+      throw new Error(`Unexpected table: ${table}`);
+    }
+  };
+}
 
 export function getPedidosRepositoryTests() {
   return [
@@ -37,6 +64,23 @@ export function getPedidosRepositoryTests() {
         const list = await listPedidos({}, { accountId });
         assertEqual(list.total, 1);
         assertEqual(list.items[0].cliente_nome, 'Cliente A');
+      }
+    },
+    {
+      name: 'listPedidos nao envia filtro owner_user_id quando usa supabase',
+      run: async () => {
+        __resetMemoryPedidosForTests();
+        const mock = createSupabaseMock();
+        __setPedidosSupabaseClientForTests(mock, true);
+        try {
+          await listPedidos({ status: 'confirmado', cliente_id: 'cliente-1', owner_user_id: 'sales-1' }, { accountId });
+          assertEqual(Object.prototype.hasOwnProperty.call(mock.query._filter, 'owner_user_id'), false);
+          assertEqual(mock.query._filter.account_id, accountId);
+          assertEqual(mock.query._filter.status, 'confirmado');
+          assertEqual(mock.query._filter.cliente_id, 'cliente-1');
+        } finally {
+          __setPedidosSupabaseClientForTests(null, false);
+        }
       }
     },
     {

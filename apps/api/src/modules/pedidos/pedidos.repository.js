@@ -11,6 +11,17 @@ import { canTransitionPedidoStatus, isValidPedidoStatus, PEDIDO_STATUS } from '.
 const memoryPedidos = [];
 const memoryPedidoItens = [];
 const memoryPedidoStatusHistory = [];
+let supabaseClientOverride = null;
+let supabaseConfiguredOverride = null;
+
+function resolveSupabaseConfigured() {
+  if (typeof supabaseConfiguredOverride === 'boolean') return supabaseConfiguredOverride;
+  return isSupabaseConfigured();
+}
+
+function resolveSupabaseClient() {
+  return supabaseClientOverride || getSupabaseClient();
+}
 
 function debugRepository(action, payload) { if (env.NODE_ENV !== 'production') console.debug(`[pedidos.repository] ${action}`, payload); }
 const round2 = (v) => Math.round((Number(v || 0) + Number.EPSILON) * 100) / 100;
@@ -65,14 +76,14 @@ export function calculatePedidoTotals(itens = []) {
   return { total: totalItens, itensCalculados };
 }
 
-export function getPedidosRepositoryMode() { return { mode: isSupabaseConfigured() ? 'supabase' : 'memory', supabaseConfigured: isSupabaseConfigured() }; }
+export function getPedidosRepositoryMode() { const supabaseConfigured = resolveSupabaseConfigured(); return { mode: supabaseConfigured ? 'supabase' : 'memory', supabaseConfigured }; }
 
 export async function listPedidos(filters = {}, options = {}) {
   const accountId = options.accountId || null; assertAccountId(accountId);
   const { page, limit } = normalizePagination(filters); const repositoryMode = getPedidosRepositoryMode(); debugRepository('listPedidos', { repositoryMode, accountId, filters });
   const scopedFilters = options.context ? applyOwnerFilter(options.context, filters) : filters;
   if (repositoryMode.mode === 'supabase') {
-    const supabase = getSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const supabase = resolveSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
     let query = supabase.from('pedidos').select(`
       id,
       account_id,
@@ -90,13 +101,12 @@ export async function listPedidos(filters = {}, options = {}) {
       comissao_preposto_percentual
     `, { count: 'exact' }).eq('account_id', accountId).order('created_at', { ascending: false });
     if (scopedFilters.status) query = query.eq('status', scopedFilters.status); if (scopedFilters.cliente_id) query = query.eq('cliente_id', scopedFilters.cliente_id);
-    if (scopedFilters.owner_user_id) query = query.eq('owner_user_id', scopedFilters.owner_user_id);
-    const from = (page - 1) * limit; const { data, error, count } = await query.range(from, from + limit - 1); if (error) { console.error('PEDIDOS_QUERY_ERROR', { message: error.message, code: error.code, details: error.details, hint: error.hint }); throw new DatabaseError('Falha ao listar pedidos', { details: error }); }
+    const from = (page - 1) * limit; const { data, error, count } = await query.range(from, from + limit - 1); if (error) { throw new DatabaseError('Falha ao listar pedidos', { details: error }); }
     const total = count || 0;
     const enrichedItems = await enrichPedidosWithClienteNome(data || [], accountId).catch(() => (data || []).map((item) => ({ ...item, cliente_nome: null })));
     return { items: enrichedItems, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
-  let items = memoryPedidos.filter((i) => i.account_id === accountId); if (scopedFilters.status) items = items.filter((i) => i.status === scopedFilters.status); if (scopedFilters.cliente_id) items = items.filter((i) => i.cliente_id === scopedFilters.cliente_id); if (scopedFilters.owner_user_id) items = items.filter((i) => i.owner_user_id === scopedFilters.owner_user_id);
+  let items = memoryPedidos.filter((i) => i.account_id === accountId); if (scopedFilters.status) items = items.filter((i) => i.status === scopedFilters.status); if (scopedFilters.cliente_id) items = items.filter((i) => i.cliente_id === scopedFilters.cliente_id);
   const total = items.length;
   const from = (page - 1) * limit;
   const pagedItems = items.slice(from, from + limit);
@@ -400,5 +410,10 @@ export function __loadMemoryPedidos(snapshot = {}) {
   for (const item of snapshot.pedidos || []) memoryPedidos.push({ ...item });
   for (const item of snapshot.pedidoItens || []) memoryPedidoItens.push({ ...item });
   for (const item of snapshot.pedidoStatusHistory || []) memoryPedidoStatusHistory.push({ ...item });
+}
+
+export function __setPedidosSupabaseClientForTests(client, configured = true) {
+  supabaseClientOverride = client;
+  supabaseConfiguredOverride = configured;
 }
 
