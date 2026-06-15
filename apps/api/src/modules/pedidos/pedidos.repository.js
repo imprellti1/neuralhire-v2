@@ -48,7 +48,7 @@ function parseBrDateText(text) {
   return parsed.toISOString().slice(0, 10);
 }
 function resolveClienteDisplayName(cliente = {}, fallback = null) {
-  const nome = cliente?.razao_social || cliente?.empresa || cliente?.nome || cliente?.nome_contato || fallback || null;
+  const nome = cliente?.nome || cliente?.codigo || fallback || null;
   const normalized = String(nome || '').trim();
   if (!normalized) return fallback || null;
   if (isUuid(normalized)) return fallback || null;
@@ -124,7 +124,7 @@ async function enrichPedidosWithClienteNome(items = [], accountId) {
     const clienteIds = [...new Set(items.map((i) => i?.cliente_id).filter(Boolean))];
     if (!clienteIds.length) return items.map((item) => ({ ...item, cliente_nome: getClienteNomeFallback(item) }));
     try {
-      const { data, error } = await supabase.from('clientes').select('id, nome, empresa, razao_social, nome_contato').eq('account_id', accountId).in('id', clienteIds);
+      const { data, error } = await supabase.from('clientes').select('id, nome, codigo').eq('account_id', accountId).in('id', clienteIds);
       if (error) throw new DatabaseError('Falha ao enriquecer pedidos com cliente', { details: error });
       const byId = new Map((data || []).map((c) => [c.id, c]));
       return items.map((item) => {
@@ -141,7 +141,7 @@ async function enrichPedidosWithClienteNome(items = [], accountId) {
     const clienteId = item?.cliente_id;
     if (!clienteId || byId.has(clienteId)) continue;
     try {
-    const cliente = await getClienteById(clienteId, { accountId });
+      const cliente = await getClienteById(clienteId, { accountId });
       byId.set(clienteId, resolveClienteDisplayName(cliente, getClienteNomeFallback({ cliente_id: clienteId })));
     } catch {
       byId.set(clienteId, getClienteNomeFallback(item));

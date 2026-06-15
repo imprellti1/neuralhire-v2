@@ -98,7 +98,7 @@ function normalizeSnakeCase(value) {
 
 function parseExcelDate(value) {
   if (value === null || value === undefined || value === '') return null;
-  if (value instanceof Date) return toIsoDateOnly(value);
+  if (value instanceof Date) return toIsoDateOnly(new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate())));
   if (typeof value === 'number') {
     const parsed = xlsx.SSF?.parse_date_code ? xlsx.SSF.parse_date_code(value) : null;
     if (parsed && parsed.y && parsed.m && parsed.d) {
@@ -111,7 +111,9 @@ function parseExcelDate(value) {
   const text = normalizeText(value);
   if (!text) return null;
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
-  return parseBrDateText(text);
+  const br = parseBrDateText(text);
+  if (br) return br;
+  return null;
 }
 
 function normalizeSituacaoPedido(value) {

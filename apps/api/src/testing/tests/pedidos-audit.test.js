@@ -37,15 +37,14 @@ export function getPedidosAuditTests() {
       }
     },
     {
-      name: 'auditoria usa razao social e fallback de nome do cliente',
+      name: 'auditoria usa nome e codigo do cliente conforme schema real',
       run: async () => {
         __resetMemoryPedidosForTests();
         const produto = await createProduto({ nome: 'P' }, { accountId });
         const casos = [
-          { cliente: { nome: 'Nome Cliente', razao_social: 'Razao Social LTDA' }, esperado: 'Razao Social LTDA' },
-          { cliente: { nome: 'Nome Cliente', empresa: 'Empresa SA' }, esperado: 'Empresa SA' },
-          { cliente: { nome: 'Nome Cliente' }, esperado: 'Nome Cliente' },
-          { cliente: { nome_contato: 'Contato Cliente' }, esperado: 'Contato Cliente' }
+          { cliente: { nome: 'Nome Cliente', codigo: 'CLI-001' }, esperado: 'Nome Cliente' },
+          { cliente: { codigo: 'CLI-002' }, esperado: 'CLI-002' },
+          { cliente: { nome: '98dc5941-b756-48bc-a29f-1dedafb81003', codigo: 'CLI-UUID' }, esperado: 'CLI-UUID' }
         ];
         for (const caso of casos) {
           const c = await createCliente(caso.cliente, { accountId });
@@ -56,6 +55,21 @@ export function getPedidosAuditTests() {
           const audit = await listPedidosAuditoria({}, { accountId });
           assertEqual(audit.items[0].cliente_nome, caso.esperado);
         }
+      }
+    },
+    {
+      name: 'auditoria retorna clientes.nome para cliente_id do pedido 9497',
+      run: async () => {
+        __resetMemoryPedidosForTests();
+        const cliente = await createCliente({ nome: 'ZAPEM COMERCIO ATACADISTA E VAREJISTA LTDA', codigo: 'CLI-9497' }, { accountId });
+        const produto = await createProduto({ nome: 'P' }, { accountId });
+        const created = await createPedido({ cliente_id: cliente.id, numero: '9497', status: 'confirmado', itens: [{ produto_id: produto.id, quantidade: 1, preco_unitario: 10 }] }, { accountId });
+        const snapshot = { pedidos: [{ ...created.pedido, status: 'confirmado' }], pedidoItens: [{ ...created.itens[0] }], pedidoStatusHistory: [] };
+        const { __loadMemoryPedidos } = await import('../../modules/pedidos/pedidos.repository.js');
+        __loadMemoryPedidos(snapshot);
+        const audit = await listPedidosAuditoria({}, { accountId });
+        assertEqual(audit.items[0].cliente_id, cliente.id);
+        assertEqual(audit.items[0].cliente_nome, 'ZAPEM COMERCIO ATACADISTA E VAREJISTA LTDA');
       }
     },
     {

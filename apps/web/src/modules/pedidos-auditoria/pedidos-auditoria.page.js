@@ -78,11 +78,14 @@ function isUuidLike(value) {
 }
 
 function getClienteDisplayValue(item = {}) {
-  const candidates = [item?.cliente_nome, item?.razao_social, item?.empresa, item?.nome, item?.nome_contato, item?.cliente_id];
-  const value = candidates.find((candidate) => {
+  const candidates = [item?.cliente_nome, item?.cliente?.nome, item?.cliente?.codigo, item?.cliente_id];
+  const value = candidates.find((candidate, index) => {
     const text = String(candidate || '').trim();
-    return text && !isUuidLike(text);
+    if (!text) return false;
+    if (index === candidates.length - 1) return true;
+    return true;
   });
+  if (value && isUuidLike(String(value).trim()) && String(value).trim() === String(item?.cliente_id || '').trim()) return '-';
   return value || '-';
 }
 
@@ -226,7 +229,7 @@ export function renderPedidosAuditoriaPage(root, { apiClient }) {
               ${state.items.map((item) => `
                 <tr class="nha2-row">
                   <td><a href="${getPedidoDetailRoute(item.id)}" data-action="open-detail" data-id="${item.id}" style="color:#93c5fd;text-decoration:none;font-weight:700;word-break:break-word">${item.numero || item.id}</a><div><button class="nha2-btn nha2-small" data-action="open-detail" data-id="${item.id}" style="margin-top:6px">Abrir</button></div></td>
-                  <td>${getClienteDisplayValue(item)}</td>
+                  <td>${item.cliente_nome || getClienteDisplayValue(item)}</td>
                   <td>${getVendedorDisplayValue(item)}</td>
                   <td>${item.status || '-'}</td>
                   <td>${fmtDate(item.data_emissao)}</td>

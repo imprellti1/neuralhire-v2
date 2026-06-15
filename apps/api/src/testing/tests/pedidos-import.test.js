@@ -488,6 +488,26 @@ export function getPedidosImportTests() {
       }
     },
     {
+      name: 'pedido 9497 corrige data BR 11/06/2024 para 2024-06-11',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        __resetMemoryPedidosForTests();
+        __resetPedidosImportSessionsForTests();
+        const app = createApiApp();
+        const cliente = await createCliente({ nome: 'ZAPEM COMERCIO ATACADISTA E VAREJISTA LTDA', codigo: 'CLI-9497' }, { accountId: 'acc-pedidos-import-9497-real' });
+        await (await import('../../modules/pedidos/pedidos.repository.js')).createPedidoFromImport({ cliente_id: cliente.id, numero: '9497', status: 'confirmado', origem: 'importacao', total: 0, metadata: {}, data_emissao: '2024-11-06' }, { accountId: 'acc-pedidos-import-9497-real' });
+        const base64 = makeWorkbook([{ Cliente: 'CLI-9497', 'Número ERP': '9497', Situação: 'Faturado Total', 'Data Emissão': '11/06/2024', 'Valor Total': '10' }]);
+        const preview = await call(app, { method: 'POST', url: '/pedidos/importacao/preview', role: 'admin', accountId: 'acc-pedidos-import-9497-real', body: { arquivo: { fileName: 'Pedidos.xlsx', base64 } } });
+        assert.equal(preview.body.rows[0].dataEmissaoRaw, '11/06/2024');
+        assert.equal(preview.body.rows[0].dataEmissao, '2024-06-11');
+        assert.equal(preview.body.rows[0].data_emissao_preview, '2024-06-11');
+        const execute = await call(app, { method: 'POST', url: '/pedidos/importacao', role: 'admin', accountId: 'acc-pedidos-import-9497-real', body: { importToken: preview.body.importToken } });
+        assert.equal(execute.body.summary.pedidos_atualizados, 1);
+        assert.equal(execute.body.summary.pedidos_data_emissao_atualizada, 1);
+        assert.equal(__dumpMemoryPedidos().pedidos[0].data_emissao, '2024-06-11');
+      }
+    },
+    {
       name: 'serial Excel converte corretamente',
       run: async () => {
         __resetMemoryClientesForTests();
