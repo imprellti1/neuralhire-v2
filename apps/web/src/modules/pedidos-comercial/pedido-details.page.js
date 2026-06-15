@@ -136,7 +136,7 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId }) {
           <div class="nho2d-table-wrap"><table class="nho2d-table"><thead><tr><th>Produto</th><th>Qtde</th><th class="nho2d-right">Unitário</th><th class="nho2d-right">Total</th>${editMode ? '<th>Ações</th>' : ''}</tr></thead><tbody>${itensRows || `<tr><td colspan="${editMode ? 5 : 4}" class="nho2d-empty">Nenhum item encontrado.</td></tr>`}</tbody></table></div></article>
         </div>
         <div class="nho2d-stack">
-          <article class="nho2d-card"><h3>Financeiro</h3><dl class="nho2d-dl"><dt class="nho2d-dt">Subtotal</dt><dd class="nho2d-dd nho2d-right">${fmtCurrency(d?.financeiro?.subtotal)}</dd><dt class="nho2d-dt">Desconto</dt><dd class="nho2d-dd nho2d-right">${fmtCurrency(d?.financeiro?.desconto)}</dd><dt class="nho2d-dt">Total</dt><dd class="nho2d-dd nho2d-right nho2d-total">${fmtCurrency(d?.financeiro?.total)}</dd><dt class="nho2d-dt">Itens distintos</dt><dd class="nho2d-dd nho2d-right">${d?.quantidadeItensDistintos ?? 0}</dd><dt class="nho2d-dt">Quantidade vendida</dt><dd class="nho2d-dd nho2d-right">${d?.quantidadeTotalVendida ?? 0}</dd></dl></article>
+          <article class="nho2d-card"><h3>Financeiro</h3><dl class="nho2d-dl"><dt class="nho2d-dt">Total</dt><dd class="nho2d-dd nho2d-right nho2d-total">${fmtCurrency(d?.financeiro?.total)}</dd><dt class="nho2d-dt">Itens distintos</dt><dd class="nho2d-dd nho2d-right">${d?.quantidadeItensDistintos ?? 0}</dd><dt class="nho2d-dt">Quantidade vendida</dt><dd class="nho2d-dd nho2d-right">${d?.quantidadeTotalVendida ?? 0}</dd></dl></article>
           <article class="nho2d-card"><h3>Auditoria</h3>${auditLines || '<p class="nho2d-empty">Sem dados de auditoria disponíveis.</p>'}</article>
           <article class="nho2d-card nho2d-actions-card"><h3>Ações do Pedido</h3><div class="nho2d-actions-head"><span>Status atual</span><span class="nho2-badge ${statusClass(d?.statusExibicao)}">${d?.statusExibicao || '-'}</span></div>${actions.length ? `<div class="nho2d-actions-list">${actions.map((action) => `<div class="nho2d-action-item"><p class="nho2d-action-desc">${action.description || ''}</p><div class="nho2d-actions"><button class="nho2-btn js-pedido-action" data-next-status="${action.key}" ${actionLoading ? 'disabled' : ''}>${actionLoading === action.key ? action.loadingLabel : action.label}</button></div></div>`).join('')}</div>` : '<p class="nho2d-empty">Pedido em status final, sem ações principais.</p>'}${actionSuccess ? `<p class="nho2d-actions-success">${actionSuccess}</p>` : ''}${actionError ? `<p class="nho2d-actions-error">${actionError}</p>` : ''}</article>
         </div>
@@ -203,8 +203,7 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId }) {
       itensMessage = '';
       const payloadItens = itensDraft.map((item) => ({
         produto_id: item.produto_id || item.produtoId || '',
-        quantidade: Number(item.quantidade || 0),
-        desconto: Number(item.desconto || 0)
+        quantidade: Number(item.quantidade || 0)
       }));
       const hasInvalidProduto = payloadItens.some((item) => !String(item.produto_id || '').trim());
       if (hasInvalidProduto) {

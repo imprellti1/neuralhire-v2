@@ -6,8 +6,7 @@ export function mapPedidoCreatePayload(state = {}) {
     observacoes: state.observacoes || undefined,
     itens: itens.map((item) => ({
       produto_id: item.produtoId,
-      quantidade: Number(item.quantidade || 0),
-      desconto: Number(item.desconto || 0)
+      quantidade: Number(item.quantidade || 0)
     }))
   };
 }

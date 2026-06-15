@@ -7,7 +7,7 @@ import { createPedidoFromImport } from '../pedidos/pedidos.repository.js';
 import { getSupabaseClient } from '../../database/supabase.client.js';
 
 const sessions = new Map();
-const IGNORED_COLUMNS = new Set(['lote gravacao', 'data prev fatur', 'razao social', 'qt pecas', 'valor total', 'valor cancelado', 'origem', 'duplicar', 'imprimir']);
+const IGNORED_COLUMNS = new Set(['lote gravacao', 'data prev fatur', 'razao social', 'qt pecas', 'valor total', 'valor do pedido', 'valor cancelado', 'origem', 'duplicar', 'imprimir']);
 const MATCH_KEYS = ['codigo_cliente_fabricante', 'codigo_cliente', 'codigo', 'cliente'];
 
 function assertAccountId(accountId) {
@@ -167,15 +167,11 @@ function buildRow(headers, row, rowNumber) {
     status: situacao.status,
     situacaoOriginal: situacao.original,
     observacoes: normalizeText(get('Observações', 'Observacoes')) || null,
-    subtotal: parseMoney(get('Subtotal')),
-    desconto: parseMoney(get('Desconto')),
     total: parseMoney(get('Total')),
     metadata: {
       lote_gravacao: get('Lote Gravação', 'Lote Gravacao', 'Lote GravaÃ§Ã£o') || null,
-      data_prev_fatur: get('Data Prev.Fatur.', 'Data Prev. Fatur.', 'Data Prev Fatur.') || null,
       qt_pecas: get('Qt. Peças', 'Qt. Pecas', 'Qt. PeÃ§as') || null,
-      valor_total: get('Valor Total') || null,
-      valor_cancelado: get('Valor Cancelado', 'Valor cancelado') || null,
+      valor_total_original: get('Valor Total') || null,
       origem_planilha: get('Origem') || null,
       duplicar: get('Duplicar') || null,
       imprimir: get('Imprimir') || null,
@@ -206,8 +202,6 @@ async function createPedidoImportRecord(row, accountId) {
       status: row.status || 'rascunho',
       origem: 'importacao',
       observacoes: row.observacoes || null,
-      subtotal: row.subtotal ?? 0,
-      desconto: row.desconto ?? 0,
       total: row.total ?? 0,
       metadata: {
         ...row.metadata,

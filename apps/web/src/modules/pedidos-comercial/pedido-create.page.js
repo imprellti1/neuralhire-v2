@@ -24,7 +24,7 @@ function injectStyles() {
   .nhpc-field input,.nhpc-field select,.nhpc-field textarea{height:38px;border:1px solid rgba(148,163,184,.22);border-radius:10px;padding:0 10px;background:#0b1628;color:#e7eefb}
   .nhpc-field textarea{height:90px;padding:10px;resize:vertical}
   .nhpc-items{display:grid;gap:10px}
-  .nhpc-item{display:grid;grid-template-columns:1fr 120px 120px 96px;gap:8px;align-items:end}
+  .nhpc-item{display:grid;grid-template-columns:1fr 120px 96px;gap:8px;align-items:end}
   .nhpc-msg{padding:10px;border-radius:10px;font-size:13px;margin:10px 0}
   .nhpc-msg.error{background:rgba(248,113,113,.12);color:#fda4af}
   .nhpc-msg.ok{background:#ecfdf3;color:#047857}
@@ -49,9 +49,7 @@ export function renderPedidoCreatePage(root, { apiClient }) {
   const state = createPedidoCreateState();
 
   const getProduto = (id) => state.produtos.find((p) => String(p.id) === String(id));
-  const subtotal = state.itens.reduce((sum, item) => sum + (Number(item.quantidade || 0) * Number(getProduto(item.produtoId)?.preco || 0)), 0);
-  const desconto = state.itens.reduce((sum, item) => sum + Number(item.desconto || 0), 0);
-  const total = Math.max(0, subtotal - desconto);
+  const total = state.itens.reduce((sum, item) => sum + (Number(item.quantidade || 0) * Number(getProduto(item.produtoId)?.preco || 0)), 0);
 
   function render() {
     const hasClientes = state.clientes.length > 0;
@@ -87,8 +85,6 @@ export function renderPedidoCreatePage(root, { apiClient }) {
         </article>
         <article class="nhpc-card">
           <h3>Resumo Financeiro (prévia)</h3>
-          <div class="nhpc-field"><b>Subtotal estimado:</b> ${brl(subtotal)}</div>
-          <div class="nhpc-field"><b>Desconto estimado:</b> ${brl(desconto)}</div>
           <div class="nhpc-field"><b>Total estimado:</b> ${brl(total)}</div>
           <small style="color:#61708f">Valor final é recalculado no backend.</small>
         </article>
@@ -105,7 +101,6 @@ export function renderPedidoCreatePage(root, { apiClient }) {
                 </select>
               </label>
               <label class="nhpc-field">Quantidade<input data-role="quantidade" type="number" min="1" value="${Number(item.quantidade || 1)}" ${state.saving ? 'disabled' : ''}/></label>
-              <label class="nhpc-field">Desconto<input data-role="desconto" type="number" min="0" step="0.01" value="${Number(item.desconto || 0)}" ${state.saving ? 'disabled' : ''}/></label>
               <button class="nhpc-btn" data-role="remover" ${state.saving ? 'disabled' : ''}>Remover</button>
             </div>
           `).join('')}
@@ -132,17 +127,15 @@ export function renderPedidoCreatePage(root, { apiClient }) {
     if (obsEl) obsEl.oninput = (e) => { state.observacoes = e.target.value || ''; };
 
     const add = root.querySelector('#nhpc-add');
-    if (add) add.onclick = () => { state.itens.push({ produtoId: '', quantidade: 1, desconto: 0 }); render(); };
+    if (add) add.onclick = () => { state.itens.push({ produtoId: '', quantidade: 1 }); render(); };
 
     root.querySelectorAll('.nhpc-item').forEach((row) => {
       const idx = Number(row.getAttribute('data-index'));
       const produto = row.querySelector('[data-role="produto"]');
       const quantidade = row.querySelector('[data-role="quantidade"]');
-      const descontoInput = row.querySelector('[data-role="desconto"]');
       const remover = row.querySelector('[data-role="remover"]');
       if (produto) produto.onchange = (e) => { state.itens[idx].produtoId = e.target.value || ''; render(); };
       if (quantidade) quantidade.oninput = (e) => { state.itens[idx].quantidade = Number(e.target.value || 0); render(); };
-      if (descontoInput) descontoInput.oninput = (e) => { state.itens[idx].desconto = Number(e.target.value || 0); render(); };
       if (remover) remover.onclick = () => { state.itens.splice(idx, 1); render(); };
     });
 

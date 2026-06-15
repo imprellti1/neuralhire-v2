@@ -50,18 +50,16 @@ export function mapPedidoDetailsData(pedidoResponse = {}, historyResponse = {}) 
   const itens = Array.isArray(pedidoResponse?.itens) ? pedidoResponse.itens : [];
   const history = Array.isArray(historyResponse?.items) ? historyResponse.items : [];
 
-  const subtotal = Number(pedido?.subtotal ?? pedido?.valor_subtotal ?? 0);
-  const desconto = Number(pedido?.desconto ?? pedido?.valor_desconto ?? 0);
   const total = Number(pedido?.total ?? pedido?.valor_total ?? pedido?.total_pedido ?? 0);
 
   const itensMapeados = itens.map((item) => {
     const quantidade = Number(item?.quantidade ?? 0);
     const valorUnitario = Number(item?.valor_unitario ?? item?.preco_unitario ?? item?.unitario ?? item?.preco ?? 0);
-    const totalItem = Number(item?.total_item ?? item?.total ?? item?.subtotal ?? item?.valor_total ?? quantidade * valorUnitario);
+    const totalItem = Number(item?.total_item ?? item?.total ?? item?.valor_total ?? quantidade * valorUnitario);
     const produtoId = item?.produto_id || item?.produtoId || null;
     const produtoRaw = String(item?.produto_nome || item?.produto?.nome || '').trim();
     const produto = produtoRaw && !isUuidLike(produtoRaw) ? produtoRaw : 'Produto não identificado';
-    return { produto, produto_id: produtoId, produtoId, quantidade, valorUnitario, totalItem, desconto: Number(item?.desconto ?? 0) };
+    return { produto, produto_id: produtoId, produtoId, quantidade, valorUnitario, totalItem };
   });
   const quantidadeItensDistintos = itensMapeados.length;
   const quantidadeTotalVendida = itensMapeados.reduce((acc, item) => acc + Number(item?.quantidade || 0), 0);
@@ -78,7 +76,7 @@ export function mapPedidoDetailsData(pedidoResponse = {}, historyResponse = {}) 
     criadoEm: pedido?.created_at || pedido?.createdAt || null,
     atualizadoEm: pedido?.updated_at || pedido?.updatedAt || null,
     requestId: pedidoResponse?.requestId || historyResponse?.requestId || null,
-    financeiro: { subtotal, desconto, total },
+    financeiro: { total },
     quantidadeItensDistintos,
     quantidadeTotalVendida,
     itens: itensMapeados,

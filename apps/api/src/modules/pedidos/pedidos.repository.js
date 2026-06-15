@@ -61,10 +61,9 @@ export function calculatePedidoTotals(itens = [], descontoPedido = 0) {
     const total = round2(subtotal - desconto);
     return { ...item, quantidade, preco_unitario: precoUnitario, desconto, subtotal, total };
   });
-  const subtotal = round2(itensCalculados.reduce((a, i) => a + i.subtotal, 0));
   const totalItens = round2(itensCalculados.reduce((a, i) => a + i.total, 0));
   const desconto = round2(Number(descontoPedido || 0));
-  return { subtotal, total: round2(totalItens - desconto), itensCalculados };
+  return { total: round2(totalItens - desconto), itensCalculados };
 }
 
 export function getPedidosRepositoryMode() { return { mode: isSupabaseConfigured() ? 'supabase' : 'memory', supabaseConfigured: isSupabaseConfigured() }; }
@@ -124,7 +123,7 @@ export async function createPedido(data = {}, options = {}) {
   const totals = calculatePedidoTotals(itensEnriquecidos, descontoPedido);
   const status = data.status || PEDIDO_STATUS.RASCUNHO;
   if (!isValidPedidoStatus(status)) throw new BadRequestError('Status do pedido invalido', { code: 'VALIDATION_ERROR', domain: 'pedidos-comercial' });
-  const pedidoPayload = { account_id: accountId, cliente_id: data.cliente_id, numero: data.numero || null, status, origem: data.origem || 'manual', observacoes: data.observacoes || null, subtotal: totals.subtotal, desconto: descontoPedido, total: totals.total, metadata: data.metadata || {}, owner_user_id: cliente.owner_user_id || null };
+  const pedidoPayload = { account_id: accountId, cliente_id: data.cliente_id, numero: data.numero || null, status, origem: data.origem || 'manual', observacoes: data.observacoes || null, total: totals.total, metadata: data.metadata || {}, owner_user_id: cliente.owner_user_id || null, data_faturamento: data.data_faturamento || null };
   if (repositoryMode.mode === 'supabase') {
     const supabase = getSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data: pedido, error: pe } = await supabase.from('pedidos').insert(pedidoPayload).select('*').single(); if (pe) throw new DatabaseError('Falha ao criar pedido', { details: pe });
@@ -151,8 +150,6 @@ export async function createPedidoFromImport(data = {}, options = {}) {
     status,
     origem: data.origem || 'importacao',
     observacoes: data.observacoes || null,
-    subtotal: Number.isFinite(Number(data.subtotal)) ? Number(data.subtotal) : 0,
-    desconto: Number.isFinite(Number(data.desconto)) ? Number(data.desconto) : 0,
     total: Number.isFinite(Number(data.total)) ? Number(data.total) : 0,
     metadata: data.metadata || {}
   };
@@ -165,7 +162,7 @@ export async function createPedidoFromImport(data = {}, options = {}) {
     return { pedido: inserted, itens: [] };
   }
 
-  const pedido = { id: randomUUID(), ...payload, createdAt: new Date().toISOString() };
+  const pedido = { id: randomUUID(), ...payload, data_faturamento: null, createdAt: new Date().toISOString() };
   memoryPedidos.push(pedido);
   return { pedido, itens: [] };
 }
@@ -219,7 +216,7 @@ export async function updatePedidoItens(id, data = {}, options = {}) {
     const itensPayload = totals.itensCalculados.map((item) => ({ account_id: accountId, pedido_id: id, produto_id: item.produto_id, produto_nome: item.produto_nome, sku: item.sku || null, quantidade: item.quantidade, preco_unitario: item.preco_unitario, desconto: item.desconto, subtotal: item.subtotal, total: item.total, metadata: item.metadata || {} }));
     const { data: createdItens, error: insertError } = await supabase.from('pedido_itens').insert(itensPayload).select('*');
     if (insertError) throw new DatabaseError('Falha ao salvar itens do pedido', { details: insertError });
-    const { data: updatedPedido, error: updateError } = await supabase.from('pedidos').update({ subtotal: totals.subtotal, total: totals.total }).eq('id', id).eq('account_id', accountId).select('*').single();
+    const { data: updatedPedido, error: updateError } = await supabase.from('pedidos').update({ total: totals.total }).eq('id', id).eq('account_id', accountId).select('*').single();
     if (updateError) throw new DatabaseError('Falha ao recalcular totais do pedido', { details: updateError });
     return { pedido: updatedPedido, itens: createdItens || [] };
   }
@@ -228,7 +225,7 @@ export async function updatePedidoItens(id, data = {}, options = {}) {
   for (let i = memoryPedidoItens.length - 1; i >= 0; i -= 1) { if (memoryPedidoItens[i].account_id === accountId && memoryPedidoItens[i].pedido_id === id) memoryPedidoItens.splice(i, 1); }
   memoryPedidoItens.push(...nextItens);
   const pedidoIdx = memoryPedidos.findIndex((p) => p.id === id && p.account_id === accountId);
-  memoryPedidos[pedidoIdx] = { ...memoryPedidos[pedidoIdx], subtotal: totals.subtotal, total: totals.total };
+  memoryPedidos[pedidoIdx] = { ...memoryPedidos[pedidoIdx], total: totals.total };
   return { pedido: memoryPedidos[pedidoIdx], itens: nextItens };
 }
 
