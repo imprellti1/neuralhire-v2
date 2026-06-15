@@ -31,6 +31,7 @@ test('shell autenticado usa scroll independente na sidebar e no conteúdo', asyn
   assert.match(document.querySelector('.nh-menu-heading')?.textContent || '', /Principal/);
   assert.ok(document.querySelector('[data-route="#/clientes"]'));
   assert.ok(document.querySelector('[data-route="#/auditoria"]'));
+  assert.ok(document.querySelector('[data-route="#/auditoria-pedidos"]'));
   assert.equal(document.body.style.overflow, '');
 
   teardownFrontendDom(dom);

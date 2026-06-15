@@ -37,6 +37,7 @@ import { renderRevenuePage } from './modules/revenue-intelligence/revenue.page.j
 import { renderPortfolioDashboardPage } from './modules/portfolio-dashboard/portfolio-dashboard.page.js';
 import { renderLegacyImportPage } from './modules/legacy-import/legacy-import.page.js';
 import { renderAuditoriaPage } from './modules/auditoria/auditoria.page.js';
+import { renderPedidosAuditoriaPage } from './modules/pedidos-auditoria/pedidos-auditoria.page.js';
 import { renderWhatsappConversationsPage } from './modules/whatsapp-conversations/whatsapp-conversations.page.js';
 import { renderMessageApprovalsPage } from './modules/message-approvals/message-approvals.page.js';
 import { renderApprovalIntelligencePage } from './modules/approval-intelligence/approval-intelligence.page.js';
@@ -121,6 +122,7 @@ const menuSections = [
     title: 'Auditoria & Sistema',
     items: [
       ['#/auditoria', 'Auditoria'],
+      ['#/auditoria-pedidos', 'Auditoria de Pedidos'],
       ['#/message-approvals', 'Aprovação Humana'],
       ['#/approval-intelligence', 'Inteligência Comercial'],
       ['#/executive-dashboard', 'Dashboard Executivo'],
@@ -328,6 +330,7 @@ export function bootstrapWebApp() {
     if (route === '#/portfolio-dashboard') return renderPortfolioDashboardPage(content, { apiClient: api });
     if (route === '#/legacy-import') return renderLegacyImportPage(content, { apiClient: api });
     if (route === '#/auditoria') return renderAuditoriaPage(content, { apiClient: api });
+    if (route === '#/auditoria-pedidos') return renderPedidosAuditoriaPage(content, { apiClient: api });
     if (route.startsWith('#/interest-leads/')) return renderInterestLeadDetailsPage(content, { apiClient: api, leadId: route.slice('#/interest-leads/'.length).split('?')[0] });
     if (route === '#/dashboard-operacional') return renderOperationalDashboardPage(content, { apiClient: api });
     return renderAnalyticsDashboardPage(content, { apiClient: api });

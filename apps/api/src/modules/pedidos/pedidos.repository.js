@@ -90,6 +90,70 @@ export async function listPedidos(filters = {}, options = {}) {
   return { items: enrichedItems, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
 }
 
+function normalizeCommissionValue(value) {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) throw new BadRequestError('Comissao invalida', { code: 'VALIDATION_ERROR', domain: 'pedidos-comercial' });
+  return round2(parsed);
+}
+
+function normalizeDateValue(value) {
+  const text = String(value || '').trim();
+  if (!text) throw new BadRequestError('Data de faturamento invalida', { code: 'VALIDATION_ERROR', domain: 'pedidos-comercial' });
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) throw new BadRequestError('Data de faturamento invalida', { code: 'VALIDATION_ERROR', domain: 'pedidos-comercial' });
+  return date.toISOString().slice(0, 10);
+}
+
+function buildPedidoIssues(pedido = {}, itensCount = 0) {
+  const issues = [];
+  const principal = Number(pedido?.comissao_principal_percentual);
+  const preposto = Number(pedido?.comissao_preposto_percentual);
+  if ((!Number.isFinite(principal) || principal <= 0) && (!Number.isFinite(preposto) || preposto <= 0)) issues.push('sem_comissao');
+  if (!Number.isFinite(Number(itensCount)) || Number(itensCount) <= 0) issues.push('sem_itens');
+  if (String(pedido?.status || '').toLowerCase() !== 'faturado_total') issues.push('nao_faturado_total');
+  return issues;
+}
+
+async function getPedidoItensCounts(items = [], accountId) {
+  if (!items.length) return new Map();
+  if (getPedidosRepositoryMode().mode === 'supabase') {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const pedidoIds = items.map((item) => item.id);
+    const { data, error } = await supabase.from('pedido_itens').select('pedido_id', { count: 'exact' }).eq('account_id', accountId).in('pedido_id', pedidoIds);
+    if (error) throw new DatabaseError('Falha ao contar itens dos pedidos', { details: error });
+    const counts = new Map();
+    for (const pedidoId of pedidoIds) counts.set(pedidoId, 0);
+    for (const row of data || []) counts.set(row.pedido_id, (counts.get(row.pedido_id) || 0) + 1);
+    return counts;
+  }
+  const counts = new Map();
+  for (const item of items) counts.set(item.id, memoryPedidoItens.filter((pi) => pi.account_id === accountId && pi.pedido_id === item.id).length);
+  return counts;
+}
+
+export async function listPedidosAuditoria(filters = {}, options = {}) {
+  const result = await listPedidos(filters, options);
+  const accountId = options.accountId || null;
+  const counts = await getPedidoItensCounts(result.items || [], accountId);
+  const enriched = (result.items || []).map((pedido) => ({
+    ...pedido,
+    itens_count: counts.get(pedido.id) || 0,
+    issues: buildPedidoIssues(pedido, counts.get(pedido.id) || 0)
+  }));
+  const search = String(filters.search || '').trim().toLowerCase();
+  const issue = String(filters.issue || '').trim().toLowerCase();
+  const filtered = enriched.filter((pedido) => {
+    const matchesIssue = !issue || (pedido.issues || []).includes(issue);
+    const haystack = [pedido.numero, pedido.cliente_nome, pedido.cliente_id, pedido.id].filter(Boolean).join(' ').toLowerCase();
+    const matchesSearch = !search || haystack.includes(search);
+    return matchesIssue && matchesSearch;
+  });
+  return { ...result, items: filtered, total: filtered.length, totalPages: Math.max(1, Math.ceil(filtered.length / (result.limit || 1))) };
+}
+
 export async function getPedidoById(id, options = {}) {
   const accountId = options.accountId || null; assertAccountId(accountId);
   if (getPedidosRepositoryMode().mode === 'supabase') {
@@ -255,6 +319,45 @@ export async function updatePedido(id, data = {}, options = {}) {
   const idx = memoryPedidos.findIndex((p) => p.id === id && p.account_id === accountId);
   memoryPedidos[idx] = { ...memoryPedidos[idx], ...payload, updatedAt: payload.updated_at };
   return { pedido: memoryPedidos[idx], itens: memoryPedidoItens.filter((i) => i.account_id === accountId && i.pedido_id === id) };
+}
+
+export async function updatePedidoComissao(id, data = {}, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  const payload = {
+    comissao_principal_percentual: normalizeCommissionValue(data.comissao_principal_percentual),
+    comissao_preposto_percentual: normalizeCommissionValue(data.comissao_preposto_percentual)
+  };
+  const nextPayload = Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
+  await getPedidoById(id, { accountId });
+  if (getPedidosRepositoryMode().mode === 'supabase') {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data: updated, error } = await supabase.from('pedidos').update(nextPayload).eq('id', id).eq('account_id', accountId).select('*').single();
+    if (error) throw new DatabaseError('Falha ao atualizar comissao do pedido', { details: error });
+    return { item: updated };
+  }
+  const idx = memoryPedidos.findIndex((p) => p.id === id && p.account_id === accountId);
+  memoryPedidos[idx] = { ...memoryPedidos[idx], ...nextPayload };
+  return { item: memoryPedidos[idx] };
+}
+
+export async function updatePedidoFaturamento(id, data = {}, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  const dataFaturamento = normalizeDateValue(data.data_faturamento);
+  await getPedidoById(id, { accountId });
+  const payload = { data_faturamento: dataFaturamento, status: 'faturado_total' };
+  if (getPedidosRepositoryMode().mode === 'supabase') {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data: updated, error } = await supabase.from('pedidos').update(payload).eq('id', id).eq('account_id', accountId).select('*').single();
+    if (error) throw new DatabaseError('Falha ao atualizar faturamento do pedido', { details: error });
+    return { item: updated };
+  }
+  const idx = memoryPedidos.findIndex((p) => p.id === id && p.account_id === accountId);
+  memoryPedidos[idx] = { ...memoryPedidos[idx], ...payload };
+  return { item: memoryPedidos[idx] };
 }
 
 export async function getPedidoStatusHistory(id, options = {}) {

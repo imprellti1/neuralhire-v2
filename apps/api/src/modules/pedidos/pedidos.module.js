@@ -6,10 +6,13 @@ export const pedidosModule = defineModule({
   dependencies: [],
   routes: [
     'GET /pedidos',
+    'GET /pedidos/auditoria',
     'GET /pedidos/:id',
     'GET /pedidos/:id/history',
     'POST /pedidos',
     'PATCH /pedidos/:id',
+    'PATCH /pedidos/:id/comissao',
+    'PATCH /pedidos/:id/faturamento',
     'PATCH /pedidos/:id/status',
     'PATCH /pedidos/:id/itens'
   ]

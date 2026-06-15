@@ -63,3 +63,20 @@ export const listPedidosQuerySchema = {
   status: { required: false, type: 'string', maxLength: 30 },
   cliente_id: { required: false, type: 'string', maxLength: 120 }
 };
+
+export const listPedidosAuditoriaQuerySchema = {
+  page: { required: false, type: 'number' },
+  limit: { required: false, type: 'number' },
+  status: { required: false, type: 'string', maxLength: 30 },
+  issue: { required: false, type: 'string', enum: ['sem_comissao', 'sem_itens', 'nao_faturado_total'] },
+  search: { required: false, type: 'string', maxLength: 120 }
+};
+
+export const updatePedidoComissaoSchema = {
+  comissao_principal_percentual: { required: false, type: 'number', min: 0, max: 100 },
+  comissao_preposto_percentual: { required: false, type: 'number', min: 0, max: 100 }
+};
+
+export const updatePedidoFaturamentoSchema = {
+  data_faturamento: { required: true, type: 'string', maxLength: 30 }
+};
