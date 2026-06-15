@@ -241,9 +241,9 @@ export function renderPedidosAuditoriaPage(root, { apiClient }) {
                   <td>${(item.issues || []).map((issue) => `<span class="nha2-badge ${issue === 'sem_itens' || issue === 'sem_vendedor' ? 'warn' : issue === 'sem_comissao' ? 'danger' : 'ok'}">${issueLabel(issue)}</span>`).join('')}</td>
                   <td>
                     <div class="nha2-actions" aria-label="Ações do pedido">
-                      <button class="nha2-btn nha2-small" data-action="comissao" data-id="${item.id}">Definir comissão</button>
-                      <button class="nha2-btn nha2-small" data-action="faturamento" data-id="${item.id}">Marcar faturado</button>
-                      <button class="nha2-btn nha2-small" data-action="vendedor" data-id="${item.id}">Definir vendedor</button>
+                      <button class="nha2-btn nha2-small" data-action="vendedor" data-id="${item.id}" aria-label="Definir ou alterar vendedor">Vendedor</button>
+                      <button class="nha2-btn nha2-small" data-action="comissao" data-id="${item.id}" aria-label="Corrigir comissão principal e preposto">Comissão</button>
+                      <button class="nha2-btn nha2-small" data-action="faturamento" data-id="${item.id}" aria-label="Marcar ou alterar faturamento">Faturamento</button>
                     </div>
                   </td>
                 </tr>

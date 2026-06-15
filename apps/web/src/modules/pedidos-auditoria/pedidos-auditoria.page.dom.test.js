@@ -35,9 +35,12 @@ test('pedidos auditoria page renders list and opens modals', async () => {
   assert.ok(root.textContent.includes('Auditoria de Pedidos'));
   assert.ok(root.textContent.includes('Sem itens'));
   assert.ok(root.textContent.includes('Sem vendedor'));
-  assert.ok(root.textContent.includes('Definir comissão'));
-  assert.ok(root.textContent.includes('Marcar faturado'));
-  assert.ok(root.textContent.includes('Definir vendedor'));
+  assert.ok(root.textContent.includes('Comissão'));
+  assert.ok(root.textContent.includes('Faturamento'));
+  assert.ok(root.textContent.includes('Vendedor'));
+  assert.ok(root.querySelector('button[data-action="vendedor"]'));
+  assert.ok(root.querySelector('button[data-action="comissao"]'));
+  assert.ok(root.querySelector('button[data-action="faturamento"]'));
   assert.ok(root.textContent.includes('ZAPEM COMERCIO ATACADISTA E VAREJISTA LTDA'));
   assert.ok(root.textContent.includes('11/06/2024'));
   assert.ok(root.querySelector('a[data-action="open-detail"]'));
@@ -45,6 +48,7 @@ test('pedidos auditoria page renders list and opens modals', async () => {
   const styleText = document.getElementById('nh-pedidos-auditoria-style').textContent;
   assert.ok(styleText.includes('.nha2-table-wrap{max-width:100%;overflow-x:auto;overflow-y:hidden;border-radius:14px}'));
   assert.ok(styleText.includes('.nha2-col-actions{width:180px}'));
+  assert.ok(styleText.includes('.nha2-actions{display:flex;gap:6px;flex-direction:column;align-items:stretch}'));
 
   root.querySelector('a[data-action="open-detail"]').click();
   await flush();
