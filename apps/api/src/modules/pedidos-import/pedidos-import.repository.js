@@ -142,20 +142,20 @@ async function listAllClientes(accountId) {
 
 async function loadExistingPedidoNumeroKeys(accountId, numeros = []) {
   const targetNumeros = [...new Set((numeros || []).map((numero) => normalizeNumeroKey(numero)).filter(Boolean))];
-  if (!targetNumeros.length) return new Set();
+  if (!targetNumeros.length) return new Map();
 
   const repositoryMode = getPedidosRepositoryMode();
   if (repositoryMode.mode === 'supabase') {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data, error } = await supabase.from('pedidos').select('numero').eq('account_id', accountId).in('numero', targetNumeros);
+    const { data, error } = await supabase.from('pedidos').select('numero, data_emissao').eq('account_id', accountId).in('numero', targetNumeros);
     if (error) throw new DatabaseError('Falha ao consultar pedidos existentes', { details: error });
-    return new Set((data || []).map((pedido) => `${accountId}::${normalizeNumeroKey(pedido?.numero)}`).filter((key) => key !== `${accountId}::`));
+    return new Map((data || []).map((pedido) => [`${accountId}::${normalizeNumeroKey(pedido?.numero)}`, { numero: normalizeNumeroKey(pedido?.numero), data_emissao: pedido?.data_emissao || null }]).filter(([key]) => key !== `${accountId}::`));
   }
 
   const { __dumpMemoryPedidos } = await import('../pedidos/pedidos.repository.js');
   const snapshot = __dumpMemoryPedidos();
-  return new Set((snapshot.pedidos || []).filter((pedido) => pedido.account_id === accountId).map((pedido) => `${accountId}::${normalizeNumeroKey(pedido?.numero)}`).filter((key) => key !== `${accountId}::`));
+  return new Map((snapshot.pedidos || []).filter((pedido) => pedido.account_id === accountId).map((pedido) => [`${accountId}::${normalizeNumeroKey(pedido?.numero)}`, { numero: normalizeNumeroKey(pedido?.numero), data_emissao: pedido?.data_emissao || null }]).filter(([key]) => key !== `${accountId}::`));
 }
 
 function getClienteCode(cliente = {}) {
@@ -210,6 +210,7 @@ function normalizeRowForPreview(row, clientes) {
   const cliente = findClienteByCode(clientes, row.clienteCodigo);
   return {
     ...row,
+    data_emissao_preview: row.dataEmissao || null,
     pedido: row.numero,
     cliente: row.clienteCodigo,
     clienteId: cliente?.id || null,
@@ -250,7 +251,11 @@ async function updatePedidoImportRecord(row, accountId) {
   if (repositoryMode.mode === 'supabase') {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data: updated, error } = await supabase.from('pedidos').update({ total: row.total ?? 0 }).eq('account_id', accountId).eq('numero', row.numero).select('*').single();
+    const { data: existing, error: fetchError } = await supabase.from('pedidos').select('id, data_emissao').eq('account_id', accountId).eq('numero', row.numero).maybeSingle();
+    if (fetchError) throw new DatabaseError(`Falha ao consultar pedido na linha ${row.rowNumber}`, { domain: 'pedidos-import', details: { rowNumber: row.rowNumber, clienteCodigo: row.clienteCodigo || null, cause: fetchError?.details || fetchError?.message || String(fetchError) } });
+    const nextPayload = { total: row.total ?? 0 };
+    if (!existing?.data_emissao && row.dataEmissao) nextPayload.data_emissao = row.dataEmissao;
+    const { data: updated, error } = await supabase.from('pedidos').update(nextPayload).eq('account_id', accountId).eq('numero', row.numero).select('*').single();
     if (error) throw new DatabaseError(`Falha ao atualizar pedido na linha ${row.rowNumber}`, { domain: 'pedidos-import', details: { rowNumber: row.rowNumber, clienteCodigo: row.clienteCodigo || null, cause: error?.details || error?.message || String(error) } });
     return updated || null;
   }
@@ -259,7 +264,12 @@ async function updatePedidoImportRecord(row, accountId) {
   const snapshot = __dumpMemoryPedidos();
   const idx = (snapshot.pedidos || []).findIndex((pedido) => pedido.account_id === accountId && normalizeNumeroKey(pedido.numero) === normalizeNumeroKey(row.numero));
   if (idx < 0) return null;
-  snapshot.pedidos[idx] = { ...snapshot.pedidos[idx], total: row.total ?? 0 };
+  const existing = snapshot.pedidos[idx];
+  snapshot.pedidos[idx] = {
+    ...existing,
+    total: row.total ?? 0,
+    data_emissao: !existing?.data_emissao && row.dataEmissao ? row.dataEmissao : existing?.data_emissao || null
+  };
   __loadMemoryPedidos(snapshot);
   return snapshot.pedidos[idx];
 }
@@ -297,8 +307,14 @@ export async function executePedidosImport({ accountId, importToken }) {
   const pedidosSemCliente = [];
   const inconsistencias = [];
   const impactedClientIds = new Set();
+  let pedidosComDataEmissaoLida = 0;
+  let pedidosDataEmissaoAtualizada = 0;
+  let pedidosDataEmissaoIgnoradasExistentes = 0;
+  let pedidosDataEmissaoInvalidas = 0;
 
   for (const row of session.rows) {
+    const dataEmissaoValida = row.dataEmissao || null;
+    if (row.dataEmissao !== null && row.dataEmissao !== undefined) pedidosComDataEmissaoLida += 1;
     const cliente = findClienteByCode(existingClientes, row.clienteCodigo);
     if (!cliente) {
       pedidosSemCliente.push(row);
@@ -306,12 +322,16 @@ export async function executePedidosImport({ accountId, importToken }) {
       continue;
     }
     const duplicateKey = `${accountId}::${normalizeNumeroKey(row.numero)}`;
-    if (row.numero && existingPedidoKeys.has(duplicateKey)) {
+    const existingPedido = existingPedidoKeys.get(duplicateKey) || null;
+    if (row.numero && existingPedido) {
       try {
         const pedidoAtualizado = await updatePedidoImportRecord(row, accountId);
         if (pedidoAtualizado) {
           pedidosAtualizados.push(pedidoAtualizado);
-          existingPedidoKeys.add(duplicateKey);
+          if (dataEmissaoValida && !existingPedido.data_emissao) pedidosDataEmissaoAtualizada += 1;
+          if (dataEmissaoValida && existingPedido.data_emissao) pedidosDataEmissaoIgnoradasExistentes += 1;
+          if (!dataEmissaoValida) pedidosDataEmissaoInvalidas += 1;
+          existingPedidoKeys.set(duplicateKey, { numero: row.numero, data_emissao: pedidoAtualizado?.data_emissao || existingPedido.data_emissao || null });
           continue;
         }
       } catch (error) {
@@ -326,7 +346,9 @@ export async function executePedidosImport({ accountId, importToken }) {
       const pedido = await createPedidoImportRecord({ ...row, clienteId: cliente.id }, accountId);
       pedidosCriados.push(pedido);
       impactedClientIds.add(cliente.id);
-      if (row.numero) existingPedidoKeys.add(duplicateKey);
+      if (row.numero) {
+        existingPedidoKeys.set(duplicateKey, { numero: row.numero, data_emissao: row.dataEmissao || null });
+      }
     } catch (error) {
       pedidosComErro.push({ ...row, error: error?.message || String(error) });
     }
@@ -357,6 +379,10 @@ export async function executePedidosImport({ accountId, importToken }) {
     pedidos_duplicados: pedidosDuplicados.length,
     pedidos_com_erro: pedidosComErro.length,
     pedidos_sem_cliente: pedidosSemCliente.length,
+    pedidos_com_data_emissao_lida: pedidosComDataEmissaoLida,
+    pedidos_data_emissao_atualizada: pedidosDataEmissaoAtualizada,
+    pedidos_data_emissao_ignoradas_existentes: pedidosDataEmissaoIgnoradasExistentes,
+    pedidos_data_emissao_invalidas: pedidosDataEmissaoInvalidas,
     inconsistencias
   };
 
