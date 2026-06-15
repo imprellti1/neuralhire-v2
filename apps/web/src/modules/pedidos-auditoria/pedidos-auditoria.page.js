@@ -22,8 +22,8 @@ function injectStyles() {
   .nha2-badge.warn{background:rgba(251,191,36,.16);color:#fbbf24}
   .nha2-badge.danger{background:rgba(248,113,113,.16);color:#f87171}
   .nha2-badge.ok{background:rgba(52,211,153,.16);color:#34d399}
-  .nha2-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-  .nha2-actions .nha2-btn{white-space:nowrap}
+  .nha2-actions{display:flex;gap:6px;flex-direction:column;align-items:stretch}
+  .nha2-actions .nha2-btn{white-space:normal;width:100%;text-align:center}
   .nha2-col-num{width:116px}
   .nha2-col-cliente{width:210px}
   .nha2-col-vendedor{width:150px}
@@ -45,7 +45,7 @@ function injectStyles() {
   .nha2-field label{font-size:12px;color:#91a4c4}
   .nha2-field input{height:38px;border:1px solid rgba(148,163,184,.22);border-radius:10px;padding:0 10px;background:#0b1628;color:#e7eefb}
   .nha2-modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}
-  @media (max-width: 1024px){.nha2-tools{grid-template-columns:1fr 1fr}.nha2-grid{grid-template-columns:1fr}.nha2-title{font-size:24px}}
+  @media (max-width: 1024px){.nha2-tools{grid-template-columns:1fr 1fr}.nha2-grid{grid-template-columns:1fr}.nha2-title{font-size:24px}.nha2-actions{flex-direction:row;flex-wrap:wrap}.nha2-actions .nha2-btn{width:auto;white-space:nowrap}}
   `;
   document.head.appendChild(style);
 }
@@ -240,7 +240,7 @@ export function renderPedidosAuditoriaPage(root, { apiClient }) {
                   <td>${Number(item.itens_count || 0)}</td>
                   <td>${(item.issues || []).map((issue) => `<span class="nha2-badge ${issue === 'sem_itens' || issue === 'sem_vendedor' ? 'warn' : issue === 'sem_comissao' ? 'danger' : 'ok'}">${issueLabel(issue)}</span>`).join('')}</td>
                   <td>
-                    <div class="nha2-actions">
+                    <div class="nha2-actions" aria-label="Ações do pedido">
                       <button class="nha2-btn nha2-small" data-action="comissao" data-id="${item.id}">Definir comissão</button>
                       <button class="nha2-btn nha2-small" data-action="faturamento" data-id="${item.id}">Marcar faturado</button>
                       <button class="nha2-btn nha2-small" data-action="vendedor" data-id="${item.id}">Definir vendedor</button>
