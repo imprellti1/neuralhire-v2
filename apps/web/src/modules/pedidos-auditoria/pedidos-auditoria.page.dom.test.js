@@ -12,7 +12,7 @@ test('pedidos auditoria page renders list and opens modals', async () => {
       calls.push({ method: 'GET', url, query: { ...query } });
       return {
         items: [
-          { id: '1', numero: 'ERP-1', cliente_nome: 'Cliente A', status: 'confirmado', data_emissao: '2026-06-01', data_faturamento: null, total: 100, comissao_principal_percentual: null, comissao_preposto_percentual: null, itens_count: 0, issues: ['sem_comissao', 'sem_itens', 'nao_faturado_total'] }
+          { id: '1', numero: 'ERP-1', cliente_nome: 'Cliente A', razao_social: 'Cliente A LTDA', status: 'confirmado', data_emissao: '2026-06-01', data_faturamento: null, total: 100, comissao_principal_percentual: null, comissao_preposto_percentual: null, itens_count: 0, issues: ['sem_comissao', 'sem_itens', 'nao_faturado_total'] }
         ],
         pagination: { page: 1, limit: 10, total: 1, totalPages: 1 }
       };
@@ -30,8 +30,10 @@ test('pedidos auditoria page renders list and opens modals', async () => {
   assert.ok(root.textContent.includes('Sem itens'));
   assert.ok(root.textContent.includes('Definir comissão'));
   assert.ok(root.textContent.includes('Marcar faturado'));
+  assert.ok(root.textContent.includes('Cliente A LTDA'));
   assert.ok(root.querySelector('a[data-action="open-detail"]'));
   assert.equal(calls[0].url, '/pedidos/auditoria');
+  assert.ok(document.getElementById('nh-pedidos-auditoria-style').textContent.includes('.nha2-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}'));
 
   root.querySelector('a[data-action="open-detail"]').click();
   await flush();

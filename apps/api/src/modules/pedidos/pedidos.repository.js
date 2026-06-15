@@ -42,7 +42,7 @@ async function enrichPedidosWithClienteNome(items = [], accountId) {
     const byId = new Map((data || []).map((c) => [c.id, c]));
     return items.map((item) => {
       const cliente = byId.get(item?.cliente_id);
-      const nome = cliente?.empresa || cliente?.razao_social || cliente?.nome_contato || cliente?.nome || null;
+      const nome = cliente?.razao_social || cliente?.empresa || cliente?.nome || cliente?.nome_contato || null;
       return { ...item, cliente_nome: isUuid(nome) ? null : nome };
     });
   }
@@ -52,8 +52,8 @@ async function enrichPedidosWithClienteNome(items = [], accountId) {
     const clienteId = item?.cliente_id;
     if (!clienteId || byId.has(clienteId)) continue;
     try {
-      const cliente = await getClienteById(clienteId, { accountId });
-      const nome = cliente?.empresa || cliente?.razao_social || cliente?.nome_contato || cliente?.nome || null;
+    const cliente = await getClienteById(clienteId, { accountId });
+      const nome = cliente?.razao_social || cliente?.empresa || cliente?.nome || cliente?.nome_contato || null;
       byId.set(clienteId, isUuid(nome) ? null : nome);
     } catch {
       byId.set(clienteId, null);
@@ -170,6 +170,7 @@ export async function listPedidosAuditoria(filters = {}, options = {}) {
   const search = String(filters.search || '').trim().toLowerCase();
   const issue = String(filters.issue || '').trim().toLowerCase();
   const filtered = enriched.filter((pedido) => {
+    if (String(pedido?.status || '').toLowerCase() === 'cancelado') return false;
     const matchesIssue = !issue || (pedido.issues || []).includes(issue);
     const haystack = [pedido.numero, pedido.cliente_nome, pedido.cliente_id, pedido.id].filter(Boolean).join(' ').toLowerCase();
     const matchesSearch = !search || haystack.includes(search);

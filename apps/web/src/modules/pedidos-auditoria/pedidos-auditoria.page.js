@@ -21,7 +21,8 @@ function injectStyles() {
   .nha2-badge.warn{background:rgba(251,191,36,.16);color:#fbbf24}
   .nha2-badge.danger{background:rgba(248,113,113,.16);color:#f87171}
   .nha2-badge.ok{background:rgba(52,211,153,.16);color:#34d399}
-  .nha2-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .nha2-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .nha2-actions .nha2-btn{white-space:nowrap}
   .nha2-small{padding:8px 10px;height:auto}
   .nha2-empty,.nha2-error{padding:24px;text-align:center;color:#91a4c4}
   .nha2-meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:8px 0 12px;color:#91a4c4}
@@ -57,6 +58,10 @@ function issueLabel(issue) {
 
 function getPedidoDetailRoute(pedidoId) {
   return `#/pedidos/${pedidoId}`;
+}
+
+function getClienteDisplayValue(item = {}) {
+  return item?.razao_social || item?.cliente_nome || item?.nome || item?.cliente_id || '-';
 }
 
 export function renderPedidosAuditoriaPage(root, { apiClient }) {
@@ -157,7 +162,7 @@ export function renderPedidosAuditoriaPage(root, { apiClient }) {
               ${state.items.map((item) => `
                 <tr class="nha2-row">
                   <td><a href="${getPedidoDetailRoute(item.id)}" data-action="open-detail" data-id="${item.id}" style="color:#93c5fd;text-decoration:none;font-weight:700">${item.numero || item.id}</a><div><button class="nha2-btn nha2-small" data-action="open-detail" data-id="${item.id}" style="margin-top:6px">Abrir</button></div></td>
-                  <td>${item.cliente_nome || item.cliente_id || '-'}</td>
+                  <td>${getClienteDisplayValue(item)}</td>
                   <td>${item.status || '-'}</td>
                   <td>${fmtDate(item.data_emissao || item.created_at)}</td>
                   <td>${fmtDate(item.data_faturamento)}</td>
