@@ -1,6 +1,7 @@
 import { assertEqual } from '../assert.js';
 import { createCliente } from '../../modules/clientes/clientes.repository.js';
 import { createProduto } from '../../modules/produtos/produtos.repository.js';
+import { createVendedor } from '../../modules/vendedores/vendedores.repository.js';
 import {
   __dumpMemoryPedidos,
   __loadMemoryPedidos,
@@ -9,30 +10,50 @@ import {
   createPedido,
   getPedidoById,
   getPedidosRepositoryMode,
-  listPedidos
+  listPedidos,
+  updatePedidoVendedor
 } from '../../modules/pedidos/pedidos.repository.js';
 
 const accountId = 'acc-pedidos-repo';
 
 function createSupabaseMock() {
-  const state = { pedidos: [], clientes: [] };
-  const query = {
+  const state = { pedidos: [], pedidosItens: [], clientes: [], clientesError: null, vendedores: [], vendedoresError: null };
+  const pedidoQuery = {
     _filter: {},
     select() { return this; },
     eq(key, value) { this._filter[key] = value; return this; },
     order() { return this; },
     in() { return this; },
-    range() { return Promise.resolve({ data: state.pedidos, count: state.pedidos.length, error: null }); }
+    maybeSingle() { return Promise.resolve({ data: state.pedidos[0] || null, error: null }); },
+    range() { return Promise.resolve({ data: state.pedidos, count: state.pedidos.length, error: null }); },
+    insert() { return { select() { return { single: () => Promise.resolve({ data: state.pedidos[0] || null, error: null }) }; } }; },
+    update() { return { eq() { return this; }, select() { return { single: () => Promise.resolve({ data: state.pedidos[0] || null, error: null }) }; } }; },
+    delete() { return this; }
+  };
+  const itemQuery = {
+    select() { return this; },
+    eq() { return this; },
+    order() { return Promise.resolve({ data: state.pedidosItens, error: null }); },
+    insert() { return { select: () => Promise.resolve({ data: state.pedidosItens, error: null }) }; }
   };
   return {
-    query,
+    query: pedidoQuery,
+    state,
     from(table) {
-      if (table === 'pedidos') return query;
+      if (table === 'pedidos') return pedidoQuery;
+      if (table === 'pedido_itens') return itemQuery;
       if (table === 'clientes') {
         return {
           select() { return this; },
           eq() { return this; },
-          in() { return Promise.resolve({ data: state.clientes, error: null }); }
+          in() { return Promise.resolve({ data: state.clientes, error: state.clientesError }); }
+        };
+      }
+      if (table === 'vendedores') {
+        return {
+          select() { return this; },
+          eq() { return this; },
+          in() { return Promise.resolve({ data: state.vendedores, error: state.vendedoresError }); }
         };
       }
       throw new Error(`Unexpected table: ${table}`);
@@ -125,6 +146,54 @@ export function getPedidosRepositoryTests() {
       }
     },
     {
+      name: 'getPedidoById abre pedido importado sem owner_user_id no mesmo tenant e bloqueia outro tenant',
+      run: async () => {
+        __resetMemoryPedidosForTests();
+        const cliente = await createCliente({ nome: 'Cliente Importado' }, { accountId });
+        const produto = await createProduto({ nome: 'Produto Importado', sku: 'SKU-I', preco: 5 }, { accountId });
+        const created = await createPedido({ cliente_id: cliente.id, itens: [{ produto_id: produto.id, quantidade: 1, preco_unitario: 5 }] }, { accountId });
+        const snapshot = __dumpMemoryPedidos();
+        const idx = snapshot.pedidos.findIndex((item) => item.id === created.pedido.id);
+        delete snapshot.pedidos[idx].owner_user_id;
+        __loadMemoryPedidos(snapshot);
+
+        const found = await getPedidoById(created.pedido.id, { accountId });
+        assertEqual(found.pedido.id, created.pedido.id);
+
+        let forbidden = false;
+        try {
+          await getPedidoById(created.pedido.id, { accountId: 'acc-outro' });
+        } catch (error) {
+          forbidden = String(error?.message || '').includes('Pedido nao encontrado');
+        }
+        assertEqual(forbidden, true);
+      }
+    },
+    {
+      name: 'updatePedidoVendedor vincula vendedor do mesmo tenant e bloqueia outro tenant',
+      run: async () => {
+        __resetMemoryPedidosForTests();
+        const cliente = await createCliente({ nome: 'Cliente Vendedor' }, { accountId });
+        const produto = await createProduto({ nome: 'Produto Vendedor', sku: 'SKU-V', preco: 5 }, { accountId });
+        const vendedor = await createVendedor({ nome: 'Vendedor A' }, { accountId });
+        const outroVendedor = await createVendedor({ nome: 'Vendedor B' }, { accountId: 'acc-outro' });
+        const created = await createPedido({ cliente_id: cliente.id, itens: [{ produto_id: produto.id, quantidade: 1, preco_unitario: 5 }] }, { accountId });
+        const result = await updatePedidoVendedor(created.pedido.id, { vendedor_id: vendedor.id }, { accountId });
+        assertEqual(result.item.vendedor_id, vendedor.id);
+        const found = await getPedidoById(created.pedido.id, { accountId });
+        assertEqual(found.pedido.vendedor_id, vendedor.id);
+        assertEqual(found.pedido.vendedor.nome, 'Vendedor A');
+
+        let blocked = false;
+        try {
+          await updatePedidoVendedor(created.pedido.id, { vendedor_id: outroVendedor.id }, { accountId });
+        } catch (error) {
+          blocked = String(error?.message || '').includes('Vendedor nao encontrado') || String(error?.message || '').includes('Vendedor invalido');
+        }
+        assertEqual(blocked, true);
+      }
+    },
+    {
       name: 'getPedidoById nao usa cliente de outro tenant e mantem itens',
       run: async () => {
         __resetMemoryPedidosForTests();
@@ -162,6 +231,24 @@ export function getPedidosRepositoryTests() {
         assertEqual(found.pedido.cliente_nome, null);
         assertEqual(found.pedido.cliente_id, '00000000-0000-0000-0000-000000000001');
         assertEqual(found.itens.length, 1);
+      }
+    },
+    {
+      name: 'getPedidoById tolera falha ao enriquecer cliente e vendedor no supabase',
+      run: async () => {
+        __resetMemoryPedidosForTests();
+        const mock = createSupabaseMock();
+        mock.state.pedidos = [{ id: 'pedido-1', account_id: accountId, cliente_id: 'cliente-fallback', vendedor_id: 'vendedor-fallback', total: 10, status: 'rascunho' }];
+        mock.state.pedidosItens = [];
+        mock.state.clientesError = { message: 'boom' };
+        __setPedidosSupabaseClientForTests(mock, true);
+        try {
+          const found = await getPedidoById('pedido-1', { accountId });
+          assertEqual(found.pedido.cliente_nome, 'cliente-fallback');
+          assertEqual(found.pedido.vendedor_nome, 'vendedor-fallback');
+        } finally {
+          __setPedidosSupabaseClientForTests(null, false);
+        }
       }
     }
   ];

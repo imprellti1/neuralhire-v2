@@ -7,6 +7,9 @@ export function createPedidosAuditoriaState() {
     filters: { issue: '', status: '', search: '' },
     modal: null,
     selected: null,
-    form: { comissao_principal_percentual: '', comissao_preposto_percentual: '', data_faturamento: '' }
+    form: { comissao_principal_percentual: '', comissao_preposto_percentual: '', data_faturamento: '', vendedor_id: '' },
+    vendedores: [],
+    vendedoresLoading: false,
+    vendedoresError: ''
   };
 }

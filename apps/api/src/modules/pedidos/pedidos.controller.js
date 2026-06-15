@@ -1,6 +1,6 @@
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { applyOwnerFilter } from '../../core/commercial-scope.js';
-import { createPedido, getPedidoById, getPedidoStatusHistory, getPedidosRepositoryMode, listPedidos, listPedidosAuditoria, updatePedido, updatePedidoComissao, updatePedidoFaturamento, updatePedidoItens, updatePedidoStatus } from './pedidos.repository.js';
+import { createPedido, getPedidoById, getPedidoStatusHistory, getPedidosRepositoryMode, listPedidos, listPedidosAuditoria, updatePedido, updatePedidoComissao, updatePedidoFaturamento, updatePedidoItens, updatePedidoStatus, updatePedidoVendedor } from './pedidos.repository.js';
 import { recordAuditLog } from '../../core/audit-logs.js';
 
 export async function getPedidos(context = {}) {
@@ -78,6 +78,13 @@ export async function updatePedidoFaturamentoHandler(context = {}) {
   const accountId = getAccountIdFromContext(context);
   const body = { ...(context.body || {}) };
   const result = await updatePedidoFaturamento(context.params?.id, body, { accountId, context });
+  return { ok: true, repositoryMode: getPedidosRepositoryMode(), ...result };
+}
+
+export async function updatePedidoVendedorHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const body = { ...(context.body || {}) };
+  const result = await updatePedidoVendedor(context.params?.id, body, { accountId, context });
   return { ok: true, repositoryMode: getPedidosRepositoryMode(), ...result };
 }
 

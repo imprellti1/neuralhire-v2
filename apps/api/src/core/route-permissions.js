@@ -33,6 +33,7 @@ export const ROUTE_PERMISSIONS = {
   'POST /pedidos': { authenticated: true, permission: 'pedidos:write', tenantRequired: true, domain: 'pedidos-comercial' },
   'PATCH /pedidos/:id': { authenticated: true, permission: 'pedidos:write', tenantRequired: true, domain: 'pedidos-comercial' },
   'PATCH /pedidos/:id/itens': { authenticated: true, permission: 'pedidos:write', tenantRequired: true, domain: 'pedidos-comercial' },
+  'PATCH /pedidos/:id/vendedor': { authenticated: true, permission: 'pedidos:write', tenantRequired: true, domain: 'pedidos-comercial' },
   'PATCH /pedidos/:id/status': { authenticated: true, permission: 'pedidos:status:update', tenantRequired: true, domain: 'pedidos-comercial' },
   'GET /analytics/summary': { authenticated: true, permission: 'analytics:read', tenantRequired: true, domain: 'analytics-comercial' },
   'GET /analytics/products': { authenticated: true, permission: 'analytics:read', tenantRequired: true, domain: 'analytics-comercial' },

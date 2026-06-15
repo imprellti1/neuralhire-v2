@@ -68,7 +68,7 @@ export const listPedidosAuditoriaQuerySchema = {
   page: { required: false, type: 'number' },
   limit: { required: false, type: 'number' },
   status: { required: false, type: 'string', maxLength: 30 },
-  issue: { required: false, type: 'string', enum: ['sem_comissao', 'sem_itens', 'nao_faturado_total'] },
+  issue: { required: false, type: 'string', enum: ['sem_comissao', 'sem_itens', 'sem_vendedor', 'nao_faturado_total'] },
   search: { required: false, type: 'string', maxLength: 120 }
 };
 
@@ -79,4 +79,8 @@ export const updatePedidoComissaoSchema = {
 
 export const updatePedidoFaturamentoSchema = {
   data_faturamento: { required: true, type: 'string', maxLength: 30 }
+};
+
+export const updatePedidoVendedorSchema = {
+  vendedor_id: { required: true, type: 'string', minLength: 1, maxLength: 120 }
 };

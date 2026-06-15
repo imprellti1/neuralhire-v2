@@ -44,6 +44,7 @@ const suiteSpecs = [
   ['Pedidos Status Update', './pedidos-status-update.test.js', 'getPedidosStatusUpdateTests'],
   ['Pedidos Status Rules', './pedidos-status-rules.test.js', 'getPedidosStatusRulesTests'],
   ['Pedidos Audit', './pedidos-audit.test.js', 'getPedidosAuditTests'],
+  ['Pedidos Vendedor', './pedidos-vendedor.test.js', 'getPedidosVendedorTests'],
   ['Pedidos Itens Update', './pedidos-itens-update.test.js', 'getPedidosItensUpdateTests'],
   ['Pedidos Update', './pedidos-update.test.js', 'getPedidosUpdateTests'],
   ['Analytics Summary', './analytics-summary.test.js', 'getAnalyticsSummaryTests'],

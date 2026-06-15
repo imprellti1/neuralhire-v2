@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { env } from '../../config/env.js';
 import { createPedidoAuditEvent } from '../../core/audit.js';
 import { BadRequestError, DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
-import { applyOwnerFilter, assertCanAccessOwner, canAccessAllTenantData, getUserIdFromContext } from '../../core/commercial-scope.js';
+import { applyOwnerFilter, canAccessAllTenantData, getUserIdFromContext } from '../../core/commercial-scope.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { getClienteById } from '../clientes/clientes.repository.js';
 import { getProdutoById } from '../produtos/produtos.repository.js';
+import { getVendedorById } from '../vendedores/vendedores.repository.js';
 import { canTransitionPedidoStatus, isValidPedidoStatus, PEDIDO_STATUS } from './pedidos.schemas.js';
 
 const memoryPedidos = [];
@@ -29,6 +30,53 @@ function assertAccountId(accountId) { if (!accountId) throw new ForbiddenError('
 function normalizePagination(filters = {}) { const page = Number.isFinite(filters.page) && filters.page > 0 ? Math.floor(filters.page) : 1; const rawLimit = Number.isFinite(filters.limit) && filters.limit > 0 ? Math.floor(filters.limit) : 20; return { page, limit: Math.min(rawLimit, 100) }; }
 function assertItens(itens) { if (!Array.isArray(itens) || itens.length === 0) throw new BadRequestError('Pedido precisa de pelo menos um item', { code: 'PEDIDO_ITENS_REQUIRED', domain: 'pedidos-comercial' }); }
 const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
+function getPedidoClienteFallback(item = {}) {
+  return item?.cliente_id || '-';
+}
+function getClienteNomeFallback(item = {}) {
+  return getPedidoClienteFallback(item);
+}
+function getPedidoVendedorFallback(item = {}) {
+  return item?.vendedor_id || null;
+}
+
+async function enrichPedidosWithVendedorNome(items = [], accountId) {
+  if (!Array.isArray(items) || !items.length) return [];
+  const repositoryMode = getPedidosRepositoryMode();
+  if (repositoryMode.mode === 'supabase') {
+    const supabase = getSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const vendedorIds = [...new Set(items.map((i) => i?.vendedor_id).filter(Boolean))];
+    if (!vendedorIds.length) return items.map((item) => ({ ...item, vendedor_nome: null, vendedor: null }));
+    try {
+      const { data, error } = await supabase.from('vendedores').select('id, nome').eq('account_id', accountId).in('id', vendedorIds);
+      if (error) throw new DatabaseError('Falha ao enriquecer pedidos com vendedor', { details: error });
+      const byId = new Map((data || []).map((v) => [v.id, v]));
+      return items.map((item) => {
+        const vendedor = byId.get(item?.vendedor_id);
+        return { ...item, vendedor: vendedor ? { id: vendedor.id, nome: vendedor.nome || null } : null, vendedor_nome: vendedor?.nome || null };
+      });
+    } catch (error) {
+      if (env.NODE_ENV !== 'production') console.warn('[pedidos.repository] Falha ao enriquecer pedidos com vendedor', error);
+      return items.map((item) => ({ ...item, vendedor_nome: null, vendedor: null }));
+    }
+  }
+  const byId = new Map();
+  for (const item of items) {
+    const vendedorId = item?.vendedor_id;
+    if (!vendedorId || byId.has(vendedorId)) continue;
+    try {
+      const vendedor = await getVendedorById(vendedorId, { accountId });
+      byId.set(vendedorId, vendedor?.nome || null);
+    } catch (error) {
+      if (env.NODE_ENV !== 'production') console.warn('[pedidos.repository] Falha ao enriquecer pedidos com vendedor', error);
+      byId.set(vendedorId, null);
+    }
+  }
+  return items.map((item) => {
+    const nome = byId.get(item?.vendedor_id) || null;
+    return { ...item, vendedor_nome: nome, vendedor: item?.vendedor_id && nome ? { id: item.vendedor_id, nome } : null };
+  });
+}
 
 async function enrichPedidosWithClienteNome(items = [], accountId) {
   if (!Array.isArray(items) || !items.length) return [];
@@ -36,15 +84,19 @@ async function enrichPedidosWithClienteNome(items = [], accountId) {
   if (repositoryMode.mode === 'supabase') {
     const supabase = getSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const clienteIds = [...new Set(items.map((i) => i?.cliente_id).filter(Boolean))];
-    if (!clienteIds.length) return items.map((item) => ({ ...item, cliente_nome: null }));
-    const { data, error } = await supabase.from('clientes').select('id, nome, empresa, razao_social, nome_contato').eq('account_id', accountId).in('id', clienteIds);
-    if (error) throw new DatabaseError('Falha ao enriquecer pedidos com cliente', { details: error });
-    const byId = new Map((data || []).map((c) => [c.id, c]));
-    return items.map((item) => {
-      const cliente = byId.get(item?.cliente_id);
-      const nome = cliente?.razao_social || cliente?.empresa || cliente?.nome || cliente?.nome_contato || null;
-      return { ...item, cliente_nome: isUuid(nome) ? null : nome };
-    });
+    if (!clienteIds.length) return items.map((item) => ({ ...item, cliente_nome: getClienteNomeFallback(item) }));
+    try {
+      const { data, error } = await supabase.from('clientes').select('id, nome, empresa, razao_social, nome_contato').eq('account_id', accountId).in('id', clienteIds);
+      if (error) throw new DatabaseError('Falha ao enriquecer pedidos com cliente', { details: error });
+      const byId = new Map((data || []).map((c) => [c.id, c]));
+      return items.map((item) => {
+        const cliente = byId.get(item?.cliente_id);
+        const nome = cliente?.razao_social || cliente?.empresa || cliente?.nome || cliente?.nome_contato || null;
+        return { ...item, cliente_nome: isUuid(nome) ? getClienteNomeFallback(item) : (nome || getClienteNomeFallback(item)) };
+      });
+    } catch {
+      return items.map((item) => ({ ...item, cliente_nome: getClienteNomeFallback(item) }));
+    }
   }
 
   const byId = new Map();
@@ -56,10 +108,10 @@ async function enrichPedidosWithClienteNome(items = [], accountId) {
       const nome = cliente?.razao_social || cliente?.empresa || cliente?.nome || cliente?.nome_contato || null;
       byId.set(clienteId, isUuid(nome) ? null : nome);
     } catch {
-      byId.set(clienteId, null);
+      byId.set(clienteId, getClienteNomeFallback(item));
     }
   }
-  return items.map((item) => ({ ...item, cliente_nome: byId.get(item?.cliente_id) || null }));
+  return items.map((item) => ({ ...item, cliente_nome: byId.get(item?.cliente_id) || getClienteNomeFallback(item) }));
 }
 
 export function calculatePedidoTotals(itens = []) {
@@ -88,6 +140,7 @@ export async function listPedidos(filters = {}, options = {}) {
       id,
       account_id,
       cliente_id,
+      vendedor_id,
       numero,
       status,
       origem,
@@ -136,6 +189,7 @@ function buildPedidoIssues(pedido = {}, itensCount = 0) {
   const preposto = Number(pedido?.comissao_preposto_percentual);
   if ((!Number.isFinite(principal) || principal <= 0) && (!Number.isFinite(preposto) || preposto <= 0)) issues.push('sem_comissao');
   if (!Number.isFinite(Number(itensCount)) || Number(itensCount) <= 0) issues.push('sem_itens');
+  if (!String(pedido?.vendedor_id || '').trim()) issues.push('sem_vendedor');
   if (String(pedido?.status || '').toLowerCase() !== 'faturado_total') issues.push('nao_faturado_total');
   return issues;
 }
@@ -162,11 +216,13 @@ export async function listPedidosAuditoria(filters = {}, options = {}) {
   const result = await listPedidos(filters, options);
   const accountId = options.accountId || null;
   const counts = await getPedidoItensCounts(result.items || [], accountId);
-  const enriched = (result.items || []).map((pedido) => ({
+  const pedidosWithIssues = (result.items || []).map((pedido) => ({
     ...pedido,
     itens_count: counts.get(pedido.id) || 0,
     issues: buildPedidoIssues(pedido, counts.get(pedido.id) || 0)
   }));
+  const enrichedVendedores = await enrichPedidosWithVendedorNome(pedidosWithIssues, accountId).catch(() => pedidosWithIssues.map((pedido) => ({ ...pedido, vendedor_nome: null, vendedor: null })));
+  const enriched = enrichedVendedores;
   const search = String(filters.search || '').trim().toLowerCase();
   const issue = String(filters.issue || '').trim().toLowerCase();
   const filtered = enriched.filter((pedido) => {
@@ -184,15 +240,35 @@ export async function getPedidoById(id, options = {}) {
   if (getPedidosRepositoryMode().mode === 'supabase') {
     const supabase = getSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data: pedido, error: pe } = await supabase.from('pedidos').select('*').eq('account_id', accountId).eq('id', id).maybeSingle(); if (pe) throw new DatabaseError('Falha ao buscar pedido', { details: pe }); if (!pedido) throw new NotFoundError('Pedido nao encontrado', { code: 'PEDIDO_NOT_FOUND', domain: 'pedidos-comercial' });
-    if (options.context) assertCanAccessOwner(options.context, pedido.owner_user_id);
     const { data: itens, error: ie } = await supabase.from('pedido_itens').select('*').eq('account_id', accountId).eq('pedido_id', id).order('created_at', { ascending: true }); if (ie) throw new DatabaseError('Falha ao buscar itens do pedido', { details: ie });
-    const [pedidoEnriquecido] = await enrichPedidosWithClienteNome([pedido], accountId);
-    return { pedido: pedidoEnriquecido || pedido, itens: itens || [] };
+    const [pedidoComCliente] = await enrichPedidosWithClienteNome([pedido], accountId).catch(() => [pedido]);
+    const [pedidoEnriquecido] = await enrichPedidosWithVendedorNome([pedidoComCliente || pedido], accountId).catch(() => [pedidoComCliente || pedido]);
+    return { pedido: pedidoEnriquecido || pedidoComCliente || pedido, itens: itens || [] };
   }
   const pedido = memoryPedidos.find((i) => i.id === id && i.account_id === accountId); if (!pedido) throw new NotFoundError('Pedido nao encontrado', { code: 'PEDIDO_NOT_FOUND', domain: 'pedidos-comercial' });
-  if (options.context) assertCanAccessOwner(options.context, pedido.owner_user_id);
-  const [pedidoEnriquecido] = await enrichPedidosWithClienteNome([pedido], accountId);
-  return { pedido: pedidoEnriquecido || pedido, itens: memoryPedidoItens.filter((i) => i.pedido_id === id && i.account_id === accountId) };
+  const [pedidoComCliente] = await enrichPedidosWithClienteNome([pedido], accountId).catch(() => [pedido]);
+  const [pedidoEnriquecido] = await enrichPedidosWithVendedorNome([pedidoComCliente || pedido], accountId).catch(() => [pedidoComCliente || pedido]);
+  return { pedido: pedidoEnriquecido || pedidoComCliente || pedido, itens: memoryPedidoItens.filter((i) => i.pedido_id === id && i.account_id === accountId) };
+}
+
+export async function updatePedidoVendedor(id, data = {}, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  const vendedorId = String(data?.vendedor_id || '').trim();
+  if (!vendedorId) throw new BadRequestError('Vendedor obrigatorio', { code: 'VALIDATION_ERROR', domain: 'pedidos-comercial' });
+  const { pedido } = await getPedidoById(id, { accountId });
+  const vendedor = await getVendedorById(vendedorId, { accountId });
+  if (!vendedor || String(vendedor.account_id || '') !== String(accountId)) throw new ForbiddenError('Vendedor invalido para o tenant', { code: 'TENANT_FORBIDDEN', domain: 'pedidos-comercial' });
+  if (getPedidosRepositoryMode().mode === 'supabase') {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data: updated, error } = await supabase.from('pedidos').update({ vendedor_id: vendedorId }).eq('id', id).eq('account_id', accountId).select('*').single();
+    if (error) throw new DatabaseError('Falha ao atualizar vendedor do pedido', { details: error });
+    return { item: updated };
+  }
+  const idx = memoryPedidos.findIndex((p) => p.id === id && p.account_id === accountId);
+  memoryPedidos[idx] = { ...memoryPedidos[idx], vendedor_id: vendedorId };
+  return { item: memoryPedidos[idx], pedido };
 }
 
 export async function createPedido(data = {}, options = {}) {
