@@ -93,3 +93,41 @@ test('grupos comerciais limpa loading e mostra mensagem amigavel ao receber 422'
 
   teardownFrontendDom(dom);
 });
+
+test('clientes do grupo dispara busca com 1 caractere e ignora string vazia', async () => {
+  const dom = setupFrontendDom('#/grupos-comerciais');
+  mockAuthenticatedSession();
+  resetFetchCalls();
+  const searched = [];
+  installFetchMock({
+    'GET /grupos-comerciais': () => ({ items: [{ id: 'gc-1', nome: 'Grupo Alpha', descricao: '', ativo: true }], pagination: { page: 1, totalPages: 1, total: 1, limit: 20 } }),
+    'GET /grupos-comerciais/gc-1/clientes': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 10 } }),
+    'GET /clientes': ({ query }) => {
+      searched.push(query?.search ?? null);
+      return { items: [{ id: 'c-1', nome: 'Silva', email: 'silva@example.com' }], pagination: { page: 1, totalPages: 1, total: 1, limit: 10 } };
+    }
+  });
+
+  bootstrapWebApp();
+  await flush();
+  await flush();
+
+  findButtonByText('Clientes do grupo').click();
+  await flush();
+  await flush();
+
+  const input = document.querySelector('#nhgc-cliente-search');
+  dispatchInput(input, 'S');
+  await flush();
+  await flush();
+
+  assert.deepEqual(searched, ['S']);
+  assert.match(document.body.textContent, /Silva/i);
+
+  dispatchInput(input, '');
+  await flush();
+  await flush();
+
+  assert.deepEqual(searched, ['S']);
+  teardownFrontendDom(dom);
+});

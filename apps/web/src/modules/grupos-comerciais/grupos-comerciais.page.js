@@ -43,7 +43,10 @@ export function renderGruposComerciaisPage(root, { apiClient } = {}) {
     root.querySelector('#nhgc-descricao')?.addEventListener('input', (e) => { state.form = { ...state.form, descricao: e.target.value || '' }; });
     root.querySelector('#nhgc-ativo')?.addEventListener('change', (e) => { state.form = { ...state.form, ativo: e.target.value === 'true' }; });
     root.querySelector('#nhgc-add-clientes')?.addEventListener('click', addSelectedClientes);
-    root.querySelector('#nhgc-cliente-search')?.addEventListener('input', (e) => { state.clienteSearch = e.target.value || ''; loadClientesBuscados(); });
+    root.querySelector('#nhgc-cliente-search')?.addEventListener('input', (e) => {
+      state.clienteSearch = e.target.value || '';
+      loadClientesBuscados();
+    });
     root.querySelectorAll('[data-edit]').forEach((el) => el.addEventListener('click', () => openModal(state.items.find((item) => item.id === el.getAttribute('data-edit')))));
     root.querySelectorAll('[data-clients]').forEach((el) => el.addEventListener('click', () => openClientesModal(state.items.find((item) => item.id === el.getAttribute('data-clients')))));
     root.querySelectorAll('[data-select-cliente]').forEach((el) => el.addEventListener('change', () => { const id = el.getAttribute('data-select-cliente'); if (el.checked) state.selectedClienteIds.add(id); else state.selectedClienteIds.delete(id); render(); }));
@@ -73,7 +76,24 @@ export function renderGruposComerciaisPage(root, { apiClient } = {}) {
       render();
     }
   }
-  async function loadClientesBuscados() { state.clientesLoading = true; render(); try { const res = await searchClientes(apiClient, state.clienteSearch); state.clientesDisponiveis = res.items || []; } finally { state.clientesLoading = false; render(); } }
+  async function loadClientesBuscados() {
+    const query = String(state.clienteSearch || '').trim();
+    if (query.length < 1) {
+      state.clientesDisponiveis = [];
+      state.clientesLoading = false;
+      render();
+      return;
+    }
+    state.clientesLoading = true;
+    render();
+    try {
+      const res = await searchClientes(apiClient, query);
+      state.clientesDisponiveis = res.items || [];
+    } finally {
+      state.clientesLoading = false;
+      render();
+    }
+  }
   async function loadClientesDoGrupo() { if (!state.selected?.id) return; const res = await fetchGrupoComercialClientes(apiClient, state.selected.id); state.clientesVinculados = res.items || []; await loadClientesBuscados(); }
   async function addSelectedClientes() { await addGrupoComercialClientes(apiClient, state.selected.id, Array.from(state.selectedClienteIds)); state.selectedClienteIds = new Set(); await loadClientesDoGrupo(); }
   render(); load();
