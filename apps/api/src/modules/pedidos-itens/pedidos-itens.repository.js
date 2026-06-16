@@ -283,6 +283,18 @@ async function deletePedidoItensByPedido(accountId, pedidoId) {
 
 async function insertPedidoItens(accountId, pedidoId, rows = []) {
   const payload = rows.map((row) => buildPedidoItemRow({ accountId, pedidoId, row, match: row }));
+  if (payload.length) {
+    logger.debug('[pedidos-itens.repository] Primeiro payload final para insert', {
+      account_id: accountId,
+      pedido_id: pedidoId,
+      payload: {
+        status_vinculo: payload[0]?.status_vinculo ?? null,
+        produto_nome: payload[0]?.produto_nome ?? null,
+        nome_produto_original: payload[0]?.nome_produto_original ?? null,
+        codigo_produto_erp_original: payload[0]?.codigo_produto_erp_original ?? null
+      }
+    });
+  }
   if (mode() === 'supabase') {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
@@ -327,6 +339,18 @@ export async function executePedidosItensImport({ accountId, fileName, buffer })
     if (match.status_vinculo === 'vinculado') {
       produtoId = match.matchedCandidate?.produto_id || null;
       variacaoId = match.matchedCandidate?.id || null;
+    }
+    if (itens.length < 3) {
+      logger.debug('[pedidos-itens.repository] Item antes do insert', {
+        account_id: accountId,
+        pedido_id: pedido.id,
+        item: {
+          status_vinculo: match.status_vinculo || null,
+          produto_nome: match.matchedCandidate?.produto_nome || null,
+          nome_produto_original: row.nome_produto_original || null,
+          codigo_produto_erp_original: row.codigo_produto_erp_original || null
+        }
+      });
     }
     itens.push({
       ...row,
