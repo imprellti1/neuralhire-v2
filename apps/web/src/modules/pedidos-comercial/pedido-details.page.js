@@ -54,19 +54,26 @@ function getItemQuantidade(item = {}) {
   const quantidade = toPositiveNumber(item?.quantidade ?? item?.qty ?? item?.qtd ?? 0);
   return quantidade;
 }
-function getItemCustoUnitario(item = {}) {
-  const explicitUnit = Number(item?.valorUnitario ?? 0);
-  if (explicitUnit > 0) return explicitUnit;
+function getItemCustoUnitarioExibicao(item = {}) {
   const quantidade = getItemQuantidade(item);
-  const totalFromBackend = Number(item?.totalItem ?? 0);
-  if (totalFromBackend > 0 && quantidade > 0) return totalFromBackend / quantidade;
+  const valorUnitarioCentavos = Number(item?.valorUnitarioCentavos ?? 0);
+  if (valorUnitarioCentavos > 0) return valorUnitarioCentavos / 100;
+  const totalItemCentavos = Number(item?.totalItemCentavos ?? 0);
+  if (totalItemCentavos > 0 && quantidade > 0) return totalItemCentavos / 100 / quantidade;
   return 0;
 }
-function getItemTotalCalculado(item = {}) {
+function getItemTotalExibicao(item = {}) {
   const quantidade = getItemQuantidade(item);
-  const custoUnitario = getItemCustoUnitario(item);
-  const totalFromBackend = Number(item?.totalItem ?? 0);
-  return totalFromBackend > 0 ? totalFromBackend : quantidade * custoUnitario;
+  const totalItemCentavos = Number(item?.totalItemCentavos ?? 0);
+  if (totalItemCentavos > 0) return totalItemCentavos / 100;
+  const unitario = getItemCustoUnitarioExibicao(item);
+  return quantidade * unitario;
+}
+function getItemCustoUnitario(item = {}) {
+  return getItemCustoUnitarioExibicao(item);
+}
+function getItemTotalCalculado(item = {}) {
+  return getItemTotalExibicao(item);
 }
 function getStatusActions(statusExibicao) {
   const status = String(statusExibicao || '').toLowerCase();
@@ -187,23 +194,6 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId, routeQuery 
         const quantidade = getItemQuantidade(item);
         const custoUnitario = getItemCustoUnitario(item);
         const totalItem = getItemTotalCalculado(item);
-        console.log('ITEM MONEY SOURCE', {
-          produto: item?.produto,
-          valorUnitario: item?.valorUnitario,
-          valor_unitario: item?.valor_unitario,
-          preco_unitario: item?.preco_unitario,
-          unitario: item?.unitario,
-          preco: item?.preco,
-          custo_unitario: item?.custo_unitario,
-          custoUnitario: item?.custoUnitario,
-          valorUnitarioCentavos: item?.valorUnitarioCentavos,
-          totalItem: item?.totalItem,
-          total_item: item?.total_item,
-          totalItemCentavos: item?.totalItemCentavos,
-          valor_total: item?.valor_total,
-          custoUnitarioCalculado: getItemCustoUnitario(item),
-          totalCalculado: getItemTotalCalculado(item)
-        });
         return `<tr class="${itemLinkClass(item?.status_vinculo)}"><td><div>${item?.produto || item?.nome_produto_original || 'Produto não identificado'}</div><div class="nho2d-item-meta"><span class="nho2-badge ${itemLinkClass(item?.status_vinculo)}">${itemLinkLabel(item?.status_vinculo)}</span>${item?.status_vinculo && item?.status_vinculo !== 'vinculado' ? `<span class="nho2d-item-sku">${item?.motivo_vinculo || 'Item importado sem vínculo com produto/variação cadastrados.'}</span>` : ''}</div></td><td>${quantidade}</td><td class="nho2d-right">${formatBRLFromReais(custoUnitario)}</td><td class="nho2d-right">${formatBRLFromReais(totalItem)}</td></tr>`;
       }).join('');
     const historicoRows = (d?.historico || []).map((h) => `<tr><td>${h?.statusAnterior || ''}</td><td>${h?.statusNovo || ''}</td><td>${fmtDate(h?.data)}</td></tr>`).join('');
