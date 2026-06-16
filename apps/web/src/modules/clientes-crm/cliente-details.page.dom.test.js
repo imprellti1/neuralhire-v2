@@ -383,7 +383,7 @@ test('cliente details mostra aba de enriquecimento e executa enriquecimento manu
       razao_social: 'Empresa LTDA',
       nome_fantasia: 'Empresa',
       situacao_cadastral: 'ATIVA',
-      data_abertura: '2020-01-02',
+            data_abertura: '1994-05-05',
       cnae_principal: 'Comercio varejista',
       email_enriquecido: 'contato@empresa.com',
       telefone_enriquecido: '1133334444',
@@ -395,7 +395,7 @@ test('cliente details mostra aba de enriquecimento e executa enriquecimento manu
       cidade: 'São Paulo',
       estado: 'SP',
       enriquecimento_status: 'concluido',
-      enriquecimento_ultima_execucao: '2026-06-16T21:00:00.000Z',
+      enriquecimento_ultima_execucao: '2026-06-16T18:29:32.000Z',
       enriquecimento_fonte: 'brasilapi',
       enriquecimento_erro: null,
       enriquecimento_payload: { origem: 'mock' }
@@ -407,6 +407,8 @@ test('cliente details mostra aba de enriquecimento e executa enriquecimento manu
   assert.match(root.textContent, /Dados enriquecidos com sucesso/);
   assert.match(root.textContent, /Empresa LTDA/);
   assert.match(root.textContent, /contato@empresa\.com/);
+  assert.match(root.textContent, /05\/05\/1994/);
+  assert.match(root.textContent, /16\/06\/2026 às 18:29/);
   assert.ok(calls.some((call) => call.method === 'POST' && call.url === '/clientes/c1/enriquecer'));
 
   teardownFrontendDom(dom);

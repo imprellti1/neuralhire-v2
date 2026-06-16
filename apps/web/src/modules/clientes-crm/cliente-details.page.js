@@ -31,6 +31,20 @@ function safeText(value, fallback = '-') {
   const text = String(value || '').trim();
   return text || fallback;
 }
+function formatDisplayDate(value) {
+  if (!value) return 'Não informado';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Não informado';
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+}
+function formatDisplayDateTime(value) {
+  if (!value) return 'Não informado';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Não informado';
+  const datePart = new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+  const timePart = new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false }).format(date);
+  return `${datePart} às ${timePart}`;
+}
 function getPedidoDate(pedido = {}) {
   return pedido.dataFaturamento || pedido.dataFallback || pedido._billingDate || pedido._fallbackDate || null;
 }
@@ -190,9 +204,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   }
 
   function formatDateFriendly(value) {
-    if (!value) return 'Não informado';
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? 'Não informado' : date.toLocaleString('pt-BR');
+    return formatDisplayDateTime(value);
   }
 
   function getPedidoItems(pedido) {
@@ -419,7 +431,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
             <dt class="nho2d-dt">Razão social</dt><dd class="nho2d-dd">${safeValue(d?.razao_social)}</dd>
             <dt class="nho2d-dt">Nome fantasia</dt><dd class="nho2d-dd">${safeValue(d?.nome_fantasia)}</dd>
             <dt class="nho2d-dt">Situação cadastral</dt><dd class="nho2d-dd">${safeValue(d?.situacao_cadastral)}</dd>
-            <dt class="nho2d-dt">Data de abertura</dt><dd class="nho2d-dd">${safeValue(d?.data_abertura)}</dd>
+            <dt class="nho2d-dt">Data de abertura</dt><dd class="nho2d-dd">${d?.data_abertura ? formatDisplayDate(d.data_abertura) : 'Não informado'}</dd>
             <dt class="nho2d-dt">CNAE principal</dt><dd class="nho2d-dd">${safeValue(d?.cnae_principal)}</dd>
           </dl>
         </article>
