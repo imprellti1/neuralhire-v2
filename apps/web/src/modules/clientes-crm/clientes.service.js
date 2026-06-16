@@ -14,3 +14,7 @@ export async function fetchClientesData(apiClient, options = {}) {
   });
   return mapClientesData(response);
 }
+
+export async function enriquecerCliente(apiClient, clienteId) {
+  return apiClient.post(`/clientes/${clienteId}/enriquecer`);
+}

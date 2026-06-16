@@ -1,9 +1,10 @@
 ﻿import { randomUUID } from 'node:crypto';
 import { env } from '../../config/env.js';
-import { DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
+import { DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '../../core/errors.js';
 import { applyOwnerFilter, getUserIdFromContext } from '../../core/commercial-scope.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { findVendedorByUserId } from '../vendedores/vendedores.repository.js';
+import { buildEnrichmentUpdateFromBrasilApi, fetchBrasilApiCnpj, isValidCnpj, normalizeCnpj } from './clientes.enrichment.js';
 
 const memoryClientes = [];
 let supabaseClientOverride = null;
@@ -415,4 +416,58 @@ export function __loadMemoryClientes(items = []) {
 export function __setClientesSupabaseClientForTests(client, configured = true) {
   supabaseClientOverride = client;
   supabaseConfiguredOverride = configured;
+}
+
+async function persistClienteEnrichment(cliente, payload, options = {}) {
+  const accountId = options.accountId || null;
+  if (getClientesRepositoryMode().mode === 'supabase') {
+    const supabase = resolveSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data, error } = await supabase.from('clientes').update(payload).eq('account_id', accountId).eq('id', cliente.id).select('*').single();
+    if (error) throw new DatabaseError('Falha ao atualizar enriquecimento do cliente', { details: error, domain: 'clientes-crm' });
+    return data;
+  }
+  const idx = memoryClientes.findIndex((item) => item.id === cliente.id && item.account_id === accountId);
+  if (idx < 0) throw new NotFoundError('Cliente nao encontrado', { code: 'CLIENTE_NOT_FOUND', domain: 'clientes-crm' });
+  memoryClientes[idx] = { ...memoryClientes[idx], ...payload, updated_at: new Date().toISOString() };
+  return memoryClientes[idx];
+}
+
+export async function enrichClienteByCnpj(clienteId, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  const cliente = await getClienteById(clienteId, { accountId, context: options.context });
+  const cnpj = normalizeCnpj(cliente?.documento);
+  if (!isValidCnpj(cnpj)) {
+    const erro = 'CNPJ ausente ou invalido';
+    await persistClienteEnrichment(cliente, {
+      enriquecimento_status: 'erro',
+      enriquecimento_fonte: 'brasilapi',
+      enriquecimento_ultima_execucao: new Date().toISOString(),
+      enriquecimento_erro: erro
+    }, { accountId });
+    throw new ValidationError(erro, { domain: 'clientes-crm', code: 'CNPJ_INVALIDO' });
+  }
+
+  let payload;
+  try {
+    payload = await fetchBrasilApiCnpj(cnpj, { fetchImpl: options.fetchImpl });
+  } catch (error) {
+    const erro = error?.message || 'Falha ao consultar BrasilAPI';
+    await persistClienteEnrichment(cliente, {
+      enriquecimento_status: 'erro',
+      enriquecimento_fonte: 'brasilapi',
+      enriquecimento_ultima_execucao: new Date().toISOString(),
+      enriquecimento_erro: erro
+    }, { accountId });
+    if (error?.code === 'BRASILAPI_REJEITOU_CNPJ' || error?.status === 422) {
+      throw new ValidationError(erro, { domain: 'clientes-crm', code: 'BRASILAPI_REJEITOU_CNPJ' });
+    }
+    if (error?.code === 'BRASILAPI_UNAVAILABLE') {
+      throw error;
+    }
+    throw new DatabaseError('Falha ao consultar BrasilAPI', { domain: 'clientes-crm', details: { message: erro } });
+  }
+
+  return persistClienteEnrichment(cliente, buildEnrichmentUpdateFromBrasilApi(payload), { accountId });
 }

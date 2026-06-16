@@ -18,6 +18,10 @@ export async function fetchPedidoDetailsForCliente(apiClient, pedidoId) {
   return apiClient.get(`/pedidos/${pedidoId}`);
 }
 
+export async function enriquecerCliente(apiClient, clienteId) {
+  return apiClient.post(`/clientes/${clienteId}/enriquecer`);
+}
+
 export async function fetchClienteDetailsData(apiClient, clienteId) {
   const [clienteResponse, pedidosResponse] = await Promise.all([
     apiClient.get(`/clientes/${clienteId}`),

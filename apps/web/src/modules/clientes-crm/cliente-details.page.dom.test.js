@@ -327,3 +327,129 @@ test('cliente details comercial atualiza valor do pedido e resumo do grupo quand
 
   teardownFrontendDom(dom);
 });
+
+test('cliente details mostra aba de enriquecimento e executa enriquecimento manual', async () => {
+  const dom = setupFrontendDom('#/clientes/c1');
+  const root = document.getElementById('root');
+  const calls = [];
+  let resolvePost;
+  const postPromise = new Promise((resolve) => { resolvePost = resolve; });
+  const apiClient = {
+    get: async (url, params = {}) => {
+      calls.push({ method: 'GET', url, params });
+      if (url === '/clientes/c1') {
+        return {
+          item: {
+            id: 'c1',
+            empresa: 'Cliente A',
+            cidade: 'São Paulo',
+            estado: 'SP',
+            created_at: '2026-05-01T00:00:00.000Z',
+            status: 'ativo',
+            enriquecimento_status: 'pendente'
+          }
+        };
+      }
+      if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
+      return { items: [] };
+    },
+    post: async (url) => {
+      calls.push({ method: 'POST', url });
+      if (url === '/clientes/c1/enriquecer') {
+        return postPromise;
+      }
+      throw new Error('unexpected post');
+    }
+  };
+
+  renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
+  await flush();
+  await flush();
+
+  root.querySelector('[data-tab="enriquecimento"]')?.click();
+  await flush();
+  await flush();
+
+  assert.match(root.textContent, /Enriquecimento/);
+  assert.match(root.textContent, /Pendente/);
+  assert.match(root.textContent, /Enriquecer CNPJ/);
+
+  root.querySelector('#nho2d-enrich')?.click();
+  await flush();
+  assert.match(root.textContent, /Enriquecendo dados/);
+  resolvePost({
+    item: {
+      id: 'c1',
+      razao_social: 'Empresa LTDA',
+      nome_fantasia: 'Empresa',
+      situacao_cadastral: 'ATIVA',
+      data_abertura: '2020-01-02',
+      cnae_principal: 'Comercio varejista',
+      email_enriquecido: 'contato@empresa.com',
+      telefone_enriquecido: '1133334444',
+      cep: '01001000',
+      logradouro: 'Rua A',
+      numero: '100',
+      complemento: 'Sala 1',
+      bairro: 'Centro',
+      cidade: 'São Paulo',
+      estado: 'SP',
+      enriquecimento_status: 'concluido',
+      enriquecimento_ultima_execucao: '2026-06-16T21:00:00.000Z',
+      enriquecimento_fonte: 'brasilapi',
+      enriquecimento_erro: null,
+      enriquecimento_payload: { origem: 'mock' }
+    }
+  });
+  await flush();
+  await flush();
+
+  assert.match(root.textContent, /Dados enriquecidos com sucesso/);
+  assert.match(root.textContent, /Empresa LTDA/);
+  assert.match(root.textContent, /contato@empresa\.com/);
+  assert.ok(calls.some((call) => call.method === 'POST' && call.url === '/clientes/c1/enriquecer'));
+
+  teardownFrontendDom(dom);
+});
+
+test('cliente details mostra erro claro ao falhar enriquecimento', async () => {
+  const dom = setupFrontendDom('#/clientes/c1');
+  const root = document.getElementById('root');
+  const apiClient = {
+    get: async (url, params = {}) => {
+      if (url === '/clientes/c1') {
+        return {
+          item: {
+            id: 'c1',
+            empresa: 'Cliente A',
+            cidade: 'São Paulo',
+            estado: 'SP',
+            created_at: '2026-05-01T00:00:00.000Z',
+            status: 'ativo'
+          }
+        };
+      }
+      if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
+      return { items: [] };
+    },
+    post: async () => {
+      const error = new Error('BrasilAPI retornou status 404: CNPJ nao encontrado');
+      error.status = 422;
+      throw error;
+    }
+  };
+
+  renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
+  await flush();
+  await flush();
+  root.querySelector('[data-tab="enriquecimento"]')?.click();
+  await flush();
+  await flush();
+  root.querySelector('#nho2d-enrich')?.click();
+  await flush();
+  await flush();
+
+  assert.match(root.textContent, /BrasilAPI retornou status 404/);
+
+  teardownFrontendDom(dom);
+});

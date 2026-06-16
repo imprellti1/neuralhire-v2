@@ -16,6 +16,7 @@ export const ROUTE_PERMISSIONS = {
   'GET /clientes/:id': { authenticated: true, permission: 'clientes:read', tenantRequired: true, domain: 'clientes-crm' },
   'POST /clientes': { authenticated: true, permission: 'clientes:write', tenantRequired: true, domain: 'clientes-crm' },
   'PATCH /clientes/:id': { authenticated: true, permission: 'clientes:write', tenantRequired: true, domain: 'clientes-crm' },
+  'POST /clientes/:id/enriquecer': { authenticated: true, permission: 'clientes:write', tenantRequired: true, domain: 'clientes-crm' },
   'GET /fabricantes': { authenticated: true, permission: 'fabricantes:read', tenantRequired: true, domain: 'fabricantes' },
   'GET /fabricantes/:id': { authenticated: true, permission: 'fabricantes:read', tenantRequired: true, domain: 'fabricantes' },
   'POST /fabricantes': { authenticated: true, permission: 'fabricantes:write', tenantRequired: true, domain: 'fabricantes' },

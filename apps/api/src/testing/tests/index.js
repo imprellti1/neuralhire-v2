@@ -24,6 +24,7 @@ const suiteSpecs = [
   ['Payload Limit', './payload-limit.test.js', 'getPayloadLimitTests'],
   ['Scopes', './scopes.test.js', 'getScopesTests'],
   ['Clientes Repository', './clientes-repository.test.js', 'getClientesRepositoryTests'],
+  ['Clientes Enrichment', './clientes-enrichment.test.js', 'getClientesEnrichmentTests'],
   ['Grupos Comerciais', './grupos-comerciais.test.js', 'getGruposComerciaisTests'],
   ['Clientes Pagination', './clientes-pagination.test.js', 'getClientesPaginationTests'],
   ['Clientes Tenant', './clientes-tenant.test.js', 'getClientesTenantTests'],

@@ -1,5 +1,5 @@
 import { createClienteDetailsState } from './cliente-details.state.js';
-import { fetchClienteDetailsData, fetchPedidoDetailsForCliente } from './cliente-details.service.js';
+import { enriquecerCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente } from './cliente-details.service.js';
 
 function fmtCurrency(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 function fmtDate(v) {
@@ -107,6 +107,8 @@ function getProdutoResumo(item = {}) {
 export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   const state = createClienteDetailsState();
   let activeTab = 'geral';
+  let enrichmentLoading = false;
+  let feedbackMessage = '';
   const groupAccordionState = new Map();
   const pedidoAccordionState = new Map();
   const pedidoItemDetails = new Map();
@@ -178,7 +180,19 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   function getTabLabel(key) {
     if (key === 'comercial') return 'Comercial';
     if (key === 'crm') return 'CRM';
+    if (key === 'enriquecimento') return 'Enriquecimento';
     return 'Geral';
+  }
+
+  function safeValue(value) {
+    const text = String(value || '').trim();
+    return text || 'Não informado';
+  }
+
+  function formatDateFriendly(value) {
+    if (!value) return 'Não informado';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? 'Não informado' : date.toLocaleString('pt-BR');
   }
 
   function getPedidoItems(pedido) {
@@ -203,7 +217,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         <button id="nhcd-back" class="nho2-btn" style="background:#fff;color:#1f56dc">Voltar</button>
       </div>
       <div class="nho2d-tabs" role="tablist" aria-label="Detalhes do cliente">
-        ${['geral', 'comercial', 'crm'].map((tab) => `<button class="nho2d-tab ${activeTab === tab ? 'is-active' : ''}" data-tab="${tab}" role="tab" aria-selected="${activeTab === tab ? 'true' : 'false'}">${getTabLabel(tab)}</button>`).join('')}
+        ${['geral', 'comercial', 'crm', 'enriquecimento'].map((tab) => `<button class="nho2d-tab ${activeTab === tab ? 'is-active' : ''}" data-tab="${tab}" role="tab" aria-selected="${activeTab === tab ? 'true' : 'false'}">${getTabLabel(tab)}</button>`).join('')}
       </div>
     `;
   }
@@ -378,6 +392,61 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     return `<article class="nho2d-card"><h3>CRM</h3><div class="nho2d-table-wrap"><table class="nho2d-table"><thead><tr><th>Data</th><th>Canal</th><th>Responsável</th><th>Resumo</th></tr></thead><tbody>${conversations.map((c) => `<tr><td>${fmtDateTime(c.data)}</td><td>${safeText(c.canal)}</td><td>${safeText(c.responsavel)}</td><td>${safeText(c.resumo)}</td></tr>`).join('')}</tbody></table></div></article>`;
   }
 
+  function renderEnriquecimento(d) {
+    const status = safeValue(d?.enriquecimento_status ? String(d.enriquecimento_status).replace(/^./, (m) => m.toUpperCase()) : 'Pendente');
+    const payloadText = d?.enriquecimento_payload && Object.keys(d.enriquecimento_payload || {}).length ? JSON.stringify(d.enriquecimento_payload, null, 2) : '';
+    return `
+      <div class="nho2d-section">
+        <article class="nho2d-card">
+          <div class="nho2d-header" style="margin-bottom:12px">
+            <div>
+              <h3 style="margin:0 0 4px">Enriquecimento</h3>
+              <div class="nho2d-sub">Consulta manual da BrasilAPI por CNPJ.</div>
+            </div>
+            <button id="nho2d-enrich" class="nho2-btn" ${enrichmentLoading ? 'disabled' : ''}>${enrichmentLoading ? 'Enriquecendo dados...' : 'Enriquecer CNPJ'}</button>
+          </div>
+          ${feedbackMessage ? `<div class="nho2d-crm-empty" style="margin-bottom:12px">${safeText(feedbackMessage, '')}</div>` : ''}
+          <dl class="nho2d-dl">
+            <dt class="nho2d-dt">Status do enriquecimento</dt><dd class="nho2d-dd">${status}</dd>
+            <dt class="nho2d-dt">Última execução</dt><dd class="nho2d-dd">${formatDateFriendly(d?.enriquecimento_ultima_execucao)}</dd>
+            <dt class="nho2d-dt">Fonte</dt><dd class="nho2d-dd">${safeValue(d?.enriquecimento_fonte)}</dd>
+            <dt class="nho2d-dt">Erro</dt><dd class="nho2d-dd">${safeValue(d?.enriquecimento_erro)}</dd>
+          </dl>
+        </article>
+        <article class="nho2d-card">
+          <h3>Dados oficiais</h3>
+          <dl class="nho2d-dl">
+            <dt class="nho2d-dt">Razão social</dt><dd class="nho2d-dd">${safeValue(d?.razao_social)}</dd>
+            <dt class="nho2d-dt">Nome fantasia</dt><dd class="nho2d-dd">${safeValue(d?.nome_fantasia)}</dd>
+            <dt class="nho2d-dt">Situação cadastral</dt><dd class="nho2d-dd">${safeValue(d?.situacao_cadastral)}</dd>
+            <dt class="nho2d-dt">Data de abertura</dt><dd class="nho2d-dd">${safeValue(d?.data_abertura)}</dd>
+            <dt class="nho2d-dt">CNAE principal</dt><dd class="nho2d-dd">${safeValue(d?.cnae_principal)}</dd>
+          </dl>
+        </article>
+        <article class="nho2d-card">
+          <h3>Contato enriquecido</h3>
+          <dl class="nho2d-dl">
+            <dt class="nho2d-dt">E-mail enriquecido</dt><dd class="nho2d-dd">${safeValue(d?.email_enriquecido)}</dd>
+            <dt class="nho2d-dt">Telefone enriquecido</dt><dd class="nho2d-dd">${safeValue(d?.telefone_enriquecido)}</dd>
+          </dl>
+        </article>
+        <article class="nho2d-card">
+          <h3>Endereço oficial</h3>
+          <dl class="nho2d-dl">
+            <dt class="nho2d-dt">CEP</dt><dd class="nho2d-dd">${safeValue(d?.cep)}</dd>
+            <dt class="nho2d-dt">Logradouro</dt><dd class="nho2d-dd">${safeValue(d?.logradouro)}</dd>
+            <dt class="nho2d-dt">Número</dt><dd class="nho2d-dd">${safeValue(d?.numero)}</dd>
+            <dt class="nho2d-dt">Complemento</dt><dd class="nho2d-dd">${safeValue(d?.complemento)}</dd>
+            <dt class="nho2d-dt">Bairro</dt><dd class="nho2d-dd">${safeValue(d?.bairro)}</dd>
+            <dt class="nho2d-dt">Cidade</dt><dd class="nho2d-dd">${safeValue(d?.cidade)}</dd>
+            <dt class="nho2d-dt">Estado</dt><dd class="nho2d-dd">${safeValue(d?.uf)}</dd>
+          </dl>
+        </article>
+        ${d?.enriquecimento_payload && Object.keys(d.enriquecimento_payload || {}).length ? `<article class="nho2d-card"><h3>Payload bruto</h3><pre style="white-space:pre-wrap;word-break:break-word;margin:0">${safeText(payloadText, '')}</pre></article>` : ''}
+      </div>
+    `;
+  }
+
   function renderGruposComerciais(d) {
     const grupos = Array.isArray(d?.gruposComerciais) ? d.gruposComerciais : [];
     return `<article class="nho2d-card"><h3>Grupos Comerciais</h3>${grupos.length ? `<div class="nho2d-stack">${grupos.map((grupo) => `<div class="nho2d-crm-empty"><strong>${safeText(grupo.nome)}</strong>${grupo.descricao ? `<div class="nho2d-item-note">${safeText(grupo.descricao)}</div>` : ''}</div>`).join('')}</div>` : '<div class="nho2d-crm-empty">Nenhum grupo comercial vinculado.</div>'}</article>`;
@@ -394,6 +463,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       ${activeTab === 'geral' ? renderGeral(d) : ''}
       ${activeTab === 'comercial' ? renderComercial(d) : ''}
       ${activeTab === 'crm' ? renderCrm(d) : ''}
+      ${activeTab === 'enriquecimento' ? renderEnriquecimento(d) : ''}
     </section>`;
   }
 
@@ -426,6 +496,24 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     root.querySelectorAll('[data-tab]').forEach((button) => {
       button.onclick = () => { activeTab = button.getAttribute('data-tab') || 'geral'; render(); };
     });
+    const enrichBtn = root.querySelector('#nho2d-enrich');
+    if (enrichBtn) {
+      enrichBtn.onclick = async () => {
+        enrichmentLoading = true;
+        feedbackMessage = 'Enriquecendo dados...';
+        render();
+        try {
+          const response = await enriquecerCliente(apiClient, clienteId);
+          state.data = response?.item ? { ...state.data, ...response.item } : state.data;
+          feedbackMessage = 'Dados enriquecidos com sucesso.';
+        } catch (error) {
+          feedbackMessage = error?.message || 'Falha ao enriquecer cliente.';
+        } finally {
+          enrichmentLoading = false;
+          render();
+        }
+      };
+    }
     root.querySelectorAll('[data-toggle-group]').forEach((button) => {
       button.onclick = () => {
         const groupKey = button.getAttribute('data-toggle-group');

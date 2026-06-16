@@ -119,5 +119,38 @@ export function mapClienteDetailsData({ cliente = null, pedidos = [], clienteId 
   const gruposComerciais = Array.isArray(normalizedCliente?.gruposComerciais)
     ? normalizedCliente.gruposComerciais.map((grupo) => ({ id: grupo.id, nome: grupo.nome, descricao: grupo.descricao || null }))
     : [];
-  return { id: normalizedCliente?.id, nomeEmpresa: getClienteNome(normalizedCliente), status: statusCliente, hasExplicitStatus: Boolean(normalizeStatus(normalizedCliente?.status)), cidade: normalizedCliente?.cidade || '', uf: normalizedCliente?.estado || normalizedCliente?.uf || '', dataCadastro, dadosCliente: { empresa: normalizedCliente?.empresa, razaoSocial: normalizedCliente?.razao_social, contato: normalizedCliente?.nome_contato || normalizedCliente?.nome, telefone: normalizedCliente?.telefone, email: normalizedCliente?.email, documento: normalizedCliente?.documento || normalizedCliente?.cnpj || normalizedCliente?.cpf, cidade: normalizedCliente?.cidade, uf: normalizedCliente?.estado || normalizedCliente?.uf, status: normalizeStatus(normalizedCliente?.status), dataCadastro, vendedor: normalizedCliente?.vendedor || normalizedCliente?.responsavel_comercial || normalizedCliente?.vendedor_nome || '' }, kpis: { faturamentoTotal, totalPedidos, ticketMedio, ultimaCompra: pedidosComData[0]?._billingDate || pedidosComData[0]?._fallbackDate || null, ultimaCompraLabel: getFriendlyLastPurchaseLabel(pedidosComData[0]?._billingDate || pedidosComData[0]?._fallbackDate || null) }, ultimosPedidos, pedidosAgrupados, produtosComprados, gruposComerciais, crmConversations: [], auditoria: { criadoEm: dataCadastro, atualizadoEm: asDate(normalizedCliente?.updated_at || normalizedCliente?.updatedAt), origem: normalizedCliente?.origem || null } };
+  return {
+    id: normalizedCliente?.id,
+    nomeEmpresa: getClienteNome(normalizedCliente),
+    status: statusCliente,
+    hasExplicitStatus: Boolean(normalizeStatus(normalizedCliente?.status)),
+    cidade: normalizedCliente?.cidade || '',
+    uf: normalizedCliente?.estado || normalizedCliente?.uf || '',
+    dataCadastro,
+    razao_social: normalizedCliente?.razao_social || null,
+    nome_fantasia: normalizedCliente?.nome_fantasia || null,
+    cnae_principal: normalizedCliente?.cnae_principal || null,
+    situacao_cadastral: normalizedCliente?.situacao_cadastral || null,
+    data_abertura: normalizedCliente?.data_abertura || null,
+    cep: normalizedCliente?.cep || null,
+    logradouro: normalizedCliente?.logradouro || null,
+    numero: normalizedCliente?.numero || null,
+    complemento: normalizedCliente?.complemento || null,
+    bairro: normalizedCliente?.bairro || null,
+    email_enriquecido: normalizedCliente?.email_enriquecido || null,
+    telefone_enriquecido: normalizedCliente?.telefone_enriquecido || null,
+    enriquecimento_status: normalizedCliente?.enriquecimento_status || null,
+    enriquecimento_ultima_execucao: normalizedCliente?.enriquecimento_ultima_execucao || null,
+    enriquecimento_fonte: normalizedCliente?.enriquecimento_fonte || null,
+    enriquecimento_erro: normalizedCliente?.enriquecimento_erro || null,
+    enriquecimento_payload: normalizedCliente?.enriquecimento_payload || {},
+    dadosCliente: { empresa: normalizedCliente?.empresa, razaoSocial: normalizedCliente?.razao_social, contato: normalizedCliente?.nome_contato || normalizedCliente?.nome, telefone: normalizedCliente?.telefone, email: normalizedCliente?.email, documento: normalizedCliente?.documento || normalizedCliente?.cnpj || normalizedCliente?.cpf, cidade: normalizedCliente?.cidade, uf: normalizedCliente?.estado || normalizedCliente?.uf, status: normalizeStatus(normalizedCliente?.status), dataCadastro, vendedor: normalizedCliente?.vendedor || normalizedCliente?.responsavel_comercial || normalizedCliente?.vendedor_nome || '' },
+    kpis: { faturamentoTotal, totalPedidos, ticketMedio, ultimaCompra: pedidosComData[0]?._billingDate || pedidosComData[0]?._fallbackDate || null, ultimaCompraLabel: getFriendlyLastPurchaseLabel(pedidosComData[0]?._billingDate || pedidosComData[0]?._fallbackDate || null) },
+    ultimosPedidos,
+    pedidosAgrupados,
+    produtosComprados,
+    gruposComerciais,
+    crmConversations: [],
+    auditoria: { criadoEm: dataCadastro, atualizadoEm: asDate(normalizedCliente?.updated_at || normalizedCliente?.updatedAt), origem: normalizedCliente?.origem || null }
+  };
 }
