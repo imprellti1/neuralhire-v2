@@ -43,6 +43,51 @@ test('preview identifica pedido pelo nome do arquivo', async () => {
   assert.equal(preview.body.pedido.numero, '11008');
 });
 
+test('preview aceita headers reais Produto e Descricao sem exigir codigo_produto_erp_original literal', async () => {
+  __resetMemoryPedidosForTests();
+  __resetMemoryProdutosForTests();
+  __resetMemoryClientesForTests();
+  const app = createApiApp();
+  const cliente = await createCliente({ nome: 'Cliente Header Real', codigo: 'CLI-H1' }, { accountId: 'acc-preview-header-real' });
+  await createPedidoFromImport({ cliente_id: cliente.id, numero: '11013', status: 'rascunho', origem: 'manual', total: 0, metadata: {} }, { accountId: 'acc-preview-header-real' });
+  const base64 = makeWorkbook([
+    ['Produto', 'Descricao', 'Cor', 'Tamanho', 'Quantidade', 'Valor Total'],
+    ['850400110.949.00004', 'JOGO DE CAMA EXEMPLO', 'BRANCO', 'UNI', 4, 6856]
+  ]);
+
+  const preview = await call(app, { method: 'POST', url: '/pedidos/itens/importacao/preview', role: 'admin', accountId: 'acc-preview-header-real', body: { arquivo: { fileName: '11013.xlsx', base64 } } });
+
+  assert.equal(preview.res.statusCode, 200);
+  assert.equal(preview.body.erro, undefined);
+  assert.equal(preview.body.erros.length, 0);
+  assert.equal(preview.body.itens.length, 1);
+  assert.equal(preview.body.itens[0].codigo_produto_erp_original, '850400110.949.00004');
+  assert.equal(preview.body.itens[0].nome_produto_original, 'JOGO DE CAMA EXEMPLO');
+  assert.equal(preview.body.itens[0].cor_original, 'BRANCO');
+  assert.equal(preview.body.itens[0].tamanho_original, 'UNI');
+  assert.equal(preview.body.itens[0].quantidade, 4);
+});
+
+test('preview usa Produto como fallback de nome quando Descricao nao existe', async () => {
+  __resetMemoryPedidosForTests();
+  __resetMemoryProdutosForTests();
+  __resetMemoryClientesForTests();
+  const app = createApiApp();
+  const cliente = await createCliente({ nome: 'Cliente Fallback', codigo: 'CLI-H2' }, { accountId: 'acc-preview-fallback' });
+  await createPedidoFromImport({ cliente_id: cliente.id, numero: '11014', status: 'rascunho', origem: 'manual', total: 0, metadata: {} }, { accountId: 'acc-preview-fallback' });
+  const base64 = makeWorkbook([
+    ['Produto', 'Cor', 'Tamanho', 'Quantidade', 'Valor Total'],
+    ['850400110.949.00004', 'BRANCO', 'UNI', 4, 6856]
+  ]);
+
+  const preview = await call(app, { method: 'POST', url: '/pedidos/itens/importacao/preview', role: 'admin', accountId: 'acc-preview-fallback', body: { arquivo: { fileName: '11014.xlsx', base64 } } });
+
+  assert.equal(preview.res.statusCode, 200);
+  assert.equal(preview.body.erros.length, 0);
+  assert.equal(preview.body.itens[0].codigo_produto_erp_original, '850400110.949.00004');
+  assert.equal(preview.body.itens[0].nome_produto_original, '850400110.949.00004');
+});
+
 test('preview nao grava em pedido_itens', async () => {
   __resetMemoryPedidosForTests();
   __resetMemoryProdutosForTests();

@@ -10,10 +10,10 @@ import xlsx from 'xlsx';
 export function getPedidosItensImportTests() {
   return [
     {
-      name: 'parser separa codigo e descricao quando as colunas existem',
+      name: 'parser mapeia Produto para codigo e Descricao para nome',
       run: async () => {
         const ws = xlsx.utils.aoa_to_sheet([
-          ['Produto / Código / SKU', 'Descrição / Nome', 'Cor', 'Tamanho', 'Quantidade', 'Valor Total'],
+          ['Produto', 'Descrição', 'Cor', 'Tamanho', 'Quantidade', 'Valor Total'],
           ['850400110.949.00004', 'JOGO DE CAMA EXEMPLO', 'BRANCO', 'UNI', 4, 6856]
         ]);
         const wb = xlsx.utils.book_new();
@@ -34,7 +34,7 @@ export function getPedidosItensImportTests() {
       name: 'parser usa codigo como fallback quando descricao nao existe',
       run: async () => {
         const ws = xlsx.utils.aoa_to_sheet([
-          ['Produto / Código / SKU', 'Cor', 'Tamanho', 'Quantidade', 'Valor Total'],
+          ['Produto', 'Cor', 'Tamanho', 'Quantidade', 'Valor Total'],
           ['850400110.949.00004', 'BRANCO', 'UNI', 4, 6856]
         ]);
         const wb = xlsx.utils.book_new();

@@ -87,8 +87,8 @@ export function parsePedidosItensWorkbook(buffer) {
 
   const headers = rows[0].map((header) => String(header ?? '').trim());
   const mapping = {
-    codigo_produto_erp_original: findHeaderIndex(headers, ['codigo_produto_erp_original', 'codigo produto erp', 'codigo_erp', 'codigo erp', 'codigo', 'sku', 'referencia', 'referencia erp']),
-    nome_produto_original: findHeaderIndex(headers, ['nome_produto_original', 'nome produto', 'descricao', 'descrição', 'descricao do produto', 'nome', 'produto']),
+    codigo_produto_erp_original: findHeaderIndex(headers, ['codigo_produto_erp_original', 'codigo produto erp', 'codigo produto', 'codigo produto sku', 'codigo produto codigo', 'produto codigo', 'produto', 'codigo', 'sku', 'codigo sku', 'codigo_erp', 'codigo erp', 'referencia', 'referencia erp']),
+    nome_produto_original: findHeaderIndex(headers, ['nome_produto_original', 'nome produto', 'descricao', 'descrição', 'descricao do produto', 'nome', 'produto nome']),
     cor_original: findHeaderIndex(headers, ['cor', 'color', 'variante cor']),
     tamanho_original: findHeaderIndex(headers, ['tamanho_original', 'tamanho', 'grade', 'numero', 'num', 'size']),
     ean_original: findHeaderIndex(headers, ['ean', 'gtin', 'barcode', 'codigo de barras']),
