@@ -26,12 +26,13 @@ test('pedido details page shows emission date in summary and keeps audit dates',
             created_at: '2024-06-10T10:00:00Z',
             updated_at: '2024-06-12T11:30:00Z',
             observacoes: '',
-            total: 150,
+            total: 15000,
             cliente_id: 'cliente-1'
           },
           itens: [
-            { produto_nome: 'FRONHA 50cm x 70cm TRECCENTI', quantidade: 4, valor_unitario: 2260, total_item: 0, status_vinculo: 'vinculado' },
-            { produto_nome: 'FRONHA 50cm x 70cm NOBLESS', quantidade: 4, total_item: 6856, status_vinculo: 'nao_encontrado' }
+            { produto_nome: 'FRONHA 50cm x 70cm TRECCENTI', quantidade: 4, valor_unitario: 1714, total_item: 0, status_vinculo: 'vinculado' },
+            { produto_nome: 'FRONHA 50cm x 70cm NOBLESS', quantidade: 4, valor_unitario: 2260, total_item: 0, status_vinculo: 'nao_encontrado' },
+            { produto_nome: 'TRAVESSEIRO PREMIUM', quantidade: 6, valor_unitario: 10200, total_item: 0, status_vinculo: 'vinculado' }
           ]
         };
       }
@@ -53,7 +54,7 @@ test('pedido details page shows emission date in summary and keeps audit dates',
   assert.ok(root.textContent.includes('Criado em'));
   assert.ok(root.textContent.includes('Atualizado em'));
   assert.ok(root.textContent.includes('Itens do pedido'));
-  assert.ok(root.textContent.includes('2 itens'));
+  assert.ok(root.textContent.includes('3 itens'));
   assert.ok(!root.textContent.includes('Itens importados'));
   assert.ok(!root.textContent.includes('Total de itens'));
   assert.equal(root.querySelector('.nho2d-table-wrap'), null);
@@ -70,13 +71,15 @@ test('pedido details page shows emission date in summary and keeps audit dates',
   assert.ok(compact.includes('Vinculados'));
   assert.ok(compact.includes('Não vinculados'));
   assert.ok(compact.includes('Valor total'));
-  assert.ok(compact.includes('R$ 22,60'));
-  assert.ok(compact.includes('R$ 90,40'));
   assert.ok(compact.includes('R$ 17,14'));
+  assert.ok(compact.includes('R$ 22,60'));
+  assert.ok(compact.includes('R$ 102,00'));
+  assert.ok(compact.includes('R$ 90,40'));
   assert.ok(compact.includes('R$ 68,56'));
-  assert.ok(compact.includes('R$ 158,96'));
+  assert.ok(compact.includes('R$ 612,00'));
+  assert.ok(compact.includes('R$ 770,96'));
   assert.ok(root.querySelector('.nho2d-table-wrap'));
-  assert.ok(root.querySelectorAll('.nho2d-table tbody tr').length >= 2);
+  assert.ok(root.querySelectorAll('.nho2d-table tbody tr').length >= 3);
 
   teardownFrontendDom(dom);
 });
