@@ -257,8 +257,10 @@ export function getPedidosRepositoryTests() {
         __setPedidosSupabaseClientForTests(mock, true);
         try {
           const found = await getPedidoById('pedido-1', { accountId });
-          assertEqual(found.pedido.cliente_nome, 'cliente-fallback');
-          assertEqual(found.pedido.vendedor_nome, 'vendedor-fallback');
+          assertEqual(found.pedido.cliente_nome, null);
+          assertEqual(found.pedido.vendedor_nome, null);
+          assertEqual(found.pedido.cliente, null);
+          assertEqual(found.pedido.vendedor, null);
         } finally {
           __setPedidosSupabaseClientForTests(null, false);
         }

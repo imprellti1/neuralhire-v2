@@ -6,7 +6,7 @@ import { applyOwnerFilter, canAccessAllTenantData, getUserIdFromContext } from '
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { getClienteById } from '../clientes/clientes.repository.js';
 import { getProdutoById } from '../produtos/produtos.repository.js';
-import { getVendedorById } from '../vendedores/vendedores.repository.js';
+import { findVendedorById, findVendedorByIdAnyAccount, getVendedorById } from '../vendedores/vendedores.repository.js';
 import { canTransitionPedidoStatus, isValidPedidoStatus, PEDIDO_STATUS } from './pedidos.schemas.js';
 
 const memoryPedidos = [];
@@ -54,6 +54,26 @@ function resolveClienteDisplayName(cliente = {}, fallback = null) {
   if (isUuid(normalized)) return fallback || null;
   return normalized;
 }
+function resolveClienteAuditDisplayName(cliente = {}, fallback = null) {
+  const candidates = [
+    cliente?.razao_social,
+    cliente?.nome_fantasia,
+    cliente?.nome,
+    cliente?.codigo,
+    fallback
+  ];
+  for (const candidate of candidates) {
+    const normalized = String(candidate || '').trim();
+    if (!normalized) continue;
+    if (isUuid(normalized)) continue;
+    return normalized;
+  }
+  return fallback || null;
+}
+function resolveClienteAuditCodigo(cliente = {}) {
+  const normalized = String(cliente?.codigo || '').trim();
+  return normalized || null;
+}
 function normalizeDateOnlyValue(value) {
   if (value === null || value === undefined || value === '') return null;
   if (value instanceof Date) return toIsoDateOnly(value);
@@ -68,21 +88,11 @@ function normalizeDateOnlyValue(value) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
   return parseBrDateText(text);
 }
-function getPedidoClienteFallback(item = {}) {
-  return item?.cliente_id || '-';
-}
-function getClienteNomeFallback(item = {}) {
-  return getPedidoClienteFallback(item);
-}
-function getPedidoVendedorFallback(item = {}) {
-  return item?.vendedor_id || null;
-}
-
 async function enrichPedidosWithVendedorNome(items = [], accountId) {
   if (!Array.isArray(items) || !items.length) return [];
   const repositoryMode = getPedidosRepositoryMode();
   if (repositoryMode.mode === 'supabase') {
-    const supabase = getSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const supabase = resolveSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const vendedorIds = [...new Set(items.map((i) => i?.vendedor_id).filter(Boolean))];
     if (!vendedorIds.length) return items.map((item) => ({ ...item, vendedor_nome: null, vendedor: null }));
     try {
@@ -120,19 +130,21 @@ async function enrichPedidosWithClienteNome(items = [], accountId) {
   if (!Array.isArray(items) || !items.length) return [];
   const repositoryMode = getPedidosRepositoryMode();
   if (repositoryMode.mode === 'supabase') {
-    const supabase = getSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const supabase = resolveSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const clienteIds = [...new Set(items.map((i) => i?.cliente_id).filter(Boolean))];
-    if (!clienteIds.length) return items.map((item) => ({ ...item, cliente_nome: getClienteNomeFallback(item) }));
+    if (!clienteIds.length) return items.map((item) => ({ ...item, cliente_nome: null, cliente: null }));
     try {
       const { data, error } = await supabase.from('clientes').select('id, nome, codigo').eq('account_id', accountId).in('id', clienteIds);
       if (error) throw new DatabaseError('Falha ao enriquecer pedidos com cliente', { details: error });
       const byId = new Map((data || []).map((c) => [c.id, c]));
       return items.map((item) => {
         const cliente = byId.get(item?.cliente_id);
-        return { ...item, cliente_nome: resolveClienteDisplayName(cliente, getClienteNomeFallback(item)) };
+        return cliente
+          ? { ...item, cliente_nome: resolveClienteDisplayName(cliente, null), cliente: { id: cliente.id, nome: resolveClienteDisplayName(cliente, null) } }
+          : { ...item, cliente_nome: null, cliente: null };
       });
     } catch {
-      return items.map((item) => ({ ...item, cliente_nome: getClienteNomeFallback(item) }));
+      return items.map((item) => ({ ...item, cliente_nome: null, cliente: null }));
     }
   }
 
@@ -142,12 +154,15 @@ async function enrichPedidosWithClienteNome(items = [], accountId) {
     if (!clienteId || byId.has(clienteId)) continue;
     try {
       const cliente = await getClienteById(clienteId, { accountId });
-      byId.set(clienteId, resolveClienteDisplayName(cliente, getClienteNomeFallback({ cliente_id: clienteId })));
+      byId.set(clienteId, cliente ? resolveClienteDisplayName(cliente, null) : null);
     } catch {
-      byId.set(clienteId, getClienteNomeFallback(item));
+      byId.set(clienteId, null);
     }
   }
-  return items.map((item) => ({ ...item, cliente_nome: byId.get(item?.cliente_id) || getClienteNomeFallback(item) }));
+  return items.map((item) => {
+    const clienteNome = byId.get(item?.cliente_id) ?? null;
+    return clienteNome ? { ...item, cliente_nome: clienteNome, cliente: { id: item?.cliente_id || null, nome: clienteNome } } : { ...item, cliente_nome: null, cliente: null };
+  });
 }
 
 export function calculatePedidoTotals(itens = []) {
@@ -160,7 +175,7 @@ export function calculatePedidoTotals(itens = []) {
     const total = round2(subtotal - desconto);
     return { ...item, quantidade, preco_unitario: precoUnitario, desconto, subtotal, total };
   });
-  const totalItens = round2(itensCalculados.reduce((a, i) => a + i.total, 0));
+  const totalItens = round2(itensCalculados.reduce((a, i) => a + i.subtotal, 0));
   return { total: totalItens, itensCalculados };
 }
 
@@ -220,12 +235,15 @@ function normalizeDateValue(value) {
   return date.toISOString().slice(0, 10);
 }
 
-function buildPedidoIssues(pedido = {}, itensCount = 0) {
+function buildPedidoIssues(pedido = {}, itensStats = 0) {
+  const itensCount = Number(itensStats?.total ?? itensStats ?? 0);
+  const itensNaoVinculados = Number(itensStats?.nao_vinculados ?? 0);
   const issues = [];
   const principal = Number(pedido?.comissao_principal_percentual);
   const preposto = Number(pedido?.comissao_preposto_percentual);
   if ((!Number.isFinite(principal) || principal <= 0) && (!Number.isFinite(preposto) || preposto <= 0)) issues.push('sem_comissao');
   if (!Number.isFinite(Number(itensCount)) || Number(itensCount) <= 0) issues.push('sem_itens');
+  else if (itensNaoVinculados > 0) issues.push('itens_nao_vinculados');
   if (!String(pedido?.vendedor_id || '').trim()) issues.push('sem_vendedor');
   if (String(pedido?.status || '').toLowerCase() !== 'faturado_total') issues.push('nao_faturado_total');
   return issues;
@@ -237,15 +255,23 @@ async function getPedidoItensCounts(items = [], accountId) {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const pedidoIds = items.map((item) => item.id);
-    const { data, error } = await supabase.from('pedido_itens').select('pedido_id', { count: 'exact' }).eq('account_id', accountId).in('pedido_id', pedidoIds);
+    const { data, error } = await supabase.from('pedido_itens').select('pedido_id, status_vinculo', { count: 'exact' }).eq('account_id', accountId).in('pedido_id', pedidoIds);
     if (error) throw new DatabaseError('Falha ao contar itens dos pedidos', { details: error });
     const counts = new Map();
     for (const pedidoId of pedidoIds) counts.set(pedidoId, 0);
-    for (const row of data || []) counts.set(row.pedido_id, (counts.get(row.pedido_id) || 0) + 1);
+    for (const row of data || []) {
+      const current = counts.get(row.pedido_id) || { total: 0, nao_vinculados: 0 };
+      current.total += 1;
+      if (String(row.status_vinculo || '') !== 'vinculado') current.nao_vinculados += 1;
+      counts.set(row.pedido_id, current);
+    }
     return counts;
   }
   const counts = new Map();
-  for (const item of items) counts.set(item.id, memoryPedidoItens.filter((pi) => pi.account_id === accountId && pi.pedido_id === item.id).length);
+  for (const item of items) {
+    const rows = memoryPedidoItens.filter((pi) => pi.account_id === accountId && pi.pedido_id === item.id);
+    counts.set(item.id, { total: rows.length, nao_vinculados: rows.filter((pi) => String(pi.status_vinculo || '') !== 'vinculado').length });
+  }
   return counts;
 }
 
@@ -253,11 +279,28 @@ export async function listPedidosAuditoria(filters = {}, options = {}) {
   const result = await listPedidos(filters, options);
   const accountId = options.accountId || null;
   const counts = await getPedidoItensCounts(result.items || [], accountId);
-  const pedidosWithIssues = (result.items || []).map((pedido) => ({
-    ...pedido,
-    itens_count: counts.get(pedido.id) || 0,
-    issues: buildPedidoIssues(pedido, counts.get(pedido.id) || 0)
-  }));
+  const pedidosWithIssues = [];
+  for (const pedido of result.items || []) {
+    let clienteNomeAudit = pedido?.cliente_nome || null;
+    let clienteCodigoAudit = null;
+    if (pedido?.cliente_id) {
+      try {
+        const cliente = await getClienteById(pedido.cliente_id, { accountId });
+        clienteNomeAudit = resolveClienteAuditDisplayName(cliente, clienteNomeAudit);
+        clienteCodigoAudit = resolveClienteAuditCodigo(cliente);
+      } catch {
+        clienteNomeAudit = resolveClienteAuditDisplayName({ nome: pedido?.cliente_nome }, clienteNomeAudit);
+      }
+    }
+    pedidosWithIssues.push({
+      ...pedido,
+      cliente_nome: clienteNomeAudit,
+      cliente_codigo: clienteCodigoAudit,
+      itens_count: counts.get(pedido.id)?.total || 0,
+      itens_nao_vinculados: counts.get(pedido.id)?.nao_vinculados || 0,
+      issues: buildPedidoIssues(pedido, counts.get(pedido.id) || {})
+    });
+  }
   const enrichedVendedores = await enrichPedidosWithVendedorNome(pedidosWithIssues, accountId).catch(() => pedidosWithIssues.map((pedido) => ({ ...pedido, vendedor_nome: null, vendedor: null })));
   const enriched = enrichedVendedores;
   const search = String(filters.search || '').trim().toLowerCase();
@@ -275,16 +318,16 @@ export async function listPedidosAuditoria(filters = {}, options = {}) {
 export async function getPedidoById(id, options = {}) {
   const accountId = options.accountId || null; assertAccountId(accountId);
   if (getPedidosRepositoryMode().mode === 'supabase') {
-    const supabase = getSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const supabase = resolveSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data: pedido, error: pe } = await supabase.from('pedidos').select('*').eq('account_id', accountId).eq('id', id).maybeSingle(); if (pe) throw new DatabaseError('Falha ao buscar pedido', { details: pe }); if (!pedido) throw new NotFoundError('Pedido nao encontrado', { code: 'PEDIDO_NOT_FOUND', domain: 'pedidos-comercial' });
     const { data: itens, error: ie } = await supabase.from('pedido_itens').select('*').eq('account_id', accountId).eq('pedido_id', id).order('created_at', { ascending: true }); if (ie) throw new DatabaseError('Falha ao buscar itens do pedido', { details: ie });
-    const [pedidoComCliente] = await enrichPedidosWithClienteNome([pedido], accountId).catch(() => [pedido]);
-    const [pedidoEnriquecido] = await enrichPedidosWithVendedorNome([pedidoComCliente || pedido], accountId).catch(() => [pedidoComCliente || pedido]);
+    const [pedidoComCliente] = await enrichPedidosWithClienteNome([pedido], accountId).catch(() => [{ ...pedido, cliente_nome: null, cliente: null }]);
+    const [pedidoEnriquecido] = await enrichPedidosWithVendedorNome([pedidoComCliente || { ...pedido, cliente_nome: null, cliente: null }], accountId).catch(() => [pedidoComCliente || { ...pedido, cliente_nome: null, cliente: null }]);
     return { pedido: pedidoEnriquecido || pedidoComCliente || pedido, itens: itens || [] };
   }
   const pedido = memoryPedidos.find((i) => i.id === id && i.account_id === accountId); if (!pedido) throw new NotFoundError('Pedido nao encontrado', { code: 'PEDIDO_NOT_FOUND', domain: 'pedidos-comercial' });
-  const [pedidoComCliente] = await enrichPedidosWithClienteNome([pedido], accountId).catch(() => [pedido]);
-  const [pedidoEnriquecido] = await enrichPedidosWithVendedorNome([pedidoComCliente || pedido], accountId).catch(() => [pedidoComCliente || pedido]);
+  const [pedidoComCliente] = await enrichPedidosWithClienteNome([pedido], accountId).catch(() => [{ ...pedido, cliente_nome: null, cliente: null }]);
+  const [pedidoEnriquecido] = await enrichPedidosWithVendedorNome([pedidoComCliente || { ...pedido, cliente_nome: null, cliente: null }], accountId).catch(() => [pedidoComCliente || { ...pedido, cliente_nome: null, cliente: null }]);
   return { pedido: pedidoEnriquecido || pedidoComCliente || pedido, itens: memoryPedidoItens.filter((i) => i.pedido_id === id && i.account_id === accountId) };
 }
 
@@ -294,8 +337,12 @@ export async function updatePedidoVendedor(id, data = {}, options = {}) {
   const vendedorId = String(data?.vendedor_id || '').trim();
   if (!vendedorId) throw new BadRequestError('Vendedor obrigatorio', { code: 'VALIDATION_ERROR', domain: 'pedidos-comercial' });
   const { pedido } = await getPedidoById(id, { accountId });
-  const vendedor = await getVendedorById(vendedorId, { accountId });
-  if (!vendedor || String(vendedor.account_id || '') !== String(accountId)) throw new ForbiddenError('Vendedor invalido para o tenant', { code: 'TENANT_FORBIDDEN', domain: 'pedidos-comercial' });
+  const vendedor = await findVendedorById(vendedorId, { accountId });
+  if (!vendedor) {
+    const vendedorExistsElsewhere = await findVendedorByIdAnyAccount(vendedorId, { accountId });
+    if (vendedorExistsElsewhere) throw new ForbiddenError('Vendedor invalido para o tenant', { code: 'TENANT_FORBIDDEN', domain: 'pedidos-comercial' });
+    throw new NotFoundError('Vendedor nao encontrado', { code: 'VENDEDOR_NOT_FOUND', domain: 'pedidos-comercial' });
+  }
   if (getPedidosRepositoryMode().mode === 'supabase') {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');

@@ -59,7 +59,23 @@ export function mapPedidoDetailsData(pedidoResponse = {}, historyResponse = {}) 
     const produtoId = item?.produto_id || item?.produtoId || null;
     const produtoRaw = String(item?.produto_nome || item?.produto?.nome || '').trim();
     const produto = produtoRaw && !isUuidLike(produtoRaw) ? produtoRaw : 'Produto não identificado';
-    return { produto, produto_id: produtoId, produtoId, quantidade, valorUnitario, totalItem };
+    return {
+      produto,
+      produto_id: produtoId,
+      produtoId,
+      quantidade,
+      valorUnitario,
+      totalItem,
+      codigo_produto_erp_original: item?.codigo_produto_erp_original || null,
+      nome_produto_original: item?.nome_produto_original || null,
+      cor_original: item?.cor_original || null,
+      tamanho_original: item?.tamanho_original || null,
+      ean_original: item?.ean_original || null,
+      status_vinculo: item?.status_vinculo || null,
+      motivo_vinculo: item?.motivo_vinculo || null,
+      sku_base_extraido: item?.sku_base_extraido || null,
+      sku_esperado: item?.sku_esperado || null
+    };
   });
   const quantidadeItensDistintos = itensMapeados.length;
   const quantidadeTotalVendida = itensMapeados.reduce((acc, item) => acc + Number(item?.quantidade || 0), 0);

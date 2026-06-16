@@ -66,6 +66,7 @@ function fmtMoney(value) {
 function issueLabel(issue) {
   if (issue === 'sem_comissao') return 'Sem comissão';
   if (issue === 'sem_itens') return 'Sem itens';
+  if (issue === 'itens_nao_vinculados') return 'Itens não vinculados';
   if (issue === 'sem_vendedor') return 'Sem vendedor';
   if (issue === 'nao_faturado_total') return 'Não faturado total';
   return issue;
@@ -246,7 +247,7 @@ export function renderPedidosAuditoriaPage(root, { apiClient }) {
         </div>
         <div class="nha2-tools">
           <input id="nha2-search" class="nha2-input" placeholder="Buscar por ERP ou cliente" value="${state.filters.search}">
-          <select id="nha2-issue" class="nha2-select"><option value="">Todos os problemas</option><option value="sem_comissao" ${state.filters.issue === 'sem_comissao' ? 'selected' : ''}>Sem comissão</option><option value="sem_itens" ${state.filters.issue === 'sem_itens' ? 'selected' : ''}>Sem itens</option><option value="nao_faturado_total" ${state.filters.issue === 'nao_faturado_total' ? 'selected' : ''}>Não faturado total</option></select>
+          <select id="nha2-issue" class="nha2-select"><option value="">Todos os problemas</option><option value="sem_comissao" ${state.filters.issue === 'sem_comissao' ? 'selected' : ''}>Sem comissão</option><option value="sem_itens" ${state.filters.issue === 'sem_itens' ? 'selected' : ''}>Sem itens</option><option value="itens_nao_vinculados" ${state.filters.issue === 'itens_nao_vinculados' ? 'selected' : ''}>Itens não vinculados</option><option value="nao_faturado_total" ${state.filters.issue === 'nao_faturado_total' ? 'selected' : ''}>Não faturado total</option></select>
           <select id="nha2-status" class="nha2-select"><option value="">Todos status</option><option value="rascunho" ${state.filters.status === 'rascunho' ? 'selected' : ''}>Rascunho</option><option value="aprovado" ${state.filters.status === 'aprovado' ? 'selected' : ''}>Aprovado</option><option value="confirmado" ${state.filters.status === 'confirmado' ? 'selected' : ''}>Confirmado</option><option value="faturado_total" ${state.filters.status === 'faturado_total' ? 'selected' : ''}>Faturado total</option><option value="cancelado" ${state.filters.status === 'cancelado' ? 'selected' : ''}>Cancelado</option></select>
           <button id="nha2-refresh" class="nha2-btn">Atualizar</button>
         </div>

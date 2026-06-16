@@ -50,6 +50,32 @@ export async function getVendedorById(id, options = {}) {
   const item = memoryVendedores.find((row) => row.id === id && row.account_id === accountId); if (!item) throw new NotFoundError('Vendedor nao encontrado', { domain: 'vendedores', code: 'VENDEDOR_NOT_FOUND' }); return { ...item, fabricantes: listMemoryFabricantes(accountId, id).map((row) => ({ ...row })) };
 }
 
+export async function findVendedorById(id, options = {}) {
+  const accountId = options.accountId || null;
+  if (!accountId) return null;
+  if (isSupabaseMode()) {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data, error } = await supabase.from('vendedores').select('*').eq('account_id', accountId).eq('id', id).maybeSingle();
+    if (error) throw new DatabaseError('Falha ao buscar vendedor', { details: error });
+    return data || null;
+  }
+  return memoryVendedores.find((row) => row.id === id && row.account_id === accountId) || null;
+}
+
+export async function findVendedorByIdAnyAccount(id, options = {}) {
+  const accountId = options.accountId || null;
+  if (!accountId) return null;
+  if (isSupabaseMode()) {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data, error } = await supabase.from('vendedores').select('id, account_id').eq('id', id).maybeSingle();
+    if (error) throw new DatabaseError('Falha ao buscar vendedor', { details: error });
+    return data || null;
+  }
+  return memoryVendedores.find((row) => row.id === id) || null;
+}
+
 export async function createVendedor(data, options = {}) {
   const accountId = options.accountId || null; assertAccountId(accountId);
   const payload = { account_id: accountId, user_id: data.user_id || null, nome: normalizeText(data.nome), email: data.email || null, telefone: data.telefone || null, status: normalizeStatus(data.status), observacoes: data.observacoes || null };

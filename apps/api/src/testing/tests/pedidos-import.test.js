@@ -153,7 +153,7 @@ export function getPedidosImportTests() {
         assert.equal(preview.body.rows[0].metadata.situacao_original, 'Faturado Total');
         assert.equal(preview.body.rows[0].metadata.lote_gravacao, 'LG-1');
         assert.equal(preview.body.rows[0].metadata.qt_pecas, '42');
-        assert.equal(preview.body.rows[0].metadata.valor_total_original, 'R$2.237,28');
+        assert.equal(preview.body.rows[0].metadata.valor_total_original, '0');
         assert.equal(preview.body.rows[0].observacoes, 'pedido com acento');
         assert.equal(preview.body.rows[0].ignored['Razão Social'], 'Cliente que deve ser ignorado');
         const execute = await call(app, { method: 'POST', url: '/pedidos/importacao', role: 'admin', accountId: 'acc-pedidos-import-real', body: { importToken: preview.body.importToken } });

@@ -24,6 +24,19 @@ function statusClass(status) {
   if (s === 'cancelado') return 'is-canceled';
   return 'is-draft';
 }
+function itemLinkClass(status) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'vinculado') return 'is-linked';
+  if (s === 'nao_encontrado') return 'is-unlinked';
+  return 'is-ambiguous';
+}
+function itemLinkLabel(status) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'vinculado') return 'Vinculado';
+  if (s === 'nao_encontrado') return 'Não vinculado';
+  if (s === 'ambiguo') return 'Ambíguo';
+  return status || '-';
+}
 function shortRequestId(requestId) {
   const raw = String(requestId || '').trim();
   if (!raw) return '';
@@ -80,6 +93,9 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId, routeQuery 
     .nho2d-table td{padding:12px;border-top:1px solid rgba(148,163,184,.12);color:#e7eefb}
     .nho2d-table tbody tr:nth-child(even){background:rgba(255,255,255,.015)}
     .nho2d-table tbody tr:hover{background:rgba(79,140,255,.08)}
+    .nho2d-table tr.nho2d-item-unlinked td{background:rgba(248,113,113,.06)}
+    .nho2d-item-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+    .nho2d-item-sku{font-size:12px;color:#91a4c4}
     .nho2d-empty{padding:16px 6px;color:#91a4c4}
     .nho2d-actions{display:flex;flex-wrap:wrap;gap:8px}
     .nho2d-actions .nho2-btn[disabled]{opacity:.55;cursor:not-allowed}
@@ -115,7 +131,7 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId, routeQuery 
     const actions = getStatusActions(d?.statusExibicao);
     const itensRows = editMode
       ? (itensDraft || []).map((item, index) => `<tr><td>${item.produto || 'Produto não identificado'}</td><td><input class="nho2d-input js-item-qty" data-index="${index}" type="number" min="1" value="${item.quantidade ?? 1}" /></td><td class="nho2d-right">${fmtCurrency(item?.valorUnitario)}</td><td class="nho2d-right">${fmtCurrency(Number(item?.valorUnitario || 0) * Number(item?.quantidade || 0))}</td><td><button class="nho2-btn js-remove-item" data-index="${index}" ${itensSaving ? 'disabled' : ''}>Remover</button></td></tr>`).join('')
-      : (d?.itens || []).map((item) => `<tr><td>${item?.produto || 'Produto não identificado'}</td><td>${item?.quantidade ?? 0}</td><td class="nho2d-right">${fmtCurrency(item?.valorUnitario)}</td><td class="nho2d-right">${fmtCurrency(item?.totalItem)}</td></tr>`).join('');
+      : (d?.itens || []).map((item) => `<tr class="${itemLinkClass(item?.status_vinculo)}"><td><div>${item?.produto || item?.nome_produto_original || 'Produto não identificado'}</div><div class="nho2d-item-meta"><span class="nho2-badge ${itemLinkClass(item?.status_vinculo)}">${itemLinkLabel(item?.status_vinculo)}</span>${item?.status_vinculo && item?.status_vinculo !== 'vinculado' ? `<span class="nho2d-item-sku">${item?.motivo_vinculo || 'Item importado sem vínculo com produto/variação cadastrados.'}</span>` : ''}</div></td><td>${item?.quantidade ?? 0}</td><td class="nho2d-right">${fmtCurrency(item?.valorUnitario)}</td><td class="nho2d-right">${fmtCurrency(item?.totalItem)}</td></tr>`).join('');
     const historicoRows = (d?.historico || []).map((h) => `<tr><td>${h?.statusAnterior || ''}</td><td>${h?.statusNovo || ''}</td><td>${fmtDate(h?.data)}</td></tr>`).join('');
     const resumoDataEmissao = fmtDateOnlyUTC(d?.dataEmissao);
     const auditLines = [
@@ -145,6 +161,7 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId, routeQuery 
           ${editMode ? `<div class="nho2d-inline-actions"><select id="nho2d-add-produto" class="nho2d-select"><option value="">Adicionar produto...</option>${produtosCatalog.map((p) => `<option value="${p.id}">${p.nome || p.sku || 'Produto'}</option>`).join('')}</select><button id="nho2d-add-item" class="nho2-btn" ${itensSaving ? 'disabled' : ''}>Adicionar item</button><button id="nho2d-save-itens" class="nho2-btn" ${itensSaving ? 'disabled' : ''}>${itensSaving ? 'Salvando...' : 'Salvar alterações'}</button><button id="nho2d-cancel-itens" class="nho2-btn" style="background:#0b1628;color:#91a4c4;border-color:rgba(148,163,184,.22)" ${itensSaving ? 'disabled' : ''}>Cancelar edição</button></div>` : `<div class="nho2d-inline-actions"><button id="nho2d-edit-itens" class="nho2-btn">Editar itens</button></div>`}
           ${itensMessage ? `<p class="${itensMessage.includes('sucesso') ? 'nho2d-actions-success' : 'nho2d-actions-error'}">${itensMessage}</p>` : ''}
           <div class="nho2d-table-wrap"><table class="nho2d-table"><thead><tr><th>Produto</th><th>Qtde</th><th class="nho2d-right">Unitário</th><th class="nho2d-right">Total</th>${editMode ? '<th>Ações</th>' : ''}</tr></thead><tbody>${itensRows || `<tr><td colspan="${editMode ? 5 : 4}" class="nho2d-empty">Nenhum item encontrado.</td></tr>`}</tbody></table></div></article>
+          ${!editMode ? `<article class="nho2d-card"><h3>Itens importados</h3>${(d?.itens || []).length ? `<div class="nho2d-table-wrap"><table class="nho2d-table"><thead><tr><th>ERP / Origem</th><th>Vínculo</th><th>Cor</th><th>Tamanho</th><th>EAN</th><th>Qtde</th><th>Total</th></tr></thead><tbody>${(d?.itens || []).map((item) => `<tr class="${itemLinkClass(item?.status_vinculo)}"><td><div>${item?.codigo_produto_erp_original || '-'}</div><div class="nho2d-item-sku">${item?.nome_produto_original || '-'}</div></td><td><span class="nho2-badge ${itemLinkClass(item?.status_vinculo)}">${itemLinkLabel(item?.status_vinculo)}</span><div class="nho2d-item-sku">${item?.motivo_vinculo || ''}</div></td><td>${item?.cor_original || '-'}</td><td>${item?.tamanho_original || '-'}</td><td>${item?.ean_original || '-'}</td><td>${item?.quantidade ?? 0}</td><td class="nho2d-right">${fmtCurrency(item?.totalItem)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="nho2d-empty">Nenhum item importado encontrado.</p>'}</article>` : ''}
         </div>
         <div class="nho2d-stack">
           <article class="nho2d-card"><h3>Financeiro</h3><dl class="nho2d-dl"><dt class="nho2d-dt">Total</dt><dd class="nho2d-dd nho2d-right nho2d-total">${fmtCurrency(d?.financeiro?.total)}</dd><dt class="nho2d-dt">Itens distintos</dt><dd class="nho2d-dd nho2d-right">${d?.quantidadeItensDistintos ?? 0}</dd><dt class="nho2d-dt">Quantidade vendida</dt><dd class="nho2d-dd nho2d-right">${d?.quantidadeTotalVendida ?? 0}</dd></dl></article>
