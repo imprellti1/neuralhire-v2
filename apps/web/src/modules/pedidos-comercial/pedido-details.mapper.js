@@ -45,11 +45,6 @@ function getPedidoCode(pedido = {}) {
   return 'Pedido Comercial';
 }
 
-function centsToReais(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n / 100 : 0;
-}
-
 export function mapPedidoDetailsData(pedidoResponse = {}, historyResponse = {}) {
   const pedido = pedidoResponse?.pedido || {};
   const itens = Array.isArray(pedidoResponse?.itens) ? pedidoResponse.itens : [];
@@ -59,10 +54,8 @@ export function mapPedidoDetailsData(pedidoResponse = {}, historyResponse = {}) 
 
   const itensMapeados = itens.map((item) => {
     const quantidade = Number(item?.quantidade ?? 0);
-    const valorUnitarioCentavos = Number(item?.valor_unitario ?? item?.valorUnitario ?? item?.preco_unitario ?? item?.unitario ?? item?.preco ?? 0);
-    const totalItemCentavos = Number(item?.total_item ?? item?.totalItem ?? item?.total ?? item?.valor_total ?? 0);
-    const valorUnitario = centsToReais(valorUnitarioCentavos);
-    const totalItem = totalItemCentavos > 0 ? centsToReais(totalItemCentavos) : quantidade > 0 && valorUnitario > 0 ? quantidade * valorUnitario : 0;
+    const valorUnitario = Number(item?.preco_unitario ?? item?.valor_unitario ?? item?.valorUnitario ?? item?.unitario ?? item?.preco ?? 0);
+    const totalItem = quantidade > 0 && Number.isFinite(valorUnitario) ? quantidade * valorUnitario : 0;
     const produtoId = item?.produto_id || item?.produtoId || null;
     const produtoRaw = String(item?.produto_nome || item?.produto?.nome || '').trim();
     const produto = produtoRaw && !isUuidLike(produtoRaw) ? produtoRaw : 'Produto não identificado';
@@ -73,8 +66,6 @@ export function mapPedidoDetailsData(pedidoResponse = {}, historyResponse = {}) 
       quantidade,
       valorUnitario,
       totalItem,
-      valorUnitarioCentavos,
-      totalItemCentavos,
       codigo_produto_erp_original: item?.codigo_produto_erp_original || null,
       nome_produto_original: item?.nome_produto_original || null,
       cor_original: item?.cor_original || null,

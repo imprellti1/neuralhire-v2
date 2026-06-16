@@ -54,26 +54,13 @@ function getItemQuantidade(item = {}) {
   const quantidade = toPositiveNumber(item?.quantidade ?? item?.qty ?? item?.qtd ?? 0);
   return quantidade;
 }
-function getItemCustoUnitarioExibicao(item = {}) {
-  const quantidade = getItemQuantidade(item);
-  const valorUnitarioCentavos = Number(item?.valorUnitarioCentavos ?? 0);
-  if (valorUnitarioCentavos > 0) return valorUnitarioCentavos / 100;
-  const totalItemCentavos = Number(item?.totalItemCentavos ?? 0);
-  if (totalItemCentavos > 0 && quantidade > 0) return totalItemCentavos / 100 / quantidade;
-  return 0;
-}
-function getItemTotalExibicao(item = {}) {
-  const quantidade = getItemQuantidade(item);
-  const totalItemCentavos = Number(item?.totalItemCentavos ?? 0);
-  if (totalItemCentavos > 0) return totalItemCentavos / 100;
-  const unitario = getItemCustoUnitarioExibicao(item);
-  return quantidade * unitario;
-}
-function getItemCustoUnitario(item = {}) {
-  return getItemCustoUnitarioExibicao(item);
+function getItemValorUnitario(item = {}) {
+  const valor = Number(item?.valorUnitario ?? item?.preco_unitario ?? item?.valor_unitario ?? item?.unitario ?? item?.preco ?? 0);
+  return Number.isFinite(valor) ? valor : 0;
 }
 function getItemTotalCalculado(item = {}) {
-  return getItemTotalExibicao(item);
+  const quantidade = getItemQuantidade(item);
+  return quantidade * getItemValorUnitario(item);
 }
 function getStatusActions(statusExibicao) {
   const status = String(statusExibicao || '').toLowerCase();
@@ -186,13 +173,13 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId, routeQuery 
     const itensRows = editMode
       ? (itensDraft || []).map((item, index) => {
         const quantidade = getItemQuantidade(item) || 1;
-        const custoUnitario = getItemCustoUnitario(item);
+        const custoUnitario = getItemValorUnitario(item);
         const totalItem = quantidade * custoUnitario;
         return `<tr><td>${item.produto || 'Produto não identificado'}</td><td><input class="nho2d-input js-item-qty" data-index="${index}" type="number" min="1" value="${quantidade}" /></td><td class="nho2d-right">${formatBRLFromReais(custoUnitario)}</td><td class="nho2d-right">${formatBRLFromReais(totalItem)}</td><td><button class="nho2-btn js-remove-item" data-index="${index}" ${itensSaving ? 'disabled' : ''}>Remover</button></td></tr>`;
       }).join('')
       : (d?.itens || []).map((item) => {
         const quantidade = getItemQuantidade(item);
-        const custoUnitario = getItemCustoUnitario(item);
+        const custoUnitario = getItemValorUnitario(item);
         const totalItem = getItemTotalCalculado(item);
         return `<tr class="${itemLinkClass(item?.status_vinculo)}"><td><div>${item?.produto || item?.nome_produto_original || 'Produto não identificado'}</div><div class="nho2d-item-meta"><span class="nho2-badge ${itemLinkClass(item?.status_vinculo)}">${itemLinkLabel(item?.status_vinculo)}</span>${item?.status_vinculo && item?.status_vinculo !== 'vinculado' ? `<span class="nho2d-item-sku">${item?.motivo_vinculo || 'Item importado sem vínculo com produto/variação cadastrados.'}</span>` : ''}</div></td><td>${quantidade}</td><td class="nho2d-right">${formatBRLFromReais(custoUnitario)}</td><td class="nho2d-right">${formatBRLFromReais(totalItem)}</td></tr>`;
       }).join('');

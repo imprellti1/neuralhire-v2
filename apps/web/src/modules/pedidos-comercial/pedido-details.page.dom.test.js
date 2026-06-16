@@ -8,7 +8,7 @@ function compactText(node) {
   return String(node?.textContent || '').replace(/\s+/g, ' ').trim();
 }
 
-test('pedido details mapper normalizes item monetary values once', () => {
+test('pedido details mapper uses real item unit prices without dividing by 100', () => {
   const mapped = mapPedidoDetailsData({
     pedido: {
       id: '1',
@@ -20,25 +20,21 @@ test('pedido details mapper normalizes item monetary values once', () => {
       cliente_id: 'cliente-1'
     },
     itens: [
-      { produto_nome: 'FRONHA 50cm x 70cm TRECCENTI', quantidade: 4, valor_unitario: 1714, total_item: 0 },
-      { produto_nome: 'FRONHA 50cm x 70cm NOBLESS', quantidade: 4, valor_unitario: 2260, total_item: 0 },
-      { produto_nome: 'TRAVESSEIRO PREMIUM POPCORN', quantidade: 6, valor_unitario: 10200, total_item: 0 }
+      { produto_nome: 'FRONHA 50cm x 70cm TRECCENTI', quantidade: 4, preco_unitario: 17.14 },
+      { produto_nome: 'FRONHA 50cm x 70cm NOBLESS', quantidade: 4, preco_unitario: 17.22 },
+      { produto_nome: 'TRAVESSEIRO PREMIUM POPCORN', quantidade: 6, preco_unitario: 1.02 }
     ]
   }, { items: [] });
 
   assert.equal(mapped.itens[0].valorUnitario, 17.14);
-  assert.equal(mapped.itens[0].valorUnitarioCentavos, 1714);
   assert.equal(mapped.itens[0].totalItem, 68.56);
-  assert.equal(mapped.itens[0].totalItemCentavos, 0);
-  assert.equal(mapped.itens[1].valorUnitario, 22.6);
-  assert.equal(mapped.itens[1].valorUnitarioCentavos, 2260);
-  assert.equal(mapped.itens[1].totalItem, 90.4);
-  assert.equal(mapped.itens[2].valorUnitario, 102);
-  assert.equal(mapped.itens[2].valorUnitarioCentavos, 10200);
-  assert.equal(mapped.itens[2].totalItem, 612);
+  assert.equal(mapped.itens[1].valorUnitario, 17.22);
+  assert.equal(mapped.itens[1].totalItem, 68.88);
+  assert.equal(mapped.itens[2].valorUnitario, 1.02);
+  assert.equal(mapped.itens[2].totalItem, 6.12);
 });
 
-test('pedido details page renders item prices from centavos without double conversion', async () => {
+test('pedido details page renders item prices from reais without dividing by 100', async () => {
   const dom = setupFrontendDom('#/pedidos/1');
   const root = document.getElementById('root');
   const apiClient = {
@@ -59,9 +55,9 @@ test('pedido details page renders item prices from centavos without double conve
             cliente_id: 'cliente-1'
           },
           itens: [
-            { produto_nome: 'FRONHA 50cm x 70cm NOBLESS', quantidade: 1, valor_unitario: 1714, total_item: 1714, status_vinculo: 'vinculado' },
-            { produto_nome: 'FRONHA 50cm x 70cm TRECCENTI', quantidade: 1, valor_unitario: 2260, total_item: 2260, status_vinculo: 'nao_encontrado' },
-            { produto_nome: 'TRAVESSEIRO PREMIUM POPCORN', quantidade: 1, valor_unitario: 10200, total_item: 10200, status_vinculo: 'vinculado' }
+            { produto_nome: 'FRONHA 50cm x 70cm NOBLESS', quantidade: 4, preco_unitario: 17.14, status_vinculo: 'vinculado' },
+            { produto_nome: 'FRONHA 50cm x 70cm TRECCENTI', quantidade: 4, preco_unitario: 17.22, status_vinculo: 'nao_encontrado' },
+            { produto_nome: 'TRAVESSEIRO PREMIUM POPCORN', quantidade: 6, preco_unitario: 1.02, status_vinculo: 'vinculado' }
           ]
         };
       }
@@ -81,14 +77,10 @@ test('pedido details page renders item prices from centavos without double conve
 
   const compact = compactText(root);
   assert.ok(compact.includes('R$ 17,14'));
-  assert.ok(compact.includes('R$ 22,60'));
-  assert.ok(compact.includes('R$ 102,00'));
   assert.ok(compact.includes('R$ 17,14'));
-  assert.ok(compact.includes('R$ 22,60'));
-  assert.ok(compact.includes('R$ 102,00'));
-  assert.ok(!compact.includes('R$ 0,17'));
-  assert.ok(!compact.includes('R$ 0,02'));
-  assert.ok(!compact.includes('R$ 0,01'));
+  assert.ok(compact.includes('R$ 17,22'));
+  assert.ok(compact.includes('R$ 68,56'));
+  assert.ok(compact.includes('R$ 6,12'));
 
   teardownFrontendDom(dom);
 });
@@ -116,9 +108,9 @@ test('pedido details page shows emission date in summary and keeps audit dates',
             cliente_id: 'cliente-1'
           },
           itens: [
-            { produto_nome: 'FRONHA 50cm x 70cm TRECCENTI', quantidade: 1, valor_unitario: 1714, total_item: 1714, status_vinculo: 'vinculado' },
-            { produto_nome: 'FRONHA 50cm x 70cm NOBLESS', quantidade: 1, valor_unitario: 2260, total_item: 2260, status_vinculo: 'nao_encontrado' },
-            { produto_nome: 'TRAVESSEIRO PREMIUM POPCORN', quantidade: 1, valor_unitario: 10200, total_item: 10200, status_vinculo: 'vinculado' }
+            { produto_nome: 'FRONHA 50cm x 70cm TRECCENTI', quantidade: 4, preco_unitario: 17.14, status_vinculo: 'vinculado' },
+            { produto_nome: 'FRONHA 50cm x 70cm NOBLESS', quantidade: 4, preco_unitario: 17.22, status_vinculo: 'nao_encontrado' },
+            { produto_nome: 'TRAVESSEIRO PREMIUM POPCORN', quantidade: 6, preco_unitario: 1.02, status_vinculo: 'vinculado' }
           ]
         };
       }
@@ -158,8 +150,10 @@ test('pedido details page shows emission date in summary and keeps audit dates',
   assert.ok(compact.includes('Não vinculados'));
   assert.ok(compact.includes('Valor total'));
   assert.ok(compact.includes('R$ 17,14'));
-  assert.ok(compact.includes('R$ 22,60'));
-  assert.ok(compact.includes('R$ 102,00'));
+  assert.ok(compact.includes('R$ 17,22'));
+  assert.ok(compact.includes('R$ 1,02'));
+  assert.ok(compact.includes('R$ 68,56'));
+  assert.ok(compact.includes('R$ 6,12'));
   assert.ok(root.querySelector('.nho2d-table-wrap'));
   assert.ok(root.querySelectorAll('.nho2d-table tbody tr').length >= 3);
 
