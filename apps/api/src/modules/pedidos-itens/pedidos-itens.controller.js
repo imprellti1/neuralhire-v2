@@ -48,7 +48,13 @@ export async function previewPedidosItensImportHandler(context = {}) {
   if (!fileName) throw new BadRequestError('Nome do arquivo obrigatorio para identificar o pedido', { domain: 'pedidos-itens' });
   const preview = await previewPedidosItensImport({ accountId, fileName, buffer });
   const importToken = randomUUID();
-  previewSessions.set(importToken, { accountId, fileName, buffer, createdAt: new Date().toISOString() });
+  previewSessions.set(importToken, {
+    accountId,
+    fileName,
+    buffer,
+    previewItems: preview.itens || [],
+    createdAt: new Date().toISOString()
+  });
   return { ...preview, importToken };
 }
 
@@ -61,7 +67,12 @@ export async function executePedidosItensImportHandler(context = {}) {
     if (!session || String(session.accountId || '') !== String(accountId)) {
       throw new BadRequestError('Prévia da importação não encontrada.', { domain: 'pedidos-itens', code: 'IMPORT_TOKEN_INVALID' });
     }
-    return executePedidosItensImport({ accountId, fileName: session.fileName, buffer: session.buffer });
+    return executePedidosItensImport({
+      accountId,
+      fileName: session.fileName,
+      buffer: session.buffer,
+      previewItems: session.previewItems
+    });
   }
   const file = body.file || body.arquivo || body.xlsx || null;
   const buffer = parseBase64File(file);

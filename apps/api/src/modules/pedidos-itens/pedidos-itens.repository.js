@@ -152,12 +152,9 @@ async function findPedidoByNumero(accountId, numero) {
 }
 
 function buildPedidoItemRow({ accountId, pedidoId, row = {}, match = {} }) {
-  const produtoNome = row.produto_nome
-    || match?.produto_nome
-    || (match?.status_vinculo === 'vinculado' ? row.nome_produto_original : null)
-    || row.nome_produto_original
-    || row.codigo_produto_erp_original
-    || null;
+  const produtoNome = match?.status_vinculo === 'vinculado'
+    ? (row.produto_nome || match?.produto_nome || row.nome_produto_original || row.codigo_produto_erp_original || null)
+    : (row.produto_nome || row.nome_produto_original || row.codigo_produto_erp_original || null);
   const precoUnitario = resolvePrecoUnitario(row);
   const valorTotal = normalizeSpreadsheetMoney(row.valor_total, { fallback: null });
   const valorUnitario = normalizeSpreadsheetMoney(row.valor_unitario ?? row.preco_unitario, { fallback: null });
@@ -283,18 +280,6 @@ async function deletePedidoItensByPedido(accountId, pedidoId) {
 
 async function insertPedidoItens(accountId, pedidoId, rows = []) {
   const payload = rows.map((row) => buildPedidoItemRow({ accountId, pedidoId, row, match: row }));
-  if (payload.length) {
-    logger.debug('[pedidos-itens.repository] Primeiro payload final para insert', {
-      account_id: accountId,
-      pedido_id: pedidoId,
-      payload: {
-        status_vinculo: payload[0]?.status_vinculo ?? null,
-        produto_nome: payload[0]?.produto_nome ?? null,
-        nome_produto_original: payload[0]?.nome_produto_original ?? null,
-        codigo_produto_erp_original: payload[0]?.codigo_produto_erp_original ?? null
-      }
-    });
-  }
   if (mode() === 'supabase') {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
@@ -322,46 +307,55 @@ async function insertPedidoItens(accountId, pedidoId, rows = []) {
   return items;
 }
 
-export async function executePedidosItensImport({ accountId, fileName, buffer }) {
+export async function executePedidosItensImport({ accountId, fileName, buffer, previewItems = null }) {
   assertAccountId(accountId);
   const pedidoNumero = normalizeFileNumber(fileName);
   const pedido = await findPedidoByNumero(accountId, pedidoNumero);
   const parsed = parsePedidosItensWorkbook(buffer);
   const itens = [];
 
-  for (const row of parsed.dataRows) {
+  for (let index = 0; index < parsed.dataRows.length; index += 1) {
+    const row = parsed.dataRows[index];
     const skuBase = extractSkuBase(row.codigo_produto_erp_original);
     const skuEsperado = buildExpectedSku(skuBase, row.tamanho_original);
     const candidates = await findVariationCandidates(accountId, skuEsperado);
     const match = classifyVariationMatch({ candidates, corOriginal: row.cor_original, tamanhoOriginal: row.tamanho_original });
     let produtoId = null;
     let variacaoId = null;
+    let produtoNome = null;
+    let variacaoSku = null;
     if (match.status_vinculo === 'vinculado') {
       produtoId = match.matchedCandidate?.produto_id || null;
       variacaoId = match.matchedCandidate?.id || null;
+      produtoNome = match.matchedCandidate?.produto_nome || null;
+      variacaoSku = match.matchedCandidate?.sku || null;
     }
-    if (itens.length < 3) {
-      logger.debug('[pedidos-itens.repository] Item antes do insert', {
-        account_id: accountId,
-        pedido_id: pedido.id,
-        item: {
-          status_vinculo: match.status_vinculo || null,
-          produto_nome: match.matchedCandidate?.produto_nome || null,
-          nome_produto_original: row.nome_produto_original || null,
-          codigo_produto_erp_original: row.codigo_produto_erp_original || null
-        }
-      });
-    }
-    itens.push({
+    const previewItem = Array.isArray(previewItems) ? previewItems[index] : null;
+    const enrichedRow = previewItem ? {
+      ...previewItem,
+      status_vinculo: previewItem.status_vinculo || match.status_vinculo,
+      motivo_vinculo: previewItem.motivo_vinculo || match.motivo_vinculo,
+      produto_id: previewItem.produto_id ?? produtoId,
+      variacao_id: previewItem.variacao_id ?? variacaoId,
+      produto_nome: previewItem.produto_nome ?? produtoNome,
+      variacao_sku: previewItem.variacao_sku ?? variacaoSku,
+      sku_base_extraido: previewItem.sku_base_extraido ?? skuBase,
+      sku_esperado: previewItem.sku_esperado ?? skuEsperado
+    } : {
       ...row,
-      valor_total: normalizeSpreadsheetMoney(row.valor_total, { fallback: row.valor_total ?? null }),
-      valor_unitario: normalizeSpreadsheetMoney(row.valor_unitario ?? row.preco_unitario, { fallback: row.valor_unitario ?? row.preco_unitario ?? null }),
       sku_base_extraido: skuBase,
       sku_esperado: skuEsperado,
       status_vinculo: match.status_vinculo,
       motivo_vinculo: match.motivo_vinculo,
       produto_id: produtoId,
-      variacao_id: variacaoId
+      variacao_id: variacaoId,
+      produto_nome: produtoNome,
+      variacao_sku: variacaoSku
+    };
+    itens.push({
+      ...enrichedRow,
+      valor_total: normalizeSpreadsheetMoney(enrichedRow.valor_total, { fallback: enrichedRow.valor_total ?? null }),
+      valor_unitario: normalizeSpreadsheetMoney(enrichedRow.valor_unitario ?? enrichedRow.preco_unitario, { fallback: enrichedRow.valor_unitario ?? enrichedRow.preco_unitario ?? null })
     });
   }
 

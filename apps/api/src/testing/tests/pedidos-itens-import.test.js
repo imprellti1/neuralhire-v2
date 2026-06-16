@@ -123,6 +123,57 @@ export function getPedidosItensImportTests() {
       }
     },
     {
+      name: 'execute preserva produto_nome enriquecido do preview no insert',
+      run: async () => {
+        __resetMemoryPedidosForTests();
+        __resetMemoryProdutosForTests();
+        __resetMemoryClientesForTests();
+
+        const cliente = await createCliente({ nome: 'Cliente Preview', codigo: 'CLI-PREVIEW' }, { accountId: 'acc-preview-import' });
+        const pedido = await createPedidoFromImport({ cliente_id: cliente.id, numero: '9992', status: 'rascunho', origem: 'manual', total: 0, metadata: {} }, { accountId: 'acc-preview-import' });
+        const snapshotAntes = __dumpMemoryPedidos();
+        snapshotAntes.pedidoItens = [];
+        __resetMemoryPedidosForTests();
+        const { __loadMemoryPedidos } = await import('../../modules/pedidos/pedidos.repository.js');
+        __loadMemoryPedidos(snapshotAntes);
+
+        const ws = xlsx.utils.aoa_to_sheet([
+          ['codigo_produto_erp_original', 'nome_produto_original', 'cor_original', 'tamanho_original', 'ean_original', 'quantidade', 'valor_unitario', 'valor_total'],
+          ['850400051.949.00001', '850400051.949.00001', 'Azul', 'M', '789', 1, null, 120]
+        ]);
+        const wb = xlsx.utils.book_new();
+        xlsx.utils.book_append_sheet(wb, ws, 'Itens');
+        const base64 = xlsx.write(wb, { type: 'base64', bookType: 'xlsx' });
+
+        await executePedidosItensImport({
+          accountId: 'acc-preview-import',
+          fileName: '9992.xlsx',
+          buffer: Buffer.from(base64, 'base64'),
+          previewItems: [{
+            status_vinculo: 'vinculado',
+            produto_nome: 'TAPETE 40cm x 60cm POPCORN',
+            nome_produto_original: '850400051.949.00001',
+            codigo_produto_erp_original: '850400051.949.00001',
+            produto_id: 'prod-1',
+            variacao_id: 'var-1',
+            variacao_sku: '850400051.949.00001-M',
+            motivo_vinculo: 'OK',
+            sku_base_extraido: '850400051.949.00001',
+            sku_esperado: '850400051.949.00001-M',
+            quantidade: 1,
+            valor_unitario: 120,
+            valor_total: 120
+          }]
+        });
+
+        const snapshotDepois = __dumpMemoryPedidos();
+        const itens = snapshotDepois.pedidoItens.filter((item) => item.account_id === 'acc-preview-import' && item.pedido_id === pedido.id);
+        assert.equal(itens.length, 1);
+        assert.equal(itens[0].status_vinculo, 'vinculado');
+        assert.equal(itens[0].produto_nome, 'TAPETE 40cm x 60cm POPCORN');
+      }
+    },
+    {
       name: 'reimportacao sobrescreve snapshot do pedido 9992',
       run: async () => {
         __resetMemoryPedidosForTests();
