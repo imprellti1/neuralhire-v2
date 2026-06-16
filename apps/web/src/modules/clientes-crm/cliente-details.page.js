@@ -40,6 +40,62 @@ function itemStatusLabel(item = {}) {
 function fmtGroupDate(value) {
   return fmtDateOnlyUTC(value);
 }
+function calcularTotalItem(item = {}) {
+  const total = Number(item?.valor_total || item?.total || 0);
+  if (total > 0) return total;
+
+  const quantidade = Number(item?.quantidade || 0);
+  const unitario = Number(item?.valor_unitario || item?.valorUnitario || item?.preco_unitario || item?.preco || 0);
+
+  return quantidade * unitario;
+}
+function agruparItensPorProduto(itens = []) {
+  const grupos = new Map();
+
+  itens.forEach((item) => {
+    const produtoNome =
+      item?.produto_nome ||
+      item?.nome_produto_original ||
+      item?.descricao ||
+      item?.produto ||
+      'Produto sem nome';
+
+    const chave = item?.produto_id || produtoNome;
+
+    if (!grupos.has(chave)) {
+      grupos.set(chave, {
+        produtoNome,
+        quantidadeTotal: 0,
+        valorTotal: 0,
+        variacoes: [],
+      });
+    }
+
+    const grupo = grupos.get(chave);
+    const quantidade = Number(item?.quantidade || 0);
+    const total = calcularTotalItem(item);
+
+    grupo.quantidadeTotal += quantidade;
+    grupo.valorTotal += total;
+
+    grupo.variacoes.push({
+      ...item,
+      quantidade,
+      valor_total_calculado: total,
+    });
+  });
+
+  return Array.from(grupos.values());
+}
+function getProdutoResumo(item = {}) {
+  return [
+    item?.codigo_produto_erp_original,
+    item?.cor_original,
+    item?.tamanho_original,
+    item?.ean_original,
+    itemStatusLabel(item)
+  ].filter(Boolean).join(' • ');
+}
 
 export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   const state = createClienteDetailsState();
@@ -191,12 +247,56 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   function renderPedidoItens(pedido) {
     const items = getPedidoItems(pedido);
     if (!items.length) return '<p class="nho2d-empty" style="padding:12px 0">Sem itens para exibir.</p>';
-    return `<div class="nho2d-table-wrap"><table class="nho2d-table"><thead><tr><th>Produto</th><th>Quantidade</th><th class="nho2d-right">Unitário</th><th class="nho2d-right">Total</th><th>Status/Vínculo</th></tr></thead><tbody>${items.map((item) => {
-      const quantidade = Number(item?.quantidade ?? item?.qty ?? item?.qtd ?? 0);
-      const unitario = Number(item?.valorUnitario ?? item?.preco_unitario ?? item?.valor_unitario ?? item?.preco ?? 0);
-      const total = Number(item?.total ?? (quantidade * unitario));
-      return `<tr><td>${safeText(item?.produto || item?.produto_nome || item?.nome_produto_original || item?.nome || 'Produto não identificado')}</td><td>${quantidade || 0}</td><td class="nho2d-right">${fmtCurrency(unitario)}</td><td class="nho2d-right">${fmtCurrency(total)}</td><td>${safeText(itemStatusLabel(item), '-')}</td></tr>`;
-    }).join('')}</tbody></table></div>`;
+    const grupos = agruparItensPorProduto(items);
+    return `<div class="nho2d-stack">${grupos.map((grupo) => {
+      return `<div class="nho2d-card" style="padding:16px">
+        <div class="nho2d-group-summary" style="margin-bottom:10px">
+          <strong class="nho2d-product-parent">${safeText(grupo.produtoNome, 'Produto sem nome')}</strong>
+          <span class="nho2d-pill">${grupo.quantidadeTotal} un.</span>
+          <span><strong>Total do produto:</strong> ${fmtCurrency(grupo.valorTotal)}</span>
+        </div>
+        <div class="nho2d-table-wrap">
+          <table class="nho2d-table">
+            <thead>
+              <tr>
+                <th>Variação</th>
+                <th>Quantidade</th>
+                <th class="nho2d-right">Unitário</th>
+                <th class="nho2d-right">Total</th>
+                <th>Status/Vínculo</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${grupo.variacoes.map((item) => {
+                const quantidade = Number(item?.quantidade || 0);
+                const unitario = Number(item?.valor_unitario || item?.valorUnitario || item?.preco_unitario || item?.preco || 0);
+                const total = Number(item?.valor_total_calculado || calcularTotalItem(item));
+                const variacao = [
+                  item?.nome_produto_original,
+                  item?.cor_original,
+                  item?.tamanho_original,
+                  item?.codigo_produto_erp_original,
+                  item?.ean_original
+                ].filter(Boolean).join(' • ');
+                return `<tr>
+                  <td>
+                    <div class="nho2d-product-variation">${safeText(variacao || item?.descricao || item?.produto || 'Variação não identificada')}</div>
+                    <div class="nho2d-item-note">${safeText(item?.nome_produto_original || item?.descricao || '', '')}</div>
+                  </td>
+                  <td>${quantidade || 0}</td>
+                  <td class="nho2d-right">${fmtCurrency(unitario)}</td>
+                  <td class="nho2d-right">${fmtCurrency(total)}</td>
+                  <td>
+                    <div>${safeText(itemStatusLabel(item), '-')}</div>
+                    <div class="nho2d-item-note">${safeText(item?.motivo_vinculo, '')}</div>
+                  </td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    }).join('')}</div>`;
   }
 
   function renderPedido(pedido) {
