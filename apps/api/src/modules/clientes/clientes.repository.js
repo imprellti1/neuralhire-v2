@@ -4,7 +4,7 @@ import { DatabaseError, ForbiddenError, NotFoundError, ValidationError } from '.
 import { applyOwnerFilter, getUserIdFromContext } from '../../core/commercial-scope.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { findVendedorByUserId } from '../vendedores/vendedores.repository.js';
-import { buildEnrichmentUpdateFromBrasilApi, fetchBrasilApiCnpj, isValidCnpj, normalizeCnpj } from './clientes.enrichment.js';
+import { buildEnrichmentUpdateFromBrasilApi, buildEnrichmentUpdateFromCnpjWs, fetchBrasilApiCnpj, fetchCnpjWsCnpj, isValidCnpj, normalizeCnpj } from './clientes.enrichment.js';
 
 const memoryClientes = [];
 let supabaseClientOverride = null;
@@ -452,22 +452,42 @@ export async function enrichClienteByCnpj(clienteId, options = {}) {
   let payload;
   try {
     payload = await fetchBrasilApiCnpj(cnpj, { fetchImpl: options.fetchImpl });
+    return persistClienteEnrichment(cliente, buildEnrichmentUpdateFromBrasilApi(payload), { accountId });
   } catch (error) {
-    const erro = error?.message || 'Falha ao consultar BrasilAPI';
+    const brasilApiError = error;
+    const fallbackEligible = [403, 429].includes(Number(brasilApiError?.details?.status || brasilApiError?.statusCode || brasilApiError?.status || 0)) || Number(brasilApiError?.details?.status || brasilApiError?.statusCode || brasilApiError?.status || 0) >= 500;
+    if (fallbackEligible) {
+      try {
+        const cnpjWsPayload = await fetchCnpjWsCnpj(cnpj, { fetchImpl: options.fetchImpl });
+        return persistClienteEnrichment(cliente, buildEnrichmentUpdateFromCnpjWs(cnpjWsPayload), { accountId });
+      } catch (cnpjWsError) {
+        const erroFinal = 'Não foi possível consultar o CNPJ nas fontes disponíveis.';
+        const details = {
+          brasilapi: brasilApiError?.details?.body || brasilApiError?.message || String(brasilApiError),
+          cnpjws: cnpjWsError?.details?.body || cnpjWsError?.message || String(cnpjWsError)
+        };
+        debugRepository('enrichClienteByCnpj fallback_failed', { accountId, clienteId, cnpj, details });
+        await persistClienteEnrichment(cliente, {
+          enriquecimento_status: 'erro',
+          enriquecimento_fonte: 'brasilapi/cnpjws',
+          enriquecimento_ultima_execucao: new Date().toISOString(),
+          enriquecimento_erro: erroFinal
+        }, { accountId });
+        throw new DatabaseError(erroFinal, { domain: 'clientes-crm', details });
+      }
+    }
+
+    const erro = brasilApiError?.message || 'Falha ao consultar BrasilAPI';
+    const status = Number(brasilApiError?.details?.status || brasilApiError?.statusCode || brasilApiError?.status || 0);
     await persistClienteEnrichment(cliente, {
       enriquecimento_status: 'erro',
       enriquecimento_fonte: 'brasilapi',
       enriquecimento_ultima_execucao: new Date().toISOString(),
       enriquecimento_erro: erro
     }, { accountId });
-    if (error?.code === 'BRASILAPI_REJEITOU_CNPJ' || error?.status === 422) {
+    if (status === 422 || brasilApiError?.code === 'BRASILAPI_ERROR') {
       throw new ValidationError(erro, { domain: 'clientes-crm', code: 'BRASILAPI_REJEITOU_CNPJ' });
-    }
-    if (error?.code === 'BRASILAPI_UNAVAILABLE') {
-      throw error;
     }
     throw new DatabaseError('Falha ao consultar BrasilAPI', { domain: 'clientes-crm', details: { message: erro } });
   }
-
-  return persistClienteEnrichment(cliente, buildEnrichmentUpdateFromBrasilApi(payload), { accountId });
 }

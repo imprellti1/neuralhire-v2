@@ -20,6 +20,24 @@ async function call(app, { method, url, role, accountId, userId, body }) {
   return { res, body: parseBody(res) };
 }
 
+function createFetchResponse({ ok, status, body, contentType = 'application/json' }) {
+  const textValue = typeof body === 'string' ? body : JSON.stringify(body);
+  return {
+    ok,
+    status,
+    headers: {
+      get(name) {
+        return String(name || '').toLowerCase() === 'content-type' ? contentType : null;
+      }
+    },
+    text: async () => textValue,
+    json: async () => {
+      if (contentType.includes('json')) return typeof body === 'string' ? JSON.parse(body) : body;
+      return body;
+    }
+  };
+}
+
 export function getClientesEnrichmentTests() {
   return [
     {
@@ -44,30 +62,41 @@ export function getClientesEnrichmentTests() {
       }
     },
     {
-      name: 'Sucesso normaliza e atualiza dados enriquecidos',
+      name: 'BrasilAPI 403 usa fallback cnpj.ws com sucesso',
       run: async () => {
         __resetMemoryClientesForTests();
         const previousFetch = globalThis.fetch;
-        globalThis.fetch = async () => ({
-          ok: true,
-          status: 200,
-          json: async () => ({
-            razao_social: 'Empresa LTDA',
-            nome_fantasia: 'Empresa',
-            cnae_fiscal_descricao: 'Comercio varejista',
-            descricao_situacao_cadastral: 'ATIVA',
-            data_inicio_atividade: '2020-01-02',
-            cep: '01001000',
-            logradouro: 'Rua A',
-            numero: '100',
-            complemento: 'Sala 1',
-            bairro: 'Centro',
-            municipio: 'Sao Paulo',
-            uf: 'SP',
-            email: 'contato@empresa.com',
-            ddd_telefone_1: '1133334444'
-          })
-        });
+        const calls = [];
+        globalThis.fetch = async (url) => {
+          calls.push(url);
+          if (String(url).includes('brasilapi.com.br')) return createFetchResponse({ ok: false, status: 403, body: { message: { motivo: 'blocked' } } });
+          if (String(url).includes('publica.cnpj.ws')) {
+            return createFetchResponse({
+              ok: true,
+              status: 200,
+              body: {
+                razao_social: 'Empresa LTDA',
+                estabelecimento: {
+                  nome_fantasia: 'Empresa',
+                  atividade_principal: { descricao: 'Comercio varejista' },
+                  situacao_cadastral: 'ATIVA',
+                  data_inicio_atividade: '2020-01-02',
+                  cep: '01001000',
+                  logradouro: 'Rua A',
+                  numero: '100',
+                  complemento: 'Sala 1',
+                  bairro: 'Centro',
+                  cidade: { nome: 'São Paulo' },
+                  estado: { sigla: 'SP' },
+                  email: 'contato@empresa.com',
+                  ddd1: '11',
+                  telefone1: '33334444'
+                }
+              }
+            });
+          }
+          throw new Error(`fetch inesperado ${url}`);
+        };
         try {
           const app = createApiApp();
           const cliente = await createCliente({ nome: 'Cliente', documento: '12.345.678/0001-95' }, { accountId: 'acc-e3' });
@@ -76,30 +105,38 @@ export function getClientesEnrichmentTests() {
           assertEqual(out.body.item.razao_social, 'Empresa LTDA');
           assertEqual(out.body.item.nome_fantasia, 'Empresa');
           assertEqual(out.body.item.enriquecimento_status, 'concluido');
-          assertEqual(out.body.item.enriquecimento_fonte, 'brasilapi');
-          assertEqual(out.body.item.cidade, 'Sao Paulo');
+          assertEqual(out.body.item.enriquecimento_fonte, 'cnpjws');
+          assertEqual(out.body.item.cidade, 'São Paulo');
+          assertEqual(calls.some((url) => String(url).includes('brasilapi.com.br')), true);
+          assertEqual(calls.some((url) => String(url).includes('publica.cnpj.ws')), true);
         } finally {
           globalThis.fetch = previousFetch;
         }
       }
     },
     {
-      name: 'Falha BrasilAPI persiste status erro',
+      name: 'BrasilAPI erro + cnpj.ws erro retorna erro amigavel',
       run: async () => {
         __resetMemoryClientesForTests();
         const previousFetch = globalThis.fetch;
-        globalThis.fetch = async () => ({
-          ok: false,
-          status: 404,
-          json: async () => ({ message: 'CNPJ nao encontrado' })
-        });
+        const calls = [];
+        globalThis.fetch = async (url) => {
+          calls.push(url);
+          if (String(url).includes('brasilapi.com.br')) return createFetchResponse({ ok: false, status: 500, body: '<html><body>upstream down</body></html>', contentType: 'text/html' });
+          if (String(url).includes('publica.cnpj.ws')) return createFetchResponse({ ok: false, status: 503, body: { error: { message: 'temporarily unavailable' } } });
+          throw new Error(`fetch inesperado ${url}`);
+        };
         try {
           const app = createApiApp();
           const cliente = await createCliente({ nome: 'Cliente', documento: '12.345.678/0001-95' }, { accountId: 'acc-e4' });
           const out = await call(app, { method: 'POST', url: `/clientes/${cliente.id}/enriquecer`, role: 'admin', accountId: 'acc-e4' });
-          assertEqual(out.res.statusCode, 422);
-          assertEqual(out.body.error.code, 'BRASILAPI_REJEITOU_CNPJ');
-          assertEqual(out.body.error.message.includes('BrasilAPI'), true);
+          assertEqual(out.res.statusCode, 500);
+          assertEqual(out.body.error.message, 'Não foi possível consultar o CNPJ nas fontes disponíveis.');
+          assertEqual(out.body.error.message.includes('[object Object]'), false);
+          assertEqual(out.body.error.details.brasilapi.includes('upstream down'), true);
+          assertEqual(out.body.error.details.cnpjws.includes('temporarily unavailable'), true);
+          assertEqual(calls.some((url) => String(url).includes('brasilapi.com.br')), true);
+          assertEqual(calls.some((url) => String(url).includes('publica.cnpj.ws')), true);
         } finally {
           globalThis.fetch = previousFetch;
         }
