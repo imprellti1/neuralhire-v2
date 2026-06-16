@@ -53,6 +53,7 @@ test('pedidos itens import page renders upload, preview, summary and import', as
   assert.match(document.body.textContent, /Vinculados/);
   assert.match(document.body.textContent, /Não encontrados/);
   assert.match(document.body.textContent, /Ambíguos/);
+  assert.match(document.body.textContent, /Custo Unitário/);
   assert.doesNotMatch(document.body.textContent, /SKU Esperado/);
   assert.doesNotMatch(document.body.textContent, /Valor Total/);
   assert.doesNotMatch(document.body.textContent, /Valor Unitário/);
@@ -75,6 +76,7 @@ test('pedidos itens import page renders upload, preview, summary and import', as
   assert.match(document.body.textContent, /Vinculados/);
   assert.match(document.body.textContent, /Não encontrados/);
   assert.match(document.body.textContent, /Ambíguos/);
+  assert.match(document.body.textContent, /Erros/);
   const importCall = calls.find((call) => call.path === '/pedidos/itens/importacao');
   assert.equal(importCall.body.importToken, 'token-itens');
 
