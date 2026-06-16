@@ -11,6 +11,12 @@ export function createClientesMockHandlers({ scenario = 'success', overrides = {
   const baseHandlers = {
     'GET /clientes': () => ({ items: [makeCliente()], pagination: { page: 1, totalPages: 1, total: 1, limit: 10 } }),
     'GET /clientes/c1': () => createSuccessResponse({ item: makeCliente() }),
+    'GET /pedidos': ({ query }) => {
+      if (String(query.cliente_id || '') === 'c1') {
+        return { items: [{ id: 'p1', cliente_id: 'c1', numero: '1001', status: 'confirmado', created_at: '2026-06-01T00:00:00.000Z', total: 123.45 }], pagination: { page: 1, totalPages: 1, total: 1, limit: Number(query.limit || 100) } };
+      }
+      return { items: [], pagination: { page: Number(query.page || 1), totalPages: 1, total: 0, limit: Number(query.limit || 100) } };
+    },
     'POST /clientes': () => createSuccessResponse({ item: { id: 'c1' } })
   };
 

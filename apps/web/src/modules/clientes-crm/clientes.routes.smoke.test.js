@@ -15,6 +15,10 @@ test('clientes: listagem/detalhe/criacao + contrato + snapshot', async () => {
   await flush(); await flush();
   setHash('#/clientes/c1');
   await flush(); await flush();
+  const detailCalls = getSanitizedFetchCalls();
+  assert.ok(detailCalls.some((c) => c.method === 'GET' && c.path === '/clientes/c1'));
+  assert.ok(detailCalls.some((c) => c.method === 'GET' && c.path === '/pedidos' && String(c.query.cliente_id || '') === 'c1'));
+  assert.ok(!detailCalls.some((c) => c.method === 'GET' && c.path === '/clientes' && String(c.query.page || '') === '1' && String(c.query.limit || '') === '200'));
   setHash('#/clientes/novo');
   await flush();
   dispatchInput(document.querySelector('#empresa'), 'Acme');
@@ -84,6 +88,8 @@ test('clientes: GET sucesso + detalhe 404 e GET sucesso + detalhe 500', async ()
   await flush(); await flush();
   setHash('#/clientes/c1');
   await flush(); await flush();
+  const calls404 = getSanitizedFetchCalls();
+  assert.ok(calls404.some((c) => c.method === 'GET' && c.path === '/clientes/c1'));
   assert.match(document.body.textContent, /Cliente não encontrado|Cliente nao encontrado/i);
   assert.doesNotThrow(() => assertNoSensitiveTransportFields());
   teardownFrontendDom(dom404);
@@ -95,6 +101,8 @@ test('clientes: GET sucesso + detalhe 404 e GET sucesso + detalhe 500', async ()
   await flush(); await flush();
   setHash('#/clientes/c1');
   await flush(); await flush();
+  const calls500 = getSanitizedFetchCalls();
+  assert.ok(calls500.some((c) => c.method === 'GET' && c.path === '/clientes/c1'));
   assert.match(document.body.textContent, /Não foi possível carregar o cliente|Cliente não encontrado/i);
   assert.doesNotThrow(() => assertNoSensitiveTransportFields());
   teardownFrontendDom(dom500);
@@ -139,6 +147,7 @@ test('clientes: cenario misto com listagem sucesso + detalhe 404/500 + criacao 4
   await flush(); await flush();
   setHash('#/clientes/c1');
   await flush(); await flush();
+  assert.ok(getSanitizedFetchCalls().some((c) => c.method === 'GET' && c.path === '/clientes/c1'));
   assert.match(document.body.textContent, /Cliente não encontrado|Cliente nao encontrado/i);
   teardownFrontendDom(dom404);
 
@@ -153,6 +162,7 @@ test('clientes: cenario misto com listagem sucesso + detalhe 404/500 + criacao 4
   await flush(); await flush();
   setHash('#/clientes/c1');
   await flush(); await flush();
+  assert.ok(getSanitizedFetchCalls().some((c) => c.method === 'GET' && c.path === '/clientes/c1'));
   assert.match(document.body.textContent, /Não foi possível carregar o cliente|Cliente não encontrado/i);
   teardownFrontendDom(dom500);
 

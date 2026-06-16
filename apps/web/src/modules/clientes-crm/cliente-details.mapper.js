@@ -16,12 +16,11 @@ function getFriendlyLastPurchaseLabel(value) {
   return `Há ${diffDays} dias`;
 }
 
-export function mapClienteDetailsData({ clientesResponse = {}, pedidosResponse = {}, clienteId }) {
-  const clientes = Array.isArray(clientesResponse?.items) ? clientesResponse.items : [];
-  const pedidos = Array.isArray(pedidosResponse?.items) ? pedidosResponse.items : [];
-  const cliente = clientes.find((c) => String(c?.id || '') === String(clienteId || ''));
-  if (!cliente) return { id: null };
-  const pedidosCliente = pedidos.filter((p) => belongsToCliente(p, cliente));
+export function mapClienteDetailsData({ cliente = null, pedidos = [], clienteId }) {
+  const normalizedCliente = cliente && String(cliente?.id || '') === String(clienteId || '') ? cliente : null;
+  const normalizedPedidos = Array.isArray(pedidos) ? pedidos : [];
+  if (!normalizedCliente) return { id: null };
+  const pedidosCliente = normalizedPedidos.filter((p) => belongsToCliente(p, normalizedCliente));
   const faturamentoTotal = pedidosCliente.reduce((a, p) => a + Number(p?.valor_total ?? p?.total ?? p?.valor ?? 0), 0);
   const totalPedidos = pedidosCliente.length;
   const ticketMedio = totalPedidos > 0 ? faturamentoTotal / totalPedidos : 0;
@@ -29,8 +28,8 @@ export function mapClienteDetailsData({ clientesResponse = {}, pedidosResponse =
   const ultimosPedidos = pedidosComData.slice(0, 8).map((p) => ({ id: p?.id, numero: getPedidoCode(p), data: p?._data, status: normalizeStatus(p?.status), valor: Number(p?.valor_total ?? p?.total ?? p?.valor ?? 0) }));
   const produtosMap = new Map(); pedidosCliente.forEach((p) => (Array.isArray(p?.itens) ? p.itens : []).forEach((i) => { const rawNome = String(i?.produto_nome || i?.produto?.nome || '').trim(); const nome = rawNome && !isUuidLike(rawNome) ? rawNome : 'Produto não identificado'; const q = Number(i?.quantidade ?? 0); const f = Number(i?.total ?? (Number(i?.preco_unitario ?? 0) * q)); const prev = produtosMap.get(nome) || { produto: nome, quantidade: 0, faturamento: 0 }; prev.quantidade += q; prev.faturamento += f; produtosMap.set(nome, prev); }));
   const produtosComprados = Array.from(produtosMap.values()).sort((a, b) => b.faturamento - a.faturamento);
-  const timeline = [{ tipo: 'Cliente cadastrado', data: asDate(cliente?.created_at || cliente?.createdAt), detalhe: '' }, ...pedidosComData.flatMap((p) => { const code = getPedidoCode(p); const label = code ? `Pedido ${code}` : 'Pedido'; const base = [{ tipo: `${label} criado`, data: asDate(p?.created_at || p?.createdAt), detalhe: '' }]; const s = normalizeStatus(p?.status).toLowerCase(); if (s === 'aprovado' || s === 'confirmado' || s === 'faturado' || s === 'cancelado') base.push({ tipo: `${label} ${s}`, data: asDate(p?.updated_at || p?.updatedAt || p?.created_at), detalhe: '' }); return base; })].filter((e) => e?.data).sort((a, b) => Number(b?.data?.getTime() || 0) - Number(a?.data?.getTime() || 0));
-  const statusCliente = normalizeStatus(cliente?.status) || 'Cliente';
-  const dataCadastro = asDate(cliente?.created_at || cliente?.createdAt);
-  return { id: cliente?.id, nomeEmpresa: getClienteNome(cliente), status: statusCliente, hasExplicitStatus: Boolean(normalizeStatus(cliente?.status)), cidade: cliente?.cidade || '', uf: cliente?.estado || cliente?.uf || '', dataCadastro, dadosCliente: { empresa: cliente?.empresa, razaoSocial: cliente?.razao_social, contato: cliente?.nome_contato || cliente?.nome, telefone: cliente?.telefone, cidade: cliente?.cidade, uf: cliente?.estado || cliente?.uf, status: normalizeStatus(cliente?.status), dataCadastro }, kpis: { faturamentoTotal, totalPedidos, ticketMedio, ultimaCompra: pedidosComData[0]?._data || null, ultimaCompraLabel: getFriendlyLastPurchaseLabel(pedidosComData[0]?._data) }, ultimosPedidos, produtosComprados, timeline, auditoria: { criadoEm: dataCadastro, atualizadoEm: asDate(cliente?.updated_at || cliente?.updatedAt), origem: cliente?.origem || null } };
+  const timeline = [{ tipo: 'Cliente cadastrado', data: asDate(normalizedCliente?.created_at || normalizedCliente?.createdAt), detalhe: '' }, ...pedidosComData.flatMap((p) => { const code = getPedidoCode(p); const label = code ? `Pedido ${code}` : 'Pedido'; const base = [{ tipo: `${label} criado`, data: asDate(p?.created_at || p?.createdAt), detalhe: '' }]; const s = normalizeStatus(p?.status).toLowerCase(); if (s === 'aprovado' || s === 'confirmado' || s === 'faturado' || s === 'cancelado') base.push({ tipo: `${label} ${s}`, data: asDate(p?.updated_at || p?.updatedAt || p?.created_at), detalhe: '' }); return base; })].filter((e) => e?.data).sort((a, b) => Number(b?.data?.getTime() || 0) - Number(a?.data?.getTime() || 0));
+  const statusCliente = normalizeStatus(normalizedCliente?.status) || 'Cliente';
+  const dataCadastro = asDate(normalizedCliente?.created_at || normalizedCliente?.createdAt);
+  return { id: normalizedCliente?.id, nomeEmpresa: getClienteNome(normalizedCliente), status: statusCliente, hasExplicitStatus: Boolean(normalizeStatus(normalizedCliente?.status)), cidade: normalizedCliente?.cidade || '', uf: normalizedCliente?.estado || normalizedCliente?.uf || '', dataCadastro, dadosCliente: { empresa: normalizedCliente?.empresa, razaoSocial: normalizedCliente?.razao_social, contato: normalizedCliente?.nome_contato || normalizedCliente?.nome, telefone: normalizedCliente?.telefone, cidade: normalizedCliente?.cidade, uf: normalizedCliente?.estado || normalizedCliente?.uf, status: normalizeStatus(normalizedCliente?.status), dataCadastro }, kpis: { faturamentoTotal, totalPedidos, ticketMedio, ultimaCompra: pedidosComData[0]?._data || null, ultimaCompraLabel: getFriendlyLastPurchaseLabel(pedidosComData[0]?._data) }, ultimosPedidos, produtosComprados, timeline, auditoria: { criadoEm: dataCadastro, atualizadoEm: asDate(normalizedCliente?.updated_at || normalizedCliente?.updatedAt), origem: normalizedCliente?.origem || null } };
 }

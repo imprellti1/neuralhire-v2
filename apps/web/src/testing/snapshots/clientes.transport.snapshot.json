@@ -28,11 +28,8 @@
       "content-type": "application/json"
     },
     "method": "GET",
-    "path": "/clientes",
-    "query": {
-      "limit": "200",
-      "page": "1"
-    }
+    "path": "/clientes/c1",
+    "query": {}
   },
   {
     "body": null,
@@ -42,7 +39,8 @@
     "method": "GET",
     "path": "/pedidos",
     "query": {
-      "limit": "500",
+      "cliente_id": "c1",
+      "limit": "100",
       "page": "1"
     }
   },
@@ -52,11 +50,17 @@
       "content-type": "application/json"
     },
     "method": "GET",
-    "path": "/clientes",
-    "query": {
-      "limit": "200",
-      "page": "1"
-    }
+    "path": "/pedidos/p1",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/clientes/c1",
+    "query": {}
   },
   {
     "body": null,
@@ -66,9 +70,19 @@
     "method": "GET",
     "path": "/pedidos",
     "query": {
-      "limit": "500",
+      "cliente_id": "c1",
+      "limit": "100",
       "page": "1"
     }
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/pedidos/p1",
+    "query": {}
   },
   {
     "body": {
@@ -90,11 +104,8 @@
       "content-type": "application/json"
     },
     "method": "GET",
-    "path": "/clientes",
-    "query": {
-      "limit": "200",
-      "page": "1"
-    }
+    "path": "/clientes/c1",
+    "query": {}
   },
   {
     "body": null,
@@ -104,8 +115,18 @@
     "method": "GET",
     "path": "/pedidos",
     "query": {
-      "limit": "500",
+      "cliente_id": "c1",
+      "limit": "100",
       "page": "1"
     }
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/pedidos/p1",
+    "query": {}
   }
 ]
