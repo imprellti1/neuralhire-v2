@@ -23,7 +23,7 @@ test('pedidos itens import page renders upload, preview, summary and import', as
           pedidoErp: '11008',
           resumo: { total_linhas: 4, validas: 3, vinculadas: 2, nao_encontradas: 1, ambiguas: 1, erros: 1 },
           itens: [
-            { codigo_erp: '1001', produto: 'Camisa', cor: 'Azul', tamanho: 'M', quantidade: 2, valor_unitario: 49.9, valor_total: 99.8, sku_esperado: 'SKU-1', status_vinculo: 'vinculado', motivo: 'OK' },
+            { codigo_erp: '1001', produto: 'Camisa', cor: 'Azul', tamanho: 'M', quantidade: 4, valor_total: 6856, sku_esperado: 'SKU-1', status_vinculo: 'vinculado', motivo: 'OK' },
             { codigo_erp: '1002', produto: 'Calça', cor: 'Preto', tamanho: 'G', quantidade: 1, valor_unitario: 79.9, valor_total: 79.9, sku_esperado: 'SKU-2', status_vinculo: 'nao_encontrado', motivo: 'SKU não localizado' },
             { codigo_erp: '1003', produto: 'Tênis', cor: 'Branco', tamanho: '42', quantidade: 1, valor_unitario: 199.9, valor_total: 199.9, sku_esperado: 'SKU-3', status_vinculo: 'ambiguo', motivo: 'Mais de um SKU compatível' }
           ]
@@ -54,6 +54,7 @@ test('pedidos itens import page renders upload, preview, summary and import', as
   assert.match(document.body.textContent, /Não encontrados/);
   assert.match(document.body.textContent, /Ambíguos/);
   assert.match(document.body.textContent, /Custo Unitário/);
+  assert.match(document.body.textContent, /R\$\s*17,14/);
   assert.doesNotMatch(document.body.textContent, /SKU Esperado/);
   assert.doesNotMatch(document.body.textContent, /Valor Total/);
   assert.doesNotMatch(document.body.textContent, /Valor Unitário/);
