@@ -46,19 +46,31 @@ function toPositiveNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
+function normalizeMoneyInput(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return 0;
+  const normalized = raw.replace(/\s+/g, '').replace(/\./g, '').replace(',', '.');
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+  if (raw.includes('.') || raw.includes(',')) return parsed;
+  return parsed / 100;
+}
 function getItemQuantidade(item = {}) {
   const quantidade = toPositiveNumber(item?.quantidade ?? item?.qty ?? item?.qtd ?? 0);
   return quantidade;
 }
 function getItemCustoUnitario(item = {}) {
-  const directUnit = toPositiveNumber(item?.valorUnitario ?? item?.valor_unitario ?? item?.preco_unitario ?? item?.unitario ?? item?.preco ?? 0);
-  if (directUnit > 0) return directUnit;
-  return toPositiveNumber(item?.custo_unitario ?? item?.custoUnitario ?? 0);
+  const quantidade = getItemQuantidade(item);
+  const explicitUnit = normalizeMoneyInput(item?.valorUnitario ?? item?.valor_unitario ?? item?.preco_unitario ?? item?.unitario ?? item?.preco ?? item?.custo_unitario ?? item?.custoUnitario ?? 0);
+  if (explicitUnit > 0) return explicitUnit;
+  const totalFromBackend = normalizeMoneyInput(item?.totalItem ?? item?.total_item ?? item?.total ?? item?.valor_total ?? 0);
+  if (totalFromBackend > 0 && quantidade > 0) return totalFromBackend / quantidade;
+  return 0;
 }
 function getItemTotalCalculado(item = {}) {
   const quantidade = getItemQuantidade(item);
   const custoUnitario = getItemCustoUnitario(item);
-  const backendTotal = toPositiveNumber(item?.totalItem ?? item?.total_item ?? item?.total ?? item?.valor_total ?? 0);
+  const backendTotal = normalizeMoneyInput(item?.totalItem ?? item?.total_item ?? item?.total ?? item?.valor_total ?? 0);
   const computedTotal = quantidade * custoUnitario;
   return backendTotal > 0 ? backendTotal : computedTotal;
 }

@@ -30,8 +30,8 @@ test('pedido details page shows emission date in summary and keeps audit dates',
             cliente_id: 'cliente-1'
           },
           itens: [
-            { produto_nome: 'Camiseta', quantidade: 4, valor_unitario: 17.14, total_item: 0, status_vinculo: 'vinculado' },
-            { produto_nome: 'Boné', quantidade: 1, valor_unitario: 50, total_item: 50, status_vinculo: 'nao_encontrado' }
+            { produto_nome: 'FRONHA 50cm x 70cm TRECCENTI', quantidade: 4, valor_unitario: 2260, total_item: 0, status_vinculo: 'vinculado' },
+            { produto_nome: 'FRONHA 50cm x 70cm NOBLESS', quantidade: 4, total_item: 6856, status_vinculo: 'nao_encontrado' }
           ]
         };
       }
@@ -70,9 +70,11 @@ test('pedido details page shows emission date in summary and keeps audit dates',
   assert.ok(compact.includes('Vinculados'));
   assert.ok(compact.includes('Não vinculados'));
   assert.ok(compact.includes('Valor total'));
+  assert.ok(compact.includes('R$ 22,60'));
+  assert.ok(compact.includes('R$ 90,40'));
   assert.ok(compact.includes('R$ 17,14'));
   assert.ok(compact.includes('R$ 68,56'));
-  assert.ok(compact.includes('R$ 118,56'));
+  assert.ok(compact.includes('R$ 158,96'));
   assert.ok(root.querySelector('.nho2d-table-wrap'));
   assert.ok(root.querySelectorAll('.nho2d-table tbody tr').length >= 2);
 
