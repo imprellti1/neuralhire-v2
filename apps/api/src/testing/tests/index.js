@@ -38,6 +38,7 @@ const suiteSpecs = [
   ['Pedidos Tenant', './pedidos-tenant.test.js', 'getPedidosTenantTests'],
   ['Pedidos Create RBAC', './pedidos-create-rbac.test.js', 'getPedidosCreateRbacTests'],
   ['Pedidos Import', './pedidos-import.test.js', 'getPedidosImportTests'],
+  ['Pedidos Itens Import', './pedidos-itens-import.test.js', 'getPedidosItensImportTests'],
   ['Clientes Commercial History', './clientes-commercial-history.test.js', 'getClientesCommercialHistoryTests'],
   ['Pedidos Calculation', './pedidos-calculation.test.js', 'getPedidosCalculationTests'],
   ['Pedidos Status', './pedidos-status.test.js', 'getPedidosStatusTests'],

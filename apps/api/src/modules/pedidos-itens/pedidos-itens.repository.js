@@ -1,4 +1,5 @@
 import { BadRequestError, DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
+import { logger } from '../../core/logger.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { __dumpMemoryProdutos, getProdutoById } from '../produtos/produtos.repository.js';
 import { buildExpectedSku, classifyVariationMatch, extractSkuBase } from './pedidos-itens.matching.js';
@@ -31,6 +32,38 @@ function normalizeFileNumber(fileName) {
 
 function normalizeSku(value) {
   return String(value ?? '').trim().toLowerCase();
+}
+
+function toNonNegativeMoney(value, fallback = 0) {
+  const raw = value ?? fallback;
+  const numeric = typeof raw === 'number' ? raw : Number(String(raw).replace(/\s+/g, '').replace(/^R\$/i, '').replace(/\./g, '').replace(/,/g, '.'));
+  if (!Number.isFinite(numeric) || numeric < 0) return fallback;
+  return Number(numeric.toFixed(2));
+}
+
+function resolvePrecoUnitario(row = {}) {
+  const explicit = toNonNegativeMoney(row.preco_unitario ?? row.valor_unitario, null);
+  if (explicit !== null && explicit !== undefined) return explicit;
+  const quantidade = toNonNegativeMoney(row.quantidade, 0);
+  const valorTotal = toNonNegativeMoney(row.valor_total, null);
+  if (valorTotal === null || !quantidade) return 0;
+  return Number((valorTotal / quantidade).toFixed(2));
+}
+
+function buildItemMetadata(row = {}) {
+  return {
+    origem: 'importacao_xlsx_pedidos_itens',
+    codigo_produto_erp_original: row.codigo_produto_erp_original || null,
+    nome_produto_original: row.nome_produto_original || null,
+    cor_original: row.cor_original || null,
+    tamanho_original: row.tamanho_original || null,
+    ean_original: row.ean_original || null,
+    sku_base_extraido: row.sku_base_extraido || null,
+    sku_esperado: row.sku_esperado || null,
+    valor_unitario: row.valor_unitario ?? null,
+    valor_total: row.valor_total ?? null,
+    motivo_vinculo: row.motivo_vinculo || null
+  };
 }
 
 function logPedidoLookupError(error, context = {}) {
@@ -96,24 +129,33 @@ async function findPedidoByNumero(accountId, numero) {
 }
 
 function buildPedidoItemRow({ accountId, pedidoId, row = {}, match = {} }) {
+  const produtoNome = match?.produto_nome || row.nome_produto_original || null;
+  const precoUnitario = resolvePrecoUnitario(row);
   return {
     account_id: accountId,
     pedido_id: pedidoId,
     produto_id: match?.produto_id ?? null,
     variacao_id: match?.variacao_id ?? null,
+    produto_nome: produtoNome,
     codigo_produto_erp_original: row.codigo_produto_erp_original || null,
     nome_produto_original: row.nome_produto_original || null,
     cor_original: row.cor_original || null,
     tamanho_original: row.tamanho_original || null,
     ean_original: row.ean_original || null,
     quantidade: row.quantidade ?? null,
+    preco_unitario: precoUnitario,
     valor_unitario: row.valor_unitario ?? null,
     valor_total: row.valor_total ?? null,
     sku_base_extraido: row.sku_base_extraido || null,
     sku_esperado: row.sku_esperado || null,
     status_vinculo: match.status_vinculo,
-    motivo_vinculo: match.motivo_vinculo || null
+    motivo_vinculo: match.motivo_vinculo || null,
+    metadata: buildItemMetadata({ ...row, motivo_vinculo: match.motivo_vinculo || null })
   };
+}
+
+export function __buildPedidoItemRowForTests(args) {
+  return buildPedidoItemRow(args);
 }
 
 function buildSummary(items = []) {
@@ -216,7 +258,16 @@ async function insertPedidoItens(accountId, pedidoId, rows = []) {
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     if (!payload.length) return [];
     const { data, error } = await supabase.from('pedido_itens').insert(payload).select('*');
-    if (error) throw new DatabaseError('Falha ao salvar itens do pedido', { details: error });
+    if (error) {
+      logger.error('[pedidos-itens.repository] Falha ao salvar itens do pedido', {
+        code: error?.code || null,
+        message: error?.message || null,
+        details: error?.details || null,
+        hint: error?.hint || null,
+        payloadSize: payload.length
+      });
+      throw new DatabaseError('Falha ao salvar itens do pedido', { details: { code: error?.code || null, message: error?.message || null, details: error?.details || null, hint: error?.hint || null } });
+    }
     return data || [];
   }
 
