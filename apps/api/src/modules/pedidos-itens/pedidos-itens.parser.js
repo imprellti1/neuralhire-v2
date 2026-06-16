@@ -42,6 +42,12 @@ function resolveCell(row, index) {
   return row[index] ?? '';
 }
 
+function resolveNameCell(row, nameIndex, codeIndex) {
+  const nameValue = resolveCell(row, nameIndex);
+  if (isNonEmpty(nameValue)) return nameValue;
+  return resolveCell(row, codeIndex);
+}
+
 function parseNumber(value) {
   if (value === null || value === undefined || value === '') return null;
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
@@ -81,8 +87,8 @@ export function parsePedidosItensWorkbook(buffer) {
 
   const headers = rows[0].map((header) => String(header ?? '').trim());
   const mapping = {
-    codigo_produto_erp_original: findHeaderIndex(headers, ['codigo_produto_erp_original', 'codigo produto erp', 'codigo_erp', 'codigo erp', 'codigo', 'sku', 'referencia', 'referencia erp', 'produto']),
-    nome_produto_original: findHeaderIndex(headers, ['nome_produto_original', 'nome produto', 'produto', 'descricao', 'descrição', 'nome']),
+    codigo_produto_erp_original: findHeaderIndex(headers, ['codigo_produto_erp_original', 'codigo produto erp', 'codigo_erp', 'codigo erp', 'codigo', 'sku', 'referencia', 'referencia erp']),
+    nome_produto_original: findHeaderIndex(headers, ['nome_produto_original', 'nome produto', 'descricao', 'descrição', 'descricao do produto', 'nome', 'produto']),
     cor_original: findHeaderIndex(headers, ['cor', 'color', 'variante cor']),
     tamanho_original: findHeaderIndex(headers, ['tamanho_original', 'tamanho', 'grade', 'numero', 'num', 'size']),
     ean_original: findHeaderIndex(headers, ['ean', 'gtin', 'barcode', 'codigo de barras']),
@@ -91,7 +97,7 @@ export function parsePedidosItensWorkbook(buffer) {
     valor_total: findHeaderIndex(headers, ['valor_total', 'valor total', 'total', 'subtotal'])
   };
 
-  const required = ['codigo_produto_erp_original', 'nome_produto_original', 'tamanho_original', 'quantidade'];
+  const required = ['codigo_produto_erp_original', 'tamanho_original', 'quantidade'];
   const missing = required.filter((key) => mapping[key] < 0);
   if (missing.length) {
     throw new BadRequestError(`Colunas essenciais ausentes no XLSX: ${missing.join(', ')}`, { domain: 'pedidos-itens', code: 'MISSING_COLUMNS', details: { missing } });
@@ -100,7 +106,7 @@ export function parsePedidosItensWorkbook(buffer) {
   const dataRows = rows.slice(1).map((row, index) => ({
     rowNumber: index + 2,
     codigo_produto_erp_original: resolveCell(row, mapping.codigo_produto_erp_original),
-    nome_produto_original: resolveCell(row, mapping.nome_produto_original),
+    nome_produto_original: resolveNameCell(row, mapping.nome_produto_original, mapping.codigo_produto_erp_original),
     cor_original: resolveCell(row, mapping.cor_original),
     tamanho_original: resolveCell(row, mapping.tamanho_original),
     ean_original: resolveCell(row, mapping.ean_original),

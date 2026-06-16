@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { Buffer } from 'node:buffer';
+import { parsePedidosItensWorkbook } from '../../modules/pedidos-itens/pedidos-itens.parser.js';
 import { __buildPedidoItemRowForTests, executePedidosItensImport, normalizeSpreadsheetMoney } from '../../modules/pedidos-itens/pedidos-itens.repository.js';
 import { createCliente, __resetMemoryClientesForTests } from '../../modules/clientes/clientes.repository.js';
 import { createPedidoFromImport, __dumpMemoryPedidos, __resetMemoryPedidosForTests } from '../../modules/pedidos/pedidos.repository.js';
@@ -7,6 +9,45 @@ import xlsx from 'xlsx';
 
 export function getPedidosItensImportTests() {
   return [
+    {
+      name: 'parser separa codigo e descricao quando as colunas existem',
+      run: async () => {
+        const ws = xlsx.utils.aoa_to_sheet([
+          ['Produto / Código / SKU', 'Descrição / Nome', 'Cor', 'Tamanho', 'Quantidade', 'Valor Total'],
+          ['850400110.949.00004', 'JOGO DE CAMA EXEMPLO', 'BRANCO', 'UNI', 4, 6856]
+        ]);
+        const wb = xlsx.utils.book_new();
+        xlsx.utils.book_append_sheet(wb, ws, 'Itens');
+        const buffer = Buffer.from(xlsx.write(wb, { type: 'base64', bookType: 'xlsx' }), 'base64');
+
+        const parsed = parsePedidosItensWorkbook(buffer);
+        assert.equal(parsed.dataRows.length, 1);
+        assert.equal(parsed.dataRows[0].codigo_produto_erp_original, '850400110.949.00004');
+        assert.equal(parsed.dataRows[0].nome_produto_original, 'JOGO DE CAMA EXEMPLO');
+        assert.equal(parsed.dataRows[0].cor_original, 'BRANCO');
+        assert.equal(parsed.dataRows[0].tamanho_original, 'UNI');
+        assert.equal(parsed.dataRows[0].quantidade, 4);
+        assert.equal(parsed.dataRows[0].valor_total, 68.56);
+      }
+    },
+    {
+      name: 'parser usa codigo como fallback quando descricao nao existe',
+      run: async () => {
+        const ws = xlsx.utils.aoa_to_sheet([
+          ['Produto / Código / SKU', 'Cor', 'Tamanho', 'Quantidade', 'Valor Total'],
+          ['850400110.949.00004', 'BRANCO', 'UNI', 4, 6856]
+        ]);
+        const wb = xlsx.utils.book_new();
+        xlsx.utils.book_append_sheet(wb, ws, 'Itens');
+        const buffer = Buffer.from(xlsx.write(wb, { type: 'base64', bookType: 'xlsx' }), 'base64');
+
+        const parsed = parsePedidosItensWorkbook(buffer);
+        assert.equal(parsed.dataRows.length, 1);
+        assert.equal(parsed.dataRows[0].codigo_produto_erp_original, '850400110.949.00004');
+        assert.equal(parsed.dataRows[0].nome_produto_original, '850400110.949.00004');
+        assert.equal(parsed.dataRows[0].valor_total, 68.56);
+      }
+    },
     {
       name: 'monta payload compatível com schema real para item nao vinculado',
       run: async () => {
@@ -43,7 +84,7 @@ export function getPedidosItensImportTests() {
       }
     },
     {
-      name: 'prioriza produto_nome do item vinculado com shape real do preview',
+      name: 'prioriza produto_nome do item vinculado com shape real do preview e preserva nome da planilha para item nao vinculado',
       run: async () => {
         const vinculado = __buildPedidoItemRowForTests({
           accountId: 'acc-1b',
@@ -79,6 +120,22 @@ export function getPedidosItensImportTests() {
         });
 
         assert.equal(naoVinculado.produto_nome, 'Produto da Planilha');
+
+        const naoVinculadoDescricaoReal = __buildPedidoItemRowForTests({
+          accountId: 'acc-1d',
+          pedidoId: 'pedido-1d',
+          row: {
+            codigo_produto_erp_original: '850400110.949.00004',
+            nome_produto_original: 'JOGO DE CAMA EXEMPLO',
+            quantidade: 1,
+            valor_total: 120
+          },
+          match: {
+            status_vinculo: 'nao_encontrado'
+          }
+        });
+
+        assert.equal(naoVinculadoDescricaoReal.produto_nome, 'JOGO DE CAMA EXEMPLO');
       }
     },
     {
