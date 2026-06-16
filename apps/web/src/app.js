@@ -22,6 +22,7 @@ import { renderProdutoCategoriasPage } from './modules/produto-categorias/produt
 import { renderPriceTableImportPage } from './modules/price-table-import/price-table-import.page.js';
 import { renderClientesImportPage } from './modules/clientes-import/clientes-import.page.js';
 import { renderPedidosImportPage } from './modules/pedidos-import/pedidos-import.page.js';
+import { renderPedidosItensImportPage } from './modules/pedidos-itens-import/pedidos-itens-import.page.js';
 import { renderPromocoesPage } from './modules/promocoes/promocoes.page.js';
 import { renderPublicLandingPage } from './modules/public-site/landing.page.js';
 import { renderBillingPage } from './modules/billing/billing.page.js';
@@ -73,6 +74,7 @@ const menuSections = [
     items: [
       ['#/clientes', 'Clientes'],
       ['#/importacoes', 'Importação de Clientes'],
+      ['#/importacao-itens-pedido', 'Importação de Itens de Pedido'],
       ['#/interest-leads', 'Leads / Lista de Interesse'],
       ['#/interest-leads/dashboard', 'Dashboard de Leads'],
       ['#/interest-leads/launch', 'Follow-up / Lançamento'],
@@ -291,6 +293,7 @@ export function bootstrapWebApp() {
       : route.startsWith('#/interest-leads/') ? '#/interest-leads'
       : route.startsWith('#/customer-memory/') ? '#/customer-memory/cliente-demo'
       : route === '#/importacao-pedidos' ? '#/importacao-pedidos'
+      : route === '#/importacao-itens-pedido' ? '#/importacao-itens-pedido'
       : route;
     setActiveMenu(activeRoute);
 
@@ -303,6 +306,7 @@ export function bootstrapWebApp() {
     if (route === '#/produtos/importacao-tabela-preco') return renderPriceTableImportPage(content, { apiClient: api });
     if (route === '#/importacoes') return renderClientesImportPage(content, { apiClient: api });
     if (route === '#/importacao-pedidos') return renderPedidosImportPage(content, { apiClient: api });
+    if (route === '#/importacao-itens-pedido') return renderPedidosItensImportPage(content, { apiClient: api });
     if (route === '#/produto-categorias') return renderProdutoCategoriasPage(content, { apiClient: api });
     if (route === '#/product-editor') return renderProductEditorPage(content, { apiClient: api });
     if (route === '#/produtos/novo') return renderProdutoCreatePage(content, { apiClient: api });
