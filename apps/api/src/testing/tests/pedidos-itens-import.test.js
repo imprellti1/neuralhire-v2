@@ -43,12 +43,13 @@ export function getPedidosItensImportTests() {
       }
     },
     {
-      name: 'prioriza produto_nome do item vinculado e preserva fallback original',
+      name: 'prioriza produto_nome do item vinculado com shape real do preview',
       run: async () => {
         const vinculado = __buildPedidoItemRowForTests({
           accountId: 'acc-1b',
           pedidoId: 'pedido-1b',
           row: {
+            produto_nome: 'TAPETE 40cm x 60cm POPCORN',
             codigo_produto_erp_original: '850400051.949.00001',
             nome_produto_original: '850400051.949.00001',
             quantidade: 1,
@@ -58,7 +59,6 @@ export function getPedidosItensImportTests() {
             status_vinculo: 'vinculado',
             produto_id: 'prod-1',
             variacao_id: 'var-1',
-            produto_nome: 'TAPETE 40cm x 60cm POPCORN'
           }
         });
 

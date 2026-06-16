@@ -152,9 +152,12 @@ async function findPedidoByNumero(accountId, numero) {
 }
 
 function buildPedidoItemRow({ accountId, pedidoId, row = {}, match = {} }) {
-  const produtoNome = match?.status_vinculo === 'vinculado'
-    ? (match?.produto_nome || row.nome_produto_original || row.codigo_produto_erp_original || null)
-    : (row.nome_produto_original || row.codigo_produto_erp_original || null);
+  const produtoNome = row.produto_nome
+    || match?.produto_nome
+    || (match?.status_vinculo === 'vinculado' ? row.nome_produto_original : null)
+    || row.nome_produto_original
+    || row.codigo_produto_erp_original
+    || null;
   const precoUnitario = resolvePrecoUnitario(row);
   const valorTotal = normalizeSpreadsheetMoney(row.valor_total, { fallback: null });
   const valorUnitario = normalizeSpreadsheetMoney(row.valor_unitario ?? row.preco_unitario, { fallback: null });
