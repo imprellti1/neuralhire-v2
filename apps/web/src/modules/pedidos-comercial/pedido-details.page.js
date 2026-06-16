@@ -42,6 +42,26 @@ function shortRequestId(requestId) {
   if (!raw) return '';
   return raw.length > 14 ? `${raw.slice(0, 8)}...${raw.slice(-4)}` : raw;
 }
+function toPositiveNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+function getItemQuantidade(item = {}) {
+  const quantidade = toPositiveNumber(item?.quantidade ?? item?.qty ?? item?.qtd ?? 0);
+  return quantidade;
+}
+function getItemCustoUnitario(item = {}) {
+  const directUnit = toPositiveNumber(item?.valorUnitario ?? item?.valor_unitario ?? item?.preco_unitario ?? item?.unitario ?? item?.preco ?? 0);
+  if (directUnit > 0) return directUnit;
+  return toPositiveNumber(item?.custo_unitario ?? item?.custoUnitario ?? 0);
+}
+function getItemTotalCalculado(item = {}) {
+  const quantidade = getItemQuantidade(item);
+  const custoUnitario = getItemCustoUnitario(item);
+  const backendTotal = toPositiveNumber(item?.totalItem ?? item?.total_item ?? item?.total ?? item?.valor_total ?? 0);
+  const computedTotal = quantidade * custoUnitario;
+  return backendTotal > 0 ? backendTotal : computedTotal;
+}
 function getStatusActions(statusExibicao) {
   const status = String(statusExibicao || '').toLowerCase();
   if (status === 'rascunho') return [{ key: 'aprovado', label: 'Aprovar pedido', loadingLabel: 'Aprovando...', successLabel: 'Pedido aprovado com sucesso.', description: 'Libera o pedido para as próximas etapas comerciais.' }, { key: 'cancelado', label: 'Cancelar pedido', loadingLabel: 'Cancelando...', successLabel: 'Pedido cancelado com sucesso.', description: 'Interrompe o fluxo do pedido e registra no histórico.' }];
@@ -149,10 +169,20 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId, routeQuery 
     const totalItens = itensBase.length;
     const vinculados = (d?.itens || []).filter((item) => String(item?.status_vinculo || '').toLowerCase() === 'vinculado').length;
     const naoVinculados = (d?.itens || []).filter((item) => String(item?.status_vinculo || '').toLowerCase() === 'nao_encontrado').length;
-    const valorTotalItens = (d?.itens || []).reduce((acc, item) => acc + Number(item?.totalItem || 0), 0);
+    const valorTotalItens = (d?.itens || []).reduce((acc, item) => acc + getItemTotalCalculado(item), 0);
     const itensRows = editMode
-      ? (itensDraft || []).map((item, index) => `<tr><td>${item.produto || 'Produto não identificado'}</td><td><input class="nho2d-input js-item-qty" data-index="${index}" type="number" min="1" value="${item.quantidade ?? 1}" /></td><td class="nho2d-right">${fmtCurrency(item?.valorUnitario)}</td><td class="nho2d-right">${fmtCurrency(Number(item?.valorUnitario || 0) * Number(item?.quantidade || 0))}</td><td><button class="nho2-btn js-remove-item" data-index="${index}" ${itensSaving ? 'disabled' : ''}>Remover</button></td></tr>`).join('')
-      : (d?.itens || []).map((item) => `<tr class="${itemLinkClass(item?.status_vinculo)}"><td><div>${item?.produto || item?.nome_produto_original || 'Produto não identificado'}</div><div class="nho2d-item-meta"><span class="nho2-badge ${itemLinkClass(item?.status_vinculo)}">${itemLinkLabel(item?.status_vinculo)}</span>${item?.status_vinculo && item?.status_vinculo !== 'vinculado' ? `<span class="nho2d-item-sku">${item?.motivo_vinculo || 'Item importado sem vínculo com produto/variação cadastrados.'}</span>` : ''}</div></td><td>${item?.quantidade ?? 0}</td><td class="nho2d-right">${fmtCurrency(item?.valorUnitario)}</td><td class="nho2d-right">${fmtCurrency(item?.totalItem)}</td></tr>`).join('');
+      ? (itensDraft || []).map((item, index) => {
+        const quantidade = getItemQuantidade(item) || 1;
+        const custoUnitario = getItemCustoUnitario(item);
+        const totalItem = quantidade * custoUnitario;
+        return `<tr><td>${item.produto || 'Produto não identificado'}</td><td><input class="nho2d-input js-item-qty" data-index="${index}" type="number" min="1" value="${quantidade}" /></td><td class="nho2d-right">${fmtCurrency(custoUnitario)}</td><td class="nho2d-right">${fmtCurrency(totalItem)}</td><td><button class="nho2-btn js-remove-item" data-index="${index}" ${itensSaving ? 'disabled' : ''}>Remover</button></td></tr>`;
+      }).join('')
+      : (d?.itens || []).map((item) => {
+        const quantidade = getItemQuantidade(item);
+        const custoUnitario = getItemCustoUnitario(item);
+        const totalItem = getItemTotalCalculado(item);
+        return `<tr class="${itemLinkClass(item?.status_vinculo)}"><td><div>${item?.produto || item?.nome_produto_original || 'Produto não identificado'}</div><div class="nho2d-item-meta"><span class="nho2-badge ${itemLinkClass(item?.status_vinculo)}">${itemLinkLabel(item?.status_vinculo)}</span>${item?.status_vinculo && item?.status_vinculo !== 'vinculado' ? `<span class="nho2d-item-sku">${item?.motivo_vinculo || 'Item importado sem vínculo com produto/variação cadastrados.'}</span>` : ''}</div></td><td>${quantidade}</td><td class="nho2d-right">${fmtCurrency(custoUnitario)}</td><td class="nho2d-right">${fmtCurrency(totalItem)}</td></tr>`;
+      }).join('');
     const historicoRows = (d?.historico || []).map((h) => `<tr><td>${h?.statusAnterior || ''}</td><td>${h?.statusNovo || ''}</td><td>${fmtDate(h?.data)}</td></tr>`).join('');
     const resumoDataEmissao = fmtDateOnlyUTC(d?.dataEmissao);
     const auditLines = [

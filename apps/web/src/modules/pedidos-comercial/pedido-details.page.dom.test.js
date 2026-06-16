@@ -3,6 +3,10 @@ import test from 'node:test';
 import { renderPedidoDetailsPage } from './pedido-details.page.js';
 import { flush, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 
+function compactText(node) {
+  return String(node?.textContent || '').replace(/\s+/g, ' ').trim();
+}
+
 test('pedido details page shows emission date in summary and keeps audit dates', async () => {
   const dom = setupFrontendDom('#/pedidos/1');
   const root = document.getElementById('root');
@@ -26,8 +30,8 @@ test('pedido details page shows emission date in summary and keeps audit dates',
             cliente_id: 'cliente-1'
           },
           itens: [
-            { produto: 'Camiseta', quantidade: 2, valorUnitario: 50, totalItem: 100, status_vinculo: 'vinculado' },
-            { produto: 'Boné', quantidade: 1, valorUnitario: 50, totalItem: 50, status_vinculo: 'nao_encontrado' }
+            { produto_nome: 'Camiseta', quantidade: 4, valor_unitario: 17.14, total_item: 0, status_vinculo: 'vinculado' },
+            { produto_nome: 'Boné', quantidade: 1, valor_unitario: 50, total_item: 50, status_vinculo: 'nao_encontrado' }
           ]
         };
       }
@@ -61,10 +65,14 @@ test('pedido details page shows emission date in summary and keeps audit dates',
   toggle.click();
   await flush();
 
-  assert.ok(root.textContent.includes('Total de itens'));
-  assert.ok(root.textContent.includes('Vinculados'));
-  assert.ok(root.textContent.includes('Não vinculados'));
-  assert.ok(root.textContent.includes('Valor total'));
+  const compact = compactText(root);
+  assert.ok(compact.includes('Total de itens'));
+  assert.ok(compact.includes('Vinculados'));
+  assert.ok(compact.includes('Não vinculados'));
+  assert.ok(compact.includes('Valor total'));
+  assert.ok(compact.includes('R$ 17,14'));
+  assert.ok(compact.includes('R$ 68,56'));
+  assert.ok(compact.includes('R$ 118,56'));
   assert.ok(root.querySelector('.nho2d-table-wrap'));
   assert.ok(root.querySelectorAll('.nho2d-table tbody tr').length >= 2);
 
