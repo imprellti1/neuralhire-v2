@@ -28,10 +28,14 @@ test('pedido details mapper normalizes item monetary values once', () => {
 
   assert.equal(mapped.itens[0].valorUnitario, 17.14);
   assert.equal(mapped.itens[0].valorUnitarioCentavos, 1714);
+  assert.equal(mapped.itens[0].totalItem, 68.56);
+  assert.equal(mapped.itens[0].totalItemCentavos, 0);
   assert.equal(mapped.itens[1].valorUnitario, 22.6);
   assert.equal(mapped.itens[1].valorUnitarioCentavos, 2260);
+  assert.equal(mapped.itens[1].totalItem, 90.4);
   assert.equal(mapped.itens[2].valorUnitario, 102);
   assert.equal(mapped.itens[2].valorUnitarioCentavos, 10200);
+  assert.equal(mapped.itens[2].totalItem, 612);
 });
 
 test('pedido details page shows emission date in summary and keeps audit dates', async () => {

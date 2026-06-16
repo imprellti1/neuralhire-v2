@@ -51,17 +51,18 @@ function getItemQuantidade(item = {}) {
   return quantidade;
 }
 function getItemCustoUnitario(item = {}) {
-  const quantidade = getItemQuantidade(item);
-  const explicitUnit = Number(item?.valorUnitario ?? item?.valor_unitario ?? item?.preco_unitario ?? item?.unitario ?? item?.preco ?? item?.custo_unitario ?? item?.custoUnitario ?? 0);
+  const explicitUnit = Number(item?.valorUnitario ?? 0);
   if (explicitUnit > 0) return explicitUnit;
-  const totalFromBackend = Number(item?.totalItem ?? item?.total_item ?? item?.total ?? item?.valor_total ?? 0);
+  const quantidade = getItemQuantidade(item);
+  const totalFromBackend = Number(item?.totalItem ?? 0);
   if (totalFromBackend > 0 && quantidade > 0) return totalFromBackend / quantidade;
   return 0;
 }
 function getItemTotalCalculado(item = {}) {
   const quantidade = getItemQuantidade(item);
   const custoUnitario = getItemCustoUnitario(item);
-  return quantidade * custoUnitario;
+  const totalFromBackend = Number(item?.totalItem ?? 0);
+  return totalFromBackend > 0 ? totalFromBackend : quantidade * custoUnitario;
 }
 function getStatusActions(statusExibicao) {
   const status = String(statusExibicao || '').toLowerCase();

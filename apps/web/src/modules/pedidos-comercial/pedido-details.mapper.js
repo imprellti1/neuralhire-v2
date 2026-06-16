@@ -47,7 +47,7 @@ function getPedidoCode(pedido = {}) {
 
 function centsToReais(value) {
   const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? n / 100 : 0;
+  return Number.isFinite(n) ? n / 100 : 0;
 }
 
 export function mapPedidoDetailsData(pedidoResponse = {}, historyResponse = {}) {
