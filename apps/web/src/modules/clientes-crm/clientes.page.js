@@ -1,5 +1,6 @@
 import { createClientesState } from './clientes.state.js';
 import { fetchClientesData } from './clientes.service.js';
+import { fetchVendedoresData } from '../vendedores/vendedores.service.js';
 
 function fmtDate(value) {
   if (!value) return '-';
@@ -41,6 +42,8 @@ function injectStyles() {
 export function renderClientesPage(root, { apiClient }) {
   injectStyles();
   const state = createClientesState();
+  let searchDebounceTimer = null;
+  let activeLoadToken = 0;
 
   function renderTable() {
     if (state.loading) {
@@ -70,7 +73,7 @@ export function renderClientesPage(root, { apiClient }) {
       <section class="nhc-panel">
         <div class="nhc-meta">
           <div>Página ${state?.pagination?.page || 1} de ${state?.pagination?.totalPages || 1} • Total API: ${Math.max(state?.pagination?.total || 0, state?.items?.length || 0)}</div>
-          <div>Exibindo ${state.items.length} item(ns) filtrados localmente</div>
+          <div>${state.search ? `Busca remota por "${state.search}"` : 'Listagem padrão da API'}</div>
         </div>
         <div class="nhc-table-wrap"><table class="nhc-table">
           <tr>
@@ -88,10 +91,13 @@ export function renderClientesPage(root, { apiClient }) {
   function render() {
     root.innerHTML = `
       <section class="nhc-header">
-        <div><div class="nhc-title">Clientes CRM</div><div class="nhc-sub">Listagem operacional de clientes com busca local e paginação da API.</div></div>
+        <div><div class="nhc-title">Clientes CRM</div><div class="nhc-sub">Listagem operacional de clientes com busca remota e paginação da API.</div></div>
         <div class="nhc-tools">
-          <input id="nhc-search" class="nhc-input" placeholder="Pesquisar cliente" value="${state.search}" />
-          <select id="nhc-vendedor" class="nhc-input"><option value="">Todos os vendedores</option></select>
+          <input id="nhc-search" class="nhc-input" placeholder="Pesquisar cliente" value="${state.search}" autocomplete="off" />
+          <select id="nhc-vendedor" class="nhc-input">
+            <option value="">Todos os vendedores</option>
+            ${(state.vendedores || []).map((v) => `<option value="${v.id}" ${String(state.vendedor_id || '') === String(v.id) ? 'selected' : ''}>${v.nome || v.empresa || v.id}</option>`).join('')}
+          </select>
           <button id="nhc-refresh" class="nhc-btn">Atualizar</button>
           <button id="nhc-new" class="nhc-btn">Novo Cliente</button>
         </div>
@@ -109,9 +115,19 @@ export function renderClientesPage(root, { apiClient }) {
 
     const search = root.querySelector('#nhc-search');
     if (search) {
+      search.value = state.search || '';
       search.oninput = (event) => {
         state.search = event.target.value || '';
-        load(state?.pagination?.page || 1, { preserveLoading: true });
+        scheduleSearchLoad();
+      };
+    }
+
+    const vendedor = root.querySelector('#nhc-vendedor');
+    if (vendedor) {
+      vendedor.value = state.vendedor_id || '';
+      vendedor.onchange = (event) => {
+        state.vendedor_id = event.target.value || '';
+        load(1);
       };
     }
 
@@ -130,6 +146,7 @@ export function renderClientesPage(root, { apiClient }) {
   }
 
   async function load(page = 1, options = {}) {
+    const loadToken = ++activeLoadToken;
     if (!options.preserveLoading) state.loading = true;
     state.error = false;
     render();
@@ -137,20 +154,47 @@ export function renderClientesPage(root, { apiClient }) {
       const data = await fetchClientesData(apiClient, {
         page,
         limit: state?.pagination?.limit || 10,
-        search: state.search
+        search: state.search,
+        vendedor_id: state.vendedor_id
       });
+      if (loadToken !== activeLoadToken) return;
       state.items = data.items;
       state.pagination = data.pagination;
     } catch {
+      if (loadToken !== activeLoadToken) return;
       state.error = true;
     } finally {
+      if (loadToken !== activeLoadToken) return;
       state.loading = false;
       render();
     }
   }
 
+  async function loadVendedores() {
+    try {
+      const data = await fetchVendedoresData(apiClient, { status: 'ativo' });
+      state.vendedores = data.items || [];
+    } catch {
+      state.vendedores = [];
+    }
+  }
+
+  function scheduleSearchLoad() {
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+    const term = String(state.search || '').trim();
+    searchDebounceTimer = setTimeout(() => {
+      if (term.length === 0) {
+        load(1);
+        return;
+      }
+      if (term.length >= 2) {
+        load(1);
+      }
+    }, 300);
+  }
+
   render();
-  load(1);
+  loadVendedores().finally(() => load(1));
 }
 
 

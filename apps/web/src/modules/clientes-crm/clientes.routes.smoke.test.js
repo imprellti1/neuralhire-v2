@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bootstrapWebApp } from '../../app.js';
-import { dispatchInput, flush, mockAuthenticatedSession, setHash, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
+import { dispatchChange, dispatchInput, flush, mockAuthenticatedSession, setHash, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 import { createClientesMockHandlers } from '../../testing/mocks/clientes.mock.js';
 import { assertNoSensitiveTransportFields, getSanitizedFetchCalls, installFetchMock } from '../../testing/mocks/api-client.mock.js';
 import { assertTransportSnapshot } from '../../testing/transport-snapshot.js';
@@ -26,6 +26,53 @@ test('clientes: listagem/detalhe/criacao + contrato + snapshot', async () => {
   if (post) assertClientePostPayload(post.body);
   assert.doesNotThrow(() => assertNoSensitiveTransportFields());
   assertTransportSnapshot('clientes', calls);
+  teardownFrontendDom(dom);
+});
+
+test('clientes: busca remota com debounce, paginação e filtro de vendedor', async () => {
+  const dom = setupFrontendDom('#/clientes');
+  mockAuthenticatedSession();
+  installFetchMock({
+    'GET /clientes': ({ query }) => {
+      const search = String(query.search || '');
+      const vendedorId = String(query.vendedor_id || '');
+      return {
+        items: search.toLowerCase() === 'lc' ? [{ id: 'c-lc', empresa: 'LC & V COMERCIO DE CAMA, MESA E BANHO LTDA', razao_social: 'LC & V COMERCIO DE CAMA, MESA E BANHO LTDA', nome_contato: 'Contato LC', cidade: 'Curitiba', estado: 'PR', status: 'ativo', created_at: '2026-05-01T00:00:00.000Z' }] : [{ id: 'c1', empresa: 'Cliente A', razao_social: 'Cliente A LTDA', nome_contato: 'Ana', cidade: 'Sao Paulo', estado: 'SP', status: 'ativo', created_at: '2026-05-01T00:00:00.000Z' }],
+        pagination: { page: Number(query.page || 1), totalPages: 2, total: 2, limit: Number(query.limit || 10) },
+        meta: { vendedorId }
+      };
+    },
+    'GET /vendedores': () => ({ items: [{ id: 'vend-1', nome: 'Vendedor 1' }], pagination: { page: 1, totalPages: 1, total: 1, limit: 20 } })
+  });
+  bootstrapWebApp();
+  await flush(); await flush();
+
+  const search = document.querySelector('#nhc-search');
+  dispatchInput(search, 'l');
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  await flush();
+  let calls = getSanitizedFetchCalls().filter((call) => call.path === '/clientes');
+  assert.equal(calls.at(-1)?.query?.search || '', '');
+
+  dispatchInput(search, 'lc');
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  await flush();
+  calls = getSanitizedFetchCalls().filter((call) => call.path === '/clientes');
+  assert.equal(calls.at(-1)?.query?.search || '', 'lc');
+  assert.match(document.body.textContent, /LC & V COMERCIO DE CAMA, MESA E BANHO LTDA/i);
+
+  const vendedor = document.querySelector('#nhc-vendedor');
+  dispatchChange(vendedor, 'vend-1');
+  await flush(); await flush();
+  calls = getSanitizedFetchCalls().filter((call) => call.path === '/clientes');
+  assert.equal(calls.at(-1)?.query?.vendedor_id || '', 'vend-1');
+
+  document.querySelector('#nhc-refresh')?.click();
+  await flush(); await flush();
+  calls = getSanitizedFetchCalls().filter((call) => call.path === '/clientes');
+  assert.equal(calls.at(-1)?.query?.search || '', 'lc');
+  assert.equal(calls.at(-1)?.query?.vendedor_id || '', 'vend-1');
+
   teardownFrontendDom(dom);
 });
 

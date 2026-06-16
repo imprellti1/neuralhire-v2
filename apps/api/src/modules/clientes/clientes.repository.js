@@ -185,7 +185,7 @@ function filterMemoryClientes(items, filters = {}, accountId) {
 
   if (filters.search) {
     const q = String(filters.search).toLowerCase();
-    result = result.filter((item) => [item.nome, item.email, item.documento].some((v) => String(v || '').toLowerCase().includes(q)));
+    result = result.filter((item) => [item.nome, item.email, item.documento, item.telefone, item.cidade, item.codigo].some((v) => String(v || '').toLowerCase().includes(q)));
   }
 
   return result;
@@ -228,7 +228,7 @@ export async function listClientes(filters = {}, options = {}) {
     if (effectiveVendedorId) query = query.eq('vendedor_id', effectiveVendedorId);
     if (scopedFilters.search) {
       const search = String(scopedFilters.search).trim();
-      if (search) query = query.or(`nome.ilike.%${search}%,email.ilike.%${search}%,documento.ilike.%${search}%`);
+      if (search) query = query.or(`nome.ilike.%${search}%,email.ilike.%${search}%,documento.ilike.%${search}%,telefone.ilike.%${search}%,cidade.ilike.%${search}%,codigo.ilike.%${search}%`);
     }
 
     if (typeof scopedFilters.ativo === 'boolean') query = query.eq('ativo', scopedFilters.ativo);

@@ -5,6 +5,17 @@
       "content-type": "application/json"
     },
     "method": "GET",
+    "path": "/vendedores",
+    "query": {
+      "status": "ativo"
+    }
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
     "path": "/clientes",
     "query": {
       "limit": "10",
