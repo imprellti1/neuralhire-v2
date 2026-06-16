@@ -187,12 +187,20 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId, routeQuery 
         const quantidade = getItemQuantidade(item);
         const custoUnitario = getItemCustoUnitario(item);
         const totalItem = getItemTotalCalculado(item);
-        console.log('ITEM RENDER', {
+        console.log('ITEM MONEY SOURCE', {
           produto: item?.produto,
           valorUnitario: item?.valorUnitario,
+          valor_unitario: item?.valor_unitario,
+          preco_unitario: item?.preco_unitario,
+          unitario: item?.unitario,
+          preco: item?.preco,
+          custo_unitario: item?.custo_unitario,
+          custoUnitario: item?.custoUnitario,
           valorUnitarioCentavos: item?.valorUnitarioCentavos,
           totalItem: item?.totalItem,
+          total_item: item?.total_item,
           totalItemCentavos: item?.totalItemCentavos,
+          valor_total: item?.valor_total,
           custoUnitarioCalculado: getItemCustoUnitario(item),
           totalCalculado: getItemTotalCalculado(item)
         });
