@@ -15,6 +15,7 @@ function validateForm(form) { return String(form?.nome || '').trim().length >= 2
 export function renderGruposComerciaisPage(root, { apiClient } = {}) {
   injectStyles();
   const state = createGruposComerciaisState();
+  let clientesSearchRequestId = 0;
 
   function render() {
     const filtered = state.items.filter((item) => [item.nome, item.descricao].some((v) => String(v || '').toLowerCase().includes(String(state.search || '').toLowerCase())));
@@ -44,8 +45,9 @@ export function renderGruposComerciaisPage(root, { apiClient } = {}) {
     root.querySelector('#nhgc-ativo')?.addEventListener('change', (e) => { state.form = { ...state.form, ativo: e.target.value === 'true' }; });
     root.querySelector('#nhgc-add-clientes')?.addEventListener('click', addSelectedClientes);
     root.querySelector('#nhgc-cliente-search')?.addEventListener('input', (e) => {
-      state.clienteSearch = e.target.value || '';
-      loadClientesBuscados();
+      const value = e.target.value || '';
+      state.clienteSearch = value;
+      loadClientesBuscados(value);
     });
     root.querySelectorAll('[data-edit]').forEach((el) => el.addEventListener('click', () => openModal(state.items.find((item) => item.id === el.getAttribute('data-edit')))));
     root.querySelectorAll('[data-clients]').forEach((el) => el.addEventListener('click', () => openClientesModal(state.items.find((item) => item.id === el.getAttribute('data-clients')))));
@@ -76,9 +78,11 @@ export function renderGruposComerciaisPage(root, { apiClient } = {}) {
       render();
     }
   }
-  async function loadClientesBuscados() {
-    const query = String(state.clienteSearch || '').trim();
-    if (query.length < 1) {
+  async function loadClientesBuscados(nextQuery = state.clienteSearch) {
+    const query = String(nextQuery || '');
+    const trimmedQuery = query.trim();
+    const requestId = ++clientesSearchRequestId;
+    if (trimmedQuery.length < 1) {
       state.clientesDisponiveis = [];
       state.clientesLoading = false;
       render();
@@ -87,9 +91,11 @@ export function renderGruposComerciaisPage(root, { apiClient } = {}) {
     state.clientesLoading = true;
     render();
     try {
-      const res = await searchClientes(apiClient, query);
+      const res = await searchClientes(apiClient, trimmedQuery);
+      if (requestId !== clientesSearchRequestId) return;
       state.clientesDisponiveis = res.items || [];
     } finally {
+      if (requestId !== clientesSearchRequestId) return;
       state.clientesLoading = false;
       render();
     }

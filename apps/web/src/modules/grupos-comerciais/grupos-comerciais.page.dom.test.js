@@ -122,12 +122,28 @@ test('clientes do grupo dispara busca com 1 caractere e ignora string vazia', as
   await flush();
 
   assert.deepEqual(searched, ['S']);
+  assert.equal(document.querySelector('#nhgc-cliente-search')?.value, 'S');
   assert.match(document.body.textContent, /Silva/i);
 
-  dispatchInput(input, '');
+  dispatchInput(document.querySelector('#nhgc-cliente-search'), 'SA');
   await flush();
   await flush();
 
-  assert.deepEqual(searched, ['S']);
+  assert.deepEqual(searched, ['S', 'SA']);
+  assert.equal(document.querySelector('#nhgc-cliente-search')?.value, 'SA');
+
+  dispatchInput(document.querySelector('#nhgc-cliente-search'), 'SAN');
+  await flush();
+  await flush();
+
+  assert.deepEqual(searched, ['S', 'SA', 'SAN']);
+  assert.equal(document.querySelector('#nhgc-cliente-search')?.value, 'SAN');
+
+  dispatchInput(document.querySelector('#nhgc-cliente-search'), '');
+  await flush();
+  await flush();
+
+  assert.deepEqual(searched, ['S', 'SA', 'SAN']);
+  assert.equal(document.querySelector('#nhgc-cliente-search')?.value, '');
   teardownFrontendDom(dom);
 });
