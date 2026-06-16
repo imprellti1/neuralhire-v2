@@ -85,15 +85,35 @@ export async function deleteGrupoComercial(id, options = {}) { return updateGrup
 async function assertGrupoExists(accountId, grupoId) { await getGrupoComercialById(grupoId, { accountId }); }
 async function assertClienteExists(accountId, clienteId) { const { getClienteById } = await import('../clientes/clientes.repository.js'); await getClienteById(clienteId, { accountId }); }
 
+async function loadClienteSnapshot(accountId, clienteId) {
+  const { getClienteById } = await import('../clientes/clientes.repository.js');
+  try {
+    const cliente = await getClienteById(clienteId, { accountId });
+    return cliente ? {
+      id: cliente.id,
+      nome: cliente.nome || null,
+      razao_social: cliente.razao_social || null,
+      documento: cliente.documento || null,
+      codigo: cliente.codigo || null,
+      cidade: cliente.cidade || null,
+      estado: cliente.estado || null
+    } : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function listGrupoComercialClientes(grupoId, options = {}) {
   const accountId = options.accountId || null; assertAccountId(accountId); await assertGrupoExists(accountId, grupoId);
   if (repoMode() === 'supabase') {
     const supabase = getSupabaseClient();
     const { data, error } = await supabase.from('grupo_comercial_clientes').select('id, account_id, grupo_comercial_id, cliente_id, created_at').eq('account_id', accountId).eq('grupo_comercial_id', grupoId).order('created_at', { ascending: false });
     if (error) throw new DatabaseError('Falha ao listar clientes do grupo', { details: error });
-    return { items: data || [] };
+    const items = await Promise.all((data || []).map(async (item) => ({ ...item, cliente: await loadClienteSnapshot(accountId, item.cliente_id) })));
+    return { items };
   }
-  return { items: memoryVinculos.filter((v) => v.account_id === accountId && v.grupo_comercial_id === grupoId).map(clone) };
+  const items = await Promise.all(memoryVinculos.filter((v) => v.account_id === accountId && v.grupo_comercial_id === grupoId).map(async (item) => ({ ...clone(item), cliente: await loadClienteSnapshot(accountId, item.cliente_id) })));
+  return { items };
 }
 
 export async function addClientesToGrupo(grupoId, clienteIds = [], options = {}) {

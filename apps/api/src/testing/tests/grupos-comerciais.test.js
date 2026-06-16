@@ -3,7 +3,7 @@ import { createApiApp } from '../../app.js';
 import { createTestRequest } from '../create-test-request.js';
 import { createTestResponse } from '../create-test-response.js';
 import { __resetMemoryClientesForTests, createCliente } from '../../modules/clientes/clientes.repository.js';
-import { __resetMemoryGruposComerciaisForTests, addClientesToGrupo, createGrupoComercial, deleteGrupoComercial, getGruposComerciaisByClienteId, listGruposComerciais, removeClienteFromGrupo, updateGrupoComercial } from '../../modules/grupos-comerciais/grupos-comerciais.repository.js';
+import { __resetMemoryGruposComerciaisForTests, addClientesToGrupo, createGrupoComercial, deleteGrupoComercial, getGruposComerciaisByClienteId, listGrupoComercialClientes, listGruposComerciais, removeClienteFromGrupo, updateGrupoComercial } from '../../modules/grupos-comerciais/grupos-comerciais.repository.js';
 
 const accountA = 'acc-grupos-a';
 const accountB = 'acc-grupos-b';
@@ -47,10 +47,24 @@ export function getGruposComerciaisTests() {
       __resetMemoryGruposComerciaisForTests();
       __resetMemoryClientesForTests();
       const grupo = await createGrupoComercial({ nome: 'Grupo A' }, { accountId: accountA });
-      const cliente = await createCliente({ nome: 'Cliente A' }, { accountId: accountA });
+      const cliente = await createCliente({ nome: 'Cliente A', codigo: 'CLI-001', cidade: 'Campinas', estado: 'SP', documento: '12.345.678/0001-90' }, { accountId: accountA });
       await addClientesToGrupo(grupo.id, [cliente.id, cliente.id], { accountId: accountA });
       const links = await getGruposComerciaisByClienteId(cliente.id, { accountId: accountA });
       assertEqual(links.length, 1);
+    } },
+    { name: 'listar clientes do grupo inclui cliente aninhado', run: async () => {
+      __resetMemoryGruposComerciaisForTests();
+      __resetMemoryClientesForTests();
+      const grupo = await createGrupoComercial({ nome: 'Grupo A' }, { accountId: accountA });
+      const cliente = await createCliente({ nome: 'Cliente A', codigo: 'CLI-001', cidade: 'Campinas', estado: 'SP', documento: '12.345.678/0001-90' }, { accountId: accountA });
+      await addClientesToGrupo(grupo.id, [cliente.id], { accountId: accountA });
+      const result = await listGrupoComercialClientes(grupo.id, { accountId: accountA });
+      assertEqual(result.items.length, 1);
+      assertEqual(result.items[0].cliente.id, cliente.id);
+      assertEqual(result.items[0].cliente.nome, 'Cliente A');
+      assertEqual(result.items[0].cliente.codigo, 'CLI-001');
+      assertEqual(result.items[0].cliente.cidade, 'Campinas');
+      assertEqual(result.items[0].cliente.estado, 'SP');
     } },
     { name: 'remover vínculo', run: async () => {
       __resetMemoryGruposComerciaisForTests();

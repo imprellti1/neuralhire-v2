@@ -9,6 +9,15 @@ function injectStyles() {
   document.head.appendChild(style);
 }
 function safe(v, f = '-') { const t = String(v || '').trim(); return t || f; }
+function formatClienteVinculado(item) {
+  const cliente = item?.cliente || {};
+  const nome = cliente.nome || cliente.razao_social || item?.nome || item?.cliente_nome || 'Cliente sem nome';
+  const detalhes = [cliente.codigo || item?.codigo, [cliente.cidade || item?.cidade, cliente.estado || item?.estado].filter(Boolean).join('/')]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .join(' • ');
+  return { nome, detalhes };
+}
 function createForm(selected = null) { return { nome: selected?.nome || '', descricao: selected?.descricao || '', ativo: selected?.ativo !== false }; }
 function validateForm(form) { return String(form?.nome || '').trim().length >= 2 ? '' : 'Informe um nome para o grupo comercial.'; }
 
@@ -37,7 +46,10 @@ export function renderGruposComerciaisPage(root, { apiClient } = {}) {
   function renderClientesVinculados() {
     const target = root.querySelector('#nhgc-clientes-vinculados');
     if (!target) return;
-    target.innerHTML = (state.clientesVinculados || []).map((c) => `<div class="nhgc-card"><strong>${safe(c.cliente_nome || c.nome || c.id)}</strong><div class="nhgc-sub">${safe(c.cliente_email || c.email)}</div><button class="nhgc-btn" data-remove-cliente="${c.cliente_id}">Remover</button></div>`).join('') || '<div class="nhgc-empty">Nenhum cliente vinculado.</div>';
+    target.innerHTML = (state.clientesVinculados || []).map((c) => {
+      const info = formatClienteVinculado(c);
+      return `<div class="nhgc-card"><strong>${safe(info.nome)}</strong>${info.detalhes ? `<div class="nhgc-sub">${safe(info.detalhes)}</div>` : ''}<button class="nhgc-btn" data-remove-cliente="${c.cliente_id}">Remover</button></div>`;
+    }).join('') || '<div class="nhgc-empty">Nenhum cliente vinculado.</div>';
     bindClientesVinculados();
   }
   function openModal(selected = null) { state.selected = selected; state.form = createForm(selected); state.formError = ''; state.modalOpen = true; render(); }

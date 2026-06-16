@@ -171,3 +171,50 @@ test('clientes do grupo dispara busca com 1 caractere e ignora string vazia', as
   assert.equal(document.activeElement, input);
   teardownFrontendDom(dom);
 });
+
+test('clientes vinculados aparecem pelo nome e removem pelo cliente_id', async () => {
+  const dom = setupFrontendDom('#/grupos-comerciais');
+  mockAuthenticatedSession();
+  resetFetchCalls();
+  const deleteCalls = [];
+  installFetchMock({
+    'GET /grupos-comerciais': () => ({ items: [{ id: 'gc-1', nome: 'Grupo Alpha', descricao: '', ativo: true }], pagination: { page: 1, totalPages: 1, total: 1, limit: 20 } }),
+    'GET /grupos-comerciais/gc-1/clientes': () => ({
+      items: [{
+        id: 'link-1',
+        cliente_id: 'ecd97982-aaaa-bbbb-cccc-111111111111',
+        cliente: {
+          id: 'ecd97982-aaaa-bbbb-cccc-111111111111',
+          nome: 'Cliente Exemplo',
+          codigo: 'CLI-009',
+          cidade: 'Campinas',
+          estado: 'SP'
+        }
+      }],
+      pagination: { page: 1, totalPages: 1, total: 1, limit: 10 }
+    }),
+    'DELETE /grupos-comerciais/gc-1/clientes/ecd97982-aaaa-bbbb-cccc-111111111111': () => {
+      deleteCalls.push('ecd97982-aaaa-bbbb-cccc-111111111111');
+      return { ok: true };
+    }
+  });
+
+  bootstrapWebApp();
+  await flush();
+  await flush();
+
+  findButtonByText('Clientes do grupo').click();
+  await flush();
+  await flush();
+
+  assert.match(document.body.textContent, /Cliente Exemplo/i);
+  assert.match(document.body.textContent, /CLI-009 • Campinas\/SP/i);
+  assert.equal(document.body.textContent.includes('ecd97982-aaaa-bbbb-cccc-111111111111'), false);
+
+  findButtonByText('Remover').click();
+  await flush();
+  await flush();
+
+  assert.deepEqual(deleteCalls, ['ecd97982-aaaa-bbbb-cccc-111111111111']);
+  teardownFrontendDom(dom);
+});
