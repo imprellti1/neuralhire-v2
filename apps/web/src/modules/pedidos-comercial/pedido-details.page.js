@@ -187,6 +187,15 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId, routeQuery 
         const quantidade = getItemQuantidade(item);
         const custoUnitario = getItemCustoUnitario(item);
         const totalItem = getItemTotalCalculado(item);
+        console.log('ITEM RENDER', {
+          produto: item?.produto,
+          valorUnitario: item?.valorUnitario,
+          valorUnitarioCentavos: item?.valorUnitarioCentavos,
+          totalItem: item?.totalItem,
+          totalItemCentavos: item?.totalItemCentavos,
+          custoUnitarioCalculado: getItemCustoUnitario(item),
+          totalCalculado: getItemTotalCalculado(item)
+        });
         return `<tr class="${itemLinkClass(item?.status_vinculo)}"><td><div>${item?.produto || item?.nome_produto_original || 'Produto não identificado'}</div><div class="nho2d-item-meta"><span class="nho2-badge ${itemLinkClass(item?.status_vinculo)}">${itemLinkLabel(item?.status_vinculo)}</span>${item?.status_vinculo && item?.status_vinculo !== 'vinculado' ? `<span class="nho2d-item-sku">${item?.motivo_vinculo || 'Item importado sem vínculo com produto/variação cadastrados.'}</span>` : ''}</div></td><td>${quantidade}</td><td class="nho2d-right">${formatBRLFromReais(custoUnitario)}</td><td class="nho2d-right">${formatBRLFromReais(totalItem)}</td></tr>`;
       }).join('');
     const historicoRows = (d?.historico || []).map((h) => `<tr><td>${h?.statusAnterior || ''}</td><td>${h?.statusNovo || ''}</td><td>${fmtDate(h?.data)}</td></tr>`).join('');
