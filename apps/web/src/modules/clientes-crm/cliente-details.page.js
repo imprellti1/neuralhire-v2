@@ -156,6 +156,12 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-group-summary{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
     .nho2d-group-body{padding:0 18px 16px}
     .nho2d-group-empty{padding:0 18px 16px;color:#62759a}
+    .nho2d-product-row{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;background:transparent;border:0;cursor:pointer;text-align:left}
+    .nho2d-product-row:hover{background:#f7faff}
+    .nho2d-product-name{min-width:0;font-weight:700;color:#10264b}
+    .nho2d-product-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;color:#5e6f93;font-size:13px}
+    .nho2d-variation-panel{padding:0 18px 16px}
+    .nho2d-variation-note{font-size:12px;color:#62759a;margin-top:4px}
     @media (max-width:1280px){.nho2d-title{font-size:28px}}
     @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}.nho2d-kpi-grid{grid-template-columns:1fr}}
     `;
@@ -248,54 +254,51 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     const items = getPedidoItems(pedido);
     if (!items.length) return '<p class="nho2d-empty" style="padding:12px 0">Sem itens para exibir.</p>';
     const grupos = agruparItensPorProduto(items);
-    return `<div class="nho2d-stack">${grupos.map((grupo) => {
-      return `<div class="nho2d-card" style="padding:16px">
-        <div class="nho2d-group-summary" style="margin-bottom:10px">
-          <strong class="nho2d-product-parent">${safeText(grupo.produtoNome, 'Produto sem nome')}</strong>
-          <span class="nho2d-pill">${grupo.quantidadeTotal} un.</span>
-          <span><strong>Total do produto:</strong> ${fmtCurrency(grupo.valorTotal)}</span>
-        </div>
-        <div class="nho2d-table-wrap">
-          <table class="nho2d-table">
-            <thead>
-              <tr>
-                <th>Variação</th>
-                <th>Quantidade</th>
-                <th class="nho2d-right">Unitário</th>
-                <th class="nho2d-right">Total</th>
-                <th>Status/Vínculo</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${grupo.variacoes.map((item) => {
-                const quantidade = Number(item?.quantidade || 0);
-                const unitario = Number(item?.valor_unitario || item?.valorUnitario || item?.preco_unitario || item?.preco || 0);
-                const total = Number(item?.valor_total_calculado || calcularTotalItem(item));
-                const variacao = [
-                  item?.nome_produto_original,
-                  item?.cor_original,
-                  item?.tamanho_original,
-                  item?.codigo_produto_erp_original,
-                  item?.ean_original
-                ].filter(Boolean).join(' • ');
-                return `<tr>
-                  <td>
-                    <div class="nho2d-product-variation">${safeText(variacao || item?.descricao || item?.produto || 'Variação não identificada')}</div>
-                    <div class="nho2d-item-note">${safeText(item?.nome_produto_original || item?.descricao || '', '')}</div>
-                  </td>
-                  <td>${quantidade || 0}</td>
-                  <td class="nho2d-right">${fmtCurrency(unitario)}</td>
-                  <td class="nho2d-right">${fmtCurrency(total)}</td>
-                  <td>
-                    <div>${safeText(itemStatusLabel(item), '-')}</div>
-                    <div class="nho2d-item-note">${safeText(item?.motivo_vinculo, '')}</div>
-                  </td>
-                </tr>`;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>`;
+    return `<div class="nho2d-stack">${grupos.map((grupo, index) => {
+      const groupId = `${pedido.id || 'pedido'}-${index}`;
+      const open = pedidoAccordionState.get(groupId) ?? false;
+      return `<section class="nho2d-accordion ${open ? 'is-open' : ''}" data-variation-group="${groupId}">
+        <button class="nho2d-product-row" data-toggle-variation-group="${groupId}" aria-expanded="${open ? 'true' : 'false'}">
+          <span class="nho2d-product-name">${safeText(grupo.produtoNome, 'Produto sem nome')}</span>
+          <span class="nho2d-product-meta">
+            <span class="nho2d-pill">${grupo.quantidadeTotal} un.</span>
+            <span><strong>Total do produto:</strong> ${fmtCurrency(grupo.valorTotal)}</span>
+          </span>
+          <svg class="nho2d-chevron" width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        ${open ? `<div class="nho2d-variation-panel">
+          <div class="nho2d-table-wrap">
+            <table class="nho2d-table">
+              <thead>
+                <tr>
+                  <th>Cor</th>
+                  <th>Tamanho</th>
+                  <th>Quantidade</th>
+                  <th class="nho2d-right">Custo unitário</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${grupo.variacoes.map((item) => {
+                  const quantidade = Number(item?.quantidade || 0);
+                  const unitario = Number(item?.valor_unitario || item?.valorUnitario || item?.preco_unitario || item?.preco || 0);
+                  const cor = item?.cor_original || item?.cor || '-';
+                  const tamanho = item?.tamanho_original || item?.tamanho || item?.grade || '-';
+                  const motivo = safeText(item?.motivo_vinculo, '');
+                  return `<tr>
+                    <td>${safeText(cor, '-')}</td>
+                    <td>${safeText(tamanho, '-')}</td>
+                    <td>${quantidade || 0}</td>
+                    <td class="nho2d-right">
+                      <div>${fmtCurrency(unitario)}</div>
+                      ${motivo ? `<div class="nho2d-variation-note">${motivo}</div>` : ''}
+                    </td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>` : ''}
+      </section>`;
     }).join('')}</div>`;
   }
 
@@ -430,6 +433,14 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
           }
           return;
         }
+        render();
+      };
+    });
+    root.querySelectorAll('[data-toggle-variation-group]').forEach((button) => {
+      button.onclick = () => {
+        const groupKey = button.getAttribute('data-toggle-variation-group');
+        const current = pedidoAccordionState.get(groupKey) ?? false;
+        pedidoAccordionState.set(groupKey, !current);
         render();
       };
     });

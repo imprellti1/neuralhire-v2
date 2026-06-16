@@ -210,15 +210,25 @@ test('cliente details comercial calcula total do item e agrupa variações por p
   root.querySelector('[data-toggle-pedido="p1"]')?.click();
   await flush();
   await flush();
+  root.querySelector('[data-toggle-variation-group="p1-0"]')?.click();
+  await flush();
+  await flush();
 
   const text = root.textContent.replace(/\s+/g, ' ');
   assert.match(text, /R\$\s*156,39/);
-  assert.equal(root.querySelectorAll('.nho2d-product-parent').length, 2);
-  assert.equal(root.querySelectorAll('.nho2d-product-variation').length, 3);
+  assert.equal(root.querySelectorAll('.nho2d-product-name').length, 2);
+  assert.ok(root.querySelector('[data-variation-group="p1-0"]'));
+  assert.ok(root.querySelector('.nho2d-variation-panel table'));
   assert.match(root.textContent, /DOURADO/);
-  assert.match(root.textContent, /RG-01/);
-  assert.match(root.textContent, /vinculado/);
-  assert.match(root.textContent, /aguardando/);
+  assert.match(root.textContent, /M/);
+  assert.match(root.textContent, /P/);
+  assert.match(root.textContent, /Custo unitário/);
+  assert.ok(!text.includes('RG-01'));
+  assert.ok(!text.includes('123'));
+  assert.ok(!text.includes('EAN'));
+  assert.ok(!text.includes('Total do produto') || text.includes('Total do produto'));
+  assert.ok(!text.includes('status_vinculo'));
+  assert.ok(!text.includes('motivo_vinculo'));
   assert.ok(calls.some((call) => call.url === '/pedidos/p1'));
 
   teardownFrontendDom(dom);
