@@ -233,3 +233,97 @@ test('cliente details comercial calcula total do item e agrupa variações por p
 
   teardownFrontendDom(dom);
 });
+
+test('cliente details comercial atualiza valor do pedido e resumo do grupo quando itens chegam sob demanda', async () => {
+  const dom = setupFrontendDom('#/clientes/c1');
+  const root = document.getElementById('root');
+  let resolvePedido;
+  const pedidoPromise = new Promise((resolve) => {
+    resolvePedido = resolve;
+  });
+  const apiClient = {
+    get: async (url, params = {}) => {
+      if (url === '/clientes/c1') {
+        return {
+          item: {
+            id: 'c1',
+            empresa: 'Cliente A',
+            cidade: 'São Paulo',
+            estado: 'SP',
+            created_at: '2026-05-01T00:00:00.000Z',
+            status: 'ativo'
+          }
+        };
+      }
+      if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') {
+        return {
+          items: [
+            {
+              id: 'p1',
+              cliente_id: 'c1',
+              numero: '3001',
+              status: 'faturado',
+              valor_total: 0,
+              data_faturamento: '2026-06-12T00:00:00.000Z',
+              created_at: '2026-06-10T00:00:00.000Z',
+              itens: null
+            }
+          ],
+          pagination: { page: 1, totalPages: 1, total: 1, limit: 100 }
+        };
+      }
+      if (url === '/pedidos/p1') {
+        return pedidoPromise;
+      }
+      return { items: [] };
+    }
+  };
+
+  renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
+  await flush();
+  await flush();
+  root.querySelector('[data-tab="comercial"]')?.click();
+  await flush();
+  await flush();
+  root.querySelector('[data-toggle-group="faturados"]')?.click();
+  await flush();
+  await flush();
+
+  root.querySelector('[data-toggle-pedido="p1"]')?.click();
+  await flush();
+  await flush();
+
+  assert.match(root.textContent, /Carregando itens do pedido/);
+  assert.match(root.textContent, /Valor:\s*R\$\s*0,00|Valor:\s*—/);
+  assert.match(root.textContent, /Valor total:\s*R\$\s*0,00/);
+
+  resolvePedido({
+    item: {
+      id: 'p1',
+      itens: [
+        {
+          produto_id: 'prod-1',
+          produto_nome: 'Produto A',
+          quantidade: 2,
+          valor_unitario: 10
+        },
+        {
+          produto_id: 'prod-2',
+          produto_nome: 'Produto B',
+          quantidade: 1,
+          valor_unitario: 7,
+          valor_total: 9
+        }
+      ]
+    }
+  });
+  await flush();
+  await flush();
+
+  assert.match(root.textContent, /Valor:\s*R\$\s*29,00/);
+  assert.match(root.textContent, /Valor total:\s*R\$\s*29,00/);
+  assert.match(root.textContent, /Produto A/);
+  assert.match(root.textContent, /Produto B/);
+
+  teardownFrontendDom(dom);
+});

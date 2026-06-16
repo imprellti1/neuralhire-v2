@@ -49,6 +49,13 @@ function calcularTotalItem(item = {}) {
 
   return quantidade * unitario;
 }
+function calcularValorPedido(pedido = {}) {
+  const valorPedido = Number(pedido?.valor_total || pedido?.valor || pedido?.total || 0);
+  if (valorPedido > 0) return valorPedido;
+
+  const itens = Array.isArray(pedido?.itens) ? pedido.itens : [];
+  return itens.reduce((soma, item) => soma + calcularTotalItem(item), 0);
+}
 function agruparItensPorProduto(itens = []) {
   const grupos = new Map();
 
@@ -315,7 +322,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
             <span><strong>Data:</strong> ${fmtDateOnlyUTC(getPedidoDate(pedido))}</span>
             <span class="nho2-badge ${statusClass(pedido.status)}">${safeText(pedido.status, '-')}</span>
             <span class="nho2d-pill">${pedido.itemCount ?? (Array.isArray(pedido.itens) ? pedido.itens.length : 0)} itens</span>
-            <span><strong>Valor:</strong> ${fmtCurrency(pedido.valor)}</span>
+            <span><strong>Valor:</strong> ${fmtCurrency(calcularValorPedido(pedido))}</span>
           </span>
         </span>
         <svg class="nho2d-chevron" width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -327,7 +334,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   function renderGroup(group) {
     const summary = {
       totalPedidos: Number(group?.totalPedidos || group?.pedidos?.length || 0),
-      totalValue: Number(group?.totalValue || 0),
+      totalValue: Array.isArray(group?.pedidos) ? group.pedidos.reduce((soma, pedido) => soma + calcularValorPedido(pedido), 0) : Number(group?.totalValue || 0),
       latestBillingDate: group?.latestBillingDate || null
     };
     const open = groupAccordionState.get(group.key) ?? false;
@@ -390,6 +397,15 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       ultimosPedidos: (state.data?.ultimosPedidos || []).map((pedido) => ({
         ...pedido,
         itens: pedidoItemDetails.has(pedido.id) ? pedidoItemDetails.get(pedido.id) : pedido.itens
+      })),
+      pedidosAgrupados: (state.data?.pedidosAgrupados || []).map((group) => ({
+        ...group,
+        pedidos: Array.isArray(group.pedidos)
+          ? group.pedidos.map((pedido) => ({
+              ...pedido,
+              itens: pedidoItemDetails.has(pedido.id) ? pedidoItemDetails.get(pedido.id) : pedido.itens
+            }))
+          : group.pedidos
       }))
     };
   }

@@ -41,6 +41,19 @@ function getGroupLabel(key = '') {
   if (key === 'cancelados') return 'Cancelados';
   return 'Outros';
 }
+function calcularTotalItem(item = {}) {
+  const total = Number(item?.valor_total || item?.total || 0);
+  if (total > 0) return total;
+  const quantidade = Number(item?.quantidade || 0);
+  const unitario = Number(item?.valor_unitario || item?.valorUnitario || item?.preco_unitario || item?.preco || 0);
+  return quantidade * unitario;
+}
+function calcularValorPedido(pedido = {}) {
+  const valorPedido = Number(pedido?.valor_total ?? pedido?.valor ?? pedido?.total ?? 0);
+  if (valorPedido > 0) return valorPedido;
+  const itens = Array.isArray(pedido?.itens) ? pedido.itens : [];
+  return itens.reduce((soma, item) => soma + calcularTotalItem(item), 0);
+}
 function getPedidoSortDate(pedido = {}) {
   return getBillingDate(pedido) || getPedidoFallbackDate(pedido);
 }
@@ -52,7 +65,7 @@ function buildPedidoGroups(pedidos = []) {
     const billingDate = getBillingDate(pedido);
     const fallbackDate = getPedidoFallbackDate(pedido);
     const sortDate = getPedidoSortDate(pedido);
-    const total = Number(pedido?.valor_total ?? pedido?.total ?? pedido?.valor ?? 0);
+    const total = calcularValorPedido(pedido);
     current.totalValue += total;
     current.pedidos.push({
       ...pedido,
@@ -88,11 +101,11 @@ export function mapClienteDetailsData({ cliente = null, pedidos = [], clienteId 
   const normalizedPedidos = Array.isArray(pedidos) ? pedidos : [];
   if (!normalizedCliente) return { id: null };
   const pedidosCliente = normalizedPedidos.filter((p) => belongsToCliente(p, normalizedCliente));
-  const faturamentoTotal = pedidosCliente.reduce((a, p) => a + Number(p?.valor_total ?? p?.total ?? p?.valor ?? 0), 0);
+  const faturamentoTotal = pedidosCliente.reduce((a, p) => a + calcularValorPedido(p), 0);
   const totalPedidos = pedidosCliente.length;
   const ticketMedio = totalPedidos > 0 ? faturamentoTotal / totalPedidos : 0;
   const pedidosComData = pedidosCliente.map((p) => ({ ...p, _billingDate: getBillingDate(p), _fallbackDate: getPedidoFallbackDate(p) })).sort((a, b) => Number(b?._billingDate?.getTime() || b?._fallbackDate?.getTime() || 0) - Number(a?._billingDate?.getTime() || a?._fallbackDate?.getTime() || 0));
-  const ultimosPedidos = pedidosComData.slice(0, 8).map((p) => ({ id: p?.id, numero: getPedidoCode(p), dataFaturamento: p?._billingDate || null, dataFallback: p?._fallbackDate || null, status: normalizeStatus(p?.status), valor: Number(p?.valor_total ?? p?.total ?? p?.valor ?? 0), itens: Array.isArray(p?.itens) ? p.itens : null, itemCount: Array.isArray(p?.itens) ? p.itens.length : 0 }));
+  const ultimosPedidos = pedidosComData.slice(0, 8).map((p) => ({ id: p?.id, numero: getPedidoCode(p), dataFaturamento: p?._billingDate || null, dataFallback: p?._fallbackDate || null, status: normalizeStatus(p?.status), valor: calcularValorPedido(p), itens: Array.isArray(p?.itens) ? p.itens : null, itemCount: Array.isArray(p?.itens) ? p.itens.length : 0 }));
   const pedidosAgrupados = buildPedidoGroups(pedidosCliente).map((group) => ({
     ...group,
     totalPedidos: group.pedidos.length,
