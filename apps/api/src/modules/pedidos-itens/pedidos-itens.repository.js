@@ -34,20 +34,43 @@ function normalizeSku(value) {
   return String(value ?? '').trim().toLowerCase();
 }
 
+function parseMoneyLike(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  const text = String(value).trim();
+  if (!text) return null;
+  const compact = text.replace(/\s+/g, '').replace(/^R\$/i, '');
+  const normalized = compact.includes(',')
+    ? compact.replace(/\./g, '').replace(/,/g, '.')
+    : compact;
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+export function normalizeSpreadsheetMoney(value, { fallback = null } = {}) {
+  const numeric = parseMoneyLike(value);
+  if (numeric === null || numeric < 0) return fallback;
+  const rawText = typeof value === 'string' ? value.trim() : '';
+  const hasDecimalSeparator = rawText.includes(',') || rawText.includes('.');
+  const isIntegerLike = Number.isInteger(numeric) && !hasDecimalSeparator;
+  const normalized = isIntegerLike ? numeric / 100 : numeric;
+  return Number(normalized.toFixed(3));
+}
+
 function toNonNegativeMoney(value, fallback = 0) {
   const raw = value ?? fallback;
-  const numeric = typeof raw === 'number' ? raw : Number(String(raw).replace(/\s+/g, '').replace(/^R\$/i, '').replace(/\./g, '').replace(/,/g, '.'));
+  const numeric = parseMoneyLike(raw);
   if (!Number.isFinite(numeric) || numeric < 0) return fallback;
   return Number(numeric.toFixed(2));
 }
 
 function resolvePrecoUnitario(row = {}) {
-  const explicit = toNonNegativeMoney(row.preco_unitario ?? row.valor_unitario, null);
+  const explicit = normalizeSpreadsheetMoney(row.preco_unitario ?? row.valor_unitario, { fallback: null });
   if (explicit !== null && explicit !== undefined) return explicit;
   const quantidade = toNonNegativeMoney(row.quantidade, 0);
-  const valorTotal = toNonNegativeMoney(row.valor_total, null);
+  const valorTotal = normalizeSpreadsheetMoney(row.valor_total, { fallback: null });
   if (valorTotal === null || !quantidade) return 0;
-  return Number((valorTotal / quantidade).toFixed(2));
+  return Number((valorTotal / quantidade).toFixed(3));
 }
 
 function buildItemMetadata(row = {}) {
@@ -131,6 +154,8 @@ async function findPedidoByNumero(accountId, numero) {
 function buildPedidoItemRow({ accountId, pedidoId, row = {}, match = {} }) {
   const produtoNome = match?.produto_nome || row.nome_produto_original || null;
   const precoUnitario = resolvePrecoUnitario(row);
+  const valorTotal = normalizeSpreadsheetMoney(row.valor_total, { fallback: null });
+  const valorUnitario = normalizeSpreadsheetMoney(row.valor_unitario ?? row.preco_unitario, { fallback: null });
   return {
     account_id: accountId,
     pedido_id: pedidoId,
@@ -144,8 +169,8 @@ function buildPedidoItemRow({ accountId, pedidoId, row = {}, match = {} }) {
     ean_original: row.ean_original || null,
     quantidade: row.quantidade ?? null,
     preco_unitario: precoUnitario,
-    valor_unitario: row.valor_unitario ?? null,
-    valor_total: row.valor_total ?? null,
+    valor_unitario: valorUnitario,
+    valor_total: valorTotal,
     sku_base_extraido: row.sku_base_extraido || null,
     sku_esperado: row.sku_esperado || null,
     status_vinculo: match.status_vinculo,
@@ -300,6 +325,8 @@ export async function executePedidosItensImport({ accountId, fileName, buffer })
     }
     itens.push({
       ...row,
+      valor_total: normalizeSpreadsheetMoney(row.valor_total, { fallback: row.valor_total ?? null }),
+      valor_unitario: normalizeSpreadsheetMoney(row.valor_unitario ?? row.preco_unitario, { fallback: row.valor_unitario ?? row.preco_unitario ?? null }),
       sku_base_extraido: skuBase,
       sku_esperado: skuEsperado,
       status_vinculo: match.status_vinculo,
