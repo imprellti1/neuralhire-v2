@@ -32,15 +32,19 @@ function safeText(value, fallback = '-') {
   return text || fallback;
 }
 function getPedidoDate(pedido = {}) {
-  return pedido.dataFaturamento || pedido.dataFallback || null;
+  return pedido.dataFaturamento || pedido.dataFallback || pedido._billingDate || pedido._fallbackDate || null;
 }
 function itemStatusLabel(item = {}) {
   return item?.status_vinculo || item?.vinculo || item?.status || '';
+}
+function fmtGroupDate(value) {
+  return fmtDateOnlyUTC(value);
 }
 
 export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   const state = createClienteDetailsState();
   let activeTab = 'geral';
+  const groupAccordionState = new Map();
   const pedidoAccordionState = new Map();
   const pedidoItemDetails = new Map();
   const pedidoItemLoading = new Set();
@@ -93,6 +97,9 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-item-note{font-size:12px;color:#62759a}
     .nho2d-mini-loading{padding:10px 0;color:#62759a;font-size:13px}
     .nho2d-crm-empty{padding:18px;border:1px dashed #d5e0f3;border-radius:12px;color:#5b6c90;background:#fbfcff}
+    .nho2d-group-summary{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    .nho2d-group-body{padding:0 18px 16px}
+    .nho2d-group-empty{padding:0 18px 16px;color:#62759a}
     @media (max-width:1280px){.nho2d-title{font-size:28px}}
     @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}.nho2d-kpi-grid{grid-template-columns:1fr}}
     `;
@@ -192,38 +199,60 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     }).join('')}</tbody></table></div>`;
   }
 
+  function renderPedido(pedido) {
+    const open = pedidoAccordionState.get(pedido.id) ?? false;
+    const items = getPedidoItems(pedido);
+    const hasItems = Array.isArray(items) && items.length > 0;
+    const loading = pedidoItemLoading.has(pedido.id);
+    return `<section class="nho2d-accordion ${open ? 'is-open' : ''}" data-pedido-id="${pedido.id}">
+      <button class="nho2d-accordion-head" data-toggle-pedido="${pedido.id}" aria-expanded="${open ? 'true' : 'false'}">
+        <span class="nho2d-accordion-title">
+          <strong>Pedido ${safeText(pedido.numero, '-')}</strong>
+          <span class="nho2d-accordion-meta">
+            <span><strong>Data:</strong> ${fmtDateOnlyUTC(getPedidoDate(pedido))}</span>
+            <span class="nho2-badge ${statusClass(pedido.status)}">${safeText(pedido.status, '-')}</span>
+            <span class="nho2d-pill">${pedido.itemCount ?? (Array.isArray(pedido.itens) ? pedido.itens.length : 0)} itens</span>
+            <span><strong>Valor:</strong> ${fmtCurrency(pedido.valor)}</span>
+          </span>
+        </span>
+        <svg class="nho2d-chevron" width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      ${open ? `<div class="nho2d-accordion-body">${loading ? '<div class="nho2d-mini-loading">Carregando itens do pedido...</div>' : hasItems ? renderPedidoItens(pedido) : '<p class="nho2d-empty" style="padding:12px 0">Sem itens carregados para este pedido.</p>'}</div>` : ''}
+    </section>`;
+  }
+
+  function renderGroup(group) {
+    const summary = {
+      totalPedidos: Number(group?.totalPedidos || group?.pedidos?.length || 0),
+      totalValue: Number(group?.totalValue || 0),
+      latestBillingDate: group?.latestBillingDate || null
+    };
+    const open = groupAccordionState.get(group.key) ?? false;
+    return `<section class="nho2d-accordion ${open ? 'is-open' : ''}" data-group-key="${group.key}">
+      <button class="nho2d-accordion-head" data-toggle-group="${group.key}" aria-expanded="${open ? 'true' : 'false'}">
+        <span class="nho2d-accordion-title">
+          <strong>${safeText(group.label, 'Pedidos')}</strong>
+          <span class="nho2d-accordion-meta nho2d-group-summary">
+            <span class="nho2d-pill">${summary.totalPedidos} pedidos</span>
+            <span><strong>Valor total:</strong> ${fmtCurrency(summary.totalValue)}</span>
+            <span><strong>Último faturamento:</strong> ${fmtGroupDate(summary.latestBillingDate)}</span>
+          </span>
+        </span>
+        <svg class="nho2d-chevron" width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      ${open ? `<div class="nho2d-group-body">${Array.isArray(group.pedidos) && group.pedidos.length ? group.pedidos.map((pedido) => renderPedido(pedido)).join('') : '<div class="nho2d-group-empty">Nenhum pedido neste grupo.</div>'}</div>` : ''}
+    </section>`;
+  }
+
   function renderComercial(d) {
-    const pedidos = (d?.ultimosPedidos || []).slice().sort((a, b) => {
-      const da = getPedidoDate(a)?.getTime?.() || 0;
-      const db = getPedidoDate(b)?.getTime?.() || 0;
-      return db - da;
-    });
+    const grupos = Array.isArray(d?.pedidosAgrupados) ? d.pedidosAgrupados : [];
+    if (!groupAccordionState.size) grupos.forEach((group) => groupAccordionState.set(group.key, false));
     return `
       <div class="nho2d-section">
         <article class="nho2d-card">
           <h3>Últimos Pedidos</h3>
-          ${pedidos.length
-            ? pedidos.map((pedido, index) => {
-              const open = pedidoAccordionState.get(pedido.id) ?? index === 0;
-              const items = getPedidoItems(pedido);
-              const hasItems = Array.isArray(items) && items.length > 0;
-              const loading = pedidoItemLoading.has(pedido.id);
-              return `<section class="nho2d-accordion ${open ? 'is-open' : ''}" data-pedido-id="${pedido.id}">
-                <button class="nho2d-accordion-head" data-toggle-pedido="${pedido.id}" aria-expanded="${open ? 'true' : 'false'}">
-                  <span class="nho2d-accordion-title">
-                    <strong>Pedido ${safeText(pedido.numero, '-')}</strong>
-                    <span class="nho2d-accordion-meta">
-                      <span><strong>Data:</strong> ${fmtDateOnlyUTC(getPedidoDate(pedido))}</span>
-                      <span class="nho2-badge ${statusClass(pedido.status)}">${safeText(pedido.status, '-')}</span>
-                      <span class="nho2d-pill">${pedido.itemCount ?? (Array.isArray(pedido.itens) ? pedido.itens.length : 0)} itens</span>
-                      <span><strong>Valor:</strong> ${fmtCurrency(pedido.valor)}</span>
-                    </span>
-                  </span>
-                  <svg class="nho2d-chevron" width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                </button>
-                ${open ? `<div class="nho2d-accordion-body">${loading ? '<div class="nho2d-mini-loading">Carregando itens do pedido...</div>' : hasItems ? renderPedidoItens(pedido) : '<p class="nho2d-empty" style="padding:12px 0">Sem itens carregados para este pedido.</p>'}</div>` : ''}
-              </section>`;
-            }).join('')
+          ${grupos.length
+            ? grupos.map((group) => renderGroup(group)).join('')
             : '<p class="nho2d-empty">Sem pedidos para este cliente.</p>'}
         </article>
       </div>
@@ -271,6 +300,14 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     if (back) back.onclick = () => { window.location.hash = '#/clientes'; };
     root.querySelectorAll('[data-tab]').forEach((button) => {
       button.onclick = () => { activeTab = button.getAttribute('data-tab') || 'geral'; render(); };
+    });
+    root.querySelectorAll('[data-toggle-group]').forEach((button) => {
+      button.onclick = () => {
+        const groupKey = button.getAttribute('data-toggle-group');
+        const current = groupAccordionState.get(groupKey) ?? false;
+        groupAccordionState.set(groupKey, !current);
+        render();
+      };
     });
     root.querySelectorAll('[data-toggle-pedido]').forEach((button) => {
       button.onclick = async () => {

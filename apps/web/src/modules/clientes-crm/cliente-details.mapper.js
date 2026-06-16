@@ -10,6 +10,67 @@ function getBillingDate(pedido = {}) {
 function getLastPurchaseDate(pedido = {}) {
   return getBillingDate(pedido) || asDate(pedido?.created_at || pedido?.createdAt || pedido?.criado_em);
 }
+function getPedidoFallbackDate(pedido = {}) {
+  return asDate(pedido?.data_emissao || pedido?.emitted_at || pedido?.created_at || pedido?.createdAt || pedido?.criado_em);
+}
+function getStatusKey(status = '') {
+  const s = String(status || '').toLowerCase();
+  if (s.includes('fatura')) return 'faturado';
+  if (s.includes('aberto')) return 'aberto';
+  if (s.includes('pend')) return 'pendente';
+  if (s.includes('andamento')) return 'em_andamento';
+  if (s.includes('cancel')) return 'cancelado';
+  return s || 'outros';
+}
+function getGroupKey(status = '') {
+  const s = getStatusKey(status);
+  if (s === 'faturado' || s === 'faturado_total' || s === 'faturado_parcial') return 'faturados';
+  if (s === 'aberto' || s === 'pendente' || s === 'em_andamento') return 'em_aberto';
+  if (s === 'cancelado') return 'cancelados';
+  return 'outros';
+}
+function getGroupPriority(key = '') {
+  if (key === 'faturados') return 0;
+  if (key === 'em_aberto') return 1;
+  if (key === 'cancelados') return 2;
+  return 3;
+}
+function getGroupLabel(key = '') {
+  if (key === 'faturados') return 'Faturados';
+  if (key === 'em_aberto') return 'Em aberto';
+  if (key === 'cancelados') return 'Cancelados';
+  return 'Outros';
+}
+function getPedidoSortDate(pedido = {}) {
+  return getBillingDate(pedido) || getPedidoFallbackDate(pedido);
+}
+function buildPedidoGroups(pedidos = []) {
+  const groupMap = new Map();
+  pedidos.forEach((pedido) => {
+    const groupKey = getGroupKey(pedido?.status);
+    const current = groupMap.get(groupKey) || { key: groupKey, label: getGroupLabel(groupKey), pedidos: [], totalValue: 0, latestBillingDate: null };
+    const billingDate = getBillingDate(pedido);
+    const fallbackDate = getPedidoFallbackDate(pedido);
+    const sortDate = getPedidoSortDate(pedido);
+    const total = Number(pedido?.valor_total ?? pedido?.total ?? pedido?.valor ?? 0);
+    current.totalValue += total;
+    current.pedidos.push({
+      ...pedido,
+      _billingDate: billingDate,
+      _fallbackDate: fallbackDate,
+      _sortDate: sortDate
+    });
+    if (billingDate && (!current.latestBillingDate || billingDate.getTime() > current.latestBillingDate.getTime())) current.latestBillingDate = billingDate;
+    else if (!current.latestBillingDate && fallbackDate) current.latestBillingDate = fallbackDate;
+    groupMap.set(groupKey, current);
+  });
+  return Array.from(groupMap.values())
+    .map((group) => ({
+      ...group,
+      pedidos: group.pedidos.sort((a, b) => Number(b?._sortDate?.getTime?.() || 0) - Number(a?._sortDate?.getTime?.() || 0))
+    }))
+    .sort((a, b) => getGroupPriority(a.key) - getGroupPriority(b.key));
+}
 function getFriendlyLastPurchaseLabel(value) {
   const date = asDate(value);
   if (!date) return '';
@@ -30,11 +91,17 @@ export function mapClienteDetailsData({ cliente = null, pedidos = [], clienteId 
   const faturamentoTotal = pedidosCliente.reduce((a, p) => a + Number(p?.valor_total ?? p?.total ?? p?.valor ?? 0), 0);
   const totalPedidos = pedidosCliente.length;
   const ticketMedio = totalPedidos > 0 ? faturamentoTotal / totalPedidos : 0;
-  const pedidosComData = pedidosCliente.map((p) => ({ ...p, _billingDate: getBillingDate(p), _fallbackDate: asDate(p?.data_emissao || p?.emitted_at || p?.created_at || p?.createdAt || p?.criado_em) })).sort((a, b) => Number(b?._billingDate?.getTime() || b?._fallbackDate?.getTime() || 0) - Number(a?._billingDate?.getTime() || a?._fallbackDate?.getTime() || 0));
+  const pedidosComData = pedidosCliente.map((p) => ({ ...p, _billingDate: getBillingDate(p), _fallbackDate: getPedidoFallbackDate(p) })).sort((a, b) => Number(b?._billingDate?.getTime() || b?._fallbackDate?.getTime() || 0) - Number(a?._billingDate?.getTime() || a?._fallbackDate?.getTime() || 0));
   const ultimosPedidos = pedidosComData.slice(0, 8).map((p) => ({ id: p?.id, numero: getPedidoCode(p), dataFaturamento: p?._billingDate || null, dataFallback: p?._fallbackDate || null, status: normalizeStatus(p?.status), valor: Number(p?.valor_total ?? p?.total ?? p?.valor ?? 0), itens: Array.isArray(p?.itens) ? p.itens : null, itemCount: Array.isArray(p?.itens) ? p.itens.length : 0 }));
+  const pedidosAgrupados = buildPedidoGroups(pedidosCliente).map((group) => ({
+    ...group,
+    totalPedidos: group.pedidos.length,
+    totalValue: group.totalValue,
+    latestBillingDate: group.latestBillingDate
+  }));
   const produtosMap = new Map(); pedidosCliente.forEach((p) => (Array.isArray(p?.itens) ? p.itens : []).forEach((i) => { const rawNome = String(i?.produto_nome || i?.produto?.nome || '').trim(); const nome = rawNome && !isUuidLike(rawNome) ? rawNome : 'Produto não identificado'; const q = Number(i?.quantidade ?? 0); const f = Number(i?.total ?? (Number(i?.preco_unitario ?? 0) * q)); const prev = produtosMap.get(nome) || { produto: nome, quantidade: 0, faturamento: 0 }; prev.quantidade += q; prev.faturamento += f; produtosMap.set(nome, prev); }));
   const produtosComprados = Array.from(produtosMap.values()).sort((a, b) => b.faturamento - a.faturamento);
   const statusCliente = normalizeStatus(normalizedCliente?.status) || 'Cliente';
   const dataCadastro = asDate(normalizedCliente?.created_at || normalizedCliente?.createdAt);
-  return { id: normalizedCliente?.id, nomeEmpresa: getClienteNome(normalizedCliente), status: statusCliente, hasExplicitStatus: Boolean(normalizeStatus(normalizedCliente?.status)), cidade: normalizedCliente?.cidade || '', uf: normalizedCliente?.estado || normalizedCliente?.uf || '', dataCadastro, dadosCliente: { empresa: normalizedCliente?.empresa, razaoSocial: normalizedCliente?.razao_social, contato: normalizedCliente?.nome_contato || normalizedCliente?.nome, telefone: normalizedCliente?.telefone, email: normalizedCliente?.email, documento: normalizedCliente?.documento || normalizedCliente?.cnpj || normalizedCliente?.cpf, cidade: normalizedCliente?.cidade, uf: normalizedCliente?.estado || normalizedCliente?.uf, status: normalizeStatus(normalizedCliente?.status), dataCadastro, vendedor: normalizedCliente?.vendedor || normalizedCliente?.responsavel_comercial || normalizedCliente?.vendedor_nome || '' }, kpis: { faturamentoTotal, totalPedidos, ticketMedio, ultimaCompra: pedidosComData[0]?._billingDate || pedidosComData[0]?._fallbackDate || null, ultimaCompraLabel: getFriendlyLastPurchaseLabel(pedidosComData[0]?._billingDate || pedidosComData[0]?._fallbackDate || null) }, ultimosPedidos, produtosComprados, crmConversations: [], auditoria: { criadoEm: dataCadastro, atualizadoEm: asDate(normalizedCliente?.updated_at || normalizedCliente?.updatedAt), origem: normalizedCliente?.origem || null } };
+  return { id: normalizedCliente?.id, nomeEmpresa: getClienteNome(normalizedCliente), status: statusCliente, hasExplicitStatus: Boolean(normalizeStatus(normalizedCliente?.status)), cidade: normalizedCliente?.cidade || '', uf: normalizedCliente?.estado || normalizedCliente?.uf || '', dataCadastro, dadosCliente: { empresa: normalizedCliente?.empresa, razaoSocial: normalizedCliente?.razao_social, contato: normalizedCliente?.nome_contato || normalizedCliente?.nome, telefone: normalizedCliente?.telefone, email: normalizedCliente?.email, documento: normalizedCliente?.documento || normalizedCliente?.cnpj || normalizedCliente?.cpf, cidade: normalizedCliente?.cidade, uf: normalizedCliente?.estado || normalizedCliente?.uf, status: normalizeStatus(normalizedCliente?.status), dataCadastro, vendedor: normalizedCliente?.vendedor || normalizedCliente?.responsavel_comercial || normalizedCliente?.vendedor_nome || '' }, kpis: { faturamentoTotal, totalPedidos, ticketMedio, ultimaCompra: pedidosComData[0]?._billingDate || pedidosComData[0]?._fallbackDate || null, ultimaCompraLabel: getFriendlyLastPurchaseLabel(pedidosComData[0]?._billingDate || pedidosComData[0]?._fallbackDate || null) }, ultimosPedidos, pedidosAgrupados, produtosComprados, crmConversations: [], auditoria: { criadoEm: dataCadastro, atualizadoEm: asDate(normalizedCliente?.updated_at || normalizedCliente?.updatedAt), origem: normalizedCliente?.origem || null } };
 }
