@@ -76,7 +76,7 @@ export function getPedidosItensImportTests() {
         });
 
         assert.equal(payload.produto_nome, 'Camisa Premium');
-        assert.equal(payload.preco_unitario, 39.95);
+        assert.equal(payload.preco_unitario, null);
         assert.equal(payload.status_vinculo, 'nao_encontrado');
         assert.ok(payload.metadata);
         assert.equal(payload.metadata.nome_produto_original, 'Camisa Premium');
@@ -139,28 +139,35 @@ export function getPedidosItensImportTests() {
       }
     },
     {
-      name: 'normaliza valor total em centavos antes de calcular preco unitario',
+      name: 'usa Unitario como fonte oficial de preco_unitario sem dividir por quantidade',
       run: async () => {
-        assert.equal(normalizeSpreadsheetMoney(6856), 68.56);
-        const payload = __buildPedidoItemRowForTests({
-          accountId: 'acc-2',
-          pedidoId: 'pedido-2',
-          row: {
-            codigo_produto_erp_original: 'ABC.01',
-            nome_produto_original: 'Produto Centavos',
-            quantidade: 4,
-            valor_total: 68.56,
-            valor_unitario: null
-          },
-          match: { status_vinculo: 'nao_encontrado' }
-        });
+        const casos = [
+          { codigo_produto_erp_original: 'POPCORN.01', nome_produto_original: 'POPCORN', quantidade: 6, valor_unitario: 10.15, expected: 10.15 },
+          { codigo_produto_erp_original: 'NOBLESS.01', nome_produto_original: 'NOBLESS', quantidade: 3, valor_unitario: 17.14, expected: 17.14 },
+          { codigo_produto_erp_original: 'TRECCENTI.01', nome_produto_original: 'TRECCENTI', quantidade: 8, valor_unitario: 22.55, expected: 22.55 }
+        ];
 
-        assert.equal(payload.valor_total, 68.56);
-        assert.equal(payload.preco_unitario, 17.14);
+        for (const caso of casos) {
+          const payload = __buildPedidoItemRowForTests({
+            accountId: 'acc-2',
+            pedidoId: 'pedido-2',
+            row: {
+              codigo_produto_erp_original: caso.codigo_produto_erp_original,
+              nome_produto_original: caso.nome_produto_original,
+              quantidade: caso.quantidade,
+              valor_unitario: caso.valor_unitario,
+              valor_total: caso.quantidade * caso.valor_unitario
+            },
+            match: { status_vinculo: 'nao_encontrado' }
+          });
+
+          assert.equal(payload.preco_unitario, caso.expected);
+          assert.equal(payload.valor_unitario, caso.expected);
+        }
       }
     },
     {
-      name: 'preserva valor decimal corretamente informado na planilha',
+      name: 'ignora Total para calcular preco_unitario quando Unitario esta presente',
       run: async () => {
         const payload = __buildPedidoItemRowForTests({
           accountId: 'acc-3',
@@ -169,14 +176,14 @@ export function getPedidosItensImportTests() {
             codigo_produto_erp_original: 'ABC.02',
             nome_produto_original: 'Produto Decimal',
             quantidade: 6,
-            valor_total: 6.09,
-            valor_unitario: null
+            valor_total: 60.9,
+            valor_unitario: 10.15
           },
           match: { status_vinculo: 'nao_encontrado' }
         });
 
-        assert.equal(payload.valor_total, 6.09);
-        assert.equal(payload.preco_unitario, 1.015);
+        assert.equal(payload.valor_total, 60.9);
+        assert.equal(payload.preco_unitario, 10.15);
       }
     },
     {
@@ -195,8 +202,8 @@ export function getPedidosItensImportTests() {
         __loadMemoryPedidos(snapshotAntes);
 
         const ws = xlsx.utils.aoa_to_sheet([
-          ['codigo_produto_erp_original', 'nome_produto_original', 'cor_original', 'tamanho_original', 'ean_original', 'quantidade', 'valor_unitario', 'valor_total'],
-          ['850400051.949.00001', '850400051.949.00001', 'Azul', 'M', '789', 1, null, 120]
+          ['codigo_produto_erp_original', 'nome_produto_original', 'cor_original', 'tamanho_original', 'ean_original', 'quantidade', 'unitario', 'valor_total'],
+          ['850400051.949.00001', '850400051.949.00001', 'Azul', 'M', '789', 1, 10.15, 10.15]
         ]);
         const wb = xlsx.utils.book_new();
         xlsx.utils.book_append_sheet(wb, ws, 'Itens');
@@ -218,8 +225,8 @@ export function getPedidosItensImportTests() {
             sku_base_extraido: '850400051.949.00001',
             sku_esperado: '850400051.949.00001-M',
             quantidade: 1,
-            valor_unitario: 120,
-            valor_total: 120
+            valor_unitario: 10.15,
+            valor_total: 10.15
           }]
         });
 
@@ -248,8 +255,8 @@ export function getPedidosItensImportTests() {
         __loadMemoryPedidos(snapshotAntes);
 
         const ws = xlsx.utils.aoa_to_sheet([
-          ['codigo_produto_erp_original', 'nome_produto_original', 'cor_original', 'tamanho_original', 'ean_original', 'quantidade', 'valor_unitario', 'valor_total'],
-          ['ABC123.1', 'Produto Novo', 'Azul', 'M', '789', 4, null, 6856]
+          ['codigo_produto_erp_original', 'nome_produto_original', 'cor_original', 'tamanho_original', 'ean_original', 'quantidade', 'unitário', 'valor_total'],
+          ['ABC123.1', 'Produto Novo', 'Azul', 'M', '789', 4, 17.14, 68.56]
         ]);
         const wb = xlsx.utils.book_new();
         xlsx.utils.book_append_sheet(wb, ws, 'Itens');

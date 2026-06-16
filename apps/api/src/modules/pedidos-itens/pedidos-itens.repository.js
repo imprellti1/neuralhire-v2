@@ -57,20 +57,9 @@ export function normalizeSpreadsheetMoney(value, { fallback = null } = {}) {
   return Number(normalized.toFixed(3));
 }
 
-function toNonNegativeMoney(value, fallback = 0) {
-  const raw = value ?? fallback;
-  const numeric = parseMoneyLike(raw);
-  if (!Number.isFinite(numeric) || numeric < 0) return fallback;
-  return Number(numeric.toFixed(2));
-}
-
 function resolvePrecoUnitario(row = {}) {
-  const explicit = normalizeSpreadsheetMoney(row.preco_unitario ?? row.valor_unitario, { fallback: null });
-  if (explicit !== null && explicit !== undefined) return explicit;
-  const quantidade = toNonNegativeMoney(row.quantidade, 0);
-  const valorTotal = normalizeSpreadsheetMoney(row.valor_total, { fallback: null });
-  if (valorTotal === null || !quantidade) return 0;
-  return Number((valorTotal / quantidade).toFixed(3));
+  const explicit = parseMoneyLike(row.preco_unitario ?? row.valor_unitario);
+  return Number.isFinite(explicit) && explicit >= 0 ? explicit : null;
 }
 
 function buildItemMetadata(row = {}) {
@@ -157,7 +146,7 @@ function buildPedidoItemRow({ accountId, pedidoId, row = {}, match = {} }) {
     : (row.nome_produto_original || row.codigo_produto_erp_original || null);
   const precoUnitario = resolvePrecoUnitario(row);
   const valorTotal = normalizeSpreadsheetMoney(row.valor_total, { fallback: null });
-  const valorUnitario = normalizeSpreadsheetMoney(row.valor_unitario ?? row.preco_unitario, { fallback: null });
+  const valorUnitario = resolvePrecoUnitario(row);
   return {
     account_id: accountId,
     pedido_id: pedidoId,
@@ -355,7 +344,7 @@ export async function executePedidosItensImport({ accountId, fileName, buffer, p
     itens.push({
       ...enrichedRow,
       valor_total: normalizeSpreadsheetMoney(enrichedRow.valor_total, { fallback: enrichedRow.valor_total ?? null }),
-      valor_unitario: normalizeSpreadsheetMoney(enrichedRow.valor_unitario ?? enrichedRow.preco_unitario, { fallback: enrichedRow.valor_unitario ?? enrichedRow.preco_unitario ?? null })
+      valor_unitario: resolvePrecoUnitario(enrichedRow)
     });
   }
 

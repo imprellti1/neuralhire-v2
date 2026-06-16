@@ -75,15 +75,16 @@ function getUnitCost(row) {
     const direct = Number(row.valor_unitario);
     if (Number.isFinite(direct)) return direct;
   }
-  const total = Number(row?.valor_total);
-  const quantity = Number(row?.quantidade);
-  if (Number.isFinite(total) && Number.isFinite(quantity) && quantity !== 0) return total / 100 / quantity;
+  if (row?.preco_unitario !== undefined && row?.preco_unitario !== null && row?.preco_unitario !== '') {
+    const direct = Number(row.preco_unitario);
+    if (Number.isFinite(direct)) return direct;
+  }
   return null;
 }
 
 function renderRows(rows = []) {
   if (!rows.length) return '<div class="npi3-state">Faça o preview para visualizar os itens importados.</div>';
-  return `<div class="npi3-preview" data-testid="preview-table"><div class="npi3-preview-head"><div class="npi3-cell erp">Código ERP</div><div class="npi3-cell product">Produto</div><div class="npi3-cell cor">Cor</div><div class="npi3-cell tamanho">Tamanho</div><div class="npi3-cell qty">Quantidade</div><div class="npi3-cell unit">Custo Unitário</div><div class="npi3-cell status">Status de Vínculo</div></div>${rows.map((row) => {
+  return `<div class="npi3-preview" data-testid="preview-table"><div class="npi3-preview-head"><div class="npi3-cell erp">Código ERP</div><div class="npi3-cell product">Produto</div><div class="npi3-cell cor">Cor</div><div class="npi3-cell tamanho">Tamanho</div><div class="npi3-cell qty">Quantidade</div><div class="npi3-cell unit">Unitário</div><div class="npi3-cell status">Status de Vínculo</div></div>${rows.map((row) => {
     const status = row.status_vinculo ?? row.status;
     const reason = readText(row.motivo_vinculo ?? row.motivo);
     const reasonIcon = status === 'vinculado' ? '✓' : '⚠';

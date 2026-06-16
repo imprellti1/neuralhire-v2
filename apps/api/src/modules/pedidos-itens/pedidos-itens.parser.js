@@ -51,7 +51,10 @@ function resolveNameCell(row, nameIndex, codeIndex) {
 function parseNumber(value) {
   if (value === null || value === undefined || value === '') return null;
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-  const raw = String(value).trim().replace(/\s+/g, '').replace(/^R\$/i, '').replace(/\./g, '').replace(/,/g, '.');
+  const text = String(value).trim().replace(/\s+/g, '').replace(/^R\$/i, '');
+  const raw = text.includes(',')
+    ? text.replace(/\./g, '').replace(/,/g, '.')
+    : text;
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : null;
 }
@@ -93,7 +96,7 @@ export function parsePedidosItensWorkbook(buffer) {
     tamanho_original: findHeaderIndex(headers, ['tamanho_original', 'tamanho', 'grade', 'numero', 'num', 'size']),
     ean_original: findHeaderIndex(headers, ['ean', 'gtin', 'barcode', 'codigo de barras']),
     quantidade: findHeaderIndex(headers, ['quantidade', 'qtd', 'qtde', 'qt', 'volume']),
-    valor_unitario: findHeaderIndex(headers, ['valor_unitario', 'valor unitario', 'valor unitário', 'preco unitario', 'preço unitário', 'preco', 'valor unit']),
+    valor_unitario: findHeaderIndex(headers, ['valor_unitario', 'valor unitario', 'valor unitário', 'unitario', 'unitário', 'preco unitario', 'preço unitário', 'preco', 'valor unit']),
     valor_total: findHeaderIndex(headers, ['valor_total', 'valor total', 'total', 'subtotal'])
   };
 

@@ -51,8 +51,8 @@ test('preview aceita headers reais Produto e Descricao sem exigir codigo_produto
   const cliente = await createCliente({ nome: 'Cliente Header Real', codigo: 'CLI-H1' }, { accountId: 'acc-preview-header-real' });
   await createPedidoFromImport({ cliente_id: cliente.id, numero: '11013', status: 'rascunho', origem: 'manual', total: 0, metadata: {} }, { accountId: 'acc-preview-header-real' });
   const base64 = makeWorkbook([
-    ['Produto', 'Descricao', 'Cor', 'Tamanho', 'Quantidade', 'Valor Total'],
-    ['850400110.949.00004', 'JOGO DE CAMA EXEMPLO', 'BRANCO', 'UNI', 4, 6856]
+    ['Produto', 'Descricao', 'Cor', 'Tamanho', 'Quantidade', 'Unitário', 'Valor Total'],
+    ['850400110.949.00004', 'JOGO DE CAMA EXEMPLO', 'BRANCO', 'UNI', 4, 10.15, 60.9]
   ]);
 
   const preview = await call(app, { method: 'POST', url: '/pedidos/itens/importacao/preview', role: 'admin', accountId: 'acc-preview-header-real', body: { arquivo: { fileName: '11013.xlsx', base64 } } });
@@ -66,6 +66,7 @@ test('preview aceita headers reais Produto e Descricao sem exigir codigo_produto
   assert.equal(preview.body.itens[0].cor_original, 'BRANCO');
   assert.equal(preview.body.itens[0].tamanho_original, 'UNI');
   assert.equal(preview.body.itens[0].quantidade, 4);
+  assert.equal(preview.body.itens[0].valor_unitario, 10.15);
 });
 
 test('preview usa Produto como fallback de nome quando Descricao nao existe', async () => {
@@ -76,8 +77,8 @@ test('preview usa Produto como fallback de nome quando Descricao nao existe', as
   const cliente = await createCliente({ nome: 'Cliente Fallback', codigo: 'CLI-H2' }, { accountId: 'acc-preview-fallback' });
   await createPedidoFromImport({ cliente_id: cliente.id, numero: '11014', status: 'rascunho', origem: 'manual', total: 0, metadata: {} }, { accountId: 'acc-preview-fallback' });
   const base64 = makeWorkbook([
-    ['Produto', 'Cor', 'Tamanho', 'Quantidade', 'Valor Total'],
-    ['850400110.949.00004', 'BRANCO', 'UNI', 4, 6856]
+    ['Produto', 'Cor', 'Tamanho', 'Quantidade', 'Unitário', 'Valor Total'],
+    ['850400110.949.00004', 'BRANCO', 'UNI', 4, 10.15, 60.9]
   ]);
 
   const preview = await call(app, { method: 'POST', url: '/pedidos/itens/importacao/preview', role: 'admin', accountId: 'acc-preview-fallback', body: { arquivo: { fileName: '11014.xlsx', base64 } } });
@@ -86,6 +87,7 @@ test('preview usa Produto como fallback de nome quando Descricao nao existe', as
   assert.equal(preview.body.erros.length, 0);
   assert.equal(preview.body.itens[0].codigo_produto_erp_original, '850400110.949.00004');
   assert.equal(preview.body.itens[0].nome_produto_original, '850400110.949.00004');
+  assert.equal(preview.body.itens[0].valor_unitario, 10.15);
 });
 
 test('preview nao grava em pedido_itens', async () => {
@@ -96,8 +98,8 @@ test('preview nao grava em pedido_itens', async () => {
   const cliente = await createCliente({ nome: 'Cliente A', codigo: 'CLI-2' }, { accountId: 'acc-preview-2' });
   await createPedidoFromImport({ cliente_id: cliente.id, numero: '11009', status: 'rascunho', origem: 'manual', total: 0, metadata: {} }, { accountId: 'acc-preview-2' });
   const base64 = makeWorkbook([
-    ['codigo_produto_erp_original', 'nome_produto_original', 'cor_original', 'tamanho_original', 'ean_original', 'quantidade', 'valor_unitario', 'valor_total'],
-    ['ABC123.1', 'Produto X', 'Azul', 'M', '789', 2, 10, 20]
+    ['codigo_produto_erp_original', 'nome_produto_original', 'cor_original', 'tamanho_original', 'ean_original', 'quantidade', 'Unitário', 'valor_total'],
+    ['ABC123.1', 'Produto X', 'Azul', 'M', '789', 2, 10.15, 20.3]
   ]);
   await call(app, { method: 'POST', url: '/pedidos/itens/importacao/preview', role: 'admin', accountId: 'acc-preview-2', body: { arquivo: { fileName: '11009.xlsx', base64 } } });
   assert.equal(__dumpMemoryPedidos().pedidoItens.length, 0);
@@ -119,8 +121,8 @@ test('item vinculado aparece como vinculado', async () => {
     variacoes: [{ id: 'var-1', account_id: 'acc-preview-3', produto_id: 'prod-1', sku: 'ABC123-M', cor: 'Azul', grade: 'M', produto_nome: 'Produto X' }]
   }]);
   const base64 = makeWorkbook([
-    ['codigo_produto_erp_original', 'nome_produto_original', 'cor_original', 'tamanho_original', 'ean_original', 'quantidade', 'valor_unitario', 'valor_total'],
-    ['ABC123.1', 'Produto X', 'Azul', 'M', '789', 2, 10, 20]
+    ['codigo_produto_erp_original', 'nome_produto_original', 'cor_original', 'tamanho_original', 'ean_original', 'quantidade', 'Unitário', 'valor_total'],
+    ['ABC123.1', 'Produto X', 'Azul', 'M', '789', 2, 17.14, 34.28]
   ]);
   const preview = await call(app, { method: 'POST', url: '/pedidos/itens/importacao/preview', role: 'admin', accountId: 'acc-preview-3', body: { arquivo: { fileName: '11010.xlsx', base64 } } });
   assert.equal(preview.body.itens[0].status_vinculo, 'vinculado');
@@ -136,7 +138,7 @@ test('item sem vinculo aparece como nao_encontrado', async () => {
   const cliente = await createCliente({ nome: 'Cliente A', codigo: 'CLI-4' }, { accountId: 'acc-preview-4' });
   await createPedidoFromImport({ cliente_id: cliente.id, numero: '11011', status: 'rascunho', origem: 'manual', total: 0, metadata: {} }, { accountId: 'acc-preview-4' });
   const base64 = makeWorkbook([
-    ['codigo_produto_erp_original', 'nome_produto_original', 'cor_original', 'tamanho_original', 'ean_original', 'quantidade', 'valor_unitario', 'valor_total'],
+    ['codigo_produto_erp_original', 'nome_produto_original', 'cor_original', 'tamanho_original', 'ean_original', 'quantidade', 'Unitário', 'valor_total'],
     ['ZZZ999.1', 'Produto Y', 'Verde', 'G', '789', 1, 12, 12]
   ]);
   const preview = await call(app, { method: 'POST', url: '/pedidos/itens/importacao/preview', role: 'admin', accountId: 'acc-preview-4', body: { arquivo: { fileName: '11011.xlsx', base64 } } });
@@ -162,8 +164,8 @@ test('ambiguo aparece como ambiguo', async () => {
     ]
   }]);
   const base64 = makeWorkbook([
-    ['codigo_produto_erp_original', 'nome_produto_original', 'cor_original', 'tamanho_original', 'ean_original', 'quantidade', 'valor_unitario', 'valor_total'],
-    ['ABC123.1', 'Produto X', 'Azul', 'M', '789', 2, 10, 20]
+    ['codigo_produto_erp_original', 'nome_produto_original', 'cor_original', 'tamanho_original', 'ean_original', 'quantidade', 'Unitário', 'valor_total'],
+    ['ABC123.1', 'Produto X', 'Azul', 'M', '789', 2, 10.15, 20.3]
   ]);
   const preview = await call(app, { method: 'POST', url: '/pedidos/itens/importacao/preview', role: 'admin', accountId: 'acc-preview-5', body: { arquivo: { fileName: '11012.xlsx', base64 } } });
   assert.equal(preview.body.itens[0].status_vinculo, 'ambiguo');
