@@ -3,7 +3,7 @@ import test from 'node:test';
 import { flush, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 import { renderPedidosItensImportPage } from './pedidos-itens-import.page.js';
 
-function makeTestXlsxBlob(name = '11008.xlsx') {
+function makeTestXlsxBlob(name = '9992.xlsx') {
   const blob = new Blob(['conteudo-xlsx'], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   Object.defineProperty(blob, 'name', { value: name, configurable: true });
   return blob;
@@ -19,17 +19,17 @@ test('pedidos itens import page renders upload, preview, summary and import', as
         return {
           ok: true,
           importToken: 'token-itens',
-          fileName: '11008.xlsx',
-          pedidoErp: '11008',
-          resumo: { total_linhas: 4, validas: 3, vinculadas: 2, nao_encontradas: 1, ambiguas: 1, erros: 1 },
+          fileName: '9992.xlsx',
+          pedidoErp: '9992',
+          resumo: { total_linhas: 3, validas: 3, vinculadas: 1, nao_encontradas: 1, ambiguas: 1, erros: 0 },
           itens: [
-            { codigo_erp: '1001', produto: 'Camisa', cor: 'Azul', tamanho: 'M', quantidade: 4, valor_total: 6856, sku_esperado: 'SKU-1', status_vinculo: 'vinculado', motivo: 'OK' },
-            { codigo_erp: '1002', produto: 'Calça', cor: 'Preto', tamanho: 'G', quantidade: 1, valor_unitario: 79.9, valor_total: 79.9, sku_esperado: 'SKU-2', status_vinculo: 'nao_encontrado', motivo: 'SKU não localizado' },
-            { codigo_erp: '1003', produto: 'Tênis', cor: 'Branco', tamanho: '42', quantidade: 1, valor_unitario: 199.9, valor_total: 199.9, sku_esperado: 'SKU-3', status_vinculo: 'ambiguo', motivo: 'Mais de um SKU compatível' }
+            { codigo_erp: '1001', produto: 'Camisa', cor: 'Azul', tamanho: 'M', quantidade: 4, valor_total: 6856, status_vinculo: 'vinculado', motivo: 'OK' },
+            { codigo_erp: '1002', produto: 'Calça', cor: 'Preto', tamanho: 'G', quantidade: 1, valor_unitario: 79.9, valor_total: 79.9, status_vinculo: 'nao_encontrado', motivo: 'SKU não localizado' },
+            { codigo_erp: '1003', produto: 'Tênis', cor: 'Branco', tamanho: '42', quantidade: 1, valor_unitario: 199.9, valor_total: 199.9, status_vinculo: 'ambiguo', motivo: 'Mais de um SKU compatível' }
           ]
         };
       }
-      return { ok: true, resumo: { importados: 2, vinculados: 2, nao_encontrados: 1, ambiguas: 1 } };
+      return { ok: true, resumo: { importados: 2, vinculados: 1, nao_encontrados: 1, ambiguas: 1 } };
     }
   };
 
@@ -39,12 +39,12 @@ test('pedidos itens import page renders upload, preview, summary and import', as
   assert.match(document.body.textContent, /Nenhum arquivo selecionado/);
 
   const fileInput = document.querySelector('[data-testid="file-input"]');
-  const fileBlob = makeTestXlsxBlob();
+  const fileBlob = makeTestXlsxBlob('9992.xlsx');
   Object.defineProperty(fileInput, 'files', { configurable: true, value: [fileBlob] });
   fileInput.dispatchEvent(new Event('change', { bubbles: true }));
   await flush();
-  assert.match(document.body.textContent, /11008\.xlsx/);
-  assert.match(document.body.textContent, /Pedido ERP: 11008/);
+  assert.match(document.body.textContent, /9992\.xlsx/);
+  assert.match(document.body.textContent, /Pedido ERP: 9992/);
 
   document.querySelector('[data-testid="preview-button"]').click();
   await flush();
@@ -67,8 +67,10 @@ test('pedidos itens import page renders upload, preview, summary and import', as
   assert.equal(document.querySelector('[data-testid="import-button"]').disabled, false);
 
   const previewCall = calls.find((call) => call.path === '/pedidos/itens/importacao/preview');
-  assert.equal(previewCall.body.file.fileName, '11008.xlsx');
+  assert.equal(previewCall.body.file.fileName, '9992.xlsx');
   assert.ok(String(previewCall.body.file.base64 || '').length > 0);
+  const previewCards = Array.from(document.querySelectorAll('[data-testid="preview-summary"] strong')).map((node) => node.textContent);
+  assert.deepEqual(previewCards.slice(0, 5), ['3', '1', '1', '1', '0']);
 
   document.querySelector('[data-testid="import-button"]').click();
   await flush();

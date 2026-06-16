@@ -48,6 +48,22 @@ function getPreviewItens(preview) {
   return preview?.itens || preview?.rows || [];
 }
 
+function getPreviewResumoCount(resumo, keys) {
+  for (const key of keys) {
+    const value = resumo?.[key];
+    if (value !== undefined && value !== null) return num(value);
+  }
+  return 0;
+}
+
+function readPreviewResumoNumber(resumo, key, fallbackKeys = []) {
+  if (resumo?.[key] !== undefined && resumo?.[key] !== null) return num(resumo[key]);
+  for (const fallbackKey of fallbackKeys) {
+    if (resumo?.[fallbackKey] !== undefined && resumo?.[fallbackKey] !== null) return num(resumo[fallbackKey]);
+  }
+  return 0;
+}
+
 function formatCurrency(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return '-';
@@ -73,7 +89,8 @@ function renderRows(rows = []) {
     const reasonIcon = status === 'vinculado' ? '✓' : '⚠';
     const reasonClass = status === 'vinculado' ? 'ok' : 'warn';
     const unitCost = getUnitCost(row);
-    return `<div class="npi3-preview-row"><div class="npi3-cell erp" title="${readText(row.codigo_produto_erp_original ?? row.codigo_erp ?? row.codigoERP ?? row.codigo)}">${readText(row.codigo_produto_erp_original ?? row.codigo_erp ?? row.codigoERP ?? row.codigo)}</div><div class="npi3-cell product" title="${readText(row.nome_produto_original ?? row.produto)}"><span class="npi3-product">${readText(row.nome_produto_original ?? row.produto)}</span></div><div class="npi3-cell cor" title="${readText(row.cor_original ?? row.cor)}">${readText(row.cor_original ?? row.cor)}</div><div class="npi3-cell tamanho" title="${readText(row.tamanho_original ?? row.tamanho)}">${readText(row.tamanho_original ?? row.tamanho)}</div><div class="npi3-cell qty" title="${readText(row.quantidade)}">${readText(row.quantidade)}</div><div class="npi3-cell unit" title="${unitCost === null ? '-' : formatCurrency(unitCost)}">${unitCost === null ? '-' : formatCurrency(unitCost)}</div><div class="npi3-cell status"><span class="npi3-chip ${badgeClass(status)}">${friendlyStatus(status)}</span></div><div class="npi3-reason-row"><span class="npi3-reason ${reasonClass}"><span class="npi3-reason-icon">${reasonIcon}</span> <span class="npi3-reason-text">${status === 'vinculado' ? 'Produto vinculado com sucesso' : reason}</span></span></div></div>`;
+    const unitCostLabel = unitCost === null ? '-' : formatCurrency(unitCost);
+    return `<div class="npi3-preview-row"><div class="npi3-cell erp" title="${readText(row.codigo_produto_erp_original ?? row.codigo_erp ?? row.codigoERP ?? row.codigo)}">${readText(row.codigo_produto_erp_original ?? row.codigo_erp ?? row.codigoERP ?? row.codigo)}</div><div class="npi3-cell product" title="${readText(row.nome_produto_original ?? row.produto)}"><span class="npi3-product">${readText(row.nome_produto_original ?? row.produto)}</span></div><div class="npi3-cell cor" title="${readText(row.cor_original ?? row.cor)}">${readText(row.cor_original ?? row.cor)}</div><div class="npi3-cell tamanho" title="${readText(row.tamanho_original ?? row.tamanho)}">${readText(row.tamanho_original ?? row.tamanho)}</div><div class="npi3-cell qty" title="${readText(row.quantidade)}">${readText(row.quantidade)}</div><div class="npi3-cell unit" title="${unitCostLabel}">${unitCostLabel}</div><div class="npi3-cell status"><span class="npi3-chip ${badgeClass(status)}">${friendlyStatus(status)}</span></div><div class="npi3-reason-row"><span class="npi3-reason ${reasonClass}"><span class="npi3-reason-icon">${reasonIcon}</span> <span class="npi3-reason-text">${status === 'vinculado' ? 'Produto vinculado com sucesso' : reason}</span></span></div></div>`;
   }).join('')}</div>`;
 }
 
@@ -84,8 +101,14 @@ export async function renderPedidosItensImportPage(root, { apiClient }) {
   function render() {
     const previewSummary = getPreviewResumo(state.preview);
     const resultSummary = state.result?.resumo || state.result?.summary || state.result || {};
-    const previewItens = getPreviewItens(state.preview);
-    root.innerHTML = `<section class="npi3"><div class="npi3-card"><div class="npi3-title">Importação de Itens de Pedido</div><div class="npi3-sub">Envie o XLSX, confira o vínculo antes da gravação e só então confirme a importação.</div></div><div class="npi3-grid"><div class="npi3-card"><div class="npi3-drop" data-testid="dropzone"><strong>Arraste o arquivo XLSX aqui</strong><div class="npi3-muted">ou selecione manualmente pelo campo abaixo.</div><div class="npi3-field"><label for="npi3-file">Selecionar arquivo</label><input id="npi3-file" data-testid="file-input" type="file" accept=".xlsx"></div><div class="npi3-summary"><div><strong>Arquivo</strong></div><div data-testid="selected-file">${state.fileName ? state.fileName : 'Nenhum arquivo selecionado'}</div><div><strong>Pedido ERP detectado</strong></div><div data-testid="pedido-erp">${state.pedidoErp ? `Pedido ERP: ${state.pedidoErp}` : 'Nenhum pedido detectado'}</div></div><div class="npi3-actions"><button id="npi3-preview" data-testid="preview-button" class="npi3-btn secondary" ${state.loadingPreview || state.loadingImport || !state.file ? 'disabled' : ''}>Visualizar Importação</button><button id="npi3-run" data-testid="import-button" class="npi3-btn" ${state.loadingPreview || state.loadingImport || !(state.preview?.importToken || state.importToken) ? 'disabled' : ''}>Importar Itens</button></div>${state.error ? `<div class="npi3-error" role="alert">${state.error}</div>` : ''}</div>${state.result ? `<div class="npi3-card" style="margin-top:12px"><strong>Resultado da importação</strong><div class="npi3-result-grid" style="margin-top:12px"><div><strong data-testid="result-imported">${summaryCount(resultSummary, ['importados', 'itens_importados'])}</strong><div>Importados</div></div><div><strong>${summaryCount(resultSummary, ['vinculados'])}</strong><div>Vinculados</div></div><div><strong>${summaryCount(resultSummary, ['nao_encontrados'])}</strong><div>Não encontrados</div></div><div><strong>${summaryCount(resultSummary, ['ambiguos'])}</strong><div>Ambíguos</div></div><div><strong>${summaryCount(resultSummary, ['erros'])}</strong><div>Erros</div></div></div></div>` : ''}</div><div class="npi3-card">${state.preview ? `<div class="npi3-kpi" data-testid="preview-summary"><div><strong>${summaryCount(previewSummary, ['total_linhas', 'totalRows', 'total_linhas_importadas'])}</strong><div>Total de linhas</div></div><div><strong>${summaryCount(previewSummary, ['vinculados'])}</strong><div>Vinculados</div></div><div><strong>${summaryCount(previewSummary, ['nao_encontrados'])}</strong><div>Não encontrados</div></div><div><strong>${summaryCount(previewSummary, ['ambiguos'])}</strong><div>Ambíguos</div></div><div><strong>${summaryCount(previewSummary, ['erros'])}</strong><div>Erros</div></div></div><div class="npi3-summary" style="margin-top:12px"><div class="npi3-muted">${state.preview.fileName || ''}${state.preview.pedidoErp ? ` | Pedido ERP: ${state.preview.pedidoErp}` : ''}</div>${renderRows(previewItens)}</div>` : '<div class="npi3-state">Faça o preview para validar o arquivo antes da gravação.</div>'}</div></div></section>`;
+    const previewItens = state.previewItens || getPreviewItens(state.preview);
+    const previewResumo = state.previewResumo || previewSummary;
+    const previewTotal = readPreviewResumoNumber(previewResumo, 'total_linhas', ['totalRows', 'total_linhas_importadas']);
+    const previewVinculados = readPreviewResumoNumber(previewResumo, 'vinculadas', ['vinculados']);
+    const previewNaoEncontrados = readPreviewResumoNumber(previewResumo, 'nao_encontradas', ['nao_encontrados']);
+    const previewAmbiguos = readPreviewResumoNumber(previewResumo, 'ambiguas', ['ambiguos']);
+    const previewErros = readPreviewResumoNumber(previewResumo, 'erros');
+    root.innerHTML = `<section class="npi3"><div class="npi3-card"><div class="npi3-title">Importação de Itens de Pedido</div><div class="npi3-sub">Envie o XLSX, confira o vínculo antes da gravação e só então confirme a importação.</div></div><div class="npi3-grid"><div class="npi3-card"><div class="npi3-drop" data-testid="dropzone"><strong>Arraste o arquivo XLSX aqui</strong><div class="npi3-muted">ou selecione manualmente pelo campo abaixo.</div><div class="npi3-field"><label for="npi3-file">Selecionar arquivo</label><input id="npi3-file" data-testid="file-input" type="file" accept=".xlsx"></div><div class="npi3-summary"><div><strong>Arquivo</strong></div><div data-testid="selected-file">${state.fileName ? state.fileName : 'Nenhum arquivo selecionado'}</div><div><strong>Pedido ERP detectado</strong></div><div data-testid="pedido-erp">${state.pedidoErp ? `Pedido ERP: ${state.pedidoErp}` : 'Nenhum pedido detectado'}</div></div><div class="npi3-actions"><button id="npi3-preview" data-testid="preview-button" class="npi3-btn secondary" ${state.loadingPreview || state.loadingImport || !state.file ? 'disabled' : ''}>Visualizar Importação</button><button id="npi3-run" data-testid="import-button" class="npi3-btn" ${state.loadingPreview || state.loadingImport || !(state.preview?.importToken || state.importToken) ? 'disabled' : ''}>Importar Itens</button></div>${state.error ? `<div class="npi3-error" role="alert">${state.error}</div>` : ''}</div>${state.result ? `<div class="npi3-card" style="margin-top:12px"><strong>Resultado da importação</strong><div class="npi3-result-grid" style="margin-top:12px"><div><strong data-testid="result-imported">${summaryCount(resultSummary, ['importados', 'itens_importados'])}</strong><div>Importados</div></div><div><strong>${summaryCount(resultSummary, ['vinculadas', 'vinculados'])}</strong><div>Vinculados</div></div><div><strong>${summaryCount(resultSummary, ['nao_encontradas', 'nao_encontrados'])}</strong><div>Não encontrados</div></div><div><strong>${summaryCount(resultSummary, ['ambiguas', 'ambiguos'])}</strong><div>Ambíguos</div></div><div><strong>${summaryCount(resultSummary, ['erros'])}</strong><div>Erros</div></div></div></div>` : ''}</div><div class="npi3-card">${state.preview ? `<div class="npi3-kpi" data-testid="preview-summary"><div><strong>${previewTotal}</strong><div>Total de linhas</div></div><div><strong>${previewVinculados}</strong><div>Vinculados</div></div><div><strong>${previewNaoEncontrados}</strong><div>Não encontrados</div></div><div><strong>${previewAmbiguos}</strong><div>Ambíguos</div></div><div><strong>${previewErros}</strong><div>Erros</div></div></div><div class="npi3-summary" style="margin-top:12px"><div class="npi3-muted">${state.preview.fileName || ''}${state.preview.pedidoErp ? ` | Pedido ERP: ${state.preview.pedidoErp}` : ''}</div>${renderRows(previewItens)}</div>` : '<div class="npi3-state">Faça o preview para validar o arquivo antes da gravação.</div>'}</div></div></section>`;
 
     const fileInput = root.querySelector('#npi3-file');
     const previewButton = root.querySelector('#npi3-preview');
@@ -130,7 +153,16 @@ export async function renderPedidosItensImportPage(root, { apiClient }) {
       render();
       try {
         const payload = await buildPreviewPayload(state.file);
-        state.preview = await withGlobalProcessing(() => previewPedidosItensImport(apiClient, payload), {
+        state.preview = await withGlobalProcessing(async () => {
+          const preview = await previewPedidosItensImport(apiClient, payload);
+          const resumo = preview?.resumo || preview?.summary || {};
+          const itens = preview?.itens || preview?.rows || [];
+          state.previewResumo = resumo;
+          state.previewItens = itens;
+          console.log('preview resumo', resumo);
+          console.log('preview primeiro item', itens?.[0]);
+          return preview;
+        }, {
           title: 'Lendo planilha',
           message: 'Estamos analisando os itens e montando a pré-visualização.',
           indeterminate: true
