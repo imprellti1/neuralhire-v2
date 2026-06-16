@@ -1,11 +1,38 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { mapPedidoDetailsData } from './pedido-details.mapper.js';
 import { renderPedidoDetailsPage } from './pedido-details.page.js';
 import { flush, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 
 function compactText(node) {
   return String(node?.textContent || '').replace(/\s+/g, ' ').trim();
 }
+
+test('pedido details mapper normalizes item monetary values once', () => {
+  const mapped = mapPedidoDetailsData({
+    pedido: {
+      id: '1',
+      numero: 'PED-1',
+      cliente_nome: 'Cliente Teste',
+      status: 'confirmado',
+      origem: 'manual',
+      total: 15000,
+      cliente_id: 'cliente-1'
+    },
+    itens: [
+      { produto_nome: 'FRONHA 50cm x 70cm TRECCENTI', quantidade: 4, valor_unitario: 1714, total_item: 0 },
+      { produto_nome: 'FRONHA 50cm x 70cm NOBLESS', quantidade: 4, valor_unitario: 2260, total_item: 0 },
+      { produto_nome: 'TRAVESSEIRO PREMIUM POPCORN', quantidade: 6, valor_unitario: 10200, total_item: 0 }
+    ]
+  }, { items: [] });
+
+  assert.equal(mapped.itens[0].valorUnitario, 17.14);
+  assert.equal(mapped.itens[0].valorUnitarioCentavos, 1714);
+  assert.equal(mapped.itens[1].valorUnitario, 22.6);
+  assert.equal(mapped.itens[1].valorUnitarioCentavos, 2260);
+  assert.equal(mapped.itens[2].valorUnitario, 102);
+  assert.equal(mapped.itens[2].valorUnitarioCentavos, 10200);
+});
 
 test('pedido details page shows emission date in summary and keeps audit dates', async () => {
   const dom = setupFrontendDom('#/pedidos/1');
@@ -32,7 +59,7 @@ test('pedido details page shows emission date in summary and keeps audit dates',
           itens: [
             { produto_nome: 'FRONHA 50cm x 70cm TRECCENTI', quantidade: 4, valor_unitario: 1714, total_item: 0, status_vinculo: 'vinculado' },
             { produto_nome: 'FRONHA 50cm x 70cm NOBLESS', quantidade: 4, valor_unitario: 2260, total_item: 0, status_vinculo: 'nao_encontrado' },
-            { produto_nome: 'TRAVESSEIRO PREMIUM', quantidade: 6, valor_unitario: 10200, total_item: 0, status_vinculo: 'vinculado' }
+            { produto_nome: 'TRAVESSEIRO PREMIUM POPCORN', quantidade: 6, valor_unitario: 10200, total_item: 0, status_vinculo: 'vinculado' }
           ]
         };
       }

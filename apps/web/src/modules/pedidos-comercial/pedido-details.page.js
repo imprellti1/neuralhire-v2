@@ -46,20 +46,15 @@ function toPositiveNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
-function centsToReais(value) {
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? n / 100 : 0;
-}
 function getItemQuantidade(item = {}) {
   const quantidade = toPositiveNumber(item?.quantidade ?? item?.qty ?? item?.qtd ?? 0);
   return quantidade;
 }
 function getItemCustoUnitario(item = {}) {
   const quantidade = getItemQuantidade(item);
-  const explicitUnitRaw = item?.valorUnitario ?? item?.valor_unitario ?? item?.preco_unitario ?? item?.unitario ?? item?.preco ?? item?.custo_unitario ?? item?.custoUnitario ?? 0;
-  const explicitUnit = centsToReais(explicitUnitRaw);
+  const explicitUnit = Number(item?.valorUnitario ?? item?.valor_unitario ?? item?.preco_unitario ?? item?.unitario ?? item?.preco ?? item?.custo_unitario ?? item?.custoUnitario ?? 0);
   if (explicitUnit > 0) return explicitUnit;
-  const totalFromBackend = centsToReais(item?.totalItem ?? item?.total_item ?? item?.total ?? item?.valor_total ?? 0);
+  const totalFromBackend = Number(item?.totalItem ?? item?.total_item ?? item?.total ?? item?.valor_total ?? 0);
   if (totalFromBackend > 0 && quantidade > 0) return totalFromBackend / quantidade;
   return 0;
 }
