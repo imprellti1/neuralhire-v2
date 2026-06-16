@@ -43,6 +43,45 @@ export function getPedidosItensImportTests() {
       }
     },
     {
+      name: 'prioriza produto_nome do item vinculado e preserva fallback original',
+      run: async () => {
+        const vinculado = __buildPedidoItemRowForTests({
+          accountId: 'acc-1b',
+          pedidoId: 'pedido-1b',
+          row: {
+            codigo_produto_erp_original: '850400051.949.00001',
+            nome_produto_original: '850400051.949.00001',
+            quantidade: 1,
+            valor_total: 120
+          },
+          match: {
+            status_vinculo: 'vinculado',
+            produto_id: 'prod-1',
+            variacao_id: 'var-1',
+            produto_nome: 'TAPETE 40cm x 60cm POPCORN'
+          }
+        });
+
+        assert.equal(vinculado.produto_nome, 'TAPETE 40cm x 60cm POPCORN');
+
+        const naoVinculado = __buildPedidoItemRowForTests({
+          accountId: 'acc-1c',
+          pedidoId: 'pedido-1c',
+          row: {
+            codigo_produto_erp_original: '850400051.949.00001',
+            nome_produto_original: 'Produto da Planilha',
+            quantidade: 1,
+            valor_total: 120
+          },
+          match: {
+            status_vinculo: 'nao_encontrado'
+          }
+        });
+
+        assert.equal(naoVinculado.produto_nome, 'Produto da Planilha');
+      }
+    },
+    {
       name: 'normaliza valor total em centavos antes de calcular preco unitario',
       run: async () => {
         assert.equal(normalizeSpreadsheetMoney(6856), 68.56);
