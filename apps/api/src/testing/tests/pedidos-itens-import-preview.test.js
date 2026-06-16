@@ -5,8 +5,9 @@ import { createApiApp } from '../../app.js';
 import { createTestRequest } from '../create-test-request.js';
 import { createTestResponse } from '../create-test-response.js';
 import { createCliente, __resetMemoryClientesForTests } from '../../modules/clientes/clientes.repository.js';
-import { createPedidoFromImport, __resetMemoryPedidosForTests, __dumpMemoryPedidos } from '../../modules/pedidos/pedidos.repository.js';
+import { createPedidoFromImport, __resetMemoryPedidosForTests, __dumpMemoryPedidos, __setPedidosSupabaseClientForTests } from '../../modules/pedidos/pedidos.repository.js';
 import { __resetMemoryProdutosForTests, __loadMemoryProdutos } from '../../modules/produtos/produtos.repository.js';
+import { __setPedidosItensSupabaseModeForTests, __setPedidosItensSupabaseClientForTests, __testFindPedidoByNumero } from '../../modules/pedidos-itens/pedidos-itens.repository.js';
 
 function parseBody(res) { try { return JSON.parse(res.body || '{}'); } catch { return {}; } }
 function call(app, { method, url, role, accountId, body }) {
@@ -133,4 +134,94 @@ test('arquivo cujo pedido nao existe retorna erro claro', async () => {
   ]);
   const preview = await call(app, { method: 'POST', url: '/pedidos/itens/importacao/preview', role: 'admin', accountId: 'acc-preview-6', body: { arquivo: { fileName: '99999.xlsx', base64 } } });
   assert.equal(preview.res.statusCode, 404);
+});
+
+test('findPedidoByNumero usa conta do contexto e retorna 404 com mensagem ERP', async () => {
+  __resetMemoryPedidosForTests();
+  __resetMemoryProdutosForTests();
+  __resetMemoryClientesForTests();
+
+  const recorded = [];
+  const supabase = {
+    from(table) {
+      assert.equal(table, 'pedidos');
+      return {
+        select(columns) {
+          recorded.push(columns);
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        async maybeSingle() {
+          return { data: null, error: null };
+        }
+      };
+    }
+  };
+
+  __setPedidosSupabaseClientForTests(supabase, true);
+  __setPedidosItensSupabaseModeForTests(true);
+  __setPedidosItensSupabaseClientForTests(supabase);
+
+  try {
+    await assert.rejects(
+      () => __testFindPedidoByNumero('7b8d9d4f-7c67-4a3f-8c85-5f6d5df1a114', '9992'),
+      (error) => error?.statusCode === 404 && String(error?.message || '').includes('Pedido ERP 9992 nao encontrado')
+    );
+    assert.deepEqual(recorded, ['id, account_id, numero']);
+  } finally {
+    __setPedidosSupabaseClientForTests(null, false);
+    __setPedidosItensSupabaseModeForTests(false);
+    __setPedidosItensSupabaseClientForTests(null);
+  }
+});
+
+test('falha real do Supabase registra detalhes e retorna erro interno', async () => {
+  __resetMemoryPedidosForTests();
+  __resetMemoryProdutosForTests();
+  __resetMemoryClientesForTests();
+
+  const logs = [];
+  const originalError = console.error;
+  console.error = (...args) => { logs.push(args); };
+
+  __setPedidosSupabaseClientForTests({
+    from(table) {
+      assert.equal(table, 'pedidos');
+      return {
+        select() { return this; },
+        eq() { return this; },
+        async maybeSingle() {
+          return { data: null, error: { message: 'relation error', details: 'bad filter', hint: 'check account_id' } };
+        }
+      };
+    }
+  }, true);
+  __setPedidosItensSupabaseModeForTests(true);
+  __setPedidosItensSupabaseClientForTests({
+    from() {
+      return {
+        select() { return this; },
+        eq() { return this; },
+        async maybeSingle() {
+          return { data: null, error: { message: 'relation error', details: 'bad filter', hint: 'check account_id' } };
+        }
+      };
+    }
+  });
+
+  try {
+    await assert.rejects(
+      () => __testFindPedidoByNumero('7b8d9d4f-7c67-4a3f-8c85-5f6d5df1a114', '9992'),
+      (error) => error?.statusCode === 500 && String(error?.message || '').includes('Falha ao buscar pedido')
+    );
+    assert.ok(logs.some((entry) => String(entry[0] || '').includes('[pedidos-itens.repository] Falha ao buscar pedido')));
+    assert.ok(logs.some((entry) => JSON.stringify(entry).includes('relation error')));
+  } finally {
+    console.error = originalError;
+    __setPedidosSupabaseClientForTests(null, false);
+    __setPedidosItensSupabaseModeForTests(false);
+    __setPedidosItensSupabaseClientForTests(null);
+  }
 });

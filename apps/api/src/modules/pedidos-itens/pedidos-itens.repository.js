@@ -4,12 +4,20 @@ import { __dumpMemoryProdutos, getProdutoById } from '../produtos/produtos.repos
 import { buildExpectedSku, classifyVariationMatch, extractSkuBase } from './pedidos-itens.matching.js';
 import { parsePedidosItensWorkbook } from './pedidos-itens.parser.js';
 
+let supabaseConfiguredOverride = null;
+let supabaseClientOverride = null;
+
 function assertAccountId(accountId) {
   if (!accountId) throw new ForbiddenError('Contexto de tenant obrigatorio', { code: 'TENANT_REQUIRED', domain: 'pedidos-itens' });
 }
 
 function mode() {
+  if (typeof supabaseConfiguredOverride === 'boolean') return supabaseConfiguredOverride ? 'supabase' : 'memory';
   return isSupabaseConfigured() ? 'supabase' : 'memory';
+}
+
+function resolveSupabaseClient() {
+  return supabaseClientOverride || getSupabaseClient();
 }
 
 function normalizeValue(value) {
@@ -25,6 +33,15 @@ function normalizeSku(value) {
   return String(value ?? '').trim().toLowerCase();
 }
 
+function logPedidoLookupError(error, context = {}) {
+  console.error('[pedidos-itens.repository] Falha ao buscar pedido', {
+    message: error?.message || null,
+    details: error?.details || null,
+    hint: error?.hint || null,
+    context
+  });
+}
+
 function toCandidatesFromProduct(product = {}) {
   const productVariations = Array.isArray(product.variacoes) ? product.variacoes : Array.isArray(product.variations) ? product.variations : Array.isArray(product.produto_variacoes) ? product.produto_variacoes : [];
   return productVariations.map((variation) => ({ ...variation, produto_id: variation.produto_id || product.id || null, produto_nome: product.nome || null }));
@@ -33,7 +50,7 @@ function toCandidatesFromProduct(product = {}) {
 async function findVariationCandidates(accountId, skuExpected) {
   if (!skuExpected) return [];
   if (mode() === 'supabase') {
-    const supabase = getSupabaseClient();
+    const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data, error } = await supabase
       .from('produto_variacoes')
@@ -54,17 +71,27 @@ async function findPedidoByNumero(accountId, numero) {
   const pedidoNumero = normalizeValue(numero);
   if (!pedidoNumero) throw new BadRequestError('Numero do pedido obrigatorio no nome do arquivo', { domain: 'pedidos-itens', code: 'ORDER_NUMBER_REQUIRED' });
   if (mode() === 'supabase') {
-    const supabase = getSupabaseClient();
+    const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data, error } = await supabase.from('pedidos').select('id, account_id, numero, status, cliente_id, cliente_nome').eq('account_id', accountId).eq('numero', pedidoNumero).maybeSingle();
-    if (error) throw new DatabaseError('Falha ao buscar pedido', { details: error });
-    if (!data) throw new NotFoundError('Pedido nao encontrado para o arquivo enviado', { domain: 'pedidos-itens', code: 'PEDIDO_NOT_FOUND', details: { numero: pedidoNumero } });
+    const { data, error } = await supabase
+      .from('pedidos')
+      .select('id, account_id, numero')
+      .eq('account_id', accountId)
+      .eq('numero', pedidoNumero)
+      .maybeSingle();
+    if (error) {
+      logPedidoLookupError(error, { accountId, numero: pedidoNumero });
+      throw new DatabaseError('Falha ao buscar pedido', { details: error });
+    }
+    if (!data) {
+      throw new NotFoundError(`Pedido ERP ${pedidoNumero} nao encontrado`, { domain: 'pedidos-itens', code: 'PEDIDO_NOT_FOUND', details: { numero: pedidoNumero } });
+    }
     return data;
   }
   const { __dumpMemoryPedidos } = await import('../pedidos/pedidos.repository.js');
   const snapshot = __dumpMemoryPedidos();
   const pedido = (snapshot.pedidos || []).find((item) => String(item.account_id || '') === String(accountId) && normalizeValue(item.numero) === pedidoNumero);
-  if (!pedido) throw new NotFoundError('Pedido nao encontrado para o arquivo enviado', { domain: 'pedidos-itens', code: 'PEDIDO_NOT_FOUND', details: { numero: pedidoNumero } });
+  if (!pedido) throw new NotFoundError(`Pedido ERP ${pedidoNumero} nao encontrado`, { domain: 'pedidos-itens', code: 'PEDIDO_NOT_FOUND', details: { numero: pedidoNumero } });
   return pedido;
 }
 
@@ -249,4 +276,16 @@ export async function executePedidosItensImport({ accountId, fileName, buffer })
     },
     resumo
   };
+}
+
+export function __setPedidosItensSupabaseModeForTests(configured = true) {
+  supabaseConfiguredOverride = Boolean(configured);
+}
+
+export async function __testFindPedidoByNumero(accountId, numero) {
+  return findPedidoByNumero(accountId, numero);
+}
+
+export function __setPedidosItensSupabaseClientForTests(client) {
+  supabaseClientOverride = client;
 }
