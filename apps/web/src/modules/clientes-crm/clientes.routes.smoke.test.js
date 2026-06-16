@@ -193,3 +193,34 @@ test('clientes: cenario misto com listagem sucesso + detalhe 404/500 + criacao 4
   assert.doesNotThrow(() => assertNoSensitiveTransportFields());
   teardownFrontendDom(dom500Create);
 });
+
+test('clientes: detalhe 360 abre com abas e accordion de pedidos', async () => {
+  const dom = setupFrontendDom('#/clientes');
+  mockAuthenticatedSession();
+  installFetchMock({
+    'GET /clientes': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 10 } }),
+    'GET /clientes/c1': () => ({ item: { id: 'c1', empresa: 'Cliente A', cidade: 'São Paulo', estado: 'SP', created_at: '2026-05-01T00:00:00.000Z', status: 'ativo', vendedor_nome: 'Vendedor 1', documento: '00.000.000/0001-00', telefone: '(11) 99999-9999', email: 'a@a.com' } }),
+    'GET /pedidos': ({ query }) => String(query.cliente_id || '') === 'c1'
+      ? { items: [{ id: 'p1', cliente_id: 'c1', numero: '1001', status: 'confirmado', created_at: '2026-05-28T00:00:00.000Z', data_faturamento: '2026-06-01T00:00:00.000Z', total: 123.45, itens: [{ produto: 'Produto X', quantidade: 2, preco_unitario: 10, total: 20, status_vinculo: 'vinculado' }] }], pagination: { page: 1, totalPages: 1, total: 1, limit: 100 } }
+      : { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } },
+    'GET /pedidos/p1': () => ({ item: { id: 'p1', itens: [{ produto: 'Produto X', quantidade: 2, preco_unitario: 10, total: 20, status_vinculo: 'vinculado' }] } })
+  });
+  bootstrapWebApp();
+  await flush(); await flush();
+  setHash('#/clientes/c1');
+  await flush(); await flush();
+  assert.ok(document.querySelector('[data-tab="geral"]'));
+  assert.ok(document.querySelector('[data-tab="comercial"]'));
+  assert.ok(document.querySelector('[data-tab="crm"]'));
+  document.querySelector('[data-tab="comercial"]')?.click();
+  await flush(); await flush();
+  assert.match(document.body.textContent, /Últimos Pedidos/i);
+  assert.match(document.body.textContent, /01\/06\/2026/);
+  document.querySelector('[data-toggle-pedido="p1"]')?.click();
+  await flush(); await flush();
+  assert.match(document.body.textContent, /Produto X/);
+  document.querySelector('[data-tab="crm"]')?.click();
+  await flush(); await flush();
+  assert.match(document.body.textContent, /Nenhuma conversa registrada para este cliente/i);
+  teardownFrontendDom(dom);
+});

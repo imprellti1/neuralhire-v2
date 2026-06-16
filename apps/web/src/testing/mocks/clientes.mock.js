@@ -13,10 +13,11 @@ export function createClientesMockHandlers({ scenario = 'success', overrides = {
     'GET /clientes/c1': () => createSuccessResponse({ item: makeCliente() }),
     'GET /pedidos': ({ query }) => {
       if (String(query.cliente_id || '') === 'c1') {
-        return { items: [{ id: 'p1', cliente_id: 'c1', numero: '1001', status: 'confirmado', created_at: '2026-06-01T00:00:00.000Z', total: 123.45 }], pagination: { page: 1, totalPages: 1, total: 1, limit: Number(query.limit || 100) } };
+        return { items: [{ id: 'p1', cliente_id: 'c1', numero: '1001', status: 'confirmado', created_at: '2026-05-28T00:00:00.000Z', data_faturamento: '2026-06-01T00:00:00.000Z', total: 123.45, itens: [{ produto: 'Produto X', quantidade: 2, preco_unitario: 10, total: 20, status_vinculo: 'vinculado' }] }], pagination: { page: 1, totalPages: 1, total: 1, limit: Number(query.limit || 100) } };
       }
       return { items: [], pagination: { page: Number(query.page || 1), totalPages: 1, total: 0, limit: Number(query.limit || 100) } };
     },
+    'GET /pedidos/p1': () => createSuccessResponse({ item: { id: 'p1', itens: [{ produto: 'Produto X', quantidade: 2, preco_unitario: 10, total: 20, status_vinculo: 'vinculado' }] } }),
     'POST /clientes': () => createSuccessResponse({ item: { id: 'c1' } })
   };
 

@@ -14,6 +14,10 @@ async function fetchAllClientePedidos(apiClient, clienteId) {
   return items;
 }
 
+export async function fetchPedidoDetailsForCliente(apiClient, pedidoId) {
+  return apiClient.get(`/pedidos/${pedidoId}`);
+}
+
 export async function fetchClienteDetailsData(apiClient, clienteId) {
   const [clienteResponse, pedidosResponse] = await Promise.all([
     apiClient.get(`/clientes/${clienteId}`),
@@ -22,15 +26,5 @@ export async function fetchClienteDetailsData(apiClient, clienteId) {
 
   const cliente = clienteResponse?.item || clienteResponse?.cliente || clienteResponse || null;
   const pedidos = Array.isArray(pedidosResponse) ? pedidosResponse : [];
-  const pedidosComItens = await Promise.all(pedidos.map(async (pedido) => {
-    if (Array.isArray(pedido?.itens) && pedido.itens.length) return pedido;
-    try {
-      const detail = await apiClient.get(`/pedidos/${pedido.id}`);
-      return { ...pedido, itens: Array.isArray(detail?.itens) ? detail.itens : [] };
-    } catch {
-      return { ...pedido, itens: [] };
-    }
-  }));
-
-  return mapClienteDetailsData({ cliente, pedidos: pedidosComItens, clienteId });
+  return mapClienteDetailsData({ cliente, pedidos, clienteId });
 }
