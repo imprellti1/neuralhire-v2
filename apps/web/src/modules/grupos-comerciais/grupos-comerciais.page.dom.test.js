@@ -116,34 +116,58 @@ test('clientes do grupo dispara busca com 1 caractere e ignora string vazia', as
   await flush();
   await flush();
 
+  const modal = document.querySelector('.nhgc-modal');
   const input = document.querySelector('#nhgc-cliente-search');
+  input.focus();
   dispatchInput(input, 'S');
   await flush();
   await flush();
 
   assert.deepEqual(searched, ['S']);
+  assert.equal(document.querySelector('#nhgc-cliente-search'), input);
   assert.equal(document.querySelector('#nhgc-cliente-search')?.value, 'S');
+  assert.equal(document.querySelector('.nhgc-modal'), modal);
+  assert.equal(document.activeElement, input);
   assert.match(document.body.textContent, /Silva/i);
 
-  dispatchInput(document.querySelector('#nhgc-cliente-search'), 'SA');
+  dispatchInput(input, 'SA');
   await flush();
   await flush();
 
   assert.deepEqual(searched, ['S', 'SA']);
+  assert.equal(document.querySelector('#nhgc-cliente-search'), input);
   assert.equal(document.querySelector('#nhgc-cliente-search')?.value, 'SA');
+  assert.equal(document.querySelector('.nhgc-modal'), modal);
+  assert.equal(document.activeElement, input);
 
-  dispatchInput(document.querySelector('#nhgc-cliente-search'), 'SAN');
+  dispatchInput(input, 'SAN');
   await flush();
   await flush();
 
   assert.deepEqual(searched, ['S', 'SA', 'SAN']);
+  assert.equal(document.querySelector('#nhgc-cliente-search'), input);
   assert.equal(document.querySelector('#nhgc-cliente-search')?.value, 'SAN');
+  assert.equal(document.querySelector('.nhgc-modal'), modal);
+  assert.equal(document.activeElement, input);
 
-  dispatchInput(document.querySelector('#nhgc-cliente-search'), '');
+  dispatchInput(input, 'SANTA');
   await flush();
   await flush();
 
-  assert.deepEqual(searched, ['S', 'SA', 'SAN']);
+  assert.deepEqual(searched, ['S', 'SA', 'SAN', 'SANTA']);
+  assert.equal(document.querySelector('#nhgc-cliente-search'), input);
+  assert.equal(document.querySelector('#nhgc-cliente-search')?.value, 'SANTA');
+  assert.equal(document.querySelector('.nhgc-modal'), modal);
+  assert.equal(document.activeElement, input);
+
+  dispatchInput(input, '');
+  await flush();
+  await flush();
+
+  assert.deepEqual(searched, ['S', 'SA', 'SAN', 'SANTA']);
+  assert.equal(document.querySelector('#nhgc-cliente-search'), input);
   assert.equal(document.querySelector('#nhgc-cliente-search')?.value, '');
+  assert.equal(document.querySelector('.nhgc-modal'), modal);
+  assert.equal(document.activeElement, input);
   teardownFrontendDom(dom);
 });

@@ -23,6 +23,23 @@ export function renderGruposComerciaisPage(root, { apiClient } = {}) {
     root.innerHTML = `<div class="nhgc-wrap"><div class="nhgc-head"><div><div class="nhgc-title">Grupos Comerciais</div><div class="nhgc-sub">Agrupe clientes por estratégia comercial.</div></div><div class="nhgc-tools"><input id="nhgc-search" class="nhgc-input" placeholder="Pesquisar" value="${state.search}"><button id="nhgc-new" class="nhgc-btn">Novo grupo</button></div></div><div class="nhgc-panel"><table class="nhgc-table"><thead><tr><th>Nome</th><th>Descrição</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="nhgc-empty">Nenhum grupo cadastrado.</td></tr>'}</tbody></table></div>${state.modalOpen ? renderModal() : ''}${state.clientesModalOpen ? renderClientesModal() : ''}</div>`;
     bind();
   }
+  function renderClientesResultados() {
+    const target = root.querySelector('#nhgc-clientes-resultados');
+    if (!target) return;
+    target.innerHTML = (state.clientesDisponiveis || []).map((c) => `<label class="nhgc-card"><input type="checkbox" data-select-cliente="${c.id}" ${state.selectedClienteIds.has(c.id) ? 'checked' : ''}> <strong>${safe(c.nome)}</strong><div class="nhgc-sub">${safe(c.email)}</div></label>`).join('') || '<div class="nhgc-empty">Busque clientes para adicionar.</div>';
+    bindClientesResultados();
+  }
+  function renderClientesSelecionados() {
+    const target = root.querySelector('#nhgc-clientes-selecionados');
+    if (!target) return;
+    target.textContent = `${state.selectedClienteIds.size} cliente(s)`;
+  }
+  function renderClientesVinculados() {
+    const target = root.querySelector('#nhgc-clientes-vinculados');
+    if (!target) return;
+    target.innerHTML = (state.clientesVinculados || []).map((c) => `<div class="nhgc-card"><strong>${safe(c.cliente_nome || c.nome || c.id)}</strong><div class="nhgc-sub">${safe(c.cliente_email || c.email)}</div><button class="nhgc-btn" data-remove-cliente="${c.cliente_id}">Remover</button></div>`).join('') || '<div class="nhgc-empty">Nenhum cliente vinculado.</div>';
+    bindClientesVinculados();
+  }
   function openModal(selected = null) { state.selected = selected; state.form = createForm(selected); state.formError = ''; state.modalOpen = true; render(); }
   function closeModal() { state.modalOpen = false; state.selected = null; state.form = null; state.formError = ''; render(); }
   function openClientesModal(selected = null) { state.selected = selected; state.clientesModalOpen = true; state.clienteSearch = ''; state.selectedClienteIds = new Set(); loadClientesDoGrupo(); render(); }
@@ -32,7 +49,7 @@ export function renderGruposComerciaisPage(root, { apiClient } = {}) {
     return `<div class="nhgc-modal-backdrop"><div class="nhgc-modal"><div class="nhgc-panel"><div class="nhgc-head"><div><div class="nhgc-title">${state.selected?.id ? 'Editar grupo' : 'Novo grupo'}</div></div><button class="nhgc-btn" data-close-modal>Fechar</button></div>${state.formError ? `<div class="nhgc-empty" role="alert">${state.formError}</div>` : ''}<div class="nhgc-grid"><label class="nhgc-field"><span>Nome</span><input id="nhgc-nome" value="${safe(g.nome, '')}"></label><label class="nhgc-field"><span>Ativo</span><select id="nhgc-ativo" class="nhgc-input"><option value="true" ${g.ativo !== false ? 'selected' : ''}>Sim</option><option value="false" ${g.ativo === false ? 'selected' : ''}>Não</option></select></label><label class="nhgc-field" style="grid-column:1/-1"><span>Descrição</span><textarea id="nhgc-descricao">${safe(g.descricao, '')}</textarea></label></div><div style="margin-top:14px;text-align:right"><button class="nhgc-btn" id="nhgc-save" ${state.saving ? 'disabled' : ''}>${state.saving ? 'Salvando...' : 'Salvar'}</button></div></div></div></div>`;
   }
   function renderClientesModal() {
-    return `<div class="nhgc-modal-backdrop"><div class="nhgc-modal"><div class="nhgc-panel"><div class="nhgc-head"><div><div class="nhgc-title">Clientes do grupo</div><div class="nhgc-sub">${safe(state.selected?.nome, '')}</div></div><button class="nhgc-btn" data-close-clientes>Fechar</button></div><div class="nhgc-grid"><div class="nhgc-field"><span>Buscar clientes</span><input id="nhgc-cliente-search" value="${state.clienteSearch}" placeholder="Nome, documento, email..."></div><div class="nhgc-field"><span>Selecionados</span><div class="nhgc-pill">${state.selectedClienteIds.size} cliente(s)</div></div></div><div class="nhgc-grid" style="margin-top:12px"><div><div class="nhgc-sub">Resultados</div><div class="nhgc-list">${(state.clientesDisponiveis || []).map((c) => `<label class="nhgc-card"><input type="checkbox" data-select-cliente="${c.id}" ${state.selectedClienteIds.has(c.id) ? 'checked' : ''}> <strong>${safe(c.nome)}</strong><div class="nhgc-sub">${safe(c.email)}</div></label>`).join('') || '<div class="nhgc-empty">Busque clientes para adicionar.</div>'}</div></div><div><div class="nhgc-sub">Já vinculados</div><div class="nhgc-list">${(state.clientesVinculados || []).map((c) => `<div class="nhgc-card"><strong>${safe(c.cliente_nome || c.nome || c.id)}</strong><div class="nhgc-sub">${safe(c.cliente_email || c.email)}</div><button class="nhgc-btn" data-remove-cliente="${c.cliente_id}">Remover</button></div>`).join('') || '<div class="nhgc-empty">Nenhum cliente vinculado.</div>'}</div></div></div><div style="margin-top:14px;text-align:right"><button class="nhgc-btn" id="nhgc-add-clientes">Adicionar selecionados</button></div></div></div></div>`;
+    return `<div class="nhgc-modal-backdrop"><div class="nhgc-modal"><div class="nhgc-panel"><div class="nhgc-head"><div><div class="nhgc-title">Clientes do grupo</div><div class="nhgc-sub">${safe(state.selected?.nome, '')}</div></div><button class="nhgc-btn" data-close-clientes>Fechar</button></div><div class="nhgc-grid"><div class="nhgc-field"><span>Buscar clientes</span><input id="nhgc-cliente-search" value="${state.clienteSearch}" placeholder="Nome, documento, email..."></div><div class="nhgc-field"><span>Selecionados</span><div id="nhgc-clientes-selecionados" class="nhgc-pill">${state.selectedClienteIds.size} cliente(s)</div></div></div><div class="nhgc-grid" style="margin-top:12px"><div><div class="nhgc-sub">Resultados</div><div id="nhgc-clientes-resultados" class="nhgc-list"></div></div><div><div class="nhgc-sub">Já vinculados</div><div id="nhgc-clientes-vinculados" class="nhgc-list"></div></div></div><div style="margin-top:14px;text-align:right"><button class="nhgc-btn" id="nhgc-add-clientes">Adicionar selecionados</button></div></div></div></div>`;
   }
   function bind() {
     root.querySelector('#nhgc-search')?.addEventListener('input', (e) => { state.search = e.target.value || ''; render(); });
@@ -53,6 +70,20 @@ export function renderGruposComerciaisPage(root, { apiClient } = {}) {
     root.querySelectorAll('[data-clients]').forEach((el) => el.addEventListener('click', () => openClientesModal(state.items.find((item) => item.id === el.getAttribute('data-clients')))));
     root.querySelectorAll('[data-select-cliente]').forEach((el) => el.addEventListener('change', () => { const id = el.getAttribute('data-select-cliente'); if (el.checked) state.selectedClienteIds.add(id); else state.selectedClienteIds.delete(id); render(); }));
     root.querySelectorAll('[data-remove-cliente]').forEach((el) => el.addEventListener('click', async () => { await removeGrupoComercialCliente(apiClient, state.selected.id, el.getAttribute('data-remove-cliente')); await loadClientesDoGrupo(); }));
+  }
+  function bindClientesResultados() {
+    root.querySelectorAll('[data-select-cliente]').forEach((el) => el.addEventListener('change', () => {
+      const id = el.getAttribute('data-select-cliente');
+      if (el.checked) state.selectedClienteIds.add(id);
+      else state.selectedClienteIds.delete(id);
+      renderClientesSelecionados();
+    }));
+  }
+  function bindClientesVinculados() {
+    root.querySelectorAll('[data-remove-cliente]').forEach((el) => el.addEventListener('click', async () => {
+      await removeGrupoComercialCliente(apiClient, state.selected.id, el.getAttribute('data-remove-cliente'));
+      await loadClientesDoGrupo();
+    }));
   }
   async function load() { state.loading = true; render(); try { const res = await fetchGruposComerciais(apiClient); state.items = res.items || []; } catch { state.error = true; } finally { state.loading = false; render(); } }
   async function saveCurrent() {
@@ -85,22 +116,31 @@ export function renderGruposComerciaisPage(root, { apiClient } = {}) {
     if (trimmedQuery.length < 1) {
       state.clientesDisponiveis = [];
       state.clientesLoading = false;
-      render();
+      renderClientesResultados();
       return;
     }
     state.clientesLoading = true;
-    render();
     try {
       const res = await searchClientes(apiClient, trimmedQuery);
       if (requestId !== clientesSearchRequestId) return;
       state.clientesDisponiveis = res.items || [];
+      renderClientesResultados();
     } finally {
       if (requestId !== clientesSearchRequestId) return;
       state.clientesLoading = false;
-      render();
     }
   }
-  async function loadClientesDoGrupo() { if (!state.selected?.id) return; const res = await fetchGrupoComercialClientes(apiClient, state.selected.id); state.clientesVinculados = res.items || []; await loadClientesBuscados(); }
-  async function addSelectedClientes() { await addGrupoComercialClientes(apiClient, state.selected.id, Array.from(state.selectedClienteIds)); state.selectedClienteIds = new Set(); await loadClientesDoGrupo(); }
+  async function loadClientesDoGrupo() {
+    if (!state.selected?.id) return;
+    const res = await fetchGrupoComercialClientes(apiClient, state.selected.id);
+    state.clientesVinculados = res.items || [];
+    if (state.clientesModalOpen) renderClientesVinculados();
+  }
+  async function addSelectedClientes() {
+    await addGrupoComercialClientes(apiClient, state.selected.id, Array.from(state.selectedClienteIds));
+    state.selectedClienteIds = new Set();
+    renderClientesSelecionados();
+    await loadClientesDoGrupo();
+  }
   render(); load();
 }
