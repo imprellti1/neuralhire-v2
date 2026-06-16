@@ -53,8 +53,12 @@ test('pedidos itens import page renders upload, preview, summary and import', as
   assert.match(document.body.textContent, /Vinculados/);
   assert.match(document.body.textContent, /Não encontrados/);
   assert.match(document.body.textContent, /Ambíguos/);
-  assert.match(document.body.textContent, /SKU não localizado/);
-  assert.match(document.body.textContent, /Mais de um SKU compatível/);
+  assert.doesNotMatch(document.body.textContent, /SKU Esperado/);
+  assert.doesNotMatch(document.body.textContent, /Valor Total/);
+  assert.doesNotMatch(document.body.textContent, /Valor Unitário/);
+  assert.match(document.body.textContent, /Produto vinculado com sucesso/);
+  assert.match(document.body.textContent, /⚠ SKU não localizado/);
+  assert.match(document.body.textContent, /⚠ Mais de um SKU compatível/);
   assert.match(document.body.textContent, /Vinculado/);
   assert.match(document.body.textContent, /Não encontrado/);
   assert.match(document.body.textContent, /Ambíguo/);
