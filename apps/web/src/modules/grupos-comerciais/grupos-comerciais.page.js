@@ -9,6 +9,8 @@ function injectStyles() {
   document.head.appendChild(style);
 }
 function safe(v, f = '-') { const t = String(v || '').trim(); return t || f; }
+function createForm(selected = null) { return { nome: selected?.nome || '', descricao: selected?.descricao || '', ativo: selected?.ativo !== false }; }
+function validateForm(form) { return String(form?.nome || '').trim().length >= 2 ? '' : 'Informe um nome para o grupo comercial.'; }
 
 export function renderGruposComerciaisPage(root, { apiClient } = {}) {
   injectStyles();
@@ -20,13 +22,13 @@ export function renderGruposComerciaisPage(root, { apiClient } = {}) {
     root.innerHTML = `<div class="nhgc-wrap"><div class="nhgc-head"><div><div class="nhgc-title">Grupos Comerciais</div><div class="nhgc-sub">Agrupe clientes por estratégia comercial.</div></div><div class="nhgc-tools"><input id="nhgc-search" class="nhgc-input" placeholder="Pesquisar" value="${state.search}"><button id="nhgc-new" class="nhgc-btn">Novo grupo</button></div></div><div class="nhgc-panel"><table class="nhgc-table"><thead><tr><th>Nome</th><th>Descrição</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="nhgc-empty">Nenhum grupo cadastrado.</td></tr>'}</tbody></table></div>${state.modalOpen ? renderModal() : ''}${state.clientesModalOpen ? renderClientesModal() : ''}</div>`;
     bind();
   }
-  function openModal(selected = null) { state.selected = selected; state.modalOpen = true; render(); }
-  function closeModal() { state.modalOpen = false; state.selected = null; render(); }
+  function openModal(selected = null) { state.selected = selected; state.form = createForm(selected); state.formError = ''; state.modalOpen = true; render(); }
+  function closeModal() { state.modalOpen = false; state.selected = null; state.form = null; state.formError = ''; render(); }
   function openClientesModal(selected = null) { state.selected = selected; state.clientesModalOpen = true; state.clienteSearch = ''; state.selectedClienteIds = new Set(); loadClientesDoGrupo(); render(); }
   function closeClientesModal() { state.clientesModalOpen = false; state.selected = null; render(); }
   function renderModal() {
-    const g = state.selected || {};
-    return `<div class="nhgc-modal-backdrop"><div class="nhgc-modal"><div class="nhgc-panel"><div class="nhgc-head"><div><div class="nhgc-title">${g.id ? 'Editar grupo' : 'Novo grupo'}</div></div><button class="nhgc-btn" data-close-modal>Fechar</button></div><div class="nhgc-grid"><label class="nhgc-field"><span>Nome</span><input id="nhgc-nome" value="${safe(g.nome, '')}"></label><label class="nhgc-field"><span>Ativo</span><select id="nhgc-ativo" class="nhgc-input"><option value="true" ${g.ativo !== false ? 'selected' : ''}>Sim</option><option value="false" ${g.ativo === false ? 'selected' : ''}>Não</option></select></label><label class="nhgc-field" style="grid-column:1/-1"><span>Descrição</span><textarea id="nhgc-descricao">${safe(g.descricao, '')}</textarea></label></div><div style="margin-top:14px;text-align:right"><button class="nhgc-btn" id="nhgc-save">${state.saving ? 'Salvando...' : 'Salvar'}</button></div></div></div></div>`;
+    const g = state.form || createForm(state.selected);
+    return `<div class="nhgc-modal-backdrop"><div class="nhgc-modal"><div class="nhgc-panel"><div class="nhgc-head"><div><div class="nhgc-title">${state.selected?.id ? 'Editar grupo' : 'Novo grupo'}</div></div><button class="nhgc-btn" data-close-modal>Fechar</button></div>${state.formError ? `<div class="nhgc-empty" role="alert">${state.formError}</div>` : ''}<div class="nhgc-grid"><label class="nhgc-field"><span>Nome</span><input id="nhgc-nome" value="${safe(g.nome, '')}"></label><label class="nhgc-field"><span>Ativo</span><select id="nhgc-ativo" class="nhgc-input"><option value="true" ${g.ativo !== false ? 'selected' : ''}>Sim</option><option value="false" ${g.ativo === false ? 'selected' : ''}>Não</option></select></label><label class="nhgc-field" style="grid-column:1/-1"><span>Descrição</span><textarea id="nhgc-descricao">${safe(g.descricao, '')}</textarea></label></div><div style="margin-top:14px;text-align:right"><button class="nhgc-btn" id="nhgc-save" ${state.saving ? 'disabled' : ''}>${state.saving ? 'Salvando...' : 'Salvar'}</button></div></div></div></div>`;
   }
   function renderClientesModal() {
     return `<div class="nhgc-modal-backdrop"><div class="nhgc-modal"><div class="nhgc-panel"><div class="nhgc-head"><div><div class="nhgc-title">Clientes do grupo</div><div class="nhgc-sub">${safe(state.selected?.nome, '')}</div></div><button class="nhgc-btn" data-close-clientes>Fechar</button></div><div class="nhgc-grid"><div class="nhgc-field"><span>Buscar clientes</span><input id="nhgc-cliente-search" value="${state.clienteSearch}" placeholder="Nome, documento, email..."></div><div class="nhgc-field"><span>Selecionados</span><div class="nhgc-pill">${state.selectedClienteIds.size} cliente(s)</div></div></div><div class="nhgc-grid" style="margin-top:12px"><div><div class="nhgc-sub">Resultados</div><div class="nhgc-list">${(state.clientesDisponiveis || []).map((c) => `<label class="nhgc-card"><input type="checkbox" data-select-cliente="${c.id}" ${state.selectedClienteIds.has(c.id) ? 'checked' : ''}> <strong>${safe(c.nome)}</strong><div class="nhgc-sub">${safe(c.email)}</div></label>`).join('') || '<div class="nhgc-empty">Busque clientes para adicionar.</div>'}</div></div><div><div class="nhgc-sub">Já vinculados</div><div class="nhgc-list">${(state.clientesVinculados || []).map((c) => `<div class="nhgc-card"><strong>${safe(c.cliente_nome || c.nome || c.id)}</strong><div class="nhgc-sub">${safe(c.cliente_email || c.email)}</div><button class="nhgc-btn" data-remove-cliente="${c.cliente_id}">Remover</button></div>`).join('') || '<div class="nhgc-empty">Nenhum cliente vinculado.</div>'}</div></div></div><div style="margin-top:14px;text-align:right"><button class="nhgc-btn" id="nhgc-add-clientes">Adicionar selecionados</button></div></div></div></div>`;
@@ -37,6 +39,9 @@ export function renderGruposComerciaisPage(root, { apiClient } = {}) {
     root.querySelector('[data-close-modal]')?.addEventListener('click', closeModal);
     root.querySelector('[data-close-clientes]')?.addEventListener('click', closeClientesModal);
     root.querySelector('#nhgc-save')?.addEventListener('click', saveCurrent);
+    root.querySelector('#nhgc-nome')?.addEventListener('input', (e) => { state.form = { ...state.form, nome: e.target.value || '' }; state.formError = ''; });
+    root.querySelector('#nhgc-descricao')?.addEventListener('input', (e) => { state.form = { ...state.form, descricao: e.target.value || '' }; });
+    root.querySelector('#nhgc-ativo')?.addEventListener('change', (e) => { state.form = { ...state.form, ativo: e.target.value === 'true' }; });
     root.querySelector('#nhgc-add-clientes')?.addEventListener('click', addSelectedClientes);
     root.querySelector('#nhgc-cliente-search')?.addEventListener('input', (e) => { state.clienteSearch = e.target.value || ''; loadClientesBuscados(); });
     root.querySelectorAll('[data-edit]').forEach((el) => el.addEventListener('click', () => openModal(state.items.find((item) => item.id === el.getAttribute('data-edit')))));
@@ -45,7 +50,29 @@ export function renderGruposComerciaisPage(root, { apiClient } = {}) {
     root.querySelectorAll('[data-remove-cliente]').forEach((el) => el.addEventListener('click', async () => { await removeGrupoComercialCliente(apiClient, state.selected.id, el.getAttribute('data-remove-cliente')); await loadClientesDoGrupo(); }));
   }
   async function load() { state.loading = true; render(); try { const res = await fetchGruposComerciais(apiClient); state.items = res.items || []; } catch { state.error = true; } finally { state.loading = false; render(); } }
-  async function saveCurrent() { state.saving = true; render(); try { const payload = { nome: root.querySelector('#nhgc-nome').value, descricao: root.querySelector('#nhgc-descricao').value, ativo: root.querySelector('#nhgc-ativo').value === 'true' }; await saveGrupoComercial(apiClient, payload, state.selected?.id || null); closeModal(); await load(); } finally { state.saving = false; } }
+  async function saveCurrent() {
+    const payload = {
+      nome: root.querySelector('#nhgc-nome')?.value || '',
+      descricao: root.querySelector('#nhgc-descricao')?.value || '',
+      ativo: root.querySelector('#nhgc-ativo')?.value === 'true'
+    };
+    state.form = { ...state.form, ...payload };
+    state.formError = validateForm(payload);
+    if (state.formError) { render(); return; }
+    state.saving = true;
+    render();
+    try {
+      await saveGrupoComercial(apiClient, payload, state.selected?.id || null);
+      closeModal();
+      await load();
+    } catch (error) {
+      state.formError = error?.status === 422 ? 'Informe um nome para o grupo comercial.' : 'Não foi possível salvar o grupo comercial. Tente novamente.';
+      render();
+    } finally {
+      state.saving = false;
+      render();
+    }
+  }
   async function loadClientesBuscados() { state.clientesLoading = true; render(); try { const res = await searchClientes(apiClient, state.clienteSearch); state.clientesDisponiveis = res.items || []; } finally { state.clientesLoading = false; render(); } }
   async function loadClientesDoGrupo() { if (!state.selected?.id) return; const res = await fetchGrupoComercialClientes(apiClient, state.selected.id); state.clientesVinculados = res.items || []; await loadClientesBuscados(); }
   async function addSelectedClientes() { await addGrupoComercialClientes(apiClient, state.selected.id, Array.from(state.selectedClienteIds)); state.selectedClienteIds = new Set(); await loadClientesDoGrupo(); }

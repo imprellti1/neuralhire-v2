@@ -4,6 +4,7 @@ export function createGruposComerciaisState() {
     error: false,
     items: [],
     selected: null,
+    form: null,
     modalOpen: false,
     clientesModalOpen: false,
     clientesLoading: false,
@@ -13,6 +14,7 @@ export function createGruposComerciaisState() {
     search: '',
     clienteSearch: '',
     selectedClienteIds: new Set(),
-    saving: false
+    saving: false,
+    formError: ''
   };
 }
