@@ -1,0 +1,53 @@
+import { createGruposComerciaisState } from './grupos-comerciais.state.js';
+import { addGrupoComercialClientes, fetchGrupoComercialClientes, fetchGruposComerciais, removeGrupoComercialCliente, saveGrupoComercial, searchClientes } from './grupos-comerciais.service.js';
+
+function injectStyles() {
+  if (document.getElementById('nh-gc-style')) return;
+  const style = document.createElement('style');
+  style.id = 'nh-gc-style';
+  style.textContent = `.nhgc-wrap{max-width:1280px;margin:0 auto}.nhgc-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}.nhgc-title{font-size:30px;font-weight:800}.nhgc-sub{color:#91a4c4}.nhgc-tools{display:flex;gap:10px;flex-wrap:wrap}.nhgc-input,.nhgc-btn{height:38px;border:1px solid rgba(148,163,184,.22);border-radius:10px;padding:0 12px;background:#0b1628;color:#e7eefb}.nhgc-btn{background:#1f56dc;border-color:#1f56dc;cursor:pointer}.nhgc-panel{background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98));border:1px solid rgba(148,163,184,.18);border-radius:16px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.22);margin-bottom:14px}.nhgc-table{width:100%;border-collapse:collapse}.nhgc-table td,.nhgc-table th{padding:10px;border-bottom:1px solid rgba(148,163,184,.12);text-align:left}.nhgc-row:hover td{background:rgba(79,140,255,.12)}.nhgc-modal-backdrop{position:fixed;inset:0;background:rgba(9,16,32,.46);display:flex;align-items:center;justify-content:center;padding:20px;z-index:90}.nhgc-modal{width:min(900px,100%);max-height:92vh;overflow:auto;background:linear-gradient(180deg,rgba(15,27,47,.98),rgba(11,21,37,.99));border:1px solid rgba(148,163,184,.18);border-radius:20px;box-shadow:0 30px 80px rgba(0,0,0,.38)}.nhgc-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.nhgc-field{display:grid;gap:6px}.nhgc-field input,.nhgc-field textarea{height:38px;border:1px solid rgba(148,163,184,.22);border-radius:10px;padding:0 10px;background:#0b1628;color:#e7eefb}.nhgc-field textarea{height:84px;padding:10px;resize:vertical}.nhgc-pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#0b1628;color:#91a4c4;font-size:12px}.nhgc-list{display:grid;gap:8px}.nhgc-card{border:1px solid rgba(148,163,184,.14);border-radius:12px;padding:12px;background:rgba(11,22,40,.72)}.nhgc-empty{color:#91a4c4;padding:10px 0}@media (max-width:900px){.nhgc-grid{grid-template-columns:1fr}}`;
+  document.head.appendChild(style);
+}
+function safe(v, f = '-') { const t = String(v || '').trim(); return t || f; }
+
+export function renderGruposComerciaisPage(root, { apiClient } = {}) {
+  injectStyles();
+  const state = createGruposComerciaisState();
+
+  function render() {
+    const filtered = state.items.filter((item) => [item.nome, item.descricao].some((v) => String(v || '').toLowerCase().includes(String(state.search || '').toLowerCase())));
+    const rows = filtered.map((item) => `<tr class="nhgc-row"><td><strong>${safe(item.nome)}</strong></td><td>${safe(item.descricao)}</td><td><span class="nhgc-pill">${item.ativo ? 'Ativo' : 'Inativo'}</span></td><td><button class="nhgc-btn" data-edit="${item.id}">Editar</button> <button class="nhgc-btn" data-clients="${item.id}">Clientes do grupo</button></td></tr>`).join('');
+    root.innerHTML = `<div class="nhgc-wrap"><div class="nhgc-head"><div><div class="nhgc-title">Grupos Comerciais</div><div class="nhgc-sub">Agrupe clientes por estratégia comercial.</div></div><div class="nhgc-tools"><input id="nhgc-search" class="nhgc-input" placeholder="Pesquisar" value="${state.search}"><button id="nhgc-new" class="nhgc-btn">Novo grupo</button></div></div><div class="nhgc-panel"><table class="nhgc-table"><thead><tr><th>Nome</th><th>Descrição</th><th>Status</th><th>Ações</th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="nhgc-empty">Nenhum grupo cadastrado.</td></tr>'}</tbody></table></div>${state.modalOpen ? renderModal() : ''}${state.clientesModalOpen ? renderClientesModal() : ''}</div>`;
+    bind();
+  }
+  function openModal(selected = null) { state.selected = selected; state.modalOpen = true; render(); }
+  function closeModal() { state.modalOpen = false; state.selected = null; render(); }
+  function openClientesModal(selected = null) { state.selected = selected; state.clientesModalOpen = true; state.clienteSearch = ''; state.selectedClienteIds = new Set(); loadClientesDoGrupo(); render(); }
+  function closeClientesModal() { state.clientesModalOpen = false; state.selected = null; render(); }
+  function renderModal() {
+    const g = state.selected || {};
+    return `<div class="nhgc-modal-backdrop"><div class="nhgc-modal"><div class="nhgc-panel"><div class="nhgc-head"><div><div class="nhgc-title">${g.id ? 'Editar grupo' : 'Novo grupo'}</div></div><button class="nhgc-btn" data-close-modal>Fechar</button></div><div class="nhgc-grid"><label class="nhgc-field"><span>Nome</span><input id="nhgc-nome" value="${safe(g.nome, '')}"></label><label class="nhgc-field"><span>Ativo</span><select id="nhgc-ativo" class="nhgc-input"><option value="true" ${g.ativo !== false ? 'selected' : ''}>Sim</option><option value="false" ${g.ativo === false ? 'selected' : ''}>Não</option></select></label><label class="nhgc-field" style="grid-column:1/-1"><span>Descrição</span><textarea id="nhgc-descricao">${safe(g.descricao, '')}</textarea></label></div><div style="margin-top:14px;text-align:right"><button class="nhgc-btn" id="nhgc-save">${state.saving ? 'Salvando...' : 'Salvar'}</button></div></div></div></div>`;
+  }
+  function renderClientesModal() {
+    return `<div class="nhgc-modal-backdrop"><div class="nhgc-modal"><div class="nhgc-panel"><div class="nhgc-head"><div><div class="nhgc-title">Clientes do grupo</div><div class="nhgc-sub">${safe(state.selected?.nome, '')}</div></div><button class="nhgc-btn" data-close-clientes>Fechar</button></div><div class="nhgc-grid"><div class="nhgc-field"><span>Buscar clientes</span><input id="nhgc-cliente-search" value="${state.clienteSearch}" placeholder="Nome, documento, email..."></div><div class="nhgc-field"><span>Selecionados</span><div class="nhgc-pill">${state.selectedClienteIds.size} cliente(s)</div></div></div><div class="nhgc-grid" style="margin-top:12px"><div><div class="nhgc-sub">Resultados</div><div class="nhgc-list">${(state.clientesDisponiveis || []).map((c) => `<label class="nhgc-card"><input type="checkbox" data-select-cliente="${c.id}" ${state.selectedClienteIds.has(c.id) ? 'checked' : ''}> <strong>${safe(c.nome)}</strong><div class="nhgc-sub">${safe(c.email)}</div></label>`).join('') || '<div class="nhgc-empty">Busque clientes para adicionar.</div>'}</div></div><div><div class="nhgc-sub">Já vinculados</div><div class="nhgc-list">${(state.clientesVinculados || []).map((c) => `<div class="nhgc-card"><strong>${safe(c.cliente_nome || c.nome || c.id)}</strong><div class="nhgc-sub">${safe(c.cliente_email || c.email)}</div><button class="nhgc-btn" data-remove-cliente="${c.cliente_id}">Remover</button></div>`).join('') || '<div class="nhgc-empty">Nenhum cliente vinculado.</div>'}</div></div></div><div style="margin-top:14px;text-align:right"><button class="nhgc-btn" id="nhgc-add-clientes">Adicionar selecionados</button></div></div></div></div>`;
+  }
+  function bind() {
+    root.querySelector('#nhgc-search')?.addEventListener('input', (e) => { state.search = e.target.value || ''; render(); });
+    root.querySelector('#nhgc-new')?.addEventListener('click', () => openModal(null));
+    root.querySelector('[data-close-modal]')?.addEventListener('click', closeModal);
+    root.querySelector('[data-close-clientes]')?.addEventListener('click', closeClientesModal);
+    root.querySelector('#nhgc-save')?.addEventListener('click', saveCurrent);
+    root.querySelector('#nhgc-add-clientes')?.addEventListener('click', addSelectedClientes);
+    root.querySelector('#nhgc-cliente-search')?.addEventListener('input', (e) => { state.clienteSearch = e.target.value || ''; loadClientesBuscados(); });
+    root.querySelectorAll('[data-edit]').forEach((el) => el.addEventListener('click', () => openModal(state.items.find((item) => item.id === el.getAttribute('data-edit')))));
+    root.querySelectorAll('[data-clients]').forEach((el) => el.addEventListener('click', () => openClientesModal(state.items.find((item) => item.id === el.getAttribute('data-clients')))));
+    root.querySelectorAll('[data-select-cliente]').forEach((el) => el.addEventListener('change', () => { const id = el.getAttribute('data-select-cliente'); if (el.checked) state.selectedClienteIds.add(id); else state.selectedClienteIds.delete(id); render(); }));
+    root.querySelectorAll('[data-remove-cliente]').forEach((el) => el.addEventListener('click', async () => { await removeGrupoComercialCliente(apiClient, state.selected.id, el.getAttribute('data-remove-cliente')); await loadClientesDoGrupo(); }));
+  }
+  async function load() { state.loading = true; render(); try { const res = await fetchGruposComerciais(apiClient); state.items = res.items || []; } catch { state.error = true; } finally { state.loading = false; render(); } }
+  async function saveCurrent() { state.saving = true; render(); try { const payload = { nome: root.querySelector('#nhgc-nome').value, descricao: root.querySelector('#nhgc-descricao').value, ativo: root.querySelector('#nhgc-ativo').value === 'true' }; await saveGrupoComercial(apiClient, payload, state.selected?.id || null); closeModal(); await load(); } finally { state.saving = false; } }
+  async function loadClientesBuscados() { state.clientesLoading = true; render(); try { const res = await searchClientes(apiClient, state.clienteSearch); state.clientesDisponiveis = res.items || []; } finally { state.clientesLoading = false; render(); } }
+  async function loadClientesDoGrupo() { if (!state.selected?.id) return; const res = await fetchGrupoComercialClientes(apiClient, state.selected.id); state.clientesVinculados = res.items || []; await loadClientesBuscados(); }
+  async function addSelectedClientes() { await addGrupoComercialClientes(apiClient, state.selected.id, Array.from(state.selectedClienteIds)); state.selectedClienteIds = new Set(); await loadClientesDoGrupo(); }
+  render(); load();
+}

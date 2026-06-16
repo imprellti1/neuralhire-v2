@@ -3,6 +3,7 @@ import { NotFoundError, ValidationError } from '../../core/errors.js';
 import { applyOwnerFilter, canAccessAllTenantData } from '../../core/commercial-scope.js';
 import { createCliente, getClienteById, getClientesRepositoryMode, listClientes, updateCliente } from './clientes.repository.js';
 import { recordAuditLog } from '../../core/audit-logs.js';
+import { getGruposComerciaisByClienteId } from '../grupos-comerciais/grupos-comerciais.repository.js';
 
 function parseBoolean(value) {
   if (value === true || value === 'true') return true;
@@ -62,7 +63,8 @@ export async function getClienteByIdHandler(context = {}) {
   if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
   try {
     const item = await getClienteById(id, { accountId, context });
-    return { ok: true, repositoryMode: getClientesRepositoryMode(), item };
+    const gruposComerciais = await getGruposComerciaisByClienteId(id, { accountId }).catch(() => []);
+    return { ok: true, repositoryMode: getClientesRepositoryMode(), item: { ...item, gruposComerciais } };
   } catch (error) {
     if (error?.code === 'OWNER_SCOPE_FORBIDDEN' || error?.code === 'VENDEDOR_SCOPE_FORBIDDEN') {
       throw new NotFoundError('Cliente nao encontrado', { code: 'CLIENTE_NOT_FOUND', domain: 'clientes-crm' });

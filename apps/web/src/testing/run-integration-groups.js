@@ -10,6 +10,7 @@ const groups = [
     'src/modules/produtos-catalogo/produtos.routes.smoke.test.js',
     'src/modules/clientes-crm/clientes.routes.smoke.test.js',
     'src/modules/clientes-crm/clientes.routes.vendor.test.js',
+    'src/modules/grupos-comerciais/grupos-comerciais.page.dom.test.js',
     'src/modules/pedidos-comercial/pedidos.routes.smoke.test.js',
     'src/modules/public-site/landing.routes.smoke.test.js',
     'src/modules/interest-leads/interest-leads.routes.smoke.test.js',

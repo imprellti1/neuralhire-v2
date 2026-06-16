@@ -252,6 +252,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
               ? `<div class="nho2d-table-wrap"><table class="nho2d-table"><thead><tr><th>Produto</th><th>Quantidade</th><th class="nho2d-right">Faturamento</th></tr></thead><tbody>${d.produtosComprados.map((p) => `<tr><td>${p.produto || '-'}</td><td>${p.quantidade ?? 0}</td><td class="nho2d-right">${fmtCurrency(p.faturamento)}</td></tr>`).join('')}</tbody></table></div>`
               : '<p class="nho2d-empty">Este cliente ainda não possui produtos comprados.</p>'}
           </article>
+          ${renderGruposComerciais(d)}
         </div>
       </div>
     `;
@@ -375,6 +376,11 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       return `<article class="nho2d-card"><h3>CRM</h3><div class="nho2d-crm-empty">Nenhuma conversa registrada para este cliente.</div></article>`;
     }
     return `<article class="nho2d-card"><h3>CRM</h3><div class="nho2d-table-wrap"><table class="nho2d-table"><thead><tr><th>Data</th><th>Canal</th><th>Responsável</th><th>Resumo</th></tr></thead><tbody>${conversations.map((c) => `<tr><td>${fmtDateTime(c.data)}</td><td>${safeText(c.canal)}</td><td>${safeText(c.responsavel)}</td><td>${safeText(c.resumo)}</td></tr>`).join('')}</tbody></table></div></article>`;
+  }
+
+  function renderGruposComerciais(d) {
+    const grupos = Array.isArray(d?.gruposComerciais) ? d.gruposComerciais : [];
+    return `<article class="nho2d-card"><h3>Grupos Comerciais</h3>${grupos.length ? `<div class="nho2d-stack">${grupos.map((grupo) => `<div class="nho2d-crm-empty"><strong>${safeText(grupo.nome)}</strong>${grupo.descricao ? `<div class="nho2d-item-note">${safeText(grupo.descricao)}</div>` : ''}</div>`).join('')}</div>` : '<div class="nho2d-crm-empty">Nenhum grupo comercial vinculado.</div>'}</article>`;
   }
 
   function renderContent() {

@@ -48,6 +48,7 @@ import { renderFabricantesPage } from './modules/fabricantes/fabricantes.page.js
 import { renderVendedoresPage } from './modules/vendedores/vendedores.page.js';
 import { renderProductAuditPage } from './modules/product-audit/product-audit.page.js';
 import { renderProductEditorPage } from './modules/product-editor/product-editor.page.js';
+import { renderGruposComerciaisPage } from './modules/grupos-comerciais/grupos-comerciais.page.js';
 import { renderLoginPage } from './modules/auth/login.page.js';
 import { clearAuthSession, getAuthSession, saveAuthSession } from './core/auth-session.js';
 import { createSupabaseClient } from './core/supabase-client.js';
@@ -66,7 +67,8 @@ const menuSections = [
     items: [
       ['#/dashboard-comercial', 'Visão Geral'],
       ['#/diretor-ia', 'Diretor IA'],
-      ['#/pipeline-ia', 'Pipeline IA / Comercial']
+      ['#/pipeline-ia', 'Pipeline IA / Comercial'],
+      ['#/grupos-comerciais', 'Grupos Comerciais']
     ]
   },
   {
@@ -301,6 +303,7 @@ export function bootstrapWebApp() {
     if (route === '#/clientes/novo') return renderClienteCreatePage(content, { apiClient: api });
     if (route.startsWith('#/clientes/')) return renderClienteDetailsPage(content, { apiClient: api, clienteId: route.slice('#/clientes/'.length).split('?')[0] });
     if (route === '#/produtos') return renderProdutosPage(content, { apiClient: api });
+    if (route === '#/grupos-comerciais') return renderGruposComerciaisPage(content, { apiClient: api });
     if (route === '#/promocoes') return renderPromocoesPage(content, { apiClient: api });
     if (route === '#/produtos/importacao') return renderProdutosImportPage(content, { apiClient: api });
     if (route === '#/produtos/importacao-tabela-preco') return renderPriceTableImportPage(content, { apiClient: api });
