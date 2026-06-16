@@ -67,6 +67,7 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId, routeQuery 
   let itensSaving = false;
   let itensMessage = '';
   let removeItemIndex = null;
+  let itensOpen = false;
   function injectStyles() {
     if (document.getElementById('nh-pedido-details-style')) return;
     const style = document.createElement('style');
@@ -82,6 +83,20 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId, routeQuery 
     .nho2d-stack{display:grid;gap:14px}
     .nho2d-card{background:linear-gradient(180deg,rgba(15,27,47,.94),rgba(11,21,37,.98));border:1px solid rgba(148,163,184,.18);border-radius:14px;padding:20px;box-shadow:0 4px 14px rgba(0,0,0,.16)}
     .nho2d-card h3{margin:0 0 10px;font-size:16px}
+    .nho2d-accordion{overflow:hidden;padding:0}
+    .nho2d-accordion-head{width:100%;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 20px;background:transparent;border:0;color:#e7eefb;text-align:left;cursor:pointer}
+    .nho2d-accordion-head:hover{background:rgba(255,255,255,.02)}
+    .nho2d-accordion-title{display:flex;align-items:center;gap:10px;min-width:0}
+    .nho2d-accordion-title h3{margin:0;font-size:16px}
+    .nho2d-accordion-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;color:#91a4c4;font-size:13px;white-space:nowrap}
+    .nho2d-accordion-count{padding:4px 10px;border-radius:999px;background:rgba(79,140,255,.12);border:1px solid rgba(79,140,255,.22);color:#b9ccff}
+    .nho2d-accordion-icon{width:18px;height:18px;flex:0 0 auto;transition:transform .2s ease,color .2s ease;color:#91a4c4}
+    .nho2d-accordion.is-open .nho2d-accordion-icon{transform:rotate(180deg)}
+    .nho2d-accordion-body{padding:0 20px 20px;display:grid;gap:14px;min-width:0}
+    .nho2d-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+    .nho2d-summary-item{border:1px solid rgba(148,163,184,.14);background:rgba(11,22,40,.72);border-radius:12px;padding:12px 14px;min-width:0}
+    .nho2d-summary-label{display:block;color:#91a4c4;font-size:12px;margin-bottom:4px}
+    .nho2d-summary-value{display:block;color:#e7eefb;font-size:18px;font-weight:700;overflow:hidden;text-overflow:ellipsis}
     .nho2d-dl{display:grid;grid-template-columns:160px minmax(0,1fr);gap:10px 14px;margin:0}
     .nho2d-dt{color:#91a4c4;font-weight:600}
     .nho2d-dd{margin:0;color:#e7eefb}
@@ -113,8 +128,9 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId, routeQuery 
     .nho2d-confirm-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
     .nho2d-inline-actions{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
     .nho2d-input,.nho2d-select{border:1px solid rgba(148,163,184,.22);border-radius:8px;padding:8px 10px;font-size:13px;background:#0b1628;color:#e7eefb}
-    @media (max-width:1280px){.nho2d-wrap{max-width:1180px}.nho2d-title{font-size:28px}}
-    @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}}
+    @media (max-width:1280px){.nho2d-wrap{max-width:1180px}.nho2d-title{font-size:28px}.nho2d-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}.nho2d-accordion-head,.nho2d-accordion-body{padding-left:16px;padding-right:16px}}
+    @media (max-width:640px){.nho2d-summary-grid{grid-template-columns:1fr}.nho2d-accordion-meta{justify-content:flex-start;white-space:normal}}
     `;
     document.head.appendChild(style);
   }
@@ -129,6 +145,11 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId, routeQuery 
     const backLabel = fromAuditoria ? '← Voltar para Auditoria' : 'Voltar';
     const backRoute = fromAuditoria ? '#/auditoria-pedidos' : '#/pedidos';
     const actions = getStatusActions(d?.statusExibicao);
+    const itensBase = editMode ? (itensDraft || []) : (d?.itens || []);
+    const totalItens = itensBase.length;
+    const vinculados = (d?.itens || []).filter((item) => String(item?.status_vinculo || '').toLowerCase() === 'vinculado').length;
+    const naoVinculados = (d?.itens || []).filter((item) => String(item?.status_vinculo || '').toLowerCase() === 'nao_encontrado').length;
+    const valorTotalItens = (d?.itens || []).reduce((acc, item) => acc + Number(item?.totalItem || 0), 0);
     const itensRows = editMode
       ? (itensDraft || []).map((item, index) => `<tr><td>${item.produto || 'Produto não identificado'}</td><td><input class="nho2d-input js-item-qty" data-index="${index}" type="number" min="1" value="${item.quantidade ?? 1}" /></td><td class="nho2d-right">${fmtCurrency(item?.valorUnitario)}</td><td class="nho2d-right">${fmtCurrency(Number(item?.valorUnitario || 0) * Number(item?.quantidade || 0))}</td><td><button class="nho2-btn js-remove-item" data-index="${index}" ${itensSaving ? 'disabled' : ''}>Remover</button></td></tr>`).join('')
       : (d?.itens || []).map((item) => `<tr class="${itemLinkClass(item?.status_vinculo)}"><td><div>${item?.produto || item?.nome_produto_original || 'Produto não identificado'}</div><div class="nho2d-item-meta"><span class="nho2-badge ${itemLinkClass(item?.status_vinculo)}">${itemLinkLabel(item?.status_vinculo)}</span>${item?.status_vinculo && item?.status_vinculo !== 'vinculado' ? `<span class="nho2d-item-sku">${item?.motivo_vinculo || 'Item importado sem vínculo com produto/variação cadastrados.'}</span>` : ''}</div></td><td>${item?.quantidade ?? 0}</td><td class="nho2d-right">${fmtCurrency(item?.valorUnitario)}</td><td class="nho2d-right">${fmtCurrency(item?.totalItem)}</td></tr>`).join('');
@@ -157,11 +178,29 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId, routeQuery 
       <div class="nho2d-grid">
         <div class="nho2d-stack">
           <article class="nho2d-card"><h3>Resumo do Pedido</h3>${geralEditMode ? `<div class="nho2d-inline-actions"><select id="nho2d-geral-cliente" class="nho2d-select"><option value="">Selecione o cliente...</option>${clientesCatalog.map((c) => `<option value="${c.id}" ${String(geralDraft.cliente_id)===String(c.id)?'selected':''}>${c.empresa || c.razao_social || c.nome || 'Cliente'}</option>`).join('')}</select><select id="nho2d-geral-origem" class="nho2d-select"><option value="manual" ${geralDraft.origem==='manual'?'selected':''}>manual</option><option value="site" ${geralDraft.origem==='site'?'selected':''}>site</option><option value="whatsapp" ${geralDraft.origem==='whatsapp'?'selected':''}>whatsapp</option></select><button id="nho2d-geral-save" class="nho2-btn" ${geralSaving ? 'disabled' : ''}>${geralSaving ? 'Salvando...' : 'Salvar Alterações'}</button><button id="nho2d-geral-cancel" class="nho2-btn" style="background:#0b1628;color:#91a4c4;border-color:rgba(148,163,184,.22)" ${geralSaving ? 'disabled' : ''}>Cancelar</button></div><label class="nhpc-field">Observações<textarea id="nho2d-geral-obs" class="nho2d-input" style="width:100%;min-height:82px">${geralDraft.observacoes || ''}</textarea></label>` : `<div class="nho2d-inline-actions"><button id="nho2d-geral-edit" class="nho2-btn">Editar Pedido</button></div>`}${geralMessage ? `<p class="${geralMessage.includes('sucesso') ? 'nho2d-actions-success' : 'nho2d-actions-error'}">${geralMessage}</p>` : ''}<dl class="nho2d-dl"><dt class="nho2d-dt">Número</dt><dd class="nho2d-dd">${d?.numeroExibicao || '-'}</dd><dt class="nho2d-dt">Cliente</dt><dd class="nho2d-dd">${d?.clienteExibicao || 'Cliente não identificado'}</dd><dt class="nho2d-dt">Status</dt><dd class="nho2d-dd"><span class="nho2-badge ${statusClass(d?.statusExibicao)}">${d?.statusExibicao || '-'}</span></dd><dt class="nho2d-dt">Origem</dt><dd class="nho2d-dd">${d?.origemExibicao || '-'}</dd><dt class="nho2d-dt">Data de emissão</dt><dd class="nho2d-dd">${resumoDataEmissao}</dd></dl></article>
-          <article class="nho2d-card"><h3>Itens do Pedido</h3>
-          ${editMode ? `<div class="nho2d-inline-actions"><select id="nho2d-add-produto" class="nho2d-select"><option value="">Adicionar produto...</option>${produtosCatalog.map((p) => `<option value="${p.id}">${p.nome || p.sku || 'Produto'}</option>`).join('')}</select><button id="nho2d-add-item" class="nho2-btn" ${itensSaving ? 'disabled' : ''}>Adicionar item</button><button id="nho2d-save-itens" class="nho2-btn" ${itensSaving ? 'disabled' : ''}>${itensSaving ? 'Salvando...' : 'Salvar alterações'}</button><button id="nho2d-cancel-itens" class="nho2-btn" style="background:#0b1628;color:#91a4c4;border-color:rgba(148,163,184,.22)" ${itensSaving ? 'disabled' : ''}>Cancelar edição</button></div>` : `<div class="nho2d-inline-actions"><button id="nho2d-edit-itens" class="nho2-btn">Editar itens</button></div>`}
-          ${itensMessage ? `<p class="${itensMessage.includes('sucesso') ? 'nho2d-actions-success' : 'nho2d-actions-error'}">${itensMessage}</p>` : ''}
-          <div class="nho2d-table-wrap"><table class="nho2d-table"><thead><tr><th>Produto</th><th>Qtde</th><th class="nho2d-right">Unitário</th><th class="nho2d-right">Total</th>${editMode ? '<th>Ações</th>' : ''}</tr></thead><tbody>${itensRows || `<tr><td colspan="${editMode ? 5 : 4}" class="nho2d-empty">Nenhum item encontrado.</td></tr>`}</tbody></table></div></article>
-          ${!editMode ? `<article class="nho2d-card"><h3>Itens importados</h3>${(d?.itens || []).length ? `<div class="nho2d-table-wrap"><table class="nho2d-table"><thead><tr><th>ERP / Origem</th><th>Vínculo</th><th>Cor</th><th>Tamanho</th><th>EAN</th><th>Qtde</th><th>Total</th></tr></thead><tbody>${(d?.itens || []).map((item) => `<tr class="${itemLinkClass(item?.status_vinculo)}"><td><div>${item?.codigo_produto_erp_original || '-'}</div><div class="nho2d-item-sku">${item?.nome_produto_original || '-'}</div></td><td><span class="nho2-badge ${itemLinkClass(item?.status_vinculo)}">${itemLinkLabel(item?.status_vinculo)}</span><div class="nho2d-item-sku">${item?.motivo_vinculo || ''}</div></td><td>${item?.cor_original || '-'}</td><td>${item?.tamanho_original || '-'}</td><td>${item?.ean_original || '-'}</td><td>${item?.quantidade ?? 0}</td><td class="nho2d-right">${fmtCurrency(item?.totalItem)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="nho2d-empty">Nenhum item importado encontrado.</p>'}</article>` : ''}
+          <article class="nho2d-card nho2d-accordion ${itensOpen ? 'is-open' : ''}">
+            <button id="nho2d-toggle-itens" class="nho2d-accordion-head" aria-expanded="${itensOpen ? 'true' : 'false'}" aria-controls="nho2d-itens-content">
+              <span class="nho2d-accordion-title">
+                <h3>Itens do pedido</h3>
+                <span class="nho2d-accordion-count">${totalItens} itens</span>
+              </span>
+              <span class="nho2d-accordion-meta">
+                <span class="nho2d-accordion-count">${vinculados} vinculados</span>
+                <svg class="nho2d-accordion-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </span>
+            </button>
+            ${itensOpen ? `<div id="nho2d-itens-content" class="nho2d-accordion-body">
+              <div class="nho2d-summary-grid">
+                <div class="nho2d-summary-item"><span class="nho2d-summary-label">Total de itens</span><span class="nho2d-summary-value">${totalItens}</span></div>
+                <div class="nho2d-summary-item"><span class="nho2d-summary-label">Vinculados</span><span class="nho2d-summary-value">${vinculados}</span></div>
+                <div class="nho2d-summary-item"><span class="nho2d-summary-label">Não vinculados</span><span class="nho2d-summary-value">${naoVinculados}</span></div>
+                <div class="nho2d-summary-item"><span class="nho2d-summary-label">Valor total</span><span class="nho2d-summary-value">${fmtCurrency(valorTotalItens)}</span></div>
+              </div>
+              ${editMode ? `<div class="nho2d-inline-actions"><select id="nho2d-add-produto" class="nho2d-select"><option value="">Adicionar produto...</option>${produtosCatalog.map((p) => `<option value="${p.id}">${p.nome || p.sku || 'Produto'}</option>`).join('')}</select><button id="nho2d-add-item" class="nho2-btn" ${itensSaving ? 'disabled' : ''}>Adicionar item</button><button id="nho2d-save-itens" class="nho2-btn" ${itensSaving ? 'disabled' : ''}>${itensSaving ? 'Salvando...' : 'Salvar alterações'}</button><button id="nho2d-cancel-itens" class="nho2-btn" style="background:#0b1628;color:#91a4c4;border-color:rgba(148,163,184,.22)" ${itensSaving ? 'disabled' : ''}>Cancelar edição</button></div>` : `<div class="nho2d-inline-actions"><button id="nho2d-edit-itens" class="nho2-btn">Editar itens</button></div>`}
+              ${itensMessage ? `<p class="${itensMessage.includes('sucesso') ? 'nho2d-actions-success' : 'nho2d-actions-error'}">${itensMessage}</p>` : ''}
+              <div class="nho2d-table-wrap"><table class="nho2d-table"><thead><tr><th>Produto</th><th>Qtde</th><th class="nho2d-right">Unitário</th><th class="nho2d-right">Total</th>${editMode ? '<th>Ações</th>' : ''}</tr></thead><tbody>${itensRows || `<tr><td colspan="${editMode ? 5 : 4}" class="nho2d-empty">Nenhum item encontrado.</td></tr>`}</tbody></table></div>
+            </div>` : ''}
+          </article>
         </div>
         <div class="nho2d-stack">
           <article class="nho2d-card"><h3>Financeiro</h3><dl class="nho2d-dl"><dt class="nho2d-dt">Total</dt><dd class="nho2d-dd nho2d-right nho2d-total">${fmtCurrency(d?.financeiro?.total)}</dd><dt class="nho2d-dt">Itens distintos</dt><dd class="nho2d-dd nho2d-right">${d?.quantidadeItensDistintos ?? 0}</dd><dt class="nho2d-dt">Quantidade vendida</dt><dd class="nho2d-dd nho2d-right">${d?.quantidadeTotalVendida ?? 0}</dd></dl></article>
@@ -211,6 +250,8 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId, routeQuery 
     if (removeSubmit) removeSubmit.onclick = () => { if (removeItemIndex !== null) itensDraft.splice(removeItemIndex, 1); removeItemIndex = null; render(); };
     const editBtn = root.querySelector('#nho2d-edit-itens');
     if (editBtn) editBtn.onclick = async () => { editMode = true; itensMessage = ''; itensDraft = (state?.data?.itens || []).map((i) => ({ ...i })); if (!produtosCatalog.length) produtosCatalog = await fetchProdutosCatalogData(apiClient); render(); };
+    const toggleItens = root.querySelector('#nho2d-toggle-itens');
+    if (toggleItens) toggleItens.onclick = () => { itensOpen = !itensOpen; render(); };
     const cancelEdit = root.querySelector('#nho2d-cancel-itens');
     if (cancelEdit) cancelEdit.onclick = () => { editMode = false; itensDraft = []; itensMessage = ''; render(); };
     const addItem = root.querySelector('#nho2d-add-item');

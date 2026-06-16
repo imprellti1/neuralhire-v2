@@ -25,7 +25,10 @@ test('pedido details page shows emission date in summary and keeps audit dates',
             total: 150,
             cliente_id: 'cliente-1'
           },
-          itens: []
+          itens: [
+            { produto: 'Camiseta', quantidade: 2, valorUnitario: 50, totalItem: 100, status_vinculo: 'vinculado' },
+            { produto: 'Boné', quantidade: 1, valorUnitario: 50, totalItem: 50, status_vinculo: 'nao_encontrado' }
+          ]
         };
       }
       if (url === '/pedidos/1/history') {
@@ -45,8 +48,25 @@ test('pedido details page shows emission date in summary and keeps audit dates',
   assert.ok(!root.textContent.includes('Data de criação'));
   assert.ok(root.textContent.includes('Criado em'));
   assert.ok(root.textContent.includes('Atualizado em'));
+  assert.ok(root.textContent.includes('Itens do pedido'));
+  assert.ok(root.textContent.includes('2 itens'));
+  assert.ok(!root.textContent.includes('Itens importados'));
+  assert.ok(!root.textContent.includes('Total de itens'));
+  assert.equal(root.querySelector('.nho2d-table-wrap'), null);
   assert.ok(calls.some((call) => call.method === 'GET' && call.url === '/pedidos/1'));
   assert.ok(calls.some((call) => call.method === 'GET' && call.url === '/pedidos/1/history'));
+
+  const toggle = root.querySelector('#nho2d-toggle-itens');
+  assert.ok(toggle);
+  toggle.click();
+  await flush();
+
+  assert.ok(root.textContent.includes('Total de itens'));
+  assert.ok(root.textContent.includes('Vinculados'));
+  assert.ok(root.textContent.includes('Não vinculados'));
+  assert.ok(root.textContent.includes('Valor total'));
+  assert.ok(root.querySelector('.nho2d-table-wrap'));
+  assert.ok(root.querySelectorAll('.nho2d-table tbody tr').length >= 2);
 
   teardownFrontendDom(dom);
 });
