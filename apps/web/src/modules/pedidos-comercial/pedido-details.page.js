@@ -1,8 +1,12 @@
 import { createPedidoDetailsState } from './pedido-details.state.js';
 import { fetchClientesCatalogData, fetchPedidoDetailsData, fetchProdutosCatalogData, updatePedidoGeral, updatePedidoItens, updatePedidoStatus } from './pedido-details.service.js';
 
-function fmtCurrency(value) {
-  return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+function formatBRLFromReais(value) {
+  const n = Number(value);
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  }).format(Number.isFinite(n) ? n : 0);
 }
 function fmtDate(value) {
   if (!value) return '';
@@ -177,13 +181,13 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId, routeQuery 
         const quantidade = getItemQuantidade(item) || 1;
         const custoUnitario = getItemCustoUnitario(item);
         const totalItem = quantidade * custoUnitario;
-        return `<tr><td>${item.produto || 'Produto não identificado'}</td><td><input class="nho2d-input js-item-qty" data-index="${index}" type="number" min="1" value="${quantidade}" /></td><td class="nho2d-right">${fmtCurrency(custoUnitario)}</td><td class="nho2d-right">${fmtCurrency(totalItem)}</td><td><button class="nho2-btn js-remove-item" data-index="${index}" ${itensSaving ? 'disabled' : ''}>Remover</button></td></tr>`;
+        return `<tr><td>${item.produto || 'Produto não identificado'}</td><td><input class="nho2d-input js-item-qty" data-index="${index}" type="number" min="1" value="${quantidade}" /></td><td class="nho2d-right">${formatBRLFromReais(custoUnitario)}</td><td class="nho2d-right">${formatBRLFromReais(totalItem)}</td><td><button class="nho2-btn js-remove-item" data-index="${index}" ${itensSaving ? 'disabled' : ''}>Remover</button></td></tr>`;
       }).join('')
       : (d?.itens || []).map((item) => {
         const quantidade = getItemQuantidade(item);
         const custoUnitario = getItemCustoUnitario(item);
         const totalItem = getItemTotalCalculado(item);
-        return `<tr class="${itemLinkClass(item?.status_vinculo)}"><td><div>${item?.produto || item?.nome_produto_original || 'Produto não identificado'}</div><div class="nho2d-item-meta"><span class="nho2-badge ${itemLinkClass(item?.status_vinculo)}">${itemLinkLabel(item?.status_vinculo)}</span>${item?.status_vinculo && item?.status_vinculo !== 'vinculado' ? `<span class="nho2d-item-sku">${item?.motivo_vinculo || 'Item importado sem vínculo com produto/variação cadastrados.'}</span>` : ''}</div></td><td>${quantidade}</td><td class="nho2d-right">${fmtCurrency(custoUnitario)}</td><td class="nho2d-right">${fmtCurrency(totalItem)}</td></tr>`;
+        return `<tr class="${itemLinkClass(item?.status_vinculo)}"><td><div>${item?.produto || item?.nome_produto_original || 'Produto não identificado'}</div><div class="nho2d-item-meta"><span class="nho2-badge ${itemLinkClass(item?.status_vinculo)}">${itemLinkLabel(item?.status_vinculo)}</span>${item?.status_vinculo && item?.status_vinculo !== 'vinculado' ? `<span class="nho2d-item-sku">${item?.motivo_vinculo || 'Item importado sem vínculo com produto/variação cadastrados.'}</span>` : ''}</div></td><td>${quantidade}</td><td class="nho2d-right">${formatBRLFromReais(custoUnitario)}</td><td class="nho2d-right">${formatBRLFromReais(totalItem)}</td></tr>`;
       }).join('');
     const historicoRows = (d?.historico || []).map((h) => `<tr><td>${h?.statusAnterior || ''}</td><td>${h?.statusNovo || ''}</td><td>${fmtDate(h?.data)}</td></tr>`).join('');
     const resumoDataEmissao = fmtDateOnlyUTC(d?.dataEmissao);
@@ -226,7 +230,7 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId, routeQuery 
                 <div class="nho2d-summary-item"><span class="nho2d-summary-label">Total de itens</span><span class="nho2d-summary-value">${totalItens}</span></div>
                 <div class="nho2d-summary-item"><span class="nho2d-summary-label">Vinculados</span><span class="nho2d-summary-value">${vinculados}</span></div>
                 <div class="nho2d-summary-item"><span class="nho2d-summary-label">Não vinculados</span><span class="nho2d-summary-value">${naoVinculados}</span></div>
-                <div class="nho2d-summary-item"><span class="nho2d-summary-label">Valor total</span><span class="nho2d-summary-value">${fmtCurrency(valorTotalItens)}</span></div>
+                <div class="nho2d-summary-item"><span class="nho2d-summary-label">Valor total</span><span class="nho2d-summary-value">${formatBRLFromReais(valorTotalItens)}</span></div>
               </div>
               ${editMode ? `<div class="nho2d-inline-actions"><select id="nho2d-add-produto" class="nho2d-select"><option value="">Adicionar produto...</option>${produtosCatalog.map((p) => `<option value="${p.id}">${p.nome || p.sku || 'Produto'}</option>`).join('')}</select><button id="nho2d-add-item" class="nho2-btn" ${itensSaving ? 'disabled' : ''}>Adicionar item</button><button id="nho2d-save-itens" class="nho2-btn" ${itensSaving ? 'disabled' : ''}>${itensSaving ? 'Salvando...' : 'Salvar alterações'}</button><button id="nho2d-cancel-itens" class="nho2-btn" style="background:#0b1628;color:#91a4c4;border-color:rgba(148,163,184,.22)" ${itensSaving ? 'disabled' : ''}>Cancelar edição</button></div>` : `<div class="nho2d-inline-actions"><button id="nho2d-edit-itens" class="nho2-btn">Editar itens</button></div>`}
               ${itensMessage ? `<p class="${itensMessage.includes('sucesso') ? 'nho2d-actions-success' : 'nho2d-actions-error'}">${itensMessage}</p>` : ''}
@@ -235,7 +239,7 @@ export function renderPedidoDetailsPage(root, { apiClient, pedidoId, routeQuery 
           </article>
         </div>
         <div class="nho2d-stack">
-          <article class="nho2d-card"><h3>Financeiro</h3><dl class="nho2d-dl"><dt class="nho2d-dt">Total</dt><dd class="nho2d-dd nho2d-right nho2d-total">${fmtCurrency(d?.financeiro?.total)}</dd><dt class="nho2d-dt">Itens distintos</dt><dd class="nho2d-dd nho2d-right">${d?.quantidadeItensDistintos ?? 0}</dd><dt class="nho2d-dt">Quantidade vendida</dt><dd class="nho2d-dd nho2d-right">${d?.quantidadeTotalVendida ?? 0}</dd></dl></article>
+          <article class="nho2d-card"><h3>Financeiro</h3><dl class="nho2d-dl"><dt class="nho2d-dt">Total</dt><dd class="nho2d-dd nho2d-right nho2d-total">${formatBRLFromReais(d?.financeiro?.total)}</dd><dt class="nho2d-dt">Itens distintos</dt><dd class="nho2d-dd nho2d-right">${d?.quantidadeItensDistintos ?? 0}</dd><dt class="nho2d-dt">Quantidade vendida</dt><dd class="nho2d-dd nho2d-right">${d?.quantidadeTotalVendida ?? 0}</dd></dl></article>
           <article class="nho2d-card"><h3>Auditoria</h3>${auditLines || '<p class="nho2d-empty">Sem dados de auditoria disponíveis.</p>'}</article>
           <article class="nho2d-card nho2d-actions-card"><h3>Ações do Pedido</h3><div class="nho2d-actions-head"><span>Status atual</span><span class="nho2-badge ${statusClass(d?.statusExibicao)}">${d?.statusExibicao || '-'}</span></div>${actions.length ? `<div class="nho2d-actions-list">${actions.map((action) => `<div class="nho2d-action-item"><p class="nho2d-action-desc">${action.description || ''}</p><div class="nho2d-actions"><button class="nho2-btn js-pedido-action" data-next-status="${action.key}" ${actionLoading ? 'disabled' : ''}>${actionLoading === action.key ? action.loadingLabel : action.label}</button></div></div>`).join('')}</div>` : '<p class="nho2d-empty">Pedido em status final, sem ações principais.</p>'}${actionSuccess ? `<p class="nho2d-actions-success">${actionSuccess}</p>` : ''}${actionError ? `<p class="nho2d-actions-error">${actionError}</p>` : ''}</article>
         </div>

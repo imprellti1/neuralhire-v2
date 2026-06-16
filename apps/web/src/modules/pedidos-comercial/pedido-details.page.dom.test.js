@@ -38,6 +38,62 @@ test('pedido details mapper normalizes item monetary values once', () => {
   assert.equal(mapped.itens[2].totalItem, 612);
 });
 
+test('pedido details page renders BRL from reais without dividing by 100', async () => {
+  const dom = setupFrontendDom('#/pedidos/1');
+  const root = document.getElementById('root');
+  const apiClient = {
+    get: async (url) => {
+      if (url === '/pedidos/1') {
+        return {
+          pedido: {
+            id: '1',
+            numero: 'PED-1',
+            cliente_nome: 'Cliente Teste',
+            status: 'confirmado',
+            origem: 'manual',
+            data_emissao: '2024-06-11',
+            created_at: '2024-06-10T10:00:00Z',
+            updated_at: '2024-06-12T11:30:00Z',
+            observacoes: '',
+            total: 15000,
+            cliente_id: 'cliente-1'
+          },
+          itens: [
+            { produto_nome: 'ITEM 1', quantidade: 4, valor_unitario: 1714, total_item: 0, status_vinculo: 'vinculado' },
+            { produto_nome: 'ITEM 2', quantidade: 4, valor_unitario: 2260, total_item: 0, status_vinculo: 'nao_encontrado' },
+            { produto_nome: 'ITEM 3', quantidade: 6, valor_unitario: 10200, total_item: 0, status_vinculo: 'vinculado' }
+          ]
+        };
+      }
+      if (url === '/pedidos/1/history') return { items: [] };
+      return { items: [] };
+    },
+    patch: async () => ({ item: { id: '1' } })
+  };
+
+  renderPedidoDetailsPage(root, { apiClient, pedidoId: '1' });
+  await flush();
+
+  const toggle = root.querySelector('#nho2d-toggle-itens');
+  assert.ok(toggle);
+  toggle.click();
+  await flush();
+
+  const compact = compactText(root);
+  assert.ok(compact.includes('R$ 17,14'));
+  assert.ok(compact.includes('R$ 22,60'));
+  assert.ok(compact.includes('R$ 102,00'));
+  assert.ok(compact.includes('R$ 68,56'));
+  assert.ok(compact.includes('R$ 90,40'));
+  assert.ok(compact.includes('R$ 612,00'));
+  assert.ok(compact.includes('R$ 770,96'));
+  assert.ok(!compact.includes('R$ 0,17'));
+  assert.ok(!compact.includes('R$ 0,23'));
+  assert.ok(!compact.includes('R$ 1,02'));
+
+  teardownFrontendDom(dom);
+});
+
 test('pedido details page shows emission date in summary and keeps audit dates', async () => {
   const dom = setupFrontendDom('#/pedidos/1');
   const root = document.getElementById('root');
