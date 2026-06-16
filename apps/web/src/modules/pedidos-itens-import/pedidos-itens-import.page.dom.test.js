@@ -21,15 +21,15 @@ test('pedidos itens import page renders upload, preview, summary and import', as
           importToken: 'token-itens',
           fileName: '11008.xlsx',
           pedidoErp: '11008',
-          summary: { total_linhas: 4, vinculados: 2, nao_encontrados: 1, ambiguos: 1, erros: 1 },
-          rows: [
+          resumo: { total_linhas: 4, validas: 3, vinculadas: 2, nao_encontradas: 1, ambiguas: 1, erros: 1 },
+          itens: [
             { codigo_erp: '1001', produto: 'Camisa', cor: 'Azul', tamanho: 'M', quantidade: 2, valor_unitario: 49.9, valor_total: 99.8, sku_esperado: 'SKU-1', status_vinculo: 'vinculado', motivo: 'OK' },
             { codigo_erp: '1002', produto: 'Calça', cor: 'Preto', tamanho: 'G', quantidade: 1, valor_unitario: 79.9, valor_total: 79.9, sku_esperado: 'SKU-2', status_vinculo: 'nao_encontrado', motivo: 'SKU não localizado' },
             { codigo_erp: '1003', produto: 'Tênis', cor: 'Branco', tamanho: '42', quantidade: 1, valor_unitario: 199.9, valor_total: 199.9, sku_esperado: 'SKU-3', status_vinculo: 'ambiguo', motivo: 'Mais de um SKU compatível' }
           ]
         };
       }
-      return { ok: true, summary: { importados: 2, vinculados: 2, nao_encontrados: 1, ambiguos: 1 } };
+      return { ok: true, resumo: { importados: 2, vinculados: 2, nao_encontrados: 1, ambiguas: 1 } };
     }
   };
 

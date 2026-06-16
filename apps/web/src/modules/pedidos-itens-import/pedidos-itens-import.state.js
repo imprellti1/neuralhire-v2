@@ -5,6 +5,7 @@ export function createPedidosItensImportState() {
     pedidoErp: '',
     preview: null,
     result: null,
+    importToken: '',
     loadingPreview: false,
     loadingImport: false,
     error: ''

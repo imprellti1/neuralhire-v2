@@ -40,6 +40,14 @@ function summaryCount(summary, keys) {
   return 0;
 }
 
+function getPreviewResumo(preview) {
+  return preview?.resumo || preview?.summary || {};
+}
+
+function getPreviewItens(preview) {
+  return preview?.itens || preview?.rows || [];
+}
+
 function renderRows(rows = []) {
   if (!rows.length) return '<div class="npi3-state">Faça o preview para visualizar os itens importados.</div>';
   return `<table class="npi3-table" data-testid="preview-table"><thead><tr><th>Código ERP</th><th>Produto</th><th>Cor</th><th>Tamanho</th><th>Quantidade</th><th>Valor Unitário</th><th>Valor Total</th><th>SKU Esperado</th><th>Status de Vínculo</th><th>Motivo</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${readText(row.codigo_produto_erp_original ?? row.codigo_erp ?? row.codigoERP ?? row.codigo)}</td><td>${readText(row.nome_produto_original ?? row.produto)}</td><td>${readText(row.cor_original ?? row.cor)}</td><td>${readText(row.tamanho_original ?? row.tamanho)}</td><td>${readText(row.quantidade)}</td><td>${readText(row.valor_unitario ?? row.valorUnitario)}</td><td>${readText(row.valor_total ?? row.valorTotal)}</td><td>${readText(row.sku_esperado ?? row.skuEsperado)}</td><td><span class="npi3-chip ${badgeClass(row.status_vinculo ?? row.status)}">${friendlyStatus(row.status_vinculo ?? row.status)}</span></td><td>${readText(row.motivo_vinculo ?? row.motivo)}</td></tr>`).join('')}</tbody></table>`;
@@ -50,9 +58,11 @@ export async function renderPedidosItensImportPage(root, { apiClient }) {
   const state = createPedidosItensImportState();
 
   function render() {
-    const previewSummary = state.preview?.summary || {};
-    const resultSummary = state.result?.summary || state.result || {};
+    const previewSummary = getPreviewResumo(state.preview);
+    const resultSummary = state.result?.resumo || state.result?.summary || state.result || {};
+    const previewItens = getPreviewItens(state.preview);
     root.innerHTML = `<section class="npi3"><div class="npi3-card"><div class="npi3-title">Importação de Itens de Pedido</div><div class="npi3-sub">Envie o XLSX, confira o vínculo antes da gravação e só então confirme a importação.</div></div><div class="npi3-grid"><div class="npi3-card"><div class="npi3-drop" data-testid="dropzone"><strong>Arraste o arquivo XLSX aqui</strong><div class="npi3-muted">ou selecione manualmente pelo campo abaixo.</div><div class="npi3-field"><label for="npi3-file">Selecionar arquivo</label><input id="npi3-file" data-testid="file-input" type="file" accept=".xlsx"></div><div class="npi3-summary"><div><strong>Arquivo</strong></div><div data-testid="selected-file">${state.fileName ? state.fileName : 'Nenhum arquivo selecionado'}</div><div><strong>Pedido ERP detectado</strong></div><div data-testid="pedido-erp">${state.pedidoErp ? `Pedido ERP: ${state.pedidoErp}` : 'Nenhum pedido detectado'}</div></div><div class="npi3-actions"><button id="npi3-preview" data-testid="preview-button" class="npi3-btn secondary" ${state.loadingPreview || state.loadingImport || !state.file ? 'disabled' : ''}>Visualizar Importação</button><button id="npi3-run" data-testid="import-button" class="npi3-btn" ${state.loadingPreview || state.loadingImport || !state.preview ? 'disabled' : ''}>Importar Itens</button></div>${state.error ? `<div class="npi3-error" role="alert">${state.error}</div>` : ''}</div>${state.result ? `<div class="npi3-card" style="margin-top:12px"><strong>Resultado da importação</strong><div class="npi3-summary-grid" style="margin-top:12px"><div><strong data-testid="result-imported">${summaryCount(resultSummary, ['importados', 'itens_importados'])}</strong><div>Importados</div></div><div><strong>${summaryCount(resultSummary, ['vinculados'])}</strong><div>Vinculados</div></div><div><strong>${summaryCount(resultSummary, ['nao_encontrados'])}</strong><div>Não encontrados</div></div><div><strong>${summaryCount(resultSummary, ['ambiguos'])}</strong><div>Ambíguos</div></div></div></div>` : ''}</div><div class="npi3-card">${state.preview ? `<div class="npi3-kpi" data-testid="preview-summary"><div><strong>${summaryCount(previewSummary, ['total_linhas', 'totalRows', 'total_linhas_importadas'])}</strong><div>Total de linhas</div></div><div><strong>${summaryCount(previewSummary, ['vinculados'])}</strong><div>Vinculados</div></div><div><strong>${summaryCount(previewSummary, ['nao_encontrados'])}</strong><div>Não encontrados</div></div><div><strong>${summaryCount(previewSummary, ['ambiguos'])}</strong><div>Ambíguos</div></div><div><strong>${summaryCount(previewSummary, ['erros'])}</strong><div>Erros</div></div></div><div class="npi3-summary" style="margin-top:12px"><div class="npi3-muted">${state.preview.fileName || ''}${state.preview.pedidoErp ? ` | Pedido ERP: ${state.preview.pedidoErp}` : ''}</div>${renderRows(state.preview.rows || [])}</div>` : '<div class="npi3-state">Faça o preview para validar o arquivo antes da gravação.</div>'}</div></div></section>`;
+    root.innerHTML = `<section class="npi3"><div class="npi3-card"><div class="npi3-title">Importação de Itens de Pedido</div><div class="npi3-sub">Envie o XLSX, confira o vínculo antes da gravação e só então confirme a importação.</div></div><div class="npi3-grid"><div class="npi3-card"><div class="npi3-drop" data-testid="dropzone"><strong>Arraste o arquivo XLSX aqui</strong><div class="npi3-muted">ou selecione manualmente pelo campo abaixo.</div><div class="npi3-field"><label for="npi3-file">Selecionar arquivo</label><input id="npi3-file" data-testid="file-input" type="file" accept=".xlsx"></div><div class="npi3-summary"><div><strong>Arquivo</strong></div><div data-testid="selected-file">${state.fileName ? state.fileName : 'Nenhum arquivo selecionado'}</div><div><strong>Pedido ERP detectado</strong></div><div data-testid="pedido-erp">${state.pedidoErp ? `Pedido ERP: ${state.pedidoErp}` : 'Nenhum pedido detectado'}</div></div><div class="npi3-actions"><button id="npi3-preview" data-testid="preview-button" class="npi3-btn secondary" ${state.loadingPreview || state.loadingImport || !state.file ? 'disabled' : ''}>Visualizar Importação</button><button id="npi3-run" data-testid="import-button" class="npi3-btn" ${state.loadingPreview || state.loadingImport || !(state.preview?.importToken || state.importToken) ? 'disabled' : ''}>Importar Itens</button></div>${state.error ? `<div class="npi3-error" role="alert">${state.error}</div>` : ''}</div>${state.result ? `<div class="npi3-card" style="margin-top:12px"><strong>Resultado da importação</strong><div class="npi3-summary-grid" style="margin-top:12px"><div><strong data-testid="result-imported">${summaryCount(resultSummary, ['importados', 'itens_importados'])}</strong><div>Importados</div></div><div><strong>${summaryCount(resultSummary, ['vinculados'])}</strong><div>Vinculados</div></div><div><strong>${summaryCount(resultSummary, ['nao_encontrados'])}</strong><div>Não encontrados</div></div><div><strong>${summaryCount(resultSummary, ['ambiguos'])}</strong><div>Ambíguos</div></div></div></div>` : ''}</div><div class="npi3-card">${state.preview ? `<div class="npi3-kpi" data-testid="preview-summary"><div><strong>${summaryCount(previewSummary, ['total_linhas'])}</strong><div>Total de linhas</div></div><div><strong>${summaryCount(previewSummary, ['vinculadas', 'vinculados'])}</strong><div>Vinculados</div></div><div><strong>${summaryCount(previewSummary, ['nao_encontradas', 'nao_encontrados'])}</strong><div>Não encontrados</div></div><div><strong>${summaryCount(previewSummary, ['ambiguas', 'ambiguos'])}</strong><div>Ambíguos</div></div><div><strong>${summaryCount(previewSummary, ['erros'])}</strong><div>Erros</div></div></div><div class="npi3-summary" style="margin-top:12px"><div class="npi3-muted">${state.preview.fileName || ''}${state.preview.pedidoErp ? ` | Pedido ERP: ${state.preview.pedidoErp}` : ''}</div>${renderRows(previewItens)}</div>` : '<div class="npi3-state">Faça o preview para validar o arquivo antes da gravação.</div>'}</div></div></section>`;
 
     const fileInput = root.querySelector('#npi3-file');
     const previewButton = root.querySelector('#npi3-preview');
@@ -102,6 +112,7 @@ export async function renderPedidosItensImportPage(root, { apiClient }) {
           message: 'Estamos analisando os itens e montando a pré-visualização.',
           indeterminate: true
         });
+        state.importToken = state.preview?.importToken || '';
       } catch (error) {
         state.error = error?.message || 'Não foi possível visualizar a importação.';
       } finally {
@@ -120,7 +131,8 @@ export async function renderPedidosItensImportPage(root, { apiClient }) {
       state.error = '';
       render();
       try {
-        state.result = await withGlobalProcessing(() => executePedidosItensImport(apiClient, { importToken: state.preview.importToken }), {
+        const importToken = state.preview?.importToken || state.importToken;
+        state.result = await withGlobalProcessing(() => executePedidosItensImport(apiClient, { importToken }), {
           title: 'Importando itens',
           message: 'Gravando itens vinculados e registrando inconsistências',
           indeterminate: true
