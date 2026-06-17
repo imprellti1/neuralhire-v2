@@ -1,4 +1,5 @@
 import { mapClienteDetailsData } from './cliente-details.mapper.js';
+import { fetchClienteTimeline as fetchClienteTimelineApi } from './cliente-timeline.service.js';
 
 async function fetchAllClientePedidos(apiClient, clienteId) {
   const items = [];
@@ -50,5 +51,7 @@ export async function fetchClienteDetailsData(apiClient, clienteId) {
 
   const cliente = clienteResponse?.item || clienteResponse?.cliente || clienteResponse || null;
   const pedidos = Array.isArray(pedidosResponse) ? pedidosResponse : [];
-  return mapClienteDetailsData({ cliente, pedidos, clienteId });
+  const timelineResponse = await fetchClienteTimelineApi(apiClient, clienteId).catch(() => ({ items: [] }));
+  const timeline = Array.isArray(timelineResponse?.items) ? timelineResponse.items : [];
+  return mapClienteDetailsData({ cliente, pedidos, clienteId, timeline });
 }

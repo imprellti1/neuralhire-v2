@@ -25,6 +25,7 @@ const suiteSpecs = [
   ['Scopes', './scopes.test.js', 'getScopesTests'],
   ['Clientes Repository', './clientes-repository.test.js', 'getClientesRepositoryTests'],
   ['Clientes Enrichment', './clientes-enrichment.test.js', 'getClientesEnrichmentTests'],
+  ['Clientes Timeline', './clientes-timeline.test.js', 'getClientesTimelineTests'],
   ['Clientes Score', './clientes-score.test.js', 'getClientesScoreTests'],
   ['Clientes Alerts', './clientes-alerts.test.js', 'getClientesAlertsTests'],
   ['Grupos Comerciais', './grupos-comerciais.test.js', 'getGruposComerciaisTests'],

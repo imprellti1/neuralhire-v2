@@ -1,5 +1,6 @@
 import { createClienteDetailsState } from './cliente-details.state.js';
 import { calcularScoreCliente, enriquecerCliente, fetchAlertasCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, gerarAlertasCliente, geolocalizarCliente, resolverAlertaCliente } from './cliente-details.service.js';
+import { fetchClienteTimeline } from './cliente-timeline.service.js';
 
 function fmtCurrency(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 function fmtDate(v) {
@@ -188,6 +189,13 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-alert-title{font-weight:700;color:#10264b}
     .nho2d-alert-desc{color:#5e6f93;font-size:13px;line-height:1.45}
     .nho2d-alert-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .nho2d-timeline-list{display:grid;gap:12px}
+    .nho2d-timeline-item{display:flex;gap:12px;padding:14px;border:1px solid #e5ecf8;border-radius:12px;background:#fbfdff}
+    .nho2d-timeline-icon{width:34px;height:34px;border-radius:999px;background:#eef4ff;color:#2450b8;display:flex;align-items:center;justify-content:center;font-weight:800;flex:0 0 auto}
+    .nho2d-timeline-body{min-width:0;display:grid;gap:4px}
+    .nho2d-timeline-title{font-weight:700;color:#10264b}
+    .nho2d-timeline-desc{color:#5e6f93;font-size:13px;line-height:1.45}
+    .nho2d-timeline-meta{color:#7b88a6;font-size:12px}
     .nho2d-group-summary{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
     .nho2d-group-body{padding:0 18px 16px}
     .nho2d-group-empty{padding:0 18px 16px;color:#62759a}
@@ -209,7 +217,21 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     if (key === 'alertas') return 'Alertas Comerciais';
     if (key === 'enriquecimento') return 'Enriquecimento';
     if (key === 'geolocalizacao') return 'Geolocalização';
+    if (key === 'timeline') return 'Timeline';
     return 'Geral';
+  }
+
+  function getTimelineIcon(categoria) {
+    const value = String(categoria || '').toLowerCase();
+    if (value === 'cadastro') return '●';
+    if (value === 'enriquecimento') return '✦';
+    if (value === 'geolocalizacao') return '⌖';
+    if (value === 'score') return '⇅';
+    if (value === 'alerta') return '!';
+    if (value === 'pedido') return '◫';
+    if (value === 'visita') return '⌂';
+    if (value === 'diretor_ia') return 'AI';
+    return '•';
   }
 
   function safeValue(value) {
@@ -243,7 +265,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         <button id="nhcd-back" class="nho2-btn" style="background:#fff;color:#1f56dc">Voltar</button>
       </div>
       <div class="nho2d-tabs" role="tablist" aria-label="Detalhes do cliente">
-        ${['geral', 'comercial', 'alertas', 'crm', 'enriquecimento', 'geolocalizacao'].map((tab) => `<button class="nho2d-tab ${activeTab === tab ? 'is-active' : ''}" data-tab="${tab}" role="tab" aria-selected="${activeTab === tab ? 'true' : 'false'}">${getTabLabel(tab)}</button>`).join('')}
+        ${['geral', 'comercial', 'alertas', 'crm', 'enriquecimento', 'geolocalizacao', 'timeline'].map((tab) => `<button class="nho2d-tab ${activeTab === tab ? 'is-active' : ''}" data-tab="${tab}" role="tab" aria-selected="${activeTab === tab ? 'true' : 'false'}">${getTabLabel(tab)}</button>`).join('')}
       </div>
     `;
   }
@@ -592,6 +614,32 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     `;
   }
 
+  function renderTimeline(d) {
+    const items = Array.isArray(d?.timeline) ? d.timeline : [];
+    return `
+      <div class="nho2d-section">
+        <article class="nho2d-card">
+          <div class="nho2d-header" style="margin-bottom:12px">
+            <div>
+              <h3 style="margin:0 0 4px">Timeline</h3>
+              <div class="nho2d-sub">Eventos relevantes do Cliente 360 em ordem cronológica decrescente.</div>
+            </div>
+            <button id="nho2d-timeline-refresh" class="nho2-btn">Atualizar</button>
+          </div>
+          ${items.length ? `<div class="nho2d-timeline-list">${items.map((item) => `
+            <div class="nho2d-timeline-item">
+              <div class="nho2d-timeline-icon">${getTimelineIcon(item.categoria)}</div>
+              <div class="nho2d-timeline-body">
+                <div class="nho2d-timeline-title">${safeText(item.titulo, 'Evento')}</div>
+                <div class="nho2d-timeline-desc">${safeText(item.descricao, '')}</div>
+                <div class="nho2d-timeline-meta">${formatDateFriendly(item.created_at)}</div>
+              </div>
+            </div>`).join('')}</div>` : '<div class="nho2d-crm-empty">Nenhum evento registrado ainda.</div>'}
+        </article>
+      </div>
+    `;
+  }
+
   function renderGruposComerciais(d) {
     const grupos = Array.isArray(d?.gruposComerciais) ? d.gruposComerciais : [];
     return `<article class="nho2d-card"><h3>Grupos Comerciais</h3>${grupos.length ? `<div class="nho2d-stack">${grupos.map((grupo) => `<div class="nho2d-crm-empty"><strong>${safeText(grupo.nome)}</strong>${grupo.descricao ? `<div class="nho2d-item-note">${safeText(grupo.descricao)}</div>` : ''}</div>`).join('')}</div>` : '<div class="nho2d-crm-empty">Nenhum grupo comercial vinculado.</div>'}</article>`;
@@ -611,6 +659,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       ${activeTab === 'crm' ? renderCrm(d) : ''}
       ${activeTab === 'enriquecimento' ? renderEnriquecimento(d) : ''}
       ${activeTab === 'geolocalizacao' ? renderGeolocalizacao(d) : ''}
+      ${activeTab === 'timeline' ? renderTimeline(d) : ''}
     </section>`;
   }
 
@@ -652,6 +701,8 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         try {
           const response = await enriquecerCliente(apiClient, clienteId);
           state.data = response?.item ? { ...state.data, ...response.item } : state.data;
+          const timeline = await fetchClienteTimeline(apiClient, clienteId).catch(() => ({ items: [] }));
+          state.data = { ...state.data, timeline: Array.isArray(timeline?.items) ? timeline.items : [] };
           feedbackMessage = 'Dados enriquecidos com sucesso.';
         } catch (error) {
           feedbackMessage = error?.message || 'Falha ao enriquecer cliente.';
@@ -670,6 +721,8 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         try {
           const response = await geolocalizarCliente(apiClient, clienteId);
           state.data = response?.cliente ? { ...state.data, ...response.cliente } : state.data;
+          const timeline = await fetchClienteTimeline(apiClient, clienteId).catch(() => ({ items: [] }));
+          state.data = { ...state.data, timeline: Array.isArray(timeline?.items) ? timeline.items : [] };
           feedbackMessage = response?.resultado?.status === 'sucesso' ? 'Cliente geolocalizado com sucesso.' : (response?.resultado?.erro || 'Geolocalização concluída.');
         } catch (error) {
           feedbackMessage = error?.message || 'Falha ao geolocalizar cliente.';
@@ -688,6 +741,8 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         try {
           const response = await calcularScoreCliente(apiClient, clienteId);
           state.data = response?.cliente ? { ...state.data, ...response.cliente } : state.data;
+          const timeline = await fetchClienteTimeline(apiClient, clienteId).catch(() => ({ items: [] }));
+          state.data = { ...state.data, timeline: Array.isArray(timeline?.items) ? timeline.items : [] };
           feedbackMessage = 'Score comercial calculado com sucesso.';
         } catch (error) {
           feedbackMessage = error?.message || 'Falha ao calcular score comercial.';
@@ -707,6 +762,8 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
           await gerarAlertasCliente(apiClient, clienteId);
           const response = await fetchAlertasCliente(apiClient, clienteId);
           state.data = { ...state.data, cliente_alertas: Array.isArray(response?.items) ? response.items : [] };
+          const timeline = await fetchClienteTimeline(apiClient, clienteId).catch(() => ({ items: [] }));
+          state.data = { ...state.data, timeline: Array.isArray(timeline?.items) ? timeline.items : [] };
           alertMessage = 'Alertas gerados com sucesso.';
         } catch (error) {
           alertMessage = error?.message || 'Falha ao gerar alertas.';
@@ -725,6 +782,8 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
           await resolverAlertaCliente(apiClient, alertaId);
           const response = await fetchAlertasCliente(apiClient, clienteId);
           state.data = { ...state.data, cliente_alertas: Array.isArray(response?.items) ? response.items : [] };
+          const timeline = await fetchClienteTimeline(apiClient, clienteId).catch(() => ({ items: [] }));
+          state.data = { ...state.data, timeline: Array.isArray(timeline?.items) ? timeline.items : [] };
           alertMessage = 'Alerta resolvido.';
         } catch (error) {
           alertMessage = error?.message || 'Falha ao resolver alerta.';
@@ -733,6 +792,14 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         }
       };
     });
+    const timelineRefresh = root.querySelector('#nho2d-timeline-refresh');
+    if (timelineRefresh) {
+      timelineRefresh.onclick = async () => {
+        const response = await fetchClienteTimeline(apiClient, clienteId).catch(() => ({ items: [] }));
+        state.data = { ...state.data, timeline: Array.isArray(response?.items) ? response.items : [] };
+        render();
+      };
+    }
     root.querySelectorAll('[data-toggle-group]').forEach((button) => {
       button.onclick = () => {
         const groupKey = button.getAttribute('data-toggle-group');
@@ -785,6 +852,8 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       if (!state?.data?.id) state.notFound = true;
       const alertas = await fetchAlertasCliente(apiClient, clienteId).catch(() => ({ items: [] }));
       state.data = { ...state.data, cliente_alertas: Array.isArray(alertas?.items) ? alertas.items : [] };
+      const timeline = await fetchClienteTimeline(apiClient, clienteId).catch(() => ({ items: [] }));
+      state.data = { ...state.data, timeline: Array.isArray(timeline?.items) ? timeline.items : [] };
       syncPedidoState();
     } catch (error) {
       if (error?.status === 404) state.notFound = true;

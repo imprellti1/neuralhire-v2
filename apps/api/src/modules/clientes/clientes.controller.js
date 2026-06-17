@@ -3,6 +3,7 @@ import { NotFoundError, ValidationError } from '../../core/errors.js';
 import { applyOwnerFilter, canAccessAllTenantData } from '../../core/commercial-scope.js';
 import { calcularScoreComercialCliente, createCliente, enrichClienteByCnpj, geolocalizarCliente, getClienteById, getClientesRepositoryMode, listClientes, updateCliente } from './clientes.repository.js';
 import { gerarAlertasCliente, listAlertasCliente, resolverAlertaCliente } from './clientes.alerts.service.js';
+import { listarTimelineCliente, registrarEventoTimeline } from './clientes.timeline.service.js';
 import { recordAuditLog } from '../../core/audit-logs.js';
 import { getGruposComerciaisByClienteId } from '../grupos-comerciais/grupos-comerciais.repository.js';
 
@@ -50,6 +51,14 @@ export async function createClienteHandler(context) {
   }
 
   const item = await createCliente(body, { accountId, context });
+  await registrarEventoTimeline({
+    tipo: 'cliente_cadastrado',
+    categoria: 'cadastro',
+    titulo: 'Cliente cadastrado',
+    descricao: 'Cadastro do cliente concluído.',
+    referencia_id: item?.id || null,
+    metadata: { cliente_id: item?.id || null, nome: item?.nome || body.nome || null }
+  }, { accountId, clienteId: item?.id || null }).catch(() => null);
   await recordAuditLog(context, { modulo: 'clientes', entidade: 'cliente', entidade_id: item?.id || null, acao: 'criar', descricao: 'Cliente criado', status: 'success', sucesso: true, metadata: { cliente_id: item?.id || null, nome: item?.nome || body.nome || null } }).catch(() => null);
   return {
     ok: true,
@@ -103,6 +112,14 @@ export async function enrichClienteHandler(context = {}) {
   if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
   try {
     const item = await enrichClienteByCnpj(id, { accountId, context, fetchImpl: context.fetchImpl });
+    await registrarEventoTimeline({
+      tipo: 'cliente_enriquecido',
+      categoria: 'enriquecimento',
+      titulo: 'Enriquecimento concluído',
+      descricao: 'Os dados cadastrais do cliente foram enriquecidos com sucesso.',
+      referencia_id: id,
+      metadata: { cliente_id: id, fonte: 'brasilapi' }
+    }, { accountId, clienteId: id }).catch(() => null);
     await recordAuditLog(context, { modulo: 'clientes', entidade: 'cliente', entidade_id: id, acao: 'enriquecer', descricao: 'Cliente enriquecido', status: 'success', sucesso: true, metadata: { cliente_id: id, fonte: 'brasilapi' } }).catch(() => null);
     return { ok: true, repositoryMode: getClientesRepositoryMode(), item };
   } catch (error) {
@@ -117,6 +134,14 @@ export async function geolocalizarClienteHandler(context = {}) {
   if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
   try {
     const result = await geolocalizarCliente({ accountId, clienteId: id, fetchImpl: context.fetchImpl, context });
+    await registrarEventoTimeline({
+      tipo: 'cliente_geolocalizado',
+      categoria: 'geolocalizacao',
+      titulo: 'Cliente geolocalizado',
+      descricao: 'A geolocalização do cliente foi atualizada.',
+      referencia_id: id,
+      metadata: { cliente_id: id, status: result?.resultado?.status || null }
+    }, { accountId, clienteId: id }).catch(() => null);
     return { ok: true, repositoryMode: getClientesRepositoryMode(), ...result };
   } catch (error) {
     if (error?.code === 'OWNER_SCOPE_FORBIDDEN' || error?.code === 'VENDEDOR_SCOPE_FORBIDDEN') {
@@ -132,6 +157,14 @@ export async function calcularScoreClienteHandler(context = {}) {
   if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
   try {
     const result = await calcularScoreComercialCliente({ accountId, clienteId: id, context });
+    await registrarEventoTimeline({
+      tipo: 'score_atualizado',
+      categoria: 'score',
+      titulo: 'Score atualizado',
+      descricao: 'O score comercial do cliente foi recalculado.',
+      referencia_id: id,
+      metadata: { cliente_id: id, score: result?.score?.score ?? result?.cliente?.cliente_score ?? null }
+    }, { accountId, clienteId: id }).catch(() => null);
     return { ok: true, repositoryMode: getClientesRepositoryMode(), ...result };
   } catch (error) {
     if (error?.code === 'OWNER_SCOPE_FORBIDDEN' || error?.code === 'VENDEDOR_SCOPE_FORBIDDEN') {
@@ -146,6 +179,16 @@ export async function gerarAlertasClienteHandler(context = {}) {
   const id = String(context?.params?.id || '').trim();
   if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
   const result = await gerarAlertasCliente(id, { accountId, context });
+  for (const alerta of Array.isArray(result?.alertas) ? result.alertas : []) {
+    await registrarEventoTimeline({
+      tipo: 'alerta_gerado',
+      categoria: 'alerta',
+      titulo: 'Alerta gerado',
+      descricao: alerta?.titulo || 'Alerta comercial gerado.',
+      referencia_id: alerta?.id || null,
+      metadata: { cliente_id: id, alerta_id: alerta?.id || null, tipo_alerta: alerta?.tipo || null }
+    }, { accountId, clienteId: id }).catch(() => null);
+  }
   return { ok: true, repositoryMode: getClientesRepositoryMode(), ...result };
 }
 
@@ -165,5 +208,22 @@ export async function resolverAlertaClienteHandler(context = {}) {
   const alertaId = String(body.id || context?.params?.id || '').trim();
   const status = body.status || 'resolvido';
   const item = await resolverAlertaCliente(alertaId, { accountId, context, status });
+  await registrarEventoTimeline({
+    tipo: status === 'resolvido' ? 'alerta_resolvido' : 'alerta_ignorado',
+    categoria: 'alerta',
+    titulo: status === 'resolvido' ? 'Alerta resolvido' : 'Alerta ignorado',
+    descricao: status === 'resolvido' ? 'O alerta comercial foi resolvido.' : 'O alerta comercial foi ignorado.',
+    referencia_id: item?.id || alertaId,
+    metadata: { alerta_id: item?.id || alertaId, status }
+  }, { accountId, clienteId: item?.cliente_id || null }).catch(() => null);
   return { ok: true, repositoryMode: getClientesRepositoryMode(), item };
+}
+
+export async function getTimelineClienteHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const id = String(context?.params?.id || '').trim();
+  if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
+  await getClienteById(id, { accountId, context });
+  const items = await listarTimelineCliente(id, { accountId, context });
+  return { ok: true, repositoryMode: getClientesRepositoryMode(), items };
 }

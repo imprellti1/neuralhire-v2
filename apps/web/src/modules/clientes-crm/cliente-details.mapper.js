@@ -96,7 +96,7 @@ function getFriendlyLastPurchaseLabel(value) {
   return `Há ${diffDays} dias`;
 }
 
-export function mapClienteDetailsData({ cliente = null, pedidos = [], clienteId }) {
+export function mapClienteDetailsData({ cliente = null, pedidos = [], clienteId, timeline = [] }) {
   const normalizedCliente = cliente && String(cliente?.id || '') === String(clienteId || '') ? cliente : null;
   const normalizedPedidos = Array.isArray(pedidos) ? pedidos : [];
   if (!normalizedCliente) return { id: null };
@@ -165,6 +165,7 @@ export function mapClienteDetailsData({ cliente = null, pedidos = [], clienteId 
     produtosComprados,
     gruposComerciais,
     crmConversations: [],
+    timeline: Array.isArray(timeline) ? timeline.map((item) => ({ ...item })) : [],
     auditoria: { criadoEm: dataCadastro, atualizadoEm: asDate(normalizedCliente?.updated_at || normalizedCliente?.updatedAt), origem: normalizedCliente?.origem || null }
   };
 }

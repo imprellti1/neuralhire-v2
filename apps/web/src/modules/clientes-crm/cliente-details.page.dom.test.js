@@ -22,6 +22,7 @@ test('cliente details comercial agrupa pedidos por status e mantém accordions f
           }
         };
       }
+      if (url === '/clientes/c1/timeline') return { items: [{ id: 't1', categoria: 'cadastro', titulo: 'Cliente cadastrado', descricao: 'Cadastro concluído', created_at: '2026-06-10T10:00:00.000Z' }] };
       if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') {
         return {
           items: [
@@ -65,6 +66,11 @@ test('cliente details comercial agrupa pedidos por status e mantém accordions f
   await flush();
   assert.match(root.textContent, /Produto A/);
   assert.ok(calls.some((call) => call.url === '/pedidos/p1'));
+
+  root.querySelector('[data-tab="timeline"]')?.click();
+  await flush();
+  await flush();
+  assert.match(root.textContent, /Cliente cadastrado/);
 
   teardownFrontendDom(dom);
 });

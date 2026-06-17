@@ -200,6 +200,7 @@ test('clientes: detalhe 360 abre com abas e accordion de pedidos', async () => {
   installFetchMock({
     'GET /clientes': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 10 } }),
     'GET /clientes/c1': () => ({ item: { id: 'c1', empresa: 'Cliente A', cidade: 'São Paulo', estado: 'SP', created_at: '2026-05-01T00:00:00.000Z', status: 'ativo', vendedor_nome: 'Vendedor 1', documento: '00.000.000/0001-00', telefone: '(11) 99999-9999', email: 'a@a.com' } }),
+    'GET /clientes/c1/timeline': () => ({ items: [{ id: 't1', categoria: 'cadastro', titulo: 'Cliente cadastrado', descricao: 'Cadastro concluído', created_at: '2026-06-10T10:00:00.000Z' }] }),
     'GET /pedidos': ({ query }) => String(query.cliente_id || '') === 'c1'
       ? { items: [{ id: 'p1', cliente_id: 'c1', numero: '1001', status: 'faturado', created_at: '2026-05-28T00:00:00.000Z', data_faturamento: '2026-06-01T00:00:00.000Z', total: 123.45, itens: [{ produto: 'Produto X', quantidade: 2, preco_unitario: 10, total: 20, status_vinculo: 'vinculado' }] }], pagination: { page: 1, totalPages: 1, total: 1, limit: 100 } }
       : { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } },
@@ -224,5 +225,8 @@ test('clientes: detalhe 360 abre com abas e accordion de pedidos', async () => {
   document.querySelector('[data-tab="crm"]')?.click();
   await flush(); await flush();
   assert.match(document.body.textContent, /Nenhuma conversa registrada para este cliente/i);
+  document.querySelector('[data-tab="timeline"]')?.click();
+  await flush(); await flush();
+  assert.match(document.body.textContent, /Cliente cadastrado/i);
   teardownFrontendDom(dom);
 });

@@ -50,6 +50,33 @@
       "content-type": "application/json"
     },
     "method": "GET",
+    "path": "/clientes/c1/timeline",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/clientes/c1/alertas",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/clientes/c1/timeline",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
     "path": "/clientes/c1",
     "query": {}
   },
@@ -65,6 +92,33 @@
       "limit": "100",
       "page": "1"
     }
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/clientes/c1/timeline",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/clientes/c1/alertas",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/clientes/c1/timeline",
+    "query": {}
   },
   {
     "body": {
@@ -101,5 +155,32 @@
       "limit": "100",
       "page": "1"
     }
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/clientes/c1/timeline",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/clientes/c1/alertas",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/clientes/c1/timeline",
+    "query": {}
   }
 ]
