@@ -61,6 +61,39 @@ begin
      and ranked_jobs.rn = 1
      and (public.system_jobs.account_id is not null or public.system_jobs.lock_key is distinct from ranked_jobs.canonical_lock_key);
 
+  with job_pairs as (
+    select
+      legacy.id as legacy_id,
+      global_job.id as global_id
+    from public.system_jobs legacy
+    join public.system_jobs global_job
+      on global_job.nome = legacy.nome
+     and global_job.account_id is null
+    where legacy.nome in ('clientes_enriquecimento_automatico', 'clientes_geolocalizacao_automatico')
+      and legacy.account_id is not null
+      and legacy.id <> global_job.id
+  )
+  update public.system_job_runs sjr
+     set job_id = job_pairs.global_id
+    from job_pairs
+   where sjr.job_id = job_pairs.legacy_id;
+
+  with job_pairs as (
+    select
+      legacy.id as legacy_id,
+      global_job.id as global_id
+    from public.system_jobs legacy
+    join public.system_jobs global_job
+      on global_job.nome = legacy.nome
+     and global_job.account_id is null
+    where legacy.nome in ('clientes_enriquecimento_automatico', 'clientes_geolocalizacao_automatico')
+      and legacy.account_id is not null
+      and legacy.id <> global_job.id
+  )
+  delete from public.system_jobs legacy
+  using job_pairs
+  where legacy.id = job_pairs.legacy_id;
+
   update public.system_jobs
      set status = 'ativo'
    where nome in (select nome from tmp_system_jobs_canonical);
