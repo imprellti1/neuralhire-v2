@@ -518,6 +518,8 @@ test('cliente details mostra aba de geolocalizacao e executa geolocalizacao manu
   assert.match(root.textContent, /Cliente geolocalizado com sucesso/);
   assert.match(root.textContent, /-23\.55052/);
   assert.match(root.textContent, /Abrir no Google Maps/);
+  assert.ok(root.querySelector('iframe[title="Mapa do cliente"]'));
+  assert.match(root.querySelector('iframe[title="Mapa do cliente"]').getAttribute('src') || '', /maps\.google\.com\/maps\?q=-23\.55052,-46\.63331&z=15&output=embed/);
   assert.ok(calls.some((call) => call.method === 'POST' && call.url === '/clientes/c1/geolocalizar'));
 
   teardownFrontendDom(dom);

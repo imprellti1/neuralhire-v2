@@ -463,6 +463,8 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
 
   function renderGeolocalizacao(d) {
     const status = safeValue(d?.geolocalizacao_status ? String(d.geolocalizacao_status).replace(/^./, (m) => m.toUpperCase()) : 'Pendente');
+    const hasCoordinates = Number.isFinite(Number(d?.latitude)) && Number.isFinite(Number(d?.longitude));
+    const iframeSrc = hasCoordinates ? `https://maps.google.com/maps?q=${d.latitude},${d.longitude}&z=15&output=embed` : '';
     return `
       <div class="nho2d-section">
         <article class="nho2d-card">
@@ -484,6 +486,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
             <dt class="nho2d-dt">Erro</dt><dd class="nho2d-dd">${safeValue(d?.geolocalizacao_erro)}</dd>
           </dl>
         </article>
+        ${hasCoordinates ? `<article class="nho2d-card"><h3>Mapa</h3><iframe title="Mapa do cliente" src="${iframeSrc}" style="width:100%;height:340px;border:0;border-radius:12px" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></article>` : ''}
       </div>
     `;
   }
