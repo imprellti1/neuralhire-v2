@@ -44,6 +44,14 @@ function statusClass(status) {
   return '';
 }
 
+function isActiveJob(job) {
+  return String(job?.status || '').toLowerCase() === 'ativo';
+}
+
+function isLockedJob(job) {
+  return Boolean(job?.locked_at);
+}
+
 export async function renderAdminJobsPage(container, { apiClient } = {}) {
   const state = createAdminJobsState();
   const runTargets = Object.keys(JOB_LABELS);
@@ -96,9 +104,9 @@ export async function renderAdminJobsPage(container, { apiClient } = {}) {
 
   function render() {
     const total = state.jobs.length;
-    const active = state.jobs.filter((job) => ['running', 'active', 'busy'].includes(String(job.status || '').toLowerCase())).length;
+    const active = state.jobs.filter((job) => isActiveJob(job)).length;
     const errored = state.jobs.filter((job) => job.last_error).length;
-    const blocked = state.jobs.filter((job) => ['running', 'locked', 'blocked'].includes(String(job.status || '').toLowerCase()) || job.locked_at).length;
+    const blocked = state.jobs.filter((job) => isLockedJob(job)).length;
 
     container.innerHTML = `
       <section class="admin-jobs-page">
@@ -167,7 +175,7 @@ export async function renderAdminJobsPage(container, { apiClient } = {}) {
             ['Total Jobs', total, 'total'],
             ['Ativos', active, 'active'],
             ['Erros', errored, 'error'],
-            ['Em execução', blocked, 'running']
+            ['Em execução / Bloqueados', blocked, 'running']
           ].map(([label, value, icon]) => `<article class="admin-jobs-card admin-jobs-kpi"><div class="admin-jobs-kpi-icon ${icon}">${kpiIcon(icon)}</div><div class="admin-jobs-kpi-copy"><div class="admin-jobs-kpi-label">${label}</div><div class="admin-jobs-kpi-value">${esc(value)}</div></div></article>`).join('')}
         </div>
         <article class="admin-jobs-card">

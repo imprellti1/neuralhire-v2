@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { createApiApp } from './app.js';
 import { env, getEnvSummary } from './config/env.js';
 import { logger } from './core/logger.js';
+import { startJobsScheduler } from './modules/jobs/jobs.scheduler.js';
 
 const app = createApiApp();
 const server = createServer(app);
@@ -26,6 +27,13 @@ async function bootstrap() {
       port: env.API_PORT,
       env: getEnvSummary()
     });
+    if (process.env.JOBS_SCHEDULER_ENABLED === 'true') {
+      startJobsScheduler();
+    } else {
+      logger.info('jobs_scheduler_disabled', {
+        env: getEnvSummary()
+      });
+    }
     console.log(`NeuralHire API v2 listening on port ${env.API_PORT}`);
   });
 }

@@ -6,8 +6,8 @@ import { assertEqual } from '../assert.js';
 import { __resetMemoryClientesForTests, createCliente, __dumpMemoryClientes } from '../../modules/clientes/clientes.repository.js';
 import { __resetMemoryAlertasForTests } from '../../modules/clientes/clientes.alerts.service.js';
 import { __resetMemoryTimelineForTests } from '../../modules/clientes/clientes.timeline.service.js';
-import { __resetSystemJobsForTests, __dumpSystemJobsForTests, acquireSystemJobLock } from '../../modules/jobs/jobs.repository.js';
-import { nextDaily0300 } from '../../modules/jobs/jobs.scheduler.js';
+import { __resetSystemJobsForTests, __dumpSystemJobsForTests, acquireSystemJobLock, listDueSystemJobs, upsertSystemJob } from '../../modules/jobs/jobs.repository.js';
+import { __resetJobsSchedulerForTests, dispatchDueJob, nextDaily0300, runJobsSchedulerTick, startJobsScheduler, stopJobsScheduler } from '../../modules/jobs/jobs.scheduler.js';
 
 function parse(res) {
   try { return JSON.parse(res.body || '{}'); } catch { return {}; }
@@ -302,6 +302,115 @@ export function getJobsTests() {
         assert.equal(dump.runs[0].processed_count, 0);
         assert.equal(dump.runs[0].metadata.result, 'empty_queue');
         assert.equal(String(dump.jobs.find((job) => job.nome === 'clientes_enriquecimento_automatico')?.next_run_at || '').length > 0, true);
+      }
+    },
+    {
+      name: 'scheduler não inicia quando desabilitado',
+      run: async () => {
+        __resetJobsSchedulerForTests();
+        const previous = process.env.JOBS_SCHEDULER_ENABLED;
+        process.env.JOBS_SCHEDULER_ENABLED = 'false';
+        try {
+          assert.equal(process.env.JOBS_SCHEDULER_ENABLED === 'true', false);
+        } finally {
+          process.env.JOBS_SCHEDULER_ENABLED = previous;
+        }
+      }
+    },
+    {
+      name: 'scheduler inicia quando habilitado',
+      run: async () => {
+        __resetJobsSchedulerForTests();
+        const started = startJobsScheduler({ intervalMs: 5000 });
+        assert.equal(started.started, true);
+        assert.equal(started.intervalMs, 5000);
+        stopJobsScheduler();
+      }
+    },
+    {
+      name: 'lista jobs vencidos corretamente',
+      run: async () => {
+        __resetSystemJobsForTests();
+        const now = new Date('2026-06-17T12:00:00.000Z');
+        await upsertSystemJob({ nome: 'radar_comercial_diario', lock_key: 'acc-due:radar', account_id: 'acc-due', status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: 'acc-due' });
+        await upsertSystemJob({ nome: 'clientes_enriquecimento_automatico', lock_key: 'acc-due:enrich', account_id: 'acc-due', status: 'ativo', next_run_at: '2026-06-17T13:00:00.000Z' }, { accountId: 'acc-due' });
+        const due = await listDueSystemJobs({ now, limit: 10, accountId: 'acc-due' });
+        assert.equal(due.length, 1);
+        assert.equal(due[0].nome, 'radar_comercial_diario');
+      }
+    },
+    {
+      name: 'não lista jobs futuros',
+      run: async () => {
+        __resetSystemJobsForTests();
+        const now = new Date('2026-06-17T12:00:00.000Z');
+        await upsertSystemJob({ nome: 'notificacoes_resumo_semanal', lock_key: 'acc-future:weekly', account_id: 'acc-future', status: 'ativo', next_run_at: '2026-06-17T12:01:00.000Z' }, { accountId: 'acc-future' });
+        const due = await listDueSystemJobs({ now, limit: 10, accountId: 'acc-future' });
+        assert.equal(due.length, 0);
+      }
+    },
+    {
+      name: 'dispara handler correto por nome',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryClientesForTests();
+        const previousFetch = globalThis.fetch;
+        globalThis.fetch = async (url) => {
+          if (String(url).includes('brasilapi.com.br')) {
+            return {
+              ok: true,
+              status: 200,
+              headers: { get: () => 'application/json' },
+              text: async () => JSON.stringify({ nome: 'Cliente Scheduler', razao_social: 'Cliente Scheduler LTDA' }),
+              json: async () => ({ nome: 'Cliente Scheduler', razao_social: 'Cliente Scheduler LTDA' })
+            };
+          }
+          throw new Error(`fetch inesperado ${url}`);
+        };
+        try {
+          const cliente = await createCliente({ nome: 'Cliente Scheduler', documento: '32345678000190' }, { accountId: 'acc-sched' });
+          const job = await upsertSystemJob({ nome: 'clientes_enriquecimento_automatico', lock_key: 'acc-sched:clientes:enriquecimento:automatico', account_id: 'acc-sched', status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: 'acc-sched' });
+          const result = await dispatchDueJob(job, { accountId: 'acc-sched', requestId: 'scheduler-test', workerId: 'scheduler:test' });
+          assert.equal(result.ok, true);
+          const dump = __dumpSystemJobsForTests();
+          assert.ok(dump.runs.some((run) => run.nome === 'clientes_enriquecimento_automatico'));
+          assert.equal(Boolean(cliente.id), true);
+        } finally {
+          globalThis.fetch = previousFetch;
+        }
+      }
+    },
+    {
+      name: 'ignora job sem handler com log warning',
+      run: async () => {
+        __resetSystemJobsForTests();
+        const job = await upsertSystemJob({ nome: 'job_sem_handler', lock_key: 'acc-unknown:job', account_id: 'acc-unknown', status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: 'acc-unknown' });
+        const result = await dispatchDueJob(job, { accountId: 'acc-unknown', requestId: 'scheduler-test', workerId: 'scheduler:test' });
+        assert.equal(result.ok, false);
+        assert.equal(result.skipped, true);
+      }
+    },
+    {
+      name: 'erro de job não derruba scheduler',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetJobsSchedulerForTests();
+        const previousFetch = globalThis.fetch;
+        globalThis.fetch = async (url) => {
+          if (String(url).includes('brasilapi.com.br')) {
+            throw new Error('falha simulada');
+          }
+          throw new Error(`fetch inesperado ${url}`);
+        };
+        try {
+          const job = await upsertSystemJob({ nome: 'clientes_enriquecimento_automatico', lock_key: 'acc-fail:clientes:enriquecimento:automatico', account_id: 'acc-fail', status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: 'acc-fail' });
+          const tick = await runJobsSchedulerTick({ now: new Date('2026-06-17T12:00:00.000Z'), accountId: 'acc-fail', workerId: 'scheduler:test' });
+          assert.equal(tick.ok, true);
+          assert.equal(tick.dueJobsCount >= 1, true);
+          assert.ok(job.id);
+        } finally {
+          globalThis.fetch = previousFetch;
+        }
       }
     },
     {

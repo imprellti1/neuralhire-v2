@@ -135,6 +135,36 @@ export async function listSystemJobs(accountId = null, options = {}) {
   return items.sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
 }
 
+export async function listDueSystemJobs({ now = new Date(), limit = 10, accountId = null } = {}) {
+  const nowIsoValue = now instanceof Date ? now.toISOString() : new Date(now).toISOString();
+  if (resolveSupabaseConfigured()) {
+    const supabase = resolveSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    let query = supabase
+      .from('system_jobs')
+      .select('*')
+      .eq('status', 'ativo')
+      .not('next_run_at', 'is', null)
+      .lte('next_run_at', nowIsoValue)
+      .order('next_run_at', { ascending: true })
+      .limit(Math.max(1, Number(limit) || 10));
+    if (accountId) query = query.or(`account_id.is.null,account_id.eq.${accountId}`);
+    const { data, error } = await query;
+    if (error) throw new DatabaseError('Falha ao listar jobs vencidos', { details: error });
+    return data || [];
+  }
+  seedSystemJobs(accountId);
+  return [...memoryJobs.values()]
+    .filter((job) =>
+      (accountId ? job.account_id === accountId || job.account_id === null : true) &&
+      String(job.status || '').toLowerCase() === 'ativo' &&
+      job.next_run_at &&
+      new Date(job.next_run_at).getTime() <= new Date(nowIsoValue).getTime())
+    .sort((a, b) => new Date(a.next_run_at || 0).getTime() - new Date(b.next_run_at || 0).getTime())
+    .slice(0, Math.max(1, Number(limit) || 10))
+    .map((item) => ({ ...item }));
+}
+
 export async function upsertSystemJob(job, options = {}) {
   const accountId = options.accountId ?? job.account_id ?? null;
   const lockKey = job.lock_key || `${accountId || 'global'}:${job.nome}`;

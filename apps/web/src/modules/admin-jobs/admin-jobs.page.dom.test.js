@@ -11,7 +11,7 @@ test('admin jobs page renders empty state, data, actions and errors', async () =
     get: async (path) => {
       calls.push(path);
       if (mode === 'error') throw new Error('boom');
-      if (path === '/jobs') return { items: mode === 'data' ? [{ id: 'j1', nome: 'radar_comercial_diario', status: 'idle', updated_at: '2026-06-17T10:00:00.000Z', metadata: { cadence: 'daily' } }] : [] };
+      if (path === '/jobs') return { items: mode === 'data' ? [{ id: 'j1', nome: 'radar_comercial_diario', status: 'ativo', locked_at: null, updated_at: '2026-06-17T10:00:00.000Z', metadata: { cadence: 'daily' } }, { id: 'j2', nome: 'clientes_enriquecimento_automatico', status: 'running', locked_at: '2026-06-17T10:05:00.000Z', updated_at: '2026-06-17T10:05:00.000Z', metadata: { cadence: 'adaptive' } }] : [] };
       if (path === '/jobs/runs') return { items: mode === 'data' ? [{ id: 'r1', job_id: 'j1', nome: 'radar_comercial_diario', status: 'success', started_at: '2026-06-17T09:00:00.000Z', duration_ms: 1200, processed_count: 4, success_count: 4, error_count: 0, metadata: { step: 'ok' }, error: null }] : [] };
       if (path === '/jobs/j1') return { item: { id: 'j1', nome: 'radar_comercial_diario', metadata: { cadence: 'daily' } }, runs: [{ id: 'r1', started_at: '2026-06-17T09:00:00.000Z' }] };
       throw new Error(`unexpected path ${path}`);
@@ -25,6 +25,8 @@ test('admin jobs page renders empty state, data, actions and errors', async () =
   document.querySelector('#admin-jobs-refresh')?.click();
   await flush(); await flush();
   assert.match(document.body.textContent, /Radar Comercial Diário/i);
+  assert.match(document.body.textContent, /Em execução \/ Bloqueados/i);
+  assert.match(document.body.textContent, /Ativos/i);
   assert.match(document.body.textContent, /Últimas execuções/i);
   assert.match(document.body.textContent, /2026/i);
   document.querySelector('.admin-job-run')?.click();

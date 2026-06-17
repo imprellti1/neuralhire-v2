@@ -1,11 +1,12 @@
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
+import { logger } from '../../core/logger.js';
 import { listClientes } from '../clientes/clientes.repository.js';
 import { enrichClienteByCnpj, geolocalizarCliente, getNextClienteForEnrichment, getNextClienteForGeolocation } from '../clientes/clientes.repository.js';
 import { gerarAlertasCliente } from '../clientes/clientes.alerts.service.js';
 import { recalcularSegmentacaoCliente } from '../clientes/clientes.segmentacao.service.js';
 import { registrarEventoTimeline } from '../clientes/clientes.timeline.service.js';
 import { calcularScoreComercialCliente } from '../clientes/clientes.repository.js';
-import { acquireSystemJobLock, listSystemJobRuns, listSystemJobs, recordSystemJobRun, releaseSystemJobLock, upsertSystemJob } from './jobs.repository.js';
+import { acquireSystemJobLock, listDueSystemJobs, listSystemJobRuns, listSystemJobs, recordSystemJobRun, releaseSystemJobLock, upsertSystemJob } from './jobs.repository.js';
 import { resolveJobNotificationRecipient, sendJobNotificationEmail } from '../notifications/notifications.email.service.js';
 
 function isoNow() {
@@ -42,6 +43,16 @@ function logJobError(stage, error, details = {}) {
     lockKey: details.lockKey || null
   });
 }
+
+const JOB_HANDLERS = {
+  radar_comercial_diario: runRadarComercialJob,
+  clientes_enriquecimento_automatico: runClientesEnriquecimentoJob,
+  clientes_geolocalizacao_automatico: runClientesGeolocalizacaoJob,
+  notificacoes_resumo_semanal: runNotificacoesResumoSemanalJob
+};
+
+let schedulerTimer = null;
+let schedulerRunning = false;
 
 function normalizeSituacaoCadastral(value) {
   return String(value || '').trim().toUpperCase();
@@ -417,4 +428,99 @@ export async function runNotificacoesResumoSemanalJob(context = {}) {
 export async function listJobsOverview(context = {}) {
   const accountId = getAccountIdFromContext(context);
   return { ok: true, items: await listSystemJobs(accountId) };
+}
+
+export async function dispatchDueJob(job, context = {}) {
+  const handler = JOB_HANDLERS[job?.nome];
+  const requestId = context.requestId || `scheduler-${job?.nome || 'unknown'}-${Date.now()}`;
+  const workerId = context.workerId || `scheduler:${process.pid}`;
+  if (!handler) {
+    logger.warn('jobs_scheduler_job_unknown_handler', { requestId, workerId, jobId: job?.id || null, nome: job?.nome || null, nextRunAt: job?.next_run_at || null });
+    return { ok: false, skipped: true, reason: 'unknown_handler' };
+  }
+
+  logger.info('jobs_scheduler_job_dispatched', {
+    requestId,
+    workerId,
+    jobId: job.id || null,
+    nome: job.nome || null,
+    nextRunAt: job.next_run_at || null
+  });
+
+  try {
+    const accountId = job.account_id || context.accountId || null;
+    const result = await handler({ ...context, requestId, workerId, accountId, auth: { ...(context.auth || {}), accountId } });
+    return { ok: true, result };
+  } catch (error) {
+    logger.error('jobs_scheduler_job_failed', {
+      requestId,
+      workerId,
+      jobId: job.id || null,
+      nome: job.nome || null,
+      nextRunAt: job.next_run_at || null,
+      message: error?.message || String(error)
+    });
+    throw error;
+  }
+}
+
+export async function runJobsSchedulerTick({ now = new Date(), limit = 10, accountId = null, workerId = `scheduler:${process.pid}` } = {}) {
+  const requestId = `scheduler-tick-${now instanceof Date ? now.getTime() : Date.now()}`;
+  const startedAt = Date.now();
+  logger.info('jobs_scheduler_tick_started', { requestId, workerId, accountId: accountId || null, limit });
+
+  let dueJobs = [];
+  try {
+    dueJobs = await listDueSystemJobs({ now, limit, accountId });
+    logger.info('jobs_scheduler_due_jobs_found', { requestId, workerId, accountId: accountId || null, count: dueJobs.length });
+    for (const job of dueJobs) {
+      void Promise.resolve()
+        .then(() => dispatchDueJob(job, { requestId: `scheduler-${job.nome}-${Date.now()}`, workerId, accountId: job.account_id || accountId || null, auth: { accountId: job.account_id || accountId || null } }))
+        .catch((error) => {
+          logger.error('jobs_scheduler_job_failed', {
+            requestId,
+            workerId,
+            jobId: job?.id || null,
+            nome: job?.nome || null,
+            nextRunAt: job?.next_run_at || null,
+            message: error?.message || String(error)
+          });
+        });
+    }
+  } catch (error) {
+    logger.error('jobs_scheduler_tick_failed', { requestId, workerId, accountId: accountId || null, message: error?.message || String(error) });
+    throw error;
+  } finally {
+    logger.info('jobs_scheduler_tick_finished', { requestId, workerId, accountId: accountId || null, durationMs: Date.now() - startedAt, dueJobsCount: dueJobs.length });
+  }
+
+  return { ok: true, dueJobsCount: dueJobs.length };
+}
+
+export function startJobsScheduler({ intervalMs = Number(process.env.JOBS_SCHEDULER_INTERVAL_MS) || 60000, accountId = null } = {}) {
+  if (schedulerTimer) return { started: false, reason: 'already_started' };
+  schedulerRunning = true;
+  const workerId = `scheduler:${process.pid}`;
+  void runJobsSchedulerTick({ accountId, workerId }).catch((error) => {
+    logger.error('jobs_scheduler_tick_failed', { workerId, accountId: accountId || null, message: error?.message || String(error) });
+  });
+  schedulerTimer = setInterval(() => {
+    if (!schedulerRunning) return;
+    void runJobsSchedulerTick({ accountId, workerId }).catch((error) => {
+      logger.error('jobs_scheduler_tick_failed', { workerId, accountId: accountId || null, message: error?.message || String(error) });
+    });
+  }, Math.max(1000, Number(intervalMs) || 60000));
+  if (typeof schedulerTimer.unref === 'function') schedulerTimer.unref();
+  logger.info('jobs_scheduler_started', { intervalMs: Math.max(1000, Number(intervalMs) || 60000), env: process.env.NODE_ENV || null });
+  return { started: true, intervalMs: Math.max(1000, Number(intervalMs) || 60000) };
+}
+
+export function stopJobsScheduler() {
+  schedulerRunning = false;
+  if (schedulerTimer) clearInterval(schedulerTimer);
+  schedulerTimer = null;
+}
+
+export function __resetJobsSchedulerForTests() {
+  stopJobsScheduler();
 }
