@@ -24,6 +24,19 @@ function chunkArray(items = [], size = 25) {
   return chunks;
 }
 
+function logJobError(stage, error, details = {}) {
+  console.error('[jobs.scheduler] job_error', {
+    stage,
+    message: error?.message || null,
+    code: error?.code || null,
+    details: error?.details || null,
+    hint: error?.hint || null,
+    requestId: details.requestId || null,
+    account_id: details.accountId || null,
+    lockKey: details.lockKey || null
+  });
+}
+
 async function recalculateRadarClient(cliente, context, accountId) {
   const pedidos = [];
   const alertas = [];
@@ -61,9 +74,11 @@ export async function runRadarComercialJob(context = {}) {
   let sucessos = 0;
   let falhas = 0;
   const detalhesFalhas = [];
+  let fatalError = null;
+  let clientes = [];
 
   try {
-    const clientes = (await listClientes({ page: 1, limit: 5000, ativo: true }, { accountId, context })).items || [];
+    clientes = (await listClientes({ page: 1, limit: 5000, ativo: true }, { accountId, context })).items || [];
     for (const chunk of chunkArray(clientes, 25)) {
       for (const cliente of chunk) {
         processados += 1;
@@ -76,45 +91,56 @@ export async function runRadarComercialJob(context = {}) {
         }
       }
     }
+  } catch (error) {
+    fatalError = error;
+    logJobError('runRadarComercialJob', error, { accountId, lockKey, requestId: context.requestId || null });
   } finally {
-    await releaseSystemJobLock(lockKey, { status: falhas ? 'error' : 'success', locked_at: null, locked_by: null }).catch(() => null);
-  }
+    const finishedAt = isoNow();
+    const status = fatalError || falhas ? 'error' : 'success';
+    await recordSystemJobRun({
+      job_id: job.id,
+      account_id: accountId,
+      nome: job.nome,
+      status,
+      started_at: new Date(startedAt).toISOString(),
+      finished_at: finishedAt,
+      duration_ms: Date.now() - startedAt,
+      processed_count: processados,
+      success_count: sucessos,
+      error_count: fatalError ? Math.max(1, falhas) : falhas,
+      metadata: { chunk_size: 25, fatal_error: fatalError ? { message: fatalError?.message || String(fatalError), code: fatalError?.code || null } : null },
+      error: fatalError?.message || (falhas ? 'Alguns clientes falharam' : null)
+    }, { accountId }).catch((error) => {
+      logJobError('recordSystemJobRun', error, { accountId, lockKey, requestId: context.requestId || null });
+      return null;
+    });
 
-  const finishedAt = isoNow();
-  const run = await recordSystemJobRun({
-    job_id: job.id,
-    account_id: accountId,
-    nome: job.nome,
-    status: falhas ? 'error' : 'success',
-    started_at: new Date(startedAt).toISOString(),
-    finished_at: finishedAt,
-    duration_ms: Date.now() - startedAt,
-    processed_count: processados,
-    success_count: sucessos,
-    error_count: falhas,
-    metadata: { chunk_size: 25 }
-  }, { accountId });
+    await releaseSystemJobLock(lockKey, { status, locked_at: null, locked_by: null }).catch((error) => {
+      logJobError('releaseSystemJobLock', error, { accountId, lockKey, requestId: context.requestId || null });
+      return null;
+    });
+  }
 
   await upsertSystemJob({
     ...job,
-    status: falhas ? 'error' : 'success',
-    last_success_at: falhas ? job.last_success_at : finishedAt,
-    last_error: falhas ? 'Alguns clientes falharam' : null,
+    status: fatalError || falhas ? 'error' : 'success',
+    last_success_at: fatalError || falhas ? job.last_success_at : isoNow(),
+    last_error: fatalError ? (fatalError?.message || 'Falha fatal no job') : (falhas ? 'Alguns clientes falharam' : null),
     next_run_at: nextDaily0300(new Date())
   }, { accountId });
 
+  const finishedAt = isoNow();
   return {
     ok: true,
     total_clientes: clientes.length,
     processados,
     sucessos,
-    falhas,
+    falhas: fatalError ? Math.max(1, falhas) : falhas,
     detalhes_falhas: detalhesFalhas,
     iniciado_em: new Date(startedAt).toISOString(),
     finalizado_em: finishedAt,
     duracao_ms: Date.now() - startedAt,
-    job,
-    run
+    job
   };
 }
 
