@@ -66,7 +66,7 @@ function getClienteSegmento(cliente = {}) {
 }
 
 function getClienteVendedorId(cliente = {}) {
-  return String(cliente.vendedor_id || cliente.owner_user_id || '').trim() || null;
+  return String(cliente.vendedor_id || '').trim() || null;
 }
 
 function getClienteActiveFlag(cliente = {}) {
@@ -142,7 +142,7 @@ async function fetchRadarClientes(accountId, supabase, filtros = {}, options = {
     if (!client) throw new DatabaseError('Supabase indisponivel');
     const querySpec = {
       table: 'clientes',
-      select: 'id,nome,razao_social,cidade,estado,cliente_score,cliente_classificacao,segmento_comercial,vendedor_id,owner_user_id,ultima_compra_em,ultima_compra,account_id,ativo',
+      select: 'id,nome,razao_social,cidade,estado,cliente_score,cliente_classificacao,segmento_comercial,vendedor_id,ultima_compra_em,ultima_compra,account_id,ativo',
       filters: { account_id: accountId, ...filtros }
     };
     try {
