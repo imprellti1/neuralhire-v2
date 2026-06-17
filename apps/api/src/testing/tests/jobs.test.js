@@ -13,6 +13,10 @@ function parse(res) {
   try { return JSON.parse(res.body || '{}'); } catch { return {}; }
 }
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function call(app, { method, url, role, accountId, body }) {
   const headers = { 'x-test-role': role, 'x-test-account-id': accountId };
   if (body) headers['content-type'] = 'application/json';
@@ -24,6 +28,35 @@ async function call(app, { method, url, role, accountId, body }) {
 
 export function getJobsTests() {
   return [
+    {
+      name: 'POST /jobs/radar-comercial/run responde 202 e continua em background',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryClientesForTests();
+        __resetMemoryAlertasForTests();
+        __resetMemoryTimelineForTests();
+        const app = createApiApp();
+        await createCliente({ nome: 'Cliente 1', documento: '12345678000190' }, { accountId: 'acc-jobs' });
+        await createCliente({ nome: 'Cliente 2', documento: '22345678000190' }, { accountId: 'acc-jobs' });
+        const startedAt = Date.now();
+        const out = await call(app, { method: 'POST', url: '/jobs/radar-comercial/run', role: 'admin', accountId: 'acc-jobs' });
+        const responseDurationMs = Date.now() - startedAt;
+        assert.equal(out.res.statusCode, 202);
+        assert.equal(out.body.success, true);
+        assert.equal(out.body.message, 'Radar Comercial iniciado');
+        assert.equal(out.body.status, 'running');
+        assert.equal(responseDurationMs < 1000, true);
+
+        let dump = __dumpSystemJobsForTests();
+        for (let attempt = 0; attempt < 40 && dump.runs.length === 0; attempt += 1) {
+          await wait(25);
+          dump = __dumpSystemJobsForTests();
+        }
+
+        assert.equal(dump.runs.length > 0, true);
+        assert.equal(dump.jobs.some((job) => job.nome === 'radar_comercial_diario' && ['success', 'error', 'running'].includes(job.status)), true);
+      }
+    },
     {
       name: 'lock impede execução duplicada',
       run: async () => {

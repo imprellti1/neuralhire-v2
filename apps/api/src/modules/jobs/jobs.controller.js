@@ -1,5 +1,6 @@
 import { ForbiddenError } from '../../core/errors.js';
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
+import { logger } from '../../core/logger.js';
 import { listJobsOverview, runRadarComercialJob } from './jobs.scheduler.js';
 
 function assertJobAdmin(context) {
@@ -17,5 +18,24 @@ export async function getJobsAdmin(context = {}) {
 
 export async function runRadarComercialAdmin(context = {}) {
   assertJobAdmin(context);
-  return runRadarComercialJob(context);
+  const accountId = getAccountIdFromContext(context);
+  const workerId = context?.requestId || 'local';
+  const requestId = context?.requestId || null;
+
+  void Promise.resolve()
+    .then(() => runRadarComercialJob({ ...context, accountId, workerId, requestId }))
+    .catch((error) => {
+      logger.error({
+        message: 'Falha na execução assíncrona do Radar Comercial',
+        error: error?.message || String(error),
+        requestId,
+        account_id: accountId
+      });
+    });
+
+  return {
+    success: true,
+    message: 'Radar Comercial iniciado',
+    status: 'running'
+  };
 }
