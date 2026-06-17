@@ -3,6 +3,7 @@ import { renderAnalyticsDashboardPage } from './modules/analytics-dashboard/dash
 import { renderClientesPage } from './modules/clientes-crm/clientes.page.js';
 import { renderClienteDetailsPage } from './modules/clientes-crm/cliente-details.page.js';
 import { renderClienteCreatePage } from './modules/clientes-crm/cliente-create.page.js';
+import { renderClientesRadarPage } from './modules/clientes-radar/clientes-radar.page.js';
 import { renderInterestLeadsPage } from './modules/interest-leads/interest-leads.page.js';
 import { renderInterestLeadDetailsPage } from './modules/interest-leads-details/interest-lead-details.page.js';
 import { renderInterestLeadsDashboardPage } from './modules/interest-leads-dashboard/interest-leads-dashboard.page.js';
@@ -75,6 +76,7 @@ const menuSections = [
     title: 'Clientes & CRM',
     items: [
       ['#/clientes', 'Clientes'],
+      ['#/clientes/radar', 'Radar Comercial'],
       ['#/importacoes', 'Importação de Clientes'],
       ['#/importacao-itens-pedido', 'Importação de Itens de Pedido'],
       ['#/interest-leads', 'Leads / Lista de Interesse'],
@@ -288,6 +290,7 @@ export function bootstrapWebApp() {
     const content = document.getElementById('app-content');
     const { path, query } = parseHashRoute(route);
     const activeRoute = path.startsWith('#/pedidos/') ? '#/pedidos'
+      : route === '#/clientes/radar' ? '#/clientes/radar'
       : route.startsWith('#/clientes/') ? '#/clientes'
       : route.startsWith('#/fabricantes/') ? '#/fabricantes'
       : route === '#/fabricas' ? '#/fabricantes'
@@ -300,6 +303,7 @@ export function bootstrapWebApp() {
     setActiveMenu(activeRoute);
 
     if (route === '#/clientes') return renderClientesPage(content, { apiClient: api });
+    if (route === '#/clientes/radar') return renderClientesRadarPage(content, { apiClient: api });
     if (route === '#/clientes/novo') return renderClienteCreatePage(content, { apiClient: api });
     if (route.startsWith('#/clientes/')) return renderClienteDetailsPage(content, { apiClient: api, clienteId: route.slice('#/clientes/'.length).split('?')[0] });
     if (route === '#/produtos') return renderProdutosPage(content, { apiClient: api });

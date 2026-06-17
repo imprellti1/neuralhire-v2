@@ -2,7 +2,9 @@ import { defineModule } from '../core/module-contract.js';
 import { registerHealthRoutes } from './health/health.routes.js';
 import { registerSystemRoutes } from './system/system.routes.js';
 import { registerClientesRoutes } from './clientes/clientes.routes.js';
+import { registerClientesRadarRoutes } from './clientes/clientes.radar.routes.js';
 import { clientesModule } from './clientes/clientes.module.js';
+import { clientesRadarModule } from './clientes/clientes.radar.module.js';
 import { registerProdutosRoutes } from './produtos/produtos.routes.js';
 import { registerProdutosImportRoutes } from './produtos/produtos-import.routes.js';
 import { produtosModule } from './produtos/produtos.module.js';
@@ -84,7 +86,7 @@ import { gruposComerciaisModule } from './grupos-comerciais/grupos-comerciais.mo
 export const registeredModules = [
   defineModule({ name: 'health', domain: 'core-platform', routes: ['GET /health'] }),
   defineModule({ name: 'system', domain: 'core-platform', routes: ['GET /system/info', 'GET /system/auth-context', 'GET /system/protected', 'GET /system/admin-only', 'POST /system/echo'] }),
-  clientesModule, produtosModule, produtoCategoriasModule, pedidosModule, analyticsModule, interestLeadsModule, billingModule, onboardingModule,
+  clientesModule, clientesRadarModule, produtosModule, produtoCategoriasModule, pedidosModule, analyticsModule, interestLeadsModule, billingModule, onboardingModule,
   accountActivationModule, implementationTrackerModule, customerSuccessModule, customerSuccessAutomationModule,
   customerSuccessTimelineModule, customerRetentionModule, executiveDashboardModule, executivePortfolioAnalyticsModule,
   revenueIntelligenceModule, portfolioDashboardModule, legacyImportModule, customerMemoryModule,
@@ -96,7 +98,7 @@ export const registeredModules = [
 
 export function registerModules(router, options = {}) {
   registerHealthRoutes(router); registerSystemRoutes(router, { registeredModules, globalMiddlewares: options.globalMiddlewares || [] });
-  registerClientesRoutes(router); registerProdutosRoutes(router); registerProdutosImportRoutes(router); registerPedidosRoutes(router); registerAnalyticsRoutes(router);
+  registerClientesRoutes(router); registerClientesRadarRoutes(router); registerProdutosRoutes(router); registerProdutosImportRoutes(router); registerPedidosRoutes(router); registerAnalyticsRoutes(router);
   registerPriceTableImportRoutes(router);
   registerClientesImportRoutes(router);
   registerPedidosImportRoutes(router);
