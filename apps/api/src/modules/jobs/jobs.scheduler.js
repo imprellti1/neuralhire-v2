@@ -10,6 +10,7 @@ import { calcularScoreComercialCliente } from '../clientes/clientes.repository.j
 import { createObservationIfNotOpen } from '../ai-director-observations/ai-director-observations.repository.js';
 import { acquireSystemJobLock, listDueSystemJobs, listSystemJobRuns, listSystemJobs, recordSystemJobRun, releaseSystemJobLock, upsertSystemJob } from './jobs.repository.js';
 import { resolveJobNotificationRecipient, sendJobNotificationEmail } from '../notifications/notifications.email.service.js';
+import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 
 function isoNow() {
   return new Date().toISOString();
@@ -53,6 +54,8 @@ const JOB_HANDLERS = {
   notificacoes_resumo_semanal: runNotificacoesResumoSemanalJob,
   gerente_comercial_observacao: runGerenteComercialObservacaoJob
 };
+
+const TENANT_AWARE_JOB_NAMES = new Set(['clientes_enriquecimento_automatico', 'clientes_geolocalizacao_automatico']);
 
 let schedulerTimer = null;
 let schedulerRunning = false;
@@ -107,6 +110,76 @@ function computeClientSalesSignals(pedidos = [], now = new Date()) {
 async function createCommercialObservation(context, payload) {
   const result = await createObservationIfNotOpen(context, payload);
   return { created: Boolean(result?.created), reason: result?.reason || null, observation: result?.observation || null };
+}
+
+async function listTenantAccountIds() {
+  if (isSupabaseConfigured()) {
+    const supabase = getSupabaseClient();
+    if (!supabase) return [];
+    const { data, error } = await supabase
+      .from('accounts')
+      .select('id')
+      .eq('status', 'active');
+    if (error) {
+      logger.warn('jobs_scheduler_accounts_lookup_failed', { message: error?.message || String(error) });
+      return [];
+    }
+    return [...new Set((Array.isArray(data) ? data : []).map((item) => String(item.id || '').trim()).filter(Boolean))];
+  }
+
+  const { __dumpMemoryClientes } = await import('../clientes/clientes.repository.js');
+  const clientes = __dumpMemoryClientes();
+  return [...new Set((Array.isArray(clientes) ? clientes : []).map((cliente) => String(cliente.account_id || '').trim()).filter(Boolean))];
+}
+
+async function runHandlerForTenant(job, handler, accountId, context = {}) {
+  const requestId = context.requestId || `scheduler-${job?.nome || 'unknown'}-${Date.now()}`;
+  const workerId = context.workerId || `scheduler:${process.pid}`;
+  return handler({ ...context, requestId, workerId, accountId, auth: { ...(context.auth || {}), accountId } });
+}
+
+async function dispatchTenantAwareJob(job, handler, context = {}) {
+  const accountIds = await listTenantAccountIds();
+  if (!accountIds.length) {
+    logger.warn('jobs_scheduler_tenant_accounts_missing', { jobId: job.id || null, nome: job.nome || null });
+    return { ok: true, skipped: true, reason: 'no_tenant_accounts', accountIds: [] };
+  }
+
+  const results = [];
+  for (const accountId of accountIds) {
+    try {
+      results.push(await runHandlerForTenant(job, handler, accountId, context));
+    } catch (error) {
+      results.push({ ok: false, error: error?.message || String(error), accountId });
+    }
+  }
+
+  const summary = {
+    accountIds,
+    totalAccounts: accountIds.length,
+    successes: results.filter((item) => item?.ok && !item?.error).length,
+    failures: results.filter((item) => item?.error).length
+  };
+
+  await recordSystemJobRun({
+    job_id: job.id,
+    account_id: null,
+    nome: job.nome,
+    status: summary.failures ? 'error' : 'success',
+    started_at: new Date().toISOString(),
+    finished_at: isoNow(),
+    duration_ms: 0,
+    processed_count: summary.totalAccounts,
+    success_count: summary.successes,
+    error_count: summary.failures,
+    metadata: { mode: 'tenant_fanout', ...summary },
+    error: summary.failures ? 'Falha em uma ou mais execucoes por tenant' : null
+  }, { accountId: null }).catch((error) => {
+    logJobError('recordSystemJobRun', error, { accountId: null, requestId: context.requestId || null });
+    return null;
+  });
+
+  return { ok: true, ...summary, results };
 }
 
 async function sendWeeklySummaryNotification({ accountId, summary, periodStart, periodEnd, jobRunId }) {
@@ -652,8 +725,9 @@ export async function dispatchDueJob(job, context = {}) {
   });
 
   try {
-    const accountId = job.account_id || context.accountId || null;
-    const result = await handler({ ...context, requestId, workerId, accountId, auth: { ...(context.auth || {}), accountId } });
+    const result = TENANT_AWARE_JOB_NAMES.has(job?.nome)
+      ? await dispatchTenantAwareJob(job, handler, { ...context, requestId, workerId })
+      : await handler({ ...context, requestId, workerId, accountId: job.account_id || context.accountId || null, auth: { ...(context.auth || {}), accountId: job.account_id || context.accountId || null } });
     return { ok: true, result };
   } catch (error) {
     logger.error('jobs_scheduler_job_failed', {

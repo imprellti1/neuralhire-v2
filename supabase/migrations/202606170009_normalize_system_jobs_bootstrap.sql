@@ -24,16 +24,20 @@ begin
       row_number() over (partition by sj.nome order by sj.created_at asc, sj.id asc) as rn
     from public.system_jobs sj
     join tmp_system_jobs_canonical cj on cj.nome = sj.nome
+  ),
+  duplicate_jobs as (
+    select id
+      from ranked_jobs
+     where rn > 1
+       and not exists (
+         select 1
+           from public.system_job_runs sjr
+          where sjr.job_id = ranked_jobs.id
+       )
   )
-  update public.system_jobs sj
-     set account_id = null,
-         lock_key = cj.lock_key,
-         status = 'ativo',
-         updated_at = v_now
-    from tmp_system_jobs_canonical cj
-    join ranked_jobs rj on rj.id = sj.id and rj.nome = cj.nome and rj.rn = 1
-   where sj.id = rj.id
-     and (sj.account_id is not null or sj.lock_key is distinct from cj.lock_key);
+  delete from public.system_jobs sj
+  using duplicate_jobs dj
+  where sj.id = dj.id;
 
   with ranked_jobs as (
     select
@@ -42,19 +46,20 @@ begin
       sj.lock_key,
       sj.account_id,
       sj.created_at,
+      cj.lock_key as canonical_lock_key,
       row_number() over (partition by sj.nome order by sj.created_at asc, sj.id asc) as rn
     from public.system_jobs sj
     join tmp_system_jobs_canonical cj on cj.nome = sj.nome
   )
-  delete from public.system_jobs sj
-  using ranked_jobs rj
-  where sj.id = rj.id
-    and rj.rn > 1
-    and not exists (
-      select 1
-        from public.system_job_runs sjr
-       where sjr.job_id = sj.id
-    );
+  update public.system_jobs
+     set account_id = null,
+         lock_key = ranked_jobs.canonical_lock_key,
+         status = 'ativo',
+         updated_at = v_now
+    from ranked_jobs
+   where public.system_jobs.id = ranked_jobs.id
+     and ranked_jobs.rn = 1
+     and (public.system_jobs.account_id is not null or public.system_jobs.lock_key is distinct from ranked_jobs.canonical_lock_key);
 
   update public.system_jobs
      set status = 'ativo'

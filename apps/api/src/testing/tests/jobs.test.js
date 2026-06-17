@@ -387,6 +387,42 @@ export function getJobsTests() {
       }
     },
     {
+      name: 'scheduler tenant-aware executa jobs de clientes com accountId válido',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryClientesForTests();
+        const previousFetch = globalThis.fetch;
+        globalThis.fetch = async (url) => {
+          if (String(url).includes('brasilapi.com.br')) {
+            return {
+              ok: true,
+              status: 200,
+              headers: { get: () => 'application/json' },
+              text: async () => JSON.stringify({ nome: 'Cliente Tenant', razao_social: 'Cliente Tenant LTDA' }),
+              json: async () => ({ nome: 'Cliente Tenant', razao_social: 'Cliente Tenant LTDA' })
+            };
+          }
+          throw new Error(`fetch inesperado ${url}`);
+        };
+        try {
+          const app = createApiApp();
+          await createCliente({ nome: 'Tenant 1', documento: '72345678000190' }, { accountId: 'acc-tenant-1' });
+          await createCliente({ nome: 'Tenant 2', documento: '82345678000190' }, { accountId: 'acc-tenant-2' });
+          const job = await upsertSystemJob({ nome: 'clientes_enriquecimento_automatico', lock_key: 'clientes:enriquecimento:automatico', status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: null });
+          const result = await dispatchDueJob(job, { requestId: 'scheduler-tenant-test', workerId: 'scheduler:test' });
+          assert.equal(result.ok, true);
+          await wait(100);
+          const dump = __dumpSystemJobsForTests();
+          assert.equal(dump.runs.some((run) => run.nome === 'clientes_enriquecimento_automatico' && run.account_id === null && run.metadata?.mode === 'tenant_fanout'), true);
+          const perTenantRuns = dump.runs.filter((run) => run.nome === 'clientes_enriquecimento_automatico' && ['acc-tenant-1', 'acc-tenant-2'].includes(run.account_id));
+          assert.equal(perTenantRuns.length >= 2, true);
+          assert.equal(perTenantRuns.every((run) => run.account_id), true);
+        } finally {
+          globalThis.fetch = previousFetch;
+        }
+      }
+    },
+    {
       name: 'POST /jobs/clientes-geolocalizacao/run responde 202 e processa apenas 1 cliente',
       run: async () => {
         __resetSystemJobsForTests();
