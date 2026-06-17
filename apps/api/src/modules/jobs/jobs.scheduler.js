@@ -8,7 +8,7 @@ import { recalcularSegmentacaoCliente } from '../clientes/clientes.segmentacao.s
 import { registrarEventoTimeline } from '../clientes/clientes.timeline.service.js';
 import { calcularScoreComercialCliente } from '../clientes/clientes.repository.js';
 import { createObservationIfNotOpen } from '../ai-director-observations/ai-director-observations.repository.js';
-import { acquireSystemJobLock, listDueSystemJobs, listSystemJobRuns, listSystemJobs, recordSystemJobRun, releaseSystemJobLock, upsertSystemJob } from './jobs.repository.js';
+import { acquireSystemJobLock, getSystemJobByLockKey, listDueSystemJobs, listSystemJobRuns, listSystemJobs, recordSystemJobRun, releaseSystemJobLock, upsertSystemJob } from './jobs.repository.js';
 import { resolveJobNotificationRecipient, sendJobNotificationEmail } from '../notifications/notifications.email.service.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 
@@ -146,9 +146,11 @@ async function dispatchTenantAwareJob(job, handler, context = {}) {
   }
 
   const results = [];
+  const startedAt = Date.now();
+  logger.info('job_run_started', { job: job.nome || null, jobId: job.id || null, accountIds });
   for (const accountId of accountIds) {
     try {
-      results.push(await runHandlerForTenant(job, handler, accountId, context));
+      results.push(await runHandlerForTenant(job, handler, accountId, { ...context, schedulerManaged: true }));
     } catch (error) {
       results.push({ ok: false, error: error?.message || String(error), accountId });
     }
@@ -178,6 +180,25 @@ async function dispatchTenantAwareJob(job, handler, context = {}) {
     logJobError('recordSystemJobRun', error, { accountId: null, requestId: context.requestId || null });
     return null;
   });
+
+  const globalJob = await getSystemJobByLockKey(job.lock_key).catch(() => null);
+  if (globalJob) {
+    const nextRunAt = nextInMinutes(new Date(), job.nome === 'clientes_enriquecimento_automatico' ? 30 : 30);
+    logger.info('job_next_run_updated', { job: job.nome || null, accountId: null, nextRunAt, schedulerManaged: true });
+    await upsertSystemJob({
+      ...globalJob,
+      last_run_at: isoNow(),
+      last_success_at: summary.failures ? globalJob.last_success_at : isoNow(),
+      last_error: summary.failures ? 'Falha em uma ou mais execucoes por tenant' : null,
+      next_run_at: nextRunAt,
+      status: 'ativo'
+    }, { accountId: null }).catch((error) => {
+      logJobError('upsertSystemJob', error, { accountId: null, requestId: context.requestId || null });
+      return null;
+    });
+  }
+
+  logger.info('job_run_finished', { job: job.nome || null, jobId: job.id || null, durationMs: Date.now() - startedAt, ...summary });
 
   return { ok: true, ...summary, results };
 }
@@ -321,13 +342,15 @@ export async function runRadarComercialJob(context = {}) {
   };
 }
 
-async function runClienteAutomacaoJob({ context = {}, lockKey, nome, ttlMinutes, nextRunIfProcessedMinutes, nextRunIfEmptyMinutes, action, selectNextCliente, executeCliente, metadataAction }) {
+async function runClienteAutomacaoJob({ context = {}, lockKey, nome, ttlMinutes, nextRunIfProcessedMinutes, nextRunIfEmptyMinutes, action, selectNextCliente, executeCliente, metadataAction, schedulerManaged = false }) {
   const accountId = getAccountIdFromContext(context);
-  const acquired = await acquireSystemJobLock({ lockKey, nome, ttlMinutes, accountId, workerId: context.requestId || 'local' });
+  const startedAt = Date.now();
+  const acquired = schedulerManaged ? { acquired: true, job: null } : await acquireSystemJobLock({ lockKey, nome, ttlMinutes, accountId, workerId: context.requestId || 'local' });
   if (!acquired.acquired) return { ok: true, skipped: true, job: acquired.job };
 
-  const startedAt = Date.now();
-  const job = await upsertSystemJob({ nome, lock_key: lockKey, account_id: accountId, status: 'ativo', last_run_at: isoNow(), next_run_at: nextInMinutes(new Date(), nextRunIfEmptyMinutes) }, { accountId });
+  const job = schedulerManaged
+    ? { id: null, nome, lock_key: lockKey, account_id: accountId, status: 'ativo' }
+    : await upsertSystemJob({ nome, lock_key: lockKey, account_id: accountId, status: 'ativo', last_run_at: isoNow(), next_run_at: nextInMinutes(new Date(), nextRunIfEmptyMinutes) }, { accountId });
   let processedCount = 0;
   let successCount = 0;
   let errorCount = 0;
@@ -358,7 +381,9 @@ async function runClienteAutomacaoJob({ context = {}, lockKey, nome, ttlMinutes,
     const hasItems = processedCount > 0;
     const nextRunAt = hasItems ? nextInMinutes(new Date(), nextRunIfProcessedMinutes) : nextInMinutes(new Date(), nextRunIfEmptyMinutes);
     const runStatus = fatalError ? 'error' : 'success';
-    await recordSystemJobRun({
+    logger.info('job_next_run_updated', { job: nome, accountId, nextRunAt, schedulerManaged });
+    if (!schedulerManaged) {
+      await recordSystemJobRun({
       job_id: job.id,
       account_id: accountId,
       nome: job.nome,
@@ -371,15 +396,16 @@ async function runClienteAutomacaoJob({ context = {}, lockKey, nome, ttlMinutes,
       error_count: errorCount,
       metadata,
       error: fatalError?.message || null
-    }, { accountId }).catch((error) => {
-      logJobError('recordSystemJobRun', error, { accountId, lockKey, requestId: context.requestId || null });
-      return null;
-    });
-    await releaseSystemJobLock(lockKey, { locked_at: null, locked_by: null, next_run_at: nextRunAt }).catch((error) => {
-      logJobError('releaseSystemJobLock', error, { accountId, lockKey, requestId: context.requestId || null });
-      return null;
-    });
-    await upsertSystemJob({ ...job, status: 'ativo', last_success_at: fatalError ? job.last_success_at : isoNow(), last_error: fatalError?.message || null, next_run_at: nextRunAt }, { accountId });
+      }, { accountId }).catch((error) => {
+        logJobError('recordSystemJobRun', error, { accountId, lockKey, requestId: context.requestId || null });
+        return null;
+      });
+      await releaseSystemJobLock(lockKey, { locked_at: null, locked_by: null, next_run_at: nextRunAt }).catch((error) => {
+        logJobError('releaseSystemJobLock', error, { accountId, lockKey, requestId: context.requestId || null });
+        return null;
+      });
+      await upsertSystemJob({ ...job, status: 'ativo', last_success_at: fatalError ? job.last_success_at : isoNow(), last_error: fatalError?.message || null, next_run_at: nextRunAt }, { accountId });
+    }
   }
 
   return { ok: true, processados: processedCount, sucessos: successCount, falhas: errorCount, job };
@@ -416,7 +442,8 @@ export async function runClientesEnriquecimentoJob(context = {}) {
       }
       return { updated, notificationMetadata };
     },
-    metadataAction: (result, cliente) => ({ fonte: result?.updated?.enriquecimento_fonte || cliente?.enriquecimento_fonte || null, ...(result?.notificationMetadata || {}) })
+    metadataAction: (result, cliente) => ({ fonte: result?.updated?.enriquecimento_fonte || cliente?.enriquecimento_fonte || null, ...(result?.notificationMetadata || {}) }),
+    schedulerManaged: Boolean(context?.schedulerManaged)
   });
 }
 
@@ -431,7 +458,8 @@ export async function runClientesGeolocalizacaoJob(context = {}) {
     action: 'geolocalizacao',
     selectNextCliente: (accountId, ctx) => getNextClienteForGeolocation(accountId, ctx),
     executeCliente: (cliente, ctx, accountId) => geolocalizarCliente({ accountId, clienteId: cliente.id, fetchImpl: ctx.fetchImpl, context: ctx }),
-    metadataAction: (result) => ({ status: result?.resultado?.status || null })
+    metadataAction: (result) => ({ status: result?.resultado?.status || null }),
+    schedulerManaged: Boolean(context?.schedulerManaged)
   });
 }
 

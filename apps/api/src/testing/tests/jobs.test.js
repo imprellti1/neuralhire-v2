@@ -417,6 +417,10 @@ export function getJobsTests() {
           const perTenantRuns = dump.runs.filter((run) => run.nome === 'clientes_enriquecimento_automatico' && ['acc-tenant-1', 'acc-tenant-2'].includes(run.account_id));
           assert.equal(perTenantRuns.length >= 2, true);
           assert.equal(perTenantRuns.every((run) => run.account_id), true);
+          const globalJob = dump.jobs.find((item) => item.nome === 'clientes_enriquecimento_automatico' && item.account_id === null);
+          assert.equal(Boolean(globalJob?.next_run_at), true);
+          assert.equal(Boolean(globalJob?.last_run_at), true);
+          assert.equal(Boolean(globalJob?.last_success_at), true);
         } finally {
           globalThis.fetch = previousFetch;
         }
