@@ -73,6 +73,20 @@ function getClienteActiveFlag(cliente = {}) {
   return cliente.ativo !== false;
 }
 
+function logRadarSupabaseError(stage, error, details = {}) {
+  console.error('[clientes.radar.service] supabase_error', {
+    stage,
+    message: error?.message || null,
+    code: error?.code || null,
+    details: error?.details || null,
+    hint: error?.hint || null,
+    requestId: details.requestId || null,
+    account_id: details.accountId || null,
+    filtros: details.filtros || null,
+    query: details.query || null
+  });
+}
+
 function chunkArray(items = [], size = 25) {
   const chunks = [];
   for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
@@ -121,23 +135,36 @@ function applyFilters(clientes = [], filters = {}) {
   });
 }
 
-async function fetchRadarClientes(accountId, supabase, filtros = {}) {
+async function fetchRadarClientes(accountId, supabase, filtros = {}, options = {}) {
   const mode = getClientesRepositoryMode().mode;
   if (mode === 'supabase') {
     const client = supabase || resolveSupabaseClient();
     if (!client) throw new DatabaseError('Supabase indisponivel');
-    let query = client
-      .from('clientes')
-      .select('id,nome,razao_social,cidade,estado,cliente_score,cliente_classificacao,segmento_comercial,segmento,vendedor_id,owner_user_id,ultima_compra_em,ultima_compra,account_id,ativo')
-      .eq('account_id', accountId)
-      .neq('ativo', false);
-    if (filtros.vendedor_id) query = query.eq('vendedor_id', filtros.vendedor_id);
-    if (filtros.cidade) query = query.eq('cidade', filtros.cidade);
-    if (filtros.estado) query = query.eq('estado', filtros.estado);
-    if (filtros.segmento) query = query.or(`segmento_comercial.eq.${filtros.segmento},segmento.eq.${filtros.segmento}`);
-    const { data, error } = await query;
-    if (error) throw new DatabaseError('Falha ao listar clientes do radar', { details: error });
-    return data || [];
+    const querySpec = {
+      table: 'clientes',
+      select: 'id,nome,razao_social,cidade,estado,cliente_score,cliente_classificacao,segmento_comercial,segmento,vendedor_id,owner_user_id,ultima_compra_em,ultima_compra,account_id,ativo',
+      filters: { account_id: accountId, ...filtros }
+    };
+    try {
+      let query = client
+        .from('clientes')
+        .select(querySpec.select)
+        .eq('account_id', accountId);
+      if (filtros.vendedor_id) query = query.eq('vendedor_id', filtros.vendedor_id);
+      if (filtros.cidade) query = query.eq('cidade', filtros.cidade);
+      if (filtros.estado) query = query.eq('estado', filtros.estado);
+      if (filtros.segmento) query = query.or(`segmento_comercial.eq.${filtros.segmento},segmento.eq.${filtros.segmento}`);
+      const { data, error } = await query;
+      if (error) {
+        logRadarSupabaseError('fetchRadarClientes', error, { accountId, filtros, query: querySpec, requestId: options.requestId || options.context?.requestId || null });
+        throw new DatabaseError('Falha ao listar clientes do radar', { details: error });
+      }
+      return applyFilters(data || [], filtros);
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logRadarSupabaseError('fetchRadarClientes', error, { accountId, filtros, query: querySpec, requestId: options.requestId || options.context?.requestId || null });
+      throw new DatabaseError('Falha ao listar clientes do radar', { details: { message: error?.message || String(error), code: error?.code || null, details: error?.details || null, hint: error?.hint || null } });
+    }
   }
   return applyFilters(__dumpMemoryClientes().filter((item) => item.account_id === accountId), filtros);
 }
@@ -199,8 +226,8 @@ function buildGroups(clientes = []) {
   return groups;
 }
 
-async function loadRadarData(accountId) {
-  const clientes = await fetchRadarClientes(accountId, null, {});
+async function loadRadarData(accountId, options = {}) {
+  const clientes = await fetchRadarClientes(accountId, null, {}, options);
   const pedidos = await fetchRadarPedidos(accountId, clientes.map((cliente) => cliente.id));
   const alertas = await fetchRadarAlertas(accountId, clientes.map((cliente) => cliente.id));
   return { clientes, pedidos, alertas };
@@ -209,7 +236,7 @@ async function loadRadarData(accountId) {
 export async function getClientesRadar(options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-  const raw = await loadRadarData(accountId);
+  const raw = await loadRadarData(accountId, options);
   const filteredClientes = applyFilters(raw.clientes || [], options.filters || {});
   const radarClientes = filteredClientes.map((cliente) => buildClienteRadar(cliente, raw.pedidos || [], raw.alertas || []));
   const grupos = buildGroups(radarClientes);
@@ -245,7 +272,7 @@ export async function recalcularRadarComercial({ supabase, context, accountId, f
   assertAccountId(accountId);
   const iniciadoEm = new Date().toISOString();
   const start = Date.now();
-  const clientes = await fetchRadarClientes(accountId, supabase, filtros);
+  const clientes = await fetchRadarClientes(accountId, supabase, filtros, { context, requestId: context?.requestId || null });
   const clienteChunks = chunkArray(clientes, Math.max(1, Math.min(50, Number(chunkSize) || 25)));
   const detalhesFalhas = [];
   let processados = 0;
