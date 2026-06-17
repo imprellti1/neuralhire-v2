@@ -2,6 +2,7 @@ import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { NotFoundError, ValidationError } from '../../core/errors.js';
 import { applyOwnerFilter, canAccessAllTenantData } from '../../core/commercial-scope.js';
 import { calcularScoreComercialCliente, createCliente, enrichClienteByCnpj, geolocalizarCliente, getClienteById, getClientesRepositoryMode, listClientes, updateCliente } from './clientes.repository.js';
+import { recalcularSegmentacaoCliente } from './clientes.segmentacao.service.js';
 import { gerarAlertasCliente, listAlertasCliente, resolverAlertaCliente } from './clientes.alerts.service.js';
 import { listarTimelineCliente, registrarEventoTimeline } from './clientes.timeline.service.js';
 import { recordAuditLog } from '../../core/audit-logs.js';
@@ -198,6 +199,29 @@ export async function calcularScoreClienteHandler(context = {}) {
       descricao: 'O score comercial do cliente foi recalculado.',
       referencia_id: id,
       metadata: { cliente_id: id, score: result?.score?.score ?? result?.cliente?.cliente_score ?? null }
+    }, { accountId, clienteId: id });
+    return { ok: true, repositoryMode: getClientesRepositoryMode(), ...result };
+  } catch (error) {
+    if (error?.code === 'OWNER_SCOPE_FORBIDDEN' || error?.code === 'VENDEDOR_SCOPE_FORBIDDEN') {
+      throw new NotFoundError('Cliente nao encontrado', { code: 'CLIENTE_NOT_FOUND', domain: 'clientes-crm' });
+    }
+    throw error;
+  }
+}
+
+export async function calcularSegmentacaoClienteHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const id = String(context?.params?.id || '').trim();
+  if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
+  try {
+    const result = await recalcularSegmentacaoCliente(id, { accountId, context });
+    await registrarEventoTimelineComLog(context, {
+      tipo: 'segmentacao_atualizada',
+      categoria: 'segmentacao',
+      titulo: 'Segmentação atualizada',
+      descricao: `Cliente classificado como ${result?.segmentacao?.segmento || 'INATIVO'}`,
+      referencia_id: id,
+      metadata: { cliente_id: id, segmento: result?.segmentacao?.segmento || null }
     }, { accountId, clienteId: id });
     return { ok: true, repositoryMode: getClientesRepositoryMode(), ...result };
   } catch (error) {

@@ -678,6 +678,66 @@ test('cliente details mostra score comercial e executa calculo manual', async ()
   teardownFrontendDom(dom);
 });
 
+test('cliente details mostra segmentacao comercial e executa calculo manual', async () => {
+  const dom = setupFrontendDom('#/clientes/c1');
+  const root = document.getElementById('root');
+  const calls = [];
+  const apiClient = {
+    get: async (url, params = {}) => {
+      calls.push({ method: 'GET', url, params });
+      if (url === '/clientes/c1') {
+        return {
+          item: {
+            id: 'c1',
+            empresa: 'Cliente Segmentação',
+            cidade: 'São Paulo',
+            estado: 'SP',
+            created_at: '2026-05-01T00:00:00.000Z',
+            status: 'ativo',
+            segmento_comercial: 'VIP',
+            segmento_ultima_atualizacao: '2026-06-17T10:00:00.000Z',
+            segmento_motivos: ['Score A', 'Alto faturamento', 'Alta recorrência']
+          }
+        };
+      }
+      if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
+      return { items: [] };
+    },
+    post: async (url) => {
+      calls.push({ method: 'POST', url });
+      if (url === '/clientes/c1/calcular-segmentacao') {
+        return {
+          cliente: {
+            id: 'c1',
+            segmento_comercial: 'RECORRENTE',
+            segmento_ultima_atualizacao: '2026-06-17T11:00:00.000Z',
+            segmento_motivos: ['Compra frequente', 'Relacionamento ativo']
+          },
+          segmentacao: { segmento: 'RECORRENTE', motivos: ['Compra frequente', 'Relacionamento ativo'] }
+        };
+      }
+      throw new Error('unexpected post');
+    }
+  };
+
+  renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
+  await flush();
+  await flush();
+
+  assert.match(root.textContent, /Segmentação Comercial/);
+  assert.match(root.textContent, /VIP/);
+
+  root.querySelector('#nho2d-segmentacao')?.click();
+  await flush();
+  await flush();
+
+  assert.match(root.textContent, /Segmentação atualizada para RECORRENTE/);
+  assert.match(root.textContent, /RECORRENTE/);
+  assert.ok(calls.some((call) => call.method === 'POST' && call.url === '/clientes/c1/calcular-segmentacao'));
+
+  teardownFrontendDom(dom);
+});
+
 test('cliente details mostra alertas comerciais, gera e resolve sem reload', async () => {
   const dom = setupFrontendDom('#/clientes/c1');
   const root = document.getElementById('root');

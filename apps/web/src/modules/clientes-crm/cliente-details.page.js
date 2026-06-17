@@ -1,5 +1,5 @@
 import { createClienteDetailsState } from './cliente-details.state.js';
-import { calcularScoreCliente, enriquecerCliente, fetchAlertasCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, gerarAlertasCliente, geolocalizarCliente, resolverAlertaCliente } from './cliente-details.service.js';
+import { calcularScoreCliente, calcularSegmentacaoCliente, enriquecerCliente, fetchAlertasCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, gerarAlertasCliente, geolocalizarCliente, resolverAlertaCliente } from './cliente-details.service.js';
 import { fetchClienteTimeline } from './cliente-timeline.service.js';
 
 function fmtCurrency(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
@@ -233,6 +233,20 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     return '•';
   }
 
+  function getSegmentBadge(segmento) {
+    const value = String(segmento || '').toUpperCase();
+    const map = {
+      VIP: 'background:#e8f9ef;color:#19723b;border-color:#bfeccc',
+      RECORRENTE: 'background:#e8f1ff;color:#2450b8;border-color:#c8dafc',
+      POTENCIAL: 'background:#f2eafe;color:#6f35c7;border-color:#dcc6fb',
+      RECUPERACAO: 'background:#fff2e7;color:#c96a10;border-color:#f8d0ae',
+      EM_RISCO: 'background:#ffe8e8;color:#bb1f1f;border-color:#f6bcbc',
+      NOVO: 'background:#e7fbfb;color:#0f7f84;border-color:#bceff0',
+      INATIVO: 'background:#eef1f5;color:#667085;border-color:#d7dee8'
+    };
+    return map[value] || map.INATIVO;
+  }
+
   function safeValue(value) {
     const text = String(value || '').trim();
     return text || 'Não informado';
@@ -273,6 +287,8 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     const score = Number(d?.cliente_score);
     const scoreClassificacao = safeValue(d?.cliente_classificacao);
     const scorePotencial = safeValue(d?.cliente_potencial);
+    const segmento = safeValue(d?.segmento_comercial || 'INATIVO');
+    const segmentoMotivos = Array.isArray(d?.segmento_motivos) ? d.segmento_motivos : [];
     const scoreFatores = d?.cliente_score_fatores && typeof d.cliente_score_fatores === 'object' ? d.cliente_score_fatores : {};
     const scoreFactorsList = [
       ['Faturamento total', fmtCurrency(scoreFatores.faturamento_total)],
@@ -322,6 +338,23 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
             <div class="nho2d-kpi-grid">
               ${fields.slice(0, 4).map(([label, value]) => `<div class="nho2d-kpi"><div class="nho2d-kpi-label">${label}</div><div class="nho2d-kpi-value">${value}</div></div>`).join('')}
             </div>
+          </article>
+          <article class="nho2d-card">
+            <div class="nho2d-header" style="margin-bottom:12px">
+              <div>
+                <h3 style="margin:0 0 4px">Segmentação Comercial</h3>
+                <div class="nho2d-sub">Camada estratégica acima do score comercial para priorização da equipe.</div>
+              </div>
+              <button id="nho2d-segmentacao" class="nho2-btn" ${scoreLoading ? 'disabled' : ''}>${scoreLoading ? 'Calculando...' : 'Calcular Segmentação'}</button>
+            </div>
+            <dl class="nho2d-dl">
+              <dt class="nho2d-dt">Segmento</dt>
+              <dd class="nho2d-dd"><span class="nho2-badge" style="${getSegmentBadge(segmento)}">${segmento}</span></dd>
+              <dt class="nho2d-dt">Última atualização</dt>
+              <dd class="nho2d-dd">${formatDateFriendly(d?.segmento_ultima_atualizacao)}</dd>
+              <dt class="nho2d-dt">Motivos</dt>
+              <dd class="nho2d-dd">${segmentoMotivos.length ? `<ul style="margin:0;padding-left:18px">${segmentoMotivos.map((motivo) => `<li>${safeText(motivo, '')}</li>`).join('')}</ul>` : 'Sem motivos registrados.'}</dd>
+            </dl>
           </article>
           <article class="nho2d-card nho2d-alert-card">
             <div class="nho2d-header" style="margin-bottom:0">
@@ -744,6 +777,26 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
           feedbackMessage = 'Score comercial calculado com sucesso.';
         } catch (error) {
           feedbackMessage = error?.message || 'Falha ao calcular score comercial.';
+        } finally {
+          scoreLoading = false;
+          render();
+        }
+      };
+    }
+    const segmentacaoBtn = root.querySelector('#nho2d-segmentacao');
+    if (segmentacaoBtn) {
+      segmentacaoBtn.onclick = async () => {
+        scoreLoading = true;
+        feedbackMessage = 'Calculando segmentação comercial...';
+        render();
+        try {
+          const response = await calcularSegmentacaoCliente(apiClient, clienteId);
+          state.data = response?.cliente ? { ...state.data, ...response.cliente } : state.data;
+          const timeline = await fetchClienteTimeline(apiClient, clienteId).catch(() => ({ items: [] }));
+          state.data = { ...state.data, timeline: Array.isArray(timeline?.items) ? timeline.items : [] };
+          feedbackMessage = `Segmentação atualizada para ${response?.segmentacao?.segmento || state.data?.segmento_comercial || 'INATIVO'}.`;
+        } catch (error) {
+          feedbackMessage = error?.message || 'Falha ao calcular segmentação comercial.';
         } finally {
           scoreLoading = false;
           render();

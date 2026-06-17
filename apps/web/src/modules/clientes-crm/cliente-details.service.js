@@ -31,6 +31,10 @@ export async function calcularScoreCliente(apiClient, clienteId) {
   return apiClient.post(`/clientes/${clienteId}/calcular-score`);
 }
 
+export async function calcularSegmentacaoCliente(apiClient, clienteId) {
+  return apiClient.post(`/clientes/${clienteId}/calcular-segmentacao`);
+}
+
 export async function gerarAlertasCliente(apiClient, clienteId) {
   return apiClient.post(`/clientes/${clienteId}/gerar-alertas`);
 }
