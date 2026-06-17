@@ -1,7 +1,7 @@
 import { ForbiddenError } from '../../core/errors.js';
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { logger } from '../../core/logger.js';
-import { listJobsOverview, runClientesEnriquecimentoJob, runClientesGeolocalizacaoJob, runRadarComercialJob } from './jobs.scheduler.js';
+import { listJobsOverview, runClientesEnriquecimentoJob, runClientesGeolocalizacaoJob, runNotificacoesResumoSemanalJob, runRadarComercialJob } from './jobs.scheduler.js';
 
 function assertJobAdmin(context) {
   const role = String(context?.auth?.role || '').toLowerCase();
@@ -71,6 +71,26 @@ export async function runClientesGeolocalizacaoAdmin(context = {}) {
     .catch((error) => {
       logger.error({
         message: 'Falha na execução assíncrona do job de geolocalização automático',
+        error: error?.message || String(error),
+        requestId,
+        account_id: accountId
+      });
+    });
+
+  return { success: true, message: 'Job iniciado', status: 'running' };
+}
+
+export async function runNotificacoesResumoSemanalAdmin(context = {}) {
+  assertJobAdmin(context);
+  const accountId = getAccountIdFromContext(context);
+  const workerId = context?.requestId || 'local';
+  const requestId = context?.requestId || null;
+
+  void Promise.resolve()
+    .then(() => runNotificacoesResumoSemanalJob({ ...context, accountId, workerId, requestId }))
+    .catch((error) => {
+      logger.error({
+        message: 'Falha na execução assíncrona do job de notificações resumo semanal',
         error: error?.message || String(error),
         requestId,
         account_id: accountId

@@ -1,6 +1,6 @@
 import { asyncHandler } from '../../core/async-handler.js';
 import { sendJson, sendSuccess } from '../../core/response.js';
-import { getJobsAdmin, runClientesEnriquecimentoAdmin, runClientesGeolocalizacaoAdmin, runRadarComercialAdmin } from './jobs.controller.js';
+import { getJobsAdmin, runClientesEnriquecimentoAdmin, runClientesGeolocalizacaoAdmin, runNotificacoesResumoSemanalAdmin, runRadarComercialAdmin } from './jobs.controller.js';
 
 export function registerJobsRoutes(router) {
   router.registerRoute({ method: 'GET', path: '/jobs', domain: 'system-jobs', handler: asyncHandler(async (req, res, context) => sendSuccess(res, await getJobsAdmin(context))) });
@@ -21,5 +21,11 @@ export function registerJobsRoutes(router) {
     path: '/jobs/clientes-geolocalizacao/run',
     domain: 'system-jobs',
     handler: asyncHandler(async (req, res, context) => sendJson(res, 202, await runClientesGeolocalizacaoAdmin(context)))
+  });
+  router.registerRoute({
+    method: 'POST',
+    path: '/jobs/notificacoes-resumo-semanal/run',
+    domain: 'system-jobs',
+    handler: asyncHandler(async (req, res, context) => sendJson(res, 202, await runNotificacoesResumoSemanalAdmin(context)))
   });
 }

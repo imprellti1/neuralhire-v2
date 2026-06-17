@@ -146,6 +146,146 @@ export function getJobsTests() {
       }
     },
     {
+      name: 'POST /jobs/notificacoes-resumo-semanal/run responde 202, cria run e envia e-mail quando configurado',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryClientesForTests();
+        const previousEmail = process.env.JOB_NOTIFICATIONS_EMAIL;
+        process.env.JOB_NOTIFICATIONS_EMAIL = 'alerts@neuralhire.test';
+        try {
+          const app = createApiApp();
+          await createCliente({ nome: 'Cliente 1', documento: '12345678000190', situacao_cadastral: 'Inativa', latitude: null, longitude: null }, { accountId: 'acc-notify' });
+          const out = await call(app, { method: 'POST', url: '/jobs/notificacoes-resumo-semanal/run', role: 'admin', accountId: 'acc-notify' });
+          assert.equal(out.res.statusCode, 202);
+          assert.equal(out.body.success, true);
+
+          let dump = __dumpSystemJobsForTests();
+          for (let attempt = 0; attempt < 40 && dump.runs.length === 0; attempt += 1) {
+            await wait(25);
+            dump = __dumpSystemJobsForTests();
+          }
+
+          const run = dump.runs.find((item) => item.nome === 'notificacoes_resumo_semanal');
+          assert.ok(run);
+          assert.equal(run.metadata.notification.type, 'weekly_summary');
+          assert.equal(run.metadata.notification.sent, true);
+          assert.equal(run.metadata.notification.to, 'alerts@neuralhire.test');
+          assert.equal(typeof run.metadata.notification.periodStart === 'string', true);
+          assert.equal(typeof run.metadata.notification.periodEnd === 'string', true);
+        } finally {
+          process.env.JOB_NOTIFICATIONS_EMAIL = previousEmail;
+        }
+      }
+    },
+    {
+      name: 'POST /jobs/notificacoes-resumo-semanal/run não falha sem destinatário e registra skip',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryClientesForTests();
+        const previousEmail = process.env.JOB_NOTIFICATIONS_EMAIL;
+        delete process.env.JOB_NOTIFICATIONS_EMAIL;
+        try {
+          const app = createApiApp();
+          await createCliente({ nome: 'Cliente 1', documento: '12345678000190' }, { accountId: 'acc-notify-skip' });
+          const out = await call(app, { method: 'POST', url: '/jobs/notificacoes-resumo-semanal/run', role: 'admin', accountId: 'acc-notify-skip' });
+          assert.equal(out.res.statusCode, 202);
+          let dump = __dumpSystemJobsForTests();
+          for (let attempt = 0; attempt < 40 && dump.runs.length === 0; attempt += 1) {
+            await wait(25);
+            dump = __dumpSystemJobsForTests();
+          }
+          const run = dump.runs.find((item) => item.nome === 'notificacoes_resumo_semanal');
+          assert.ok(run);
+          assert.equal(run.metadata.notification.sent, false);
+          assert.equal(run.metadata.notification_skipped, true);
+        } finally {
+          process.env.JOB_NOTIFICATIONS_EMAIL = previousEmail;
+        }
+      }
+    },
+    {
+      name: 'alerta imediato dispara apenas quando situação cadastral não está ativa',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryClientesForTests();
+        const previousEmail = process.env.JOB_NOTIFICATIONS_EMAIL;
+        process.env.JOB_NOTIFICATIONS_EMAIL = 'alerts@neuralhire.test';
+        const previousFetch = globalThis.fetch;
+        globalThis.fetch = async (url) => {
+          if (String(url).includes('brasilapi.com.br')) {
+            return {
+              ok: true,
+              status: 200,
+              headers: { get: () => 'application/json' },
+              text: async () => JSON.stringify({ razao_social: 'Cliente 1 LTDA', descricao_situacao_cadastral: 'Inativa' }),
+              json: async () => ({ razao_social: 'Cliente 1 LTDA', descricao_situacao_cadastral: 'Inativa' })
+            };
+          }
+          throw new Error(`fetch inesperado ${url}`);
+        };
+        try {
+          const app = createApiApp();
+          const cliente = await createCliente({ nome: 'Cliente 1', documento: '12345678000190' }, { accountId: 'acc-alert' });
+          const out = await call(app, { method: 'POST', url: '/jobs/clientes-enriquecimento/run', role: 'admin', accountId: 'acc-alert' });
+          assert.equal(out.res.statusCode, 202);
+          let dump = __dumpSystemJobsForTests();
+          for (let attempt = 0; attempt < 40 && dump.runs.length === 0; attempt += 1) {
+            await wait(25);
+            dump = __dumpSystemJobsForTests();
+          }
+          const run = dump.runs.find((item) => item.nome === 'clientes_enriquecimento_automatico');
+          assert.ok(run);
+          assert.equal(run.metadata.notification.type, 'situacao_cadastral_alert');
+          assert.equal(run.metadata.notification.sent, true);
+          assert.equal(run.metadata.notification.to, 'alerts@neuralhire.test');
+          assert.equal(run.metadata.notification.cliente_id, cliente.id);
+        } finally {
+          process.env.JOB_NOTIFICATIONS_EMAIL = previousEmail;
+          globalThis.fetch = previousFetch;
+        }
+      }
+    },
+    {
+      name: 'alerta imediato não envia para ATIVA e falha de e-mail não derruba o job principal',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryClientesForTests();
+        const previousEmail = process.env.JOB_NOTIFICATIONS_EMAIL;
+        process.env.JOB_NOTIFICATIONS_EMAIL = 'alerts@neuralhire.test';
+        const previousFetch = globalThis.fetch;
+        globalThis.fetch = async (url) => {
+          if (String(url).includes('brasilapi.com.br')) {
+            return {
+              ok: true,
+              status: 200,
+              headers: { get: () => 'application/json' },
+              text: async () => JSON.stringify({ razao_social: 'Cliente 1 LTDA', descricao_situacao_cadastral: 'ATIVA' }),
+              json: async () => ({ razao_social: 'Cliente 1 LTDA', descricao_situacao_cadastral: 'ATIVA' })
+            };
+          }
+          throw new Error(`fetch inesperado ${url}`);
+        };
+        try {
+          const app = createApiApp();
+          await createCliente({ nome: 'Cliente 1', documento: '12345678000190' }, { accountId: 'acc-ativa' });
+          const out = await call(app, { method: 'POST', url: '/jobs/clientes-enriquecimento/run', role: 'admin', accountId: 'acc-ativa' });
+          assert.equal(out.res.statusCode, 202);
+          let dump = __dumpSystemJobsForTests();
+          for (let attempt = 0; attempt < 40 && dump.runs.length === 0; attempt += 1) {
+            await wait(25);
+            dump = __dumpSystemJobsForTests();
+          }
+          const run = dump.runs.find((item) => item.nome === 'clientes_enriquecimento_automatico');
+          assert.ok(run);
+          assert.equal(run.metadata.notification?.sent, false);
+          assert.equal(run.metadata.notification?.type, 'situacao_cadastral_alert');
+        } finally {
+          process.env.JOB_NOTIFICATIONS_EMAIL = previousEmail;
+          globalThis.fetch = previousFetch;
+        }
+      }
+    },
+    {
       name: 'empty queue não falha e agenda próxima execução em 1 hora',
       run: async () => {
         __resetSystemJobsForTests();

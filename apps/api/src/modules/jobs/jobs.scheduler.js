@@ -5,7 +5,8 @@ import { gerarAlertasCliente } from '../clientes/clientes.alerts.service.js';
 import { recalcularSegmentacaoCliente } from '../clientes/clientes.segmentacao.service.js';
 import { registrarEventoTimeline } from '../clientes/clientes.timeline.service.js';
 import { calcularScoreComercialCliente } from '../clientes/clientes.repository.js';
-import { acquireSystemJobLock, listSystemJobs, recordSystemJobRun, releaseSystemJobLock, upsertSystemJob } from './jobs.repository.js';
+import { acquireSystemJobLock, listSystemJobRuns, listSystemJobs, recordSystemJobRun, releaseSystemJobLock, upsertSystemJob } from './jobs.repository.js';
+import { resolveJobNotificationRecipient, sendJobNotificationEmail } from '../notifications/notifications.email.service.js';
 
 function isoNow() {
   return new Date().toISOString();
@@ -40,6 +41,58 @@ function logJobError(stage, error, details = {}) {
     account_id: details.accountId || null,
     lockKey: details.lockKey || null
   });
+}
+
+function normalizeSituacaoCadastral(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
+function isSituacaoAtiva(value) {
+  return normalizeSituacaoCadastral(value) === 'ATIVA';
+}
+
+function formatJobTextSummary(summary) {
+  return [
+    `Clientes enriquecidos: ${summary.clientes_enriquecidos}`,
+    `Clientes geolocalizados: ${summary.clientes_geolocalizados}`,
+    `Erros de enriquecimento: ${summary.erros_enriquecimento}`,
+    `Erros de geolocalização: ${summary.erros_geolocalizacao}`,
+    `Clientes com situação cadastral diferente de ATIVA: ${summary.clientes_situacao_irregular}`,
+    `Fila restante de enriquecimento: ${summary.fila_enriquecimento_restante}`,
+    `Fila restante de geolocalização: ${summary.fila_geolocalizacao_restante}`
+  ].join('\n');
+}
+
+async function sendWeeklySummaryNotification({ accountId, summary, periodStart, periodEnd, jobRunId }) {
+  const to = resolveJobNotificationRecipient();
+  if (!to) {
+    return { sent: false, skipped: true, reason: 'recipient_missing' };
+  }
+  const subject = `NeuralHire | Resumo operacional semanal`;
+  const text = `${formatJobTextSummary(summary)}\n\nPeríodo: ${periodStart} até ${periodEnd}`;
+  const html = `<div><h2>Resumo operacional semanal</h2><pre style="font-family:inherit;white-space:pre-wrap">${formatJobTextSummary(summary)}</pre><p><strong>Período:</strong> ${periodStart} até ${periodEnd}</p></div>`;
+  return sendJobNotificationEmail({ to, subject, html, text, metadata: { accountId, jobRunId, type: 'weekly_summary', periodStart, periodEnd } });
+}
+
+async function sendSituacaoCadastralAlert({ accountId, cliente, situacaoCadastral, enrichedAt, jobRunId }) {
+  const to = resolveJobNotificationRecipient();
+  if (!to) {
+    return { sent: false, skipped: true, reason: 'recipient_missing' };
+  }
+  const clienteNome = cliente?.nome || cliente?.razao_social || 'Cliente';
+  const documento = cliente?.documento || cliente?.cnpj || '-';
+  const cliente360Link = cliente?.id ? `#/clientes/${cliente.id}` : null;
+  const subject = `NeuralHire | Alerta de situação cadastral: ${clienteNome}`;
+  const text = [
+    `Cliente: ${clienteNome}`,
+    `Documento: ${documento}`,
+    `Situação cadastral: ${situacaoCadastral}`,
+    `Enriquecido em: ${enrichedAt}`,
+    cliente360Link ? `Cliente 360: ${cliente360Link}` : null,
+    'Recomendação: revisar cadastro antes de nova ação comercial.'
+  ].filter(Boolean).join('\n');
+  const html = `<div><h2>Alerta de situação cadastral</h2><ul><li><strong>Cliente:</strong> ${clienteNome}</li><li><strong>Documento:</strong> ${documento}</li><li><strong>Situação cadastral:</strong> ${situacaoCadastral}</li><li><strong>Enriquecido em:</strong> ${enrichedAt}</li>${cliente360Link ? `<li><strong>Cliente 360:</strong> <a href="${cliente360Link}">${cliente360Link}</a></li>` : ''}</ul><p>Recomendação: revisar cadastro antes de nova ação comercial.</p></div>`;
+  return sendJobNotificationEmail({ to, subject, html, text, metadata: { accountId, jobRunId, type: 'situacao_cadastral_alert', cliente_id: cliente?.id || null, situacao_cadastral: situacaoCadastral } });
 }
 
 async function recalculateRadarClient(cliente, context, accountId) {
@@ -223,8 +276,28 @@ export async function runClientesEnriquecimentoJob(context = {}) {
     nextRunIfEmptyMinutes: 60,
     action: 'enriquecimento',
     selectNextCliente: (accountId) => getNextClienteForEnrichment(accountId),
-    executeCliente: (cliente, ctx, accountId) => enrichClienteByCnpj(cliente.id, { accountId, context: ctx, fetchImpl: ctx.fetchImpl }),
-    metadataAction: (result, cliente) => ({ fonte: result?.enriquecimento_fonte || cliente?.enriquecimento_fonte || null })
+    executeCliente: async (cliente, ctx, accountId) => {
+      const enrichedAt = new Date().toISOString();
+      const updated = await enrichClienteByCnpj(cliente.id, { accountId, context: ctx, fetchImpl: ctx.fetchImpl });
+      const situacaoCadastral = normalizeSituacaoCadastral(updated?.situacao_cadastral);
+      const notificationMetadata = { notification: { type: 'situacao_cadastral_alert', sent: false, skipped: true, to: null, cliente_id: cliente.id, situacao_cadastral: situacaoCadastral || null, reason: 'situacao_cadastral_ativa' } };
+      if (situacaoCadastral && !isSituacaoAtiva(situacaoCadastral)) {
+        try {
+          const sent = await sendSituacaoCadastralAlert({ accountId, cliente: updated || cliente, situacaoCadastral, enrichedAt, jobRunId: null });
+          notificationMetadata.notification.sent = Boolean(sent?.sent);
+          notificationMetadata.notification.skipped = Boolean(sent?.skipped);
+          notificationMetadata.notification.to = sent?.to || null;
+          delete notificationMetadata.notification.reason;
+        } catch (error) {
+          notificationMetadata.notification.sent = false;
+          notificationMetadata.notification.skipped = false;
+          notificationMetadata.notification.error = error?.message || String(error);
+          console.error('[jobs.scheduler] notification_error', { type: 'situacao_cadastral_alert', account_id: accountId, cliente_id: cliente.id, message: error?.message || String(error) });
+        }
+      }
+      return { updated, notificationMetadata };
+    },
+    metadataAction: (result, cliente) => ({ fonte: result?.updated?.enriquecimento_fonte || cliente?.enriquecimento_fonte || null, ...(result?.notificationMetadata || {}) })
   });
 }
 
@@ -241,6 +314,104 @@ export async function runClientesGeolocalizacaoJob(context = {}) {
     executeCliente: (cliente, ctx, accountId) => geolocalizarCliente({ accountId, clienteId: cliente.id, fetchImpl: ctx.fetchImpl, context: ctx }),
     metadataAction: (result) => ({ status: result?.resultado?.status || null })
   });
+}
+
+function countQueueRemainingByCandidates(items = [], kind = 'enrichment') {
+  return (Array.isArray(items) ? items : []).filter((cliente) => {
+    const hasDocumento = Boolean(String(cliente?.documento || '').trim());
+    if (!hasDocumento) return false;
+    if (kind === 'geolocation') {
+      return !Number.isFinite(Number(cliente.latitude)) || !Number.isFinite(Number(cliente.longitude));
+    }
+    return true;
+  }).length;
+}
+
+export async function runNotificacoesResumoSemanalJob(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const lockKey = `${accountId}:notificacoes:resumo-semanal`;
+  const acquired = await acquireSystemJobLock({ lockKey, nome: 'notificacoes_resumo_semanal', ttlMinutes: 30, accountId, workerId: context.requestId || 'local' });
+  if (!acquired.acquired) return { ok: true, skipped: true, job: acquired.job };
+
+  const startedAt = Date.now();
+  const job = await upsertSystemJob({ nome: 'notificacoes_resumo_semanal', lock_key: lockKey, account_id: accountId, status: 'running', last_run_at: isoNow(), next_run_at: nextInMinutes(new Date(), 60 * 24 * 7) }, { accountId });
+  const periodEndDate = new Date();
+  const periodStartDate = new Date(periodEndDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const periodStart = periodStartDate.toISOString();
+  const periodEnd = periodEndDate.toISOString();
+  const baseNotification = { type: 'weekly_summary', sent: false, skipped: false, to: null, periodStart, periodEnd };
+  let metadata = { notification: { ...baseNotification } };
+
+  try {
+    const [runsResult, clientesResult] = await Promise.all([
+      listSystemJobRuns(accountId, { startedAfter: periodStart }),
+      listClientes({ page: 1, limit: 5000, ativo: true }, { accountId, context })
+    ]);
+    const runs = Array.isArray(runsResult) ? runsResult : [];
+    const clientes = Array.isArray(clientesResult?.items) ? clientesResult.items : [];
+    const summary = {
+      clientes_enriquecidos: runs.filter((run) => run.nome === 'clientes_enriquecimento_automatico' && Number(run.success_count || 0) > 0).length,
+      clientes_geolocalizados: runs.filter((run) => run.nome === 'clientes_geolocalizacao_automatico' && Number(run.success_count || 0) > 0).length,
+      erros_enriquecimento: runs.filter((run) => run.nome === 'clientes_enriquecimento_automatico' && Number(run.error_count || 0) > 0).length,
+      erros_geolocalizacao: runs.filter((run) => run.nome === 'clientes_geolocalizacao_automatico' && Number(run.error_count || 0) > 0).length,
+      clientes_situacao_irregular: clientes.filter((cliente) => cliente?.situacao_cadastral && !isSituacaoAtiva(cliente.situacao_cadastral)).length,
+      fila_enriquecimento_restante: countQueueRemainingByCandidates(clientes, 'enrichment'),
+      fila_geolocalizacao_restante: countQueueRemainingByCandidates(clientes, 'geolocation')
+    };
+
+    try {
+      const sent = await sendWeeklySummaryNotification({ accountId, summary, periodStart, periodEnd, jobRunId: null });
+      metadata.notification = { ...metadata.notification, sent: Boolean(sent?.sent), skipped: Boolean(sent?.skipped), to: sent?.to || null };
+      if (sent?.reason === 'recipient_missing') metadata.notification_skipped = true;
+    } catch (error) {
+      metadata.notification.sent = false;
+      metadata.notification.error = error?.message || String(error);
+      console.error('[jobs.scheduler] notification_error', { type: 'weekly_summary', account_id: accountId, message: error?.message || String(error) });
+    }
+
+    await recordSystemJobRun({
+      job_id: job.id,
+      account_id: accountId,
+      nome: job.nome,
+      status: 'success',
+      started_at: new Date(startedAt).toISOString(),
+      finished_at: isoNow(),
+      duration_ms: Date.now() - startedAt,
+      processed_count: 0,
+      success_count: 0,
+      error_count: 0,
+      metadata,
+      error: null
+    }, { accountId }).catch((error) => {
+      logJobError('recordSystemJobRun', error, { accountId, lockKey, requestId: context.requestId || null });
+      return null;
+    });
+
+    await releaseSystemJobLock(lockKey, { status: 'idle', locked_at: null, locked_by: null }).catch((error) => {
+      logJobError('releaseSystemJobLock', error, { accountId, lockKey, requestId: context.requestId || null });
+      return null;
+    });
+    await upsertSystemJob({ ...job, status: 'success', last_success_at: isoNow(), last_error: null, next_run_at: new Date(periodEndDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString() }, { accountId });
+  } catch (error) {
+    await recordSystemJobRun({
+      job_id: job.id,
+      account_id: accountId,
+      nome: job.nome,
+      status: 'error',
+      started_at: new Date(startedAt).toISOString(),
+      finished_at: isoNow(),
+      duration_ms: Date.now() - startedAt,
+      processed_count: 0,
+      success_count: 0,
+      error_count: 1,
+      metadata,
+      error: error?.message || String(error)
+    }, { accountId }).catch(() => null);
+    await releaseSystemJobLock(lockKey, { status: 'idle', locked_at: null, locked_by: null }).catch(() => null);
+    throw error;
+  }
+
+  return { ok: true, job };
 }
 
 export async function listJobsOverview(context = {}) {

@@ -48,7 +48,8 @@ export function getSystemJobDefaults() {
   return [
     { nome: 'radar_comercial_diario', lock_key: 'jobs:radar_comercial_diario', metadata: { cadence: 'daily-0300', ttlMinutes: 120 } },
     { nome: 'clientes_enriquecimento_geolocalizacao', lock_key: 'jobs:clientes_enriquecimento_geolocalizacao', metadata: { cadence: 'adaptive', ttlMinutes: 20 } },
-    { nome: 'clientes_resumo_semanal', lock_key: 'jobs:clientes_resumo_semanal', metadata: { cadence: 'weekly-monday-0800', ttlMinutes: 30 } }
+    { nome: 'clientes_resumo_semanal', lock_key: 'jobs:clientes_resumo_semanal', metadata: { cadence: 'weekly-monday-0800', ttlMinutes: 30 } },
+    { nome: 'notificacoes_resumo_semanal', lock_key: 'notificacoes:resumo-semanal', metadata: { cadence: 'weekly-monday-0800', ttlMinutes: 30 } }
   ];
 }
 
@@ -176,6 +177,23 @@ export async function recordSystemJobRun(payload, options = {}) {
   }
   memoryRuns.push(run);
   return run;
+}
+
+export async function listSystemJobRuns(accountId = null, options = {}) {
+  const supabase = resolveSupabaseClient();
+  if (resolveSupabaseConfigured()) {
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    let query = supabase.from('system_job_runs').select('*').order('started_at', { ascending: false });
+    if (accountId) query = query.eq('account_id', accountId);
+    if (options.nome) query = query.eq('nome', options.nome);
+    if (options.startedAfter) query = query.gte('started_at', options.startedAfter);
+    const { data, error } = await query;
+    if (error) throw new DatabaseError('Falha ao listar execucoes de jobs', { details: error });
+    return data || [];
+  }
+  return memoryRuns
+    .filter((run) => (!accountId || run.account_id === accountId) && (!options.nome || run.nome === options.nome) && (!options.startedAfter || new Date(run.started_at).getTime() >= new Date(options.startedAfter).getTime()))
+    .map((item) => ({ ...item }));
 }
 
 export async function acquireSystemJobLock({ lockKey, nome, ttlMinutes, accountId, workerId }) {

@@ -23,6 +23,7 @@ export const ROUTE_PERMISSIONS = {
   'POST /jobs/radar-comercial/run': { authenticated: true, role: 'admin' },
   'POST /jobs/clientes-enriquecimento/run': { authenticated: true, role: 'admin' },
   'POST /jobs/clientes-geolocalizacao/run': { authenticated: true, role: 'admin' },
+  'POST /jobs/notificacoes-resumo-semanal/run': { authenticated: true, role: 'admin' },
   'POST /jobs/clientes-enriquecimento-geolocalizacao/run': { authenticated: true, role: 'admin' },
   'POST /jobs/clientes-resumo-semanal/run': { authenticated: true, role: 'admin' },
   'GET /fabricantes': { authenticated: true, permission: 'fabricantes:read', tenantRequired: true, domain: 'fabricantes' },
