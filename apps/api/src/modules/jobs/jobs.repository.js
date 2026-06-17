@@ -63,6 +63,44 @@ function resolveMemoryJob(lockKey) {
   return memoryJobs.get(lockKey) || null;
 }
 
+async function ensureSystemJob({ lockKey, nome, accountId = null, metadata = {} }) {
+  assertAccountId(accountId);
+  const jobNome = nome;
+  const jobLockKey = lockKey || `${accountId || 'global'}:${jobNome}`;
+  const baseJob = defaultJob(jobNome, jobLockKey, accountId, metadata);
+
+  if (resolveSupabaseConfigured()) {
+    const supabase = resolveSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+
+    const { data: existing, error: findError } = await supabase
+      .from('system_jobs')
+      .select('*')
+      .eq('nome', jobNome)
+      .maybeSingle();
+
+    if (findError) throw new DatabaseError('Falha ao buscar job', { details: findError });
+
+    const payload = existing
+      ? { ...existing, ...baseJob, id: existing.id, nome: jobNome, lock_key: jobLockKey, account_id: accountId, updated_at: nowIso() }
+      : { ...baseJob };
+
+    const { data, error } = await supabase
+      .from('system_jobs')
+      .upsert(payload, { onConflict: 'nome' })
+      .select('*')
+      .single();
+
+    if (error) throw new DatabaseError('Falha ao persistir job', { details: error });
+    return data;
+  }
+
+  const current = [...memoryJobs.values()].find((job) => job.nome === jobNome && String(job.account_id ?? null) === String(accountId ?? null)) || null;
+  const next = current ? { ...current, ...baseJob, id: current.id, updated_at: nowIso() } : baseJob;
+  memoryJobs.set(jobLockKey, next);
+  return next;
+}
+
 async function listJobsSupabase(accountId = null) {
   const supabase = resolveSupabaseClient();
   if (!supabase) throw new DatabaseError('Supabase indisponivel');
@@ -127,8 +165,6 @@ export async function recordSystemJobRun(payload, options = {}) {
 export async function acquireSystemJobLock({ lockKey, nome, ttlMinutes, accountId, workerId }) {
   assertAccountId(accountId);
   if (resolveSupabaseConfigured()) {
-    const supabase = resolveSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const ttlMs = Math.max(1, Number(ttlMinutes) || 30) * 60000;
     const job = await ensureSystemJob({ lockKey, nome, accountId, metadata: { ttlMinutes } });
     const lockedAt = job?.locked_at ? new Date(job.locked_at) : null;
