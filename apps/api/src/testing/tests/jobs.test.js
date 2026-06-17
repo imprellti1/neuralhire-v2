@@ -9,7 +9,7 @@ import { __resetMemoryTimelineForTests } from '../../modules/clientes/clientes.t
 import { __resetMemoryPedidosForTests, createPedido } from '../../modules/pedidos/pedidos.repository.js';
 import { __resetMemoryProdutosForTests, createProduto } from '../../modules/produtos/produtos.repository.js';
 import { __resetMemoryAiDirectorObservationsForTests, createObservation, listObservations } from '../../modules/ai-director-observations/ai-director-observations.repository.js';
-import { __resetSystemJobsForTests, __dumpSystemJobsForTests, __setSystemJobsSupabaseClientForTests, acquireSystemJobLock, listDueSystemJobs, upsertSystemJob } from '../../modules/jobs/jobs.repository.js';
+import { __resetSystemJobsForTests, __dumpSystemJobsForTests, __setSystemJobsSupabaseClientForTests, acquireSystemJobLock, ensureDefaultSystemJobs, getSystemJobDefaults, listDueSystemJobs, upsertSystemJob } from '../../modules/jobs/jobs.repository.js';
 import { __resetJobsSchedulerForTests, dispatchDueJob, nextDaily0300, runJobsSchedulerTick, startJobsScheduler, stopJobsScheduler } from '../../modules/jobs/jobs.scheduler.js';
 
 function parse(res) {
@@ -174,9 +174,25 @@ export function getJobsTests() {
         assert.equal(out.body.items.some((job) => job.nome === 'clientes_resumo_semanal'), false);
         assert.equal(out.body.items.every((job) => [
           'radar_comercial_diario',
+          'clientes_enriquecimento_automatico',
+          'clientes_geolocalizacao_automatico',
           'notificacoes_resumo_semanal',
           'gerente_comercial_observacao'
         ].includes(job.nome)), true);
+      }
+    },
+    {
+      name: 'bootstrap padrão inclui gerente comercial observacao',
+      run: async () => {
+        const defaults = getSystemJobDefaults();
+        assert.equal(defaults.some((job) => job.nome === 'gerente_comercial_observacao'), true);
+        __resetSystemJobsForTests();
+        const logs = [];
+        await ensureDefaultSystemJobs(null, { logger: { info: (...args) => logs.push(args) } });
+        const dump = __dumpSystemJobsForTests();
+        assert.equal(dump.jobs.some((job) => job.nome === 'gerente_comercial_observacao'), true);
+        assert.equal(logs.some(([message]) => message === 'system_jobs_bootstrap_started'), true);
+        assert.equal(logs.some(([message]) => message === 'system_jobs_bootstrap_finished'), true);
       }
     },
     {

@@ -4,6 +4,7 @@ import { createApiApp } from './app.js';
 import { env, getEnvSummary } from './config/env.js';
 import { logger } from './core/logger.js';
 import { startJobsScheduler } from './modules/jobs/jobs.scheduler.js';
+import { ensureDefaultSystemJobs } from './modules/jobs/jobs.repository.js';
 
 const app = createApiApp();
 const server = createServer(app);
@@ -22,6 +23,7 @@ process.on('unhandledRejection', (reason) => {
 });
 
 async function bootstrap() {
+  await ensureDefaultSystemJobs(null, { logger });
   server.listen(env.API_PORT, () => {
     logger.info('api_server_started', {
       port: env.API_PORT,

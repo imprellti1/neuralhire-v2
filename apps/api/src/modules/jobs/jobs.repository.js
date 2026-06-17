@@ -52,6 +52,8 @@ function normalizeSystemJobStatus(status) {
 export function getSystemJobDefaults() {
   return [
     { nome: 'radar_comercial_diario', lock_key: 'jobs:radar_comercial_diario', metadata: { cadence: 'daily-0300', ttlMinutes: 120 } },
+    { nome: 'clientes_enriquecimento_automatico', lock_key: 'clientes:enriquecimento:automatico', metadata: { cadence: 'adaptive', ttlMinutes: 30 } },
+    { nome: 'clientes_geolocalizacao_automatico', lock_key: 'clientes:geolocalizacao:automatico', metadata: { cadence: 'adaptive', ttlMinutes: 30 } },
     { nome: 'notificacoes_resumo_semanal', lock_key: 'notificacoes:resumo-semanal', metadata: { cadence: 'weekly-monday-0800', ttlMinutes: 30 } },
     { nome: 'gerente_comercial_observacao', lock_key: 'gerente_comercial_observacao', metadata: { cadence: 'daily-0310', ttlMinutes: 60 } }
   ];
@@ -62,6 +64,43 @@ function seedSystemJobs(accountId = null) {
     const key = `${accountId || 'global'}:${job.lock_key}`;
     if (!memoryJobs.has(key)) memoryJobs.set(key, defaultJob(job.nome, key, accountId, job.metadata));
   }
+}
+
+export async function ensureDefaultSystemJobs(accountId = null, { logger: bootstrapLogger = null } = {}) {
+  const defaults = getSystemJobDefaults();
+  bootstrapLogger?.info?.('system_jobs_bootstrap_started', {
+    account_id: accountId || null,
+    count: defaults.length,
+    jobs: defaults.map((job) => ({ nome: job.nome, lock_key: job.lock_key }))
+  });
+
+  let created = 0;
+  let updated = 0;
+  let skipped = 0;
+
+  for (const job of defaults) {
+    const before = await getSystemJobByLockKey(accountId ? `${accountId}:${job.lock_key}` : job.lock_key);
+    const result = await upsertSystemJob({
+      nome: job.nome,
+      lock_key: accountId ? `${accountId}:${job.lock_key}` : job.lock_key,
+      account_id: accountId,
+      status: 'ativo',
+      metadata: job.metadata
+    }, { accountId });
+    if (!before) created += 1;
+    else if (result?.updated_at && before?.updated_at && result.updated_at !== before.updated_at) updated += 1;
+    else skipped += 1;
+  }
+
+  bootstrapLogger?.info?.('system_jobs_bootstrap_finished', {
+    account_id: accountId || null,
+    created,
+    updated,
+    skipped,
+    total: defaults.length
+  });
+
+  return { ok: true, created, updated, skipped, total: defaults.length };
 }
 
 function resolveMemoryJob(lockKey) {
