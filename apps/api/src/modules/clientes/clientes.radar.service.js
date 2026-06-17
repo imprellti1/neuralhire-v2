@@ -142,7 +142,7 @@ async function fetchRadarClientes(accountId, supabase, filtros = {}, options = {
     if (!client) throw new DatabaseError('Supabase indisponivel');
     const querySpec = {
       table: 'clientes',
-      select: 'id,nome,razao_social,cidade,estado,cliente_score,cliente_classificacao,segmento_comercial,segmento,vendedor_id,owner_user_id,ultima_compra_em,ultima_compra,account_id,ativo',
+      select: 'id,nome,razao_social,cidade,estado,cliente_score,cliente_classificacao,segmento_comercial,vendedor_id,owner_user_id,ultima_compra_em,ultima_compra,account_id,ativo',
       filters: { account_id: accountId, ...filtros }
     };
     try {
@@ -153,7 +153,7 @@ async function fetchRadarClientes(accountId, supabase, filtros = {}, options = {
       if (filtros.vendedor_id) query = query.eq('vendedor_id', filtros.vendedor_id);
       if (filtros.cidade) query = query.eq('cidade', filtros.cidade);
       if (filtros.estado) query = query.eq('estado', filtros.estado);
-      if (filtros.segmento) query = query.or(`segmento_comercial.eq.${filtros.segmento},segmento.eq.${filtros.segmento}`);
+      if (filtros.segmento) query = query.eq('segmento_comercial', filtros.segmento);
       const { data, error } = await query;
       if (error) {
         logRadarSupabaseError('fetchRadarClientes', error, { accountId, filtros, query: querySpec, requestId: options.requestId || options.context?.requestId || null });
