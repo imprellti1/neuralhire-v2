@@ -13,6 +13,40 @@ function parseBoolean(value) {
   return undefined;
 }
 
+async function registrarEventoTimelineComLog(contexto, evento, options) {
+  console.debug('[clientes.controller] timeline_before', {
+    etapa: evento?.categoria || evento?.tipo || null,
+    accountId: options?.accountId || null,
+    clienteId: options?.clienteId || null,
+    tipo: evento?.tipo || null,
+    categoria: evento?.categoria || null
+  });
+  try {
+    const resultado = await registrarEventoTimeline(evento, options);
+    console.debug('[clientes.controller] timeline_after', {
+      etapa: evento?.categoria || evento?.tipo || null,
+      accountId: options?.accountId || null,
+      clienteId: options?.clienteId || null,
+      id: resultado?.id || null,
+      created_at: resultado?.created_at || null
+    });
+    return resultado;
+  } catch (error) {
+    console.error('timeline_error', {
+      message: error?.message || null,
+      code: error?.code || error?.details?.code || null,
+      details: error?.details || null,
+      hint: error?.hint || error?.details?.hint || null,
+      accountId: options?.accountId || null,
+      clienteId: options?.clienteId || null,
+      categoria: evento?.categoria || null,
+      tipo: evento?.tipo || null,
+      titulo: evento?.titulo || null
+    });
+    return null;
+  }
+}
+
 export async function getClientes(context = {}) {
   const query = context.query || {};
   const accountId = getAccountIdFromContext(context);
@@ -51,14 +85,14 @@ export async function createClienteHandler(context) {
   }
 
   const item = await createCliente(body, { accountId, context });
-  await registrarEventoTimeline({
+  await registrarEventoTimelineComLog(context, {
     tipo: 'cliente_cadastrado',
     categoria: 'cadastro',
     titulo: 'Cliente cadastrado',
     descricao: 'Cadastro do cliente concluído.',
     referencia_id: item?.id || null,
     metadata: { cliente_id: item?.id || null, nome: item?.nome || body.nome || null }
-  }, { accountId, clienteId: item?.id || null }).catch(() => null);
+  }, { accountId, clienteId: item?.id || null });
   await recordAuditLog(context, { modulo: 'clientes', entidade: 'cliente', entidade_id: item?.id || null, acao: 'criar', descricao: 'Cliente criado', status: 'success', sucesso: true, metadata: { cliente_id: item?.id || null, nome: item?.nome || body.nome || null } }).catch(() => null);
   return {
     ok: true,
@@ -112,14 +146,14 @@ export async function enrichClienteHandler(context = {}) {
   if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
   try {
     const item = await enrichClienteByCnpj(id, { accountId, context, fetchImpl: context.fetchImpl });
-    await registrarEventoTimeline({
+    await registrarEventoTimelineComLog(context, {
       tipo: 'cliente_enriquecido',
       categoria: 'enriquecimento',
       titulo: 'Enriquecimento concluído',
       descricao: 'Os dados cadastrais do cliente foram enriquecidos com sucesso.',
       referencia_id: id,
       metadata: { cliente_id: id, fonte: 'brasilapi' }
-    }, { accountId, clienteId: id }).catch(() => null);
+    }, { accountId, clienteId: id });
     await recordAuditLog(context, { modulo: 'clientes', entidade: 'cliente', entidade_id: id, acao: 'enriquecer', descricao: 'Cliente enriquecido', status: 'success', sucesso: true, metadata: { cliente_id: id, fonte: 'brasilapi' } }).catch(() => null);
     return { ok: true, repositoryMode: getClientesRepositoryMode(), item };
   } catch (error) {
@@ -134,14 +168,14 @@ export async function geolocalizarClienteHandler(context = {}) {
   if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
   try {
     const result = await geolocalizarCliente({ accountId, clienteId: id, fetchImpl: context.fetchImpl, context });
-    await registrarEventoTimeline({
+    await registrarEventoTimelineComLog(context, {
       tipo: 'cliente_geolocalizado',
       categoria: 'geolocalizacao',
       titulo: 'Cliente geolocalizado',
       descricao: 'A geolocalização do cliente foi atualizada.',
       referencia_id: id,
       metadata: { cliente_id: id, status: result?.resultado?.status || null }
-    }, { accountId, clienteId: id }).catch(() => null);
+    }, { accountId, clienteId: id });
     return { ok: true, repositoryMode: getClientesRepositoryMode(), ...result };
   } catch (error) {
     if (error?.code === 'OWNER_SCOPE_FORBIDDEN' || error?.code === 'VENDEDOR_SCOPE_FORBIDDEN') {
@@ -157,14 +191,14 @@ export async function calcularScoreClienteHandler(context = {}) {
   if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
   try {
     const result = await calcularScoreComercialCliente({ accountId, clienteId: id, context });
-    await registrarEventoTimeline({
+    await registrarEventoTimelineComLog(context, {
       tipo: 'score_atualizado',
       categoria: 'score',
       titulo: 'Score atualizado',
       descricao: 'O score comercial do cliente foi recalculado.',
       referencia_id: id,
       metadata: { cliente_id: id, score: result?.score?.score ?? result?.cliente?.cliente_score ?? null }
-    }, { accountId, clienteId: id }).catch(() => null);
+    }, { accountId, clienteId: id });
     return { ok: true, repositoryMode: getClientesRepositoryMode(), ...result };
   } catch (error) {
     if (error?.code === 'OWNER_SCOPE_FORBIDDEN' || error?.code === 'VENDEDOR_SCOPE_FORBIDDEN') {
@@ -180,14 +214,20 @@ export async function gerarAlertasClienteHandler(context = {}) {
   if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
   const result = await gerarAlertasCliente(id, { accountId, context });
   for (const alerta of Array.isArray(result?.alertas) ? result.alertas : []) {
-    await registrarEventoTimeline({
+    console.debug('[clientes.controller] registrarEventoTimeline alerta_gerado', {
+      accountId,
+      clienteId: id,
+      alertaId: alerta?.id || null,
+      tipo: alerta?.tipo || null
+    });
+    await registrarEventoTimelineComLog(context, {
       tipo: 'alerta_gerado',
       categoria: 'alerta',
       titulo: 'Alerta gerado',
       descricao: alerta?.titulo || 'Alerta comercial gerado.',
       referencia_id: alerta?.id || null,
       metadata: { cliente_id: id, alerta_id: alerta?.id || null, tipo_alerta: alerta?.tipo || null }
-    }, { accountId, clienteId: id }).catch(() => null);
+    }, { accountId, clienteId: id });
   }
   return { ok: true, repositoryMode: getClientesRepositoryMode(), ...result };
 }
@@ -208,14 +248,20 @@ export async function resolverAlertaClienteHandler(context = {}) {
   const alertaId = String(body.id || context?.params?.id || '').trim();
   const status = body.status || 'resolvido';
   const item = await resolverAlertaCliente(alertaId, { accountId, context, status });
-  await registrarEventoTimeline({
+  console.debug('[clientes.controller] registrarEventoTimeline alerta_resolvido', {
+    accountId,
+    clienteId: item?.cliente_id || null,
+    alertaId: item?.id || alertaId,
+    status
+  });
+  await registrarEventoTimelineComLog(context, {
     tipo: status === 'resolvido' ? 'alerta_resolvido' : 'alerta_ignorado',
     categoria: 'alerta',
     titulo: status === 'resolvido' ? 'Alerta resolvido' : 'Alerta ignorado',
     descricao: status === 'resolvido' ? 'O alerta comercial foi resolvido.' : 'O alerta comercial foi ignorado.',
     referencia_id: item?.id || alertaId,
     metadata: { alerta_id: item?.id || alertaId, status }
-  }, { accountId, clienteId: item?.cliente_id || null }).catch(() => null);
+  }, { accountId, clienteId: item?.cliente_id || null });
   return { ok: true, repositoryMode: getClientesRepositoryMode(), item };
 }
 
