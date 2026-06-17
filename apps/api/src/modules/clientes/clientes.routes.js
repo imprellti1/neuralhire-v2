@@ -1,6 +1,6 @@
 import { asyncHandler } from '../../core/async-handler.js';
 import { sendSuccess } from '../../core/response.js';
-import { calcularScoreClienteHandler, createClienteHandler, enrichClienteHandler, geolocalizarClienteHandler, getClienteByIdHandler, getClientes, updateClienteHandler } from './clientes.controller.js';
+import { calcularScoreClienteHandler, createClienteHandler, enrichClienteHandler, geolocalizarClienteHandler, gerarAlertasClienteHandler, getAlertasClienteHandler, getClienteByIdHandler, getClientes, resolverAlertaClienteHandler, updateClienteHandler } from './clientes.controller.js';
 import { createClienteSchema, updateClienteSchema } from './clientes.schemas.js';
 
 export function registerClientesRoutes(router) {
@@ -66,6 +66,33 @@ export function registerClientesRoutes(router) {
     domain: 'clientes-crm',
     handler: asyncHandler(async (req, res, context) => {
       sendSuccess(res, await calcularScoreClienteHandler(context));
+    })
+  });
+
+  router.registerRoute({
+    method: 'POST',
+    path: '/clientes/:id/gerar-alertas',
+    domain: 'clientes-crm',
+    handler: asyncHandler(async (req, res, context) => {
+      sendSuccess(res, await gerarAlertasClienteHandler(context));
+    })
+  });
+
+  router.registerRoute({
+    method: 'GET',
+    path: '/clientes/:id/alertas',
+    domain: 'clientes-crm',
+    handler: asyncHandler(async (req, res, context) => {
+      sendSuccess(res, await getAlertasClienteHandler(context));
+    })
+  });
+
+  router.registerRoute({
+    method: 'PATCH',
+    path: '/clientes/alertas/:id/resolver',
+    domain: 'clientes-crm',
+    handler: asyncHandler(async (req, res, context) => {
+      sendSuccess(res, await resolverAlertaClienteHandler(context));
     })
   });
 }

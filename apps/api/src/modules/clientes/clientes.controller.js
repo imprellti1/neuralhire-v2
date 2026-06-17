@@ -2,6 +2,7 @@ import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { NotFoundError, ValidationError } from '../../core/errors.js';
 import { applyOwnerFilter, canAccessAllTenantData } from '../../core/commercial-scope.js';
 import { calcularScoreComercialCliente, createCliente, enrichClienteByCnpj, geolocalizarCliente, getClienteById, getClientesRepositoryMode, listClientes, updateCliente } from './clientes.repository.js';
+import { gerarAlertasCliente, listAlertasCliente, resolverAlertaCliente } from './clientes.alerts.service.js';
 import { recordAuditLog } from '../../core/audit-logs.js';
 import { getGruposComerciaisByClienteId } from '../grupos-comerciais/grupos-comerciais.repository.js';
 
@@ -138,4 +139,31 @@ export async function calcularScoreClienteHandler(context = {}) {
     }
     throw error;
   }
+}
+
+export async function gerarAlertasClienteHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const id = String(context?.params?.id || '').trim();
+  if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
+  const result = await gerarAlertasCliente(id, { accountId, context });
+  return { ok: true, repositoryMode: getClientesRepositoryMode(), ...result };
+}
+
+export async function getAlertasClienteHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const id = String(context?.params?.id || '').trim();
+  if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
+  const items = await listAlertasCliente(id, { accountId, context });
+  return { ok: true, repositoryMode: getClientesRepositoryMode(), items };
+}
+
+export async function resolverAlertaClienteHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const id = String(context?.params?.id || '').trim();
+  if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
+  const body = { ...(context.body || {}) };
+  const alertaId = String(body.id || context?.params?.id || '').trim();
+  const status = body.status || 'resolvido';
+  const item = await resolverAlertaCliente(alertaId, { accountId, context, status });
+  return { ok: true, repositoryMode: getClientesRepositoryMode(), item };
 }

@@ -150,6 +150,7 @@ export function mapClienteDetailsData({ cliente = null, pedidos = [], clienteId 
     cliente_potencial: normalizedCliente?.cliente_potencial || null,
     cliente_score_ultima_execucao: normalizedCliente?.cliente_score_ultima_execucao || null,
     cliente_score_fatores: normalizedCliente?.cliente_score_fatores || {},
+    cliente_alertas: Array.isArray(normalizedCliente?.cliente_alertas) ? normalizedCliente.cliente_alertas : [],
     email_enriquecido: normalizedCliente?.email_enriquecido || null,
     telefone_enriquecido: normalizedCliente?.telefone_enriquecido || null,
     enriquecimento_status: normalizedCliente?.enriquecimento_status || null,

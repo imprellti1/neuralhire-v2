@@ -605,3 +605,60 @@ test('cliente details mostra score comercial e executa calculo manual', async ()
 
   teardownFrontendDom(dom);
 });
+
+test('cliente details mostra alertas comerciais, gera e resolve sem reload', async () => {
+  const dom = setupFrontendDom('#/clientes/c1');
+  const root = document.getElementById('root');
+  const calls = [];
+  const apiClient = {
+    get: async (url, params = {}) => {
+      calls.push({ method: 'GET', url, params });
+      if (url === '/clientes/c1') {
+        return {
+          item: {
+            id: 'c1',
+            empresa: 'Cliente Alertas',
+            cidade: 'São Paulo',
+            estado: 'SP',
+            created_at: '2026-05-01T00:00:00.000Z',
+            status: 'ativo',
+            cliente_alertas: [
+              { id: 'a1', status: 'ativo', tipo: 'queda_score', severidade: 'alta', titulo: 'Score caiu', descricao: 'Score caiu 20 pontos' },
+              { id: 'a2', status: 'resolvido', tipo: 'sem_compra', severidade: 'media', titulo: 'Antigo', descricao: 'já resolvido' }
+            ]
+          }
+        };
+      }
+      if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
+      if (url === '/clientes/c1/alertas') return { items: [{ id: 'a1', status: 'ativo', tipo: 'queda_score', severidade: 'alta', titulo: 'Score caiu', descricao: 'Score caiu 20 pontos' }] };
+      return { items: [] };
+    },
+    post: async (url) => {
+      calls.push({ method: 'POST', url });
+      if (url === '/clientes/c1/gerar-alertas') return { alertas: [{ id: 'a1' }] };
+      return { ok: true };
+    },
+    patch: async (url) => {
+      calls.push({ method: 'PATCH', url });
+      if (url === '/clientes/alertas/a1/resolver') return { item: { id: 'a1', status: 'resolvido' } };
+      return { ok: true };
+    }
+  };
+
+  renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
+  await flush();
+  await flush();
+
+  assert.match(root.textContent, /Alertas Comerciais/);
+  assert.match(root.textContent, /Score caiu/);
+  root.querySelector('#nho2d-alerts-generate')?.click();
+  await flush();
+  await flush();
+  assert.ok(calls.some((call) => call.method === 'POST' && call.url === '/clientes/c1/gerar-alertas'));
+  root.querySelector('[data-resolver-alerta="a1"]')?.click();
+  await flush();
+  await flush();
+  assert.ok(calls.some((call) => call.method === 'PATCH' && call.url === '/clientes/alertas/a1/resolver'));
+
+  teardownFrontendDom(dom);
+});

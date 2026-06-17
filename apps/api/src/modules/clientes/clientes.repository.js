@@ -92,7 +92,7 @@ function resolvePurchaseDate(pedido = {}) {
   return normalizeDateValue(pedido.data_faturamento) || normalizeDateValue(pedido.data_emissao) || normalizeDateValue(pedido.created_at) || normalizeDateValue(pedido.createdAt);
 }
 
-async function listClientePedidos(accountId, clienteId) {
+export async function listClientePedidos(accountId, clienteId) {
   const repositoryMode = getClientesRepositoryMode();
   if (repositoryMode.mode === 'supabase') {
     const supabase = resolveSupabaseClient();
@@ -119,7 +119,7 @@ async function listClientePedidos(accountId, clienteId) {
   return (snapshot.pedidos || []).filter((pedido) => pedido.account_id === accountId && pedido.cliente_id === clienteId);
 }
 
-async function listClientePedidoItens(accountId, pedidoIds = [], pedidosFallback = []) {
+export async function listClientePedidoItens(accountId, pedidoIds = [], pedidosFallback = []) {
   const ids = [...new Set((Array.isArray(pedidoIds) ? pedidoIds : [pedidoIds]).map((id) => String(id || '').trim()).filter(Boolean))];
   if (!ids.length) return [];
   const repositoryMode = getClientesRepositoryMode();

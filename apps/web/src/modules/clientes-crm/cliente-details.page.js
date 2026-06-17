@@ -1,5 +1,5 @@
 import { createClienteDetailsState } from './cliente-details.state.js';
-import { calcularScoreCliente, enriquecerCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, geolocalizarCliente } from './cliente-details.service.js';
+import { calcularScoreCliente, enriquecerCliente, fetchAlertasCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, gerarAlertasCliente, geolocalizarCliente, resolverAlertaCliente } from './cliente-details.service.js';
 
 function fmtCurrency(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 function fmtDate(v) {
@@ -124,6 +124,9 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   let enrichmentLoading = false;
   let geolocationLoading = false;
   let scoreLoading = false;
+  let alertsLoading = false;
+  let alertasLoading = false;
+  let alertMessage = '';
   let feedbackMessage = '';
   const groupAccordionState = new Map();
   const pedidoAccordionState = new Map();
@@ -178,6 +181,13 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-item-note{font-size:12px;color:#62759a}
     .nho2d-mini-loading{padding:10px 0;color:#62759a;font-size:13px}
     .nho2d-crm-empty{padding:18px;border:1px dashed #d5e0f3;border-radius:12px;color:#5b6c90;background:#fbfcff}
+    .nho2d-alert-card{display:grid;gap:12px}
+    .nho2d-alert-list{display:grid;gap:10px}
+    .nho2d-alert-item{border:1px solid #e5ecf8;border-radius:12px;padding:14px;background:#fbfdff;display:grid;gap:8px}
+    .nho2d-alert-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
+    .nho2d-alert-title{font-weight:700;color:#10264b}
+    .nho2d-alert-desc{color:#5e6f93;font-size:13px;line-height:1.45}
+    .nho2d-alert-actions{display:flex;gap:8px;flex-wrap:wrap}
     .nho2d-group-summary{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
     .nho2d-group-body{padding:0 18px 16px}
     .nho2d-group-empty{padding:0 18px 16px;color:#62759a}
@@ -196,6 +206,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   function getTabLabel(key) {
     if (key === 'comercial') return 'Comercial';
     if (key === 'crm') return 'CRM';
+    if (key === 'alertas') return 'Alertas Comerciais';
     if (key === 'enriquecimento') return 'Enriquecimento';
     if (key === 'geolocalizacao') return 'Geolocalização';
     return 'Geral';
@@ -232,7 +243,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         <button id="nhcd-back" class="nho2-btn" style="background:#fff;color:#1f56dc">Voltar</button>
       </div>
       <div class="nho2d-tabs" role="tablist" aria-label="Detalhes do cliente">
-        ${['geral', 'comercial', 'crm', 'enriquecimento', 'geolocalizacao'].map((tab) => `<button class="nho2d-tab ${activeTab === tab ? 'is-active' : ''}" data-tab="${tab}" role="tab" aria-selected="${activeTab === tab ? 'true' : 'false'}">${getTabLabel(tab)}</button>`).join('')}
+        ${['geral', 'comercial', 'alertas', 'crm', 'enriquecimento', 'geolocalizacao'].map((tab) => `<button class="nho2d-tab ${activeTab === tab ? 'is-active' : ''}" data-tab="${tab}" role="tab" aria-selected="${activeTab === tab ? 'true' : 'false'}">${getTabLabel(tab)}</button>`).join('')}
       </div>
     `;
   }
@@ -290,6 +301,31 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
             <div class="nho2d-kpi-grid">
               ${fields.slice(0, 4).map(([label, value]) => `<div class="nho2d-kpi"><div class="nho2d-kpi-label">${label}</div><div class="nho2d-kpi-value">${value}</div></div>`).join('')}
             </div>
+          </article>
+          <article class="nho2d-card nho2d-alert-card">
+            <div class="nho2d-header" style="margin-bottom:0">
+              <div>
+                <h3 style="margin:0 0 4px">Alertas Comerciais</h3>
+                <div class="nho2d-sub">Riscos, oportunidades e ações recomendadas.</div>
+              </div>
+              <button id="nho2d-alerts-generate" class="nho2-btn" ${alertsLoading ? 'disabled' : ''}>${alertsLoading ? 'Gerando...' : 'Gerar Alertas'}</button>
+            </div>
+            ${alertMessage ? `<div class="nho2d-crm-empty">${safeText(alertMessage, '')}</div>` : ''}
+            ${(Array.isArray(d?.cliente_alertas) ? d.cliente_alertas.filter((item) => String(item?.status || '') === 'ativo') : []).length
+              ? `<div class="nho2d-alert-list">${d.cliente_alertas.filter((item) => String(item?.status || '') === 'ativo').map((alerta) => `
+                <div class="nho2d-alert-item" data-alerta-id="${alerta.id}">
+                  <div class="nho2d-alert-top">
+                    <div>
+                      <div class="nho2d-alert-title">${safeText(alerta.titulo, 'Alerta')}</div>
+                      <div class="nho2d-alert-desc">${safeText(alerta.descricao, '')}</div>
+                    </div>
+                    <span class="nho2-badge">${safeText(alerta.severidade, '-')}</span>
+                  </div>
+                  <div class="nho2d-alert-actions">
+                    <button class="nho2-btn" data-resolver-alerta="${alerta.id}">Marcar como resolvido</button>
+                  </div>
+                </div>`).join('')}</div>`
+              : '<div class="nho2d-crm-empty">Nenhum alerta ativo para este cliente.</div>'}
           </article>
           <article class="nho2d-card">
             <h3>Dados relevantes</h3>
@@ -439,6 +475,38 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     return `<article class="nho2d-card"><h3>CRM</h3><div class="nho2d-table-wrap"><table class="nho2d-table"><thead><tr><th>Data</th><th>Canal</th><th>Responsável</th><th>Resumo</th></tr></thead><tbody>${conversations.map((c) => `<tr><td>${fmtDateTime(c.data)}</td><td>${safeText(c.canal)}</td><td>${safeText(c.responsavel)}</td><td>${safeText(c.resumo)}</td></tr>`).join('')}</tbody></table></div></article>`;
   }
 
+  function renderAlertas(d) {
+    const alertas = Array.isArray(d?.cliente_alertas) ? d.cliente_alertas.filter((item) => String(item?.status || '') === 'ativo') : [];
+    return `
+      <div class="nho2d-section">
+        <article class="nho2d-card nho2d-alert-card">
+          <div class="nho2d-header" style="margin-bottom:0">
+            <div>
+              <h3 style="margin:0 0 4px">Alertas Comerciais</h3>
+              <div class="nho2d-sub">Motor de alertas para risco, oportunidade e ação recomendada.</div>
+            </div>
+            <button id="nho2d-alerts-generate" class="nho2-btn" ${alertsLoading ? 'disabled' : ''}>${alertsLoading ? 'Gerando...' : 'Gerar Alertas'}</button>
+          </div>
+          ${alertMessage ? `<div class="nho2d-crm-empty">${safeText(alertMessage, '')}</div>` : ''}
+          ${alertasLoading ? '<div class="nho2d-mini-loading">Carregando alertas...</div>' : ''}
+          ${alertas.length ? `<div class="nho2d-alert-list">${alertas.map((alerta) => `
+            <div class="nho2d-alert-item" data-alerta-id="${alerta.id}">
+              <div class="nho2d-alert-top">
+                <div>
+                  <div class="nho2d-alert-title">${safeText(alerta.titulo, 'Alerta')}</div>
+                  <div class="nho2d-alert-desc">${safeText(alerta.descricao, '')}</div>
+                </div>
+                <span class="nho2-badge">${safeText(alerta.severidade, '-')}</span>
+              </div>
+              <div class="nho2d-alert-actions">
+                <button class="nho2-btn" data-resolver-alerta="${alerta.id}">Marcar como resolvido</button>
+              </div>
+            </div>`).join('')}</div>` : '<div class="nho2d-crm-empty">Nenhum alerta ativo para este cliente.</div>'}
+        </article>
+      </div>
+    `;
+  }
+
   function renderEnriquecimento(d) {
     const status = safeValue(d?.enriquecimento_status ? String(d.enriquecimento_status).replace(/^./, (m) => m.toUpperCase()) : 'Pendente');
     const payloadText = d?.enriquecimento_payload && Object.keys(d.enriquecimento_payload || {}).length ? JSON.stringify(d.enriquecimento_payload, null, 2) : '';
@@ -539,6 +607,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       ${renderHeader(d)}
       ${activeTab === 'geral' ? renderGeral(d) : ''}
       ${activeTab === 'comercial' ? renderComercial(d) : ''}
+      ${activeTab === 'alertas' ? renderAlertas(d) : ''}
       ${activeTab === 'crm' ? renderCrm(d) : ''}
       ${activeTab === 'enriquecimento' ? renderEnriquecimento(d) : ''}
       ${activeTab === 'geolocalizacao' ? renderGeolocalizacao(d) : ''}
@@ -628,6 +697,42 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         }
       };
     }
+    const alertsBtn = root.querySelector('#nho2d-alerts-generate');
+    if (alertsBtn) {
+      alertsBtn.onclick = async () => {
+        alertsLoading = true;
+        alertMessage = 'Gerando alertas comerciais...';
+        render();
+        try {
+          await gerarAlertasCliente(apiClient, clienteId);
+          const response = await fetchAlertasCliente(apiClient, clienteId);
+          state.data = { ...state.data, cliente_alertas: Array.isArray(response?.items) ? response.items : [] };
+          alertMessage = 'Alertas gerados com sucesso.';
+        } catch (error) {
+          alertMessage = error?.message || 'Falha ao gerar alertas.';
+        } finally {
+          alertsLoading = false;
+          render();
+        }
+      };
+    }
+    root.querySelectorAll('[data-resolver-alerta]').forEach((button) => {
+      button.onclick = async () => {
+        const alertaId = button.getAttribute('data-resolver-alerta');
+        alertMessage = 'Atualizando alerta...';
+        render();
+        try {
+          await resolverAlertaCliente(apiClient, alertaId);
+          const response = await fetchAlertasCliente(apiClient, clienteId);
+          state.data = { ...state.data, cliente_alertas: Array.isArray(response?.items) ? response.items : [] };
+          alertMessage = 'Alerta resolvido.';
+        } catch (error) {
+          alertMessage = error?.message || 'Falha ao resolver alerta.';
+        } finally {
+          render();
+        }
+      };
+    });
     root.querySelectorAll('[data-toggle-group]').forEach((button) => {
       button.onclick = () => {
         const groupKey = button.getAttribute('data-toggle-group');
@@ -678,6 +783,8 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     try {
       state.data = await fetchClienteDetailsData(apiClient, clienteId);
       if (!state?.data?.id) state.notFound = true;
+      const alertas = await fetchAlertasCliente(apiClient, clienteId).catch(() => ({ items: [] }));
+      state.data = { ...state.data, cliente_alertas: Array.isArray(alertas?.items) ? alertas.items : [] };
       syncPedidoState();
     } catch (error) {
       if (error?.status === 404) state.notFound = true;

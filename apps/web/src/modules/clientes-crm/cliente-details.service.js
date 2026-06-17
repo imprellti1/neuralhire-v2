@@ -30,6 +30,18 @@ export async function calcularScoreCliente(apiClient, clienteId) {
   return apiClient.post(`/clientes/${clienteId}/calcular-score`);
 }
 
+export async function gerarAlertasCliente(apiClient, clienteId) {
+  return apiClient.post(`/clientes/${clienteId}/gerar-alertas`);
+}
+
+export async function fetchAlertasCliente(apiClient, clienteId) {
+  return apiClient.get(`/clientes/${clienteId}/alertas`);
+}
+
+export async function resolverAlertaCliente(apiClient, alertaId) {
+  return apiClient.patch(`/clientes/alertas/${alertaId}/resolver`, { status: 'resolvido' });
+}
+
 export async function fetchClienteDetailsData(apiClient, clienteId) {
   const [clienteResponse, pedidosResponse] = await Promise.all([
     apiClient.get(`/clientes/${clienteId}`),
