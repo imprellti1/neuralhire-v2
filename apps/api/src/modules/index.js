@@ -2,9 +2,10 @@ import { defineModule } from '../core/module-contract.js';
 import { registerHealthRoutes } from './health/health.routes.js';
 import { registerSystemRoutes } from './system/system.routes.js';
 import { registerClientesRoutes } from './clientes/clientes.routes.js';
-import { registerClientesRadarRoutes } from './clientes/clientes.radar.routes.js';
+import { registerJobsRoutes } from './jobs/jobs.routes.js';
 import { clientesModule } from './clientes/clientes.module.js';
 import { clientesRadarModule } from './clientes/clientes.radar.module.js';
+import { jobsModule } from './jobs/jobs.module.js';
 import { registerProdutosRoutes } from './produtos/produtos.routes.js';
 import { registerProdutosImportRoutes } from './produtos/produtos-import.routes.js';
 import { produtosModule } from './produtos/produtos.module.js';
@@ -93,12 +94,13 @@ export const registeredModules = [
   whatsappConversationsModule, messageDraftsModule, messageApprovalsModule, approvalIntelligenceModule, whatsappDeliveryModule, commercialAgentModule, fabricantesModule, vendedoresModule,
   priceTableImportModule, clientesImportModule
   ,pedidosImportModule, pedidosItensModule, productAuditModule, productEditorModule, produtoImagensModule, auditLogsModule
-  ,promocoesModule, aiDirectorModule, gruposComerciaisModule
+  ,promocoesModule, aiDirectorModule, gruposComerciaisModule, jobsModule
 ];
 
 export function registerModules(router, options = {}) {
   registerHealthRoutes(router); registerSystemRoutes(router, { registeredModules, globalMiddlewares: options.globalMiddlewares || [] });
-  registerClientesRoutes(router); registerClientesRadarRoutes(router); registerProdutosRoutes(router); registerProdutosImportRoutes(router); registerPedidosRoutes(router); registerAnalyticsRoutes(router);
+  registerJobsRoutes(router);
+  registerClientesRoutes(router); registerProdutosRoutes(router); registerProdutosImportRoutes(router); registerPedidosRoutes(router); registerAnalyticsRoutes(router);
   registerPriceTableImportRoutes(router);
   registerClientesImportRoutes(router);
   registerPedidosImportRoutes(router);

@@ -1,6 +1,7 @@
 import { asyncHandler } from '../../core/async-handler.js';
 import { sendSuccess } from '../../core/response.js';
 import { calcularScoreClienteHandler, calcularSegmentacaoClienteHandler, createClienteHandler, enrichClienteHandler, geolocalizarClienteHandler, gerarAlertasClienteHandler, getAlertasClienteHandler, getClienteByIdHandler, getClientes, getTimelineClienteHandler, resolverAlertaClienteHandler, updateClienteHandler } from './clientes.controller.js';
+import { getClientesRadarHandler, recalcularClientesRadarHandler } from './clientes.radar.controller.js';
 import { createClienteSchema, updateClienteSchema } from './clientes.schemas.js';
 
 export function registerClientesRoutes(router) {
@@ -10,6 +11,24 @@ export function registerClientesRoutes(router) {
     domain: 'clientes-crm',
     handler: asyncHandler(async (req, res, context) => {
       sendSuccess(res, await getClientes(context));
+    })
+  });
+
+  router.registerRoute({
+    method: 'GET',
+    path: '/clientes/radar',
+    domain: 'clientes-crm',
+    handler: asyncHandler(async (req, res, context) => {
+      sendSuccess(res, await getClientesRadarHandler(context));
+    })
+  });
+
+  router.registerRoute({
+    method: 'POST',
+    path: '/clientes/radar/recalcular',
+    domain: 'clientes-crm',
+    handler: asyncHandler(async (req, res, context) => {
+      sendSuccess(res, await recalcularClientesRadarHandler(context));
     })
   });
 
