@@ -1,4 +1,5 @@
 import { consultManager, findRelevantExecutiveMemories, getAiDirectorDashboard, listAiDirectorMemories, listManagers, recordExecutiveInsight } from './ai-director.repository.js';
+import { listObservations } from '../ai-director-observations/ai-director-observations.repository.js';
 import { BadRequestError } from '../../core/errors.js';
 import { buildAiDirectorContext } from './ai-director.context-builder.js';
 import { askAiDirectorLlm } from './ai-director.llm.js';
@@ -77,6 +78,7 @@ export async function answerAiDirectorQuestion(payload = {}, options = {}) {
   const dashboard = await getAiDirectorDashboard(options.context || {});
   const memoriesResult = await listAiDirectorMemories({ limit: 8 }, { accountId: options.accountId, context: options.context }).catch(() => ({ items: [] }));
   const executiveMemoriesResult = await findRelevantExecutiveMemories({ limit: 8, question }, { accountId: options.accountId, context: options.context }).catch(() => ({ items: [] }));
+  const observationsResult = await listObservations({ accountId: options.accountId }, { status: 'open', limit: 10 }).catch(() => ({ items: [] }));
   const insights = analyzeExecutiveFacts(delegation.managerResponses || [], executiveMemoriesResult.items || []);
   const storedInsights = [];
   for (const insight of insights) {
@@ -92,7 +94,8 @@ export async function answerAiDirectorQuestion(payload = {}, options = {}) {
     delegation,
     dashboard,
     memories: memoriesResult.items || [],
-    executiveMemories: allExecutiveMemories
+    executiveMemories: allExecutiveMemories,
+    observations: observationsResult.items || []
   });
   const llmResult = await askAiDirectorLlm(context, options).catch((error) => ({
     answer: null,

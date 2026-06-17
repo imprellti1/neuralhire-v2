@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { __resetMemoryAiDirectorForTests, __setAiDirectorManagerProviderOverrideForTests, consultManager, createAiDirectorMemory, createExecutiveMemory, findRelevantExecutiveMemories, getAiDirectorDashboard, listAiDirectorMemories, listExecutiveMemories, listManagers } from '../../modules/ai-director/ai-director.repository.js';
+import { __resetMemoryAiDirectorObservationsForTests, createObservation, listObservations, updateObservationStatus } from '../../modules/ai-director-observations/ai-director-observations.repository.js';
 import { answerAiDirectorQuestion, delegateAiDirectorQuestion } from '../../modules/ai-director/ai-director.orchestrator.js';
 import { askAiDirectorLlm } from '../../modules/ai-director/ai-director.llm.js';
 import { buildStrategicRadar } from '../../modules/ai-director/ai-director.radar.js';
@@ -23,6 +24,7 @@ function resetState() {
   __resetMemoryProductAuditForTests();
   __resetMemoryWhatsappConversationsForTests();
   __resetMemoryMessageApprovalsForTests();
+  __resetMemoryAiDirectorObservationsForTests();
 }
 
 export function getAiDirectorTests() {
@@ -276,6 +278,62 @@ export function getAiDirectorTests() {
       }
     },
     {
+      name: 'POST /ai-director/observations cria observacao valida',
+      run: async () => {
+        resetState();
+        const item = await createObservation({ accountId: 'acc-a' }, {
+          manager_id: 'comercial',
+          manager_name: 'Gerente Comercial',
+          category: 'comercial',
+          title: 'Queda no pipeline',
+          description: 'Pipeline caiu nas ultimas 24h',
+          severity: 'high',
+          impact_score: 80,
+          urgency_score: 70,
+          metadata: { source: 'manual' }
+        });
+        assert.equal(item.account_id, 'acc-a');
+        assert.equal(item.severity, 'high');
+      }
+    },
+    {
+      name: 'POST /ai-director/observations rejeita severity invalida',
+      run: async () => {
+        resetState();
+        await assert.rejects(() => createObservation({ accountId: 'acc-a' }, {
+          manager_id: 'comercial',
+          manager_name: 'Gerente Comercial',
+          category: 'comercial',
+          title: 'Teste',
+          description: 'Teste',
+          severity: 'urgent',
+          impact_score: 10,
+          urgency_score: 10,
+          metadata: {}
+        }));
+      }
+    },
+    {
+      name: 'GET /ai-director/observations filtra por account_id',
+      run: async () => {
+        resetState();
+        await createObservation({ accountId: 'acc-a' }, { manager_id: 'comercial', manager_name: 'Gerente Comercial', category: 'comercial', title: 'A', description: 'A', severity: 'medium', impact_score: 10, urgency_score: 10, metadata: {} });
+        await createObservation({ accountId: 'acc-b' }, { manager_id: 'comercial', manager_name: 'Gerente Comercial', category: 'comercial', title: 'B', description: 'B', severity: 'medium', impact_score: 10, urgency_score: 10, metadata: {} });
+        const result = await listObservations({ accountId: 'acc-a' }, { status: 'open' });
+        assert.equal(result.items.length, 1);
+        assert.equal(result.items[0].account_id, 'acc-a');
+      }
+    },
+    {
+      name: 'PATCH /ai-director/observations/:id atualiza status',
+      run: async () => {
+        resetState();
+        const item = await createObservation({ accountId: 'acc-a' }, { manager_id: 'auditoria', manager_name: 'Gerente Auditoria', category: 'auditoria', title: 'Log inconsistente', description: 'Encontrado erro', severity: 'medium', impact_score: 10, urgency_score: 10, metadata: {} });
+        const updated = await updateObservationStatus({ accountId: 'acc-a' }, item.id, { status: 'resolved' });
+        assert.equal(updated.status, 'resolved');
+      }
+    },
+    {
       name: 'GET /ai-director/managers retorna 5 gerentes',
       run: async () => {
         const managers = listManagers();
@@ -386,6 +444,16 @@ export function getAiDirectorTests() {
         const memory = await createAiDirectorMemory({ tipo: 'alerta', titulo: 'Faturamento caiu', conteudo: 'Queda de receita observada no periodo atual', prioridade: 'alta' }, { accountId: 'acc-a' });
         const result = await answerAiDirectorQuestion({ question: 'Por que o faturamento caiu?' }, { accountId: 'acc-a' });
         assert.ok(result.usedMemories.includes(memory.id));
+      }
+    },
+    {
+      name: 'POST /ai-director/ask inclui observacoes abertas no contexto',
+      run: async () => {
+        resetState();
+        await createObservation({ accountId: 'acc-a' }, { manager_id: 'comercial', manager_name: 'Gerente Comercial', category: 'comercial', title: 'Alerta comercial', description: 'Observacao aberta', severity: 'high', impact_score: 50, urgency_score: 40, metadata: {} });
+        const result = await answerAiDirectorQuestion({ question: 'Como está a operação?' }, { accountId: 'acc-a' });
+        assert.equal(Array.isArray(result.facts.observations), true);
+        assert.equal(result.facts.observationsCount >= 1, true);
       }
     },
     {

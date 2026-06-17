@@ -81,6 +81,7 @@ import { registerPromocoesRoutes } from './promocoes/promocoes.routes.js';
 import { promocoesModule } from './promocoes/promocoes.module.js';
 import { registerAiDirectorRoutes } from './ai-director/ai-director.routes.js';
 import { aiDirectorModule } from './ai-director/ai-director.module.js';
+import { registerAiDirectorObservationsRoutes } from './ai-director-observations/ai-director-observations.routes.js';
 import { registerGruposComerciaisRoutes } from './grupos-comerciais/grupos-comerciais.routes.js';
 import { gruposComerciaisModule } from './grupos-comerciais/grupos-comerciais.module.js';
 
@@ -123,6 +124,7 @@ export function registerModules(router, options = {}) {
   registerAuditLogsRoutes(router);
   registerPromocoesRoutes(router);
   registerAiDirectorRoutes(router);
+  registerAiDirectorObservationsRoutes(router);
   registerGruposComerciaisRoutes(router);
 }
 

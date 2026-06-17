@@ -29,3 +29,7 @@ export async function delegateQuestion(apiClient, payload) {
 export async function askDirector(apiClient, payload) {
   return apiClient.post('/ai-director/ask', payload);
 }
+
+export async function listObservations(apiClient, params = {}) {
+  return apiClient.get('/ai-director/observations', params);
+}

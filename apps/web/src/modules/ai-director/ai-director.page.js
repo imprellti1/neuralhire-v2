@@ -1,4 +1,4 @@
-import { askDirector, consultManager, createMemory, fetchAiDirectorDashboard, listExecutiveMemories, listManagers, listMemories } from './ai-director.service.js';
+import { askDirector, consultManager, createMemory, fetchAiDirectorDashboard, listExecutiveMemories, listManagers, listMemories, listObservations } from './ai-director.service.js';
 import { createAiDirectorState } from './ai-director.state.js';
 
 function esc(value) {
@@ -61,6 +61,20 @@ function badgeClass(value) {
   if (['medium', 'media', 'média', 'atencao', 'atenção', 'bom'].includes(normalized)) return 'warning';
   if (['low', 'baixa', 'excelente'].includes(normalized)) return 'success';
   return 'muted';
+}
+
+function observationSeverityLabel(value) {
+  const normalized = String(value || '').toLowerCase();
+  if (normalized === 'critical') return 'Crítico';
+  if (normalized === 'high') return 'Alto';
+  if (normalized === 'medium') return 'Médio';
+  if (normalized === 'low') return 'Baixo';
+  return value || '—';
+}
+
+function observationCategoryMatchesFilter(item, filter) {
+  if (!filter || filter === 'all') return true;
+  return String(item?.category || '').toLowerCase() === filter;
 }
 
 function moduleBadgeClass(value) {
@@ -428,6 +442,7 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
     const opportunities = dashboard.opportunities || [];
     const memories = state.memories || [];
     const executiveMemories = (state.executiveMemories || []).filter((memory) => executiveMemoryMatchesFilter(memory, state.executiveMemoriesFilter));
+    const observations = (state.observations || []).filter((item) => observationCategoryMatchesFilter(item, state.observationsFilter));
     const managers = state.managers || [];
     const form = state.memoryForm || {};
     const delegation = state.delegationResult || {};
@@ -795,6 +810,29 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
         <article class="nh-card">
           <div class="nh-between">
             <div>
+              <h2 class="nh-section-title">Observações dos Gerentes</h2>
+              <p class="nh-section-subtitle">Descobertas, alertas e sinais que entram na leitura do Diretor IA.</p>
+            </div>
+            <select id="ai-director-observations-filter" class="nh-select" style="max-width: 220px;">
+              ${['all', 'comercial', 'produtos', 'auditoria', 'administrativo'].map((category) => `<option value="${category}"${state.observationsFilter === category ? ' selected' : ''}>${category === 'all' ? 'Todos' : category.charAt(0).toUpperCase() + category.slice(1)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="nh-list" style="margin-top: 14px;">
+            ${observations.length ? observations.map((item) => `
+              <div class="nh-list-item">
+                <div class="nh-between">
+                  <strong>${esc(item.title)}</strong>
+                  <span class="nh-badge ${severityClass(item.severity)}">${esc(observationSeverityLabel(item.severity))}</span>
+                </div>
+                <div class="nh-mini" style="margin-top: 6px;">${esc(item.manager_name || '—')} · ${esc(item.category || '—')} · ${esc(item.status || 'open')} · ${esc(formatCompactDate(item.created_at))}</div>
+                <div style="margin-top: 8px;">${esc(item.description)}</div>
+              </div>
+            `).join('') : '<div class="nh-mini">Sem observações abertas no momento.</div>'}
+          </div>
+        </article>
+        <article class="nh-card">
+          <div class="nh-between">
+            <div>
               <h2 class="nh-section-title">Registrar memória</h2>
               <p class="nh-section-subtitle">Capture observações, diagnósticos e decisões.</p>
             </div>
@@ -896,6 +934,11 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
       render();
     });
 
+    container.querySelector('#ai-director-observations-filter')?.addEventListener('change', async (event) => {
+      state.observationsFilter = event.target.value || 'all';
+      render();
+    });
+
     bindMemoryForm();
   };
 
@@ -904,13 +947,14 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
     state.managersLoading = true;
     render();
     try {
-      const [dashboardResult, memoriesResult, executiveMemoriesResult, managersResult] = await Promise.all([
+      const [dashboardResult, memoriesResult, executiveMemoriesResult, observationsResult, managersResult] = await Promise.all([
         fetchAiDirectorDashboard(apiClient),
         listMemories(apiClient).catch(() => {
           state.memoryError = 'Não foi possível carregar as memórias.';
           return { items: [] };
         }),
         listExecutiveMemories(apiClient).catch(() => ({ items: [] })),
+        listObservations(apiClient, { status: 'open', limit: 20 }).catch(() => ({ items: [] })),
         listManagers(apiClient).catch(() => {
           return { managers: [] };
         })
@@ -918,6 +962,7 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
       state.dashboard = dashboardResult;
       state.memories = memoriesResult.items || [];
       state.executiveMemories = executiveMemoriesResult.items || [];
+      state.observations = observationsResult.items || [];
       state.managers = managersResult.managers || [];
     } catch (error) {
       state.error = error;

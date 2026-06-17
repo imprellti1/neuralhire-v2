@@ -25,7 +25,8 @@ export async function askAiDirectorLlm(context = {}) {
     `Pergunta: ${context.question}`,
     `Fatos: ${JSON.stringify(context.facts || {})}`,
     `Memorias: ${JSON.stringify((context.usedMemories || []).map((m) => ({ id: m.id, titulo: m.titulo, conteudo: m.conteudo, tipo: m.tipo, prioridade: m.prioridade })))}`,
-    `Gerentes: ${JSON.stringify(context.managerFacts || [])}`
+    `Gerentes: ${JSON.stringify(context.managerFacts || [])}`,
+    `Observacoes dos gerentes: ${JSON.stringify(context.observations || [])}`
   ].join('\n');
 
   const response = await fetch(`${baseUrl}/chat/completions`, {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { renderAiDirectorPage } from './ai-director.page.js';
 import { flush, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 
-function createApiClient({ dashboards = [], askResult = {}, managers = [], memories = [], executiveMemories = [], consultResult = {} } = {}) {
+function createApiClient({ dashboards = [], askResult = {}, managers = [], memories = [], executiveMemories = [], observations = [], consultResult = {} } = {}) {
   const calls = [];
   let dashboardCall = 0;
   return {
@@ -18,6 +18,7 @@ function createApiClient({ dashboards = [], askResult = {}, managers = [], memor
         }
         if (url === '/ai-director/memories') return { items: memories };
         if (url === '/ai-director/executive-memories') return { items: executiveMemories };
+        if (url === '/ai-director/observations') return { items: observations };
         if (url === '/ai-director/managers') return { managers };
         return {};
       },
@@ -190,6 +191,9 @@ test('ai director page dom with radar and auto refresh', async () => {
     executiveMemories: [
       { id: 'e1', tipo: 'risk', categoria: 'comercial', severidade: 'alta', titulo: 'Aumento de clientes em risco', descricao: 'A carteira mostra crescimento no risco.', criado_em: '2026-06-12T11:00:00.000Z' }
     ],
+    observations: [
+      { id: 'o1', manager_id: 'comercial', manager_name: 'Gerente Comercial', category: 'comercial', title: 'Queda de pipeline', description: 'Pipeline caiu.', severity: 'high', status: 'open', created_at: '2026-06-12T12:00:00.000Z' }
+    ],
     askResult: {
       question: 'Por que o faturamento caiu?',
       answer: 'O faturamento caiu por redução no volume e queda em clientes em risco.',
@@ -210,6 +214,8 @@ test('ai director page dom with radar and auto refresh', async () => {
   assert.match(document.body.textContent, /Score Executivo/);
   assert.match(document.body.textContent, /O negócio está saudável, mas o risco comercial pressiona a estabilidade\./);
   assert.match(document.body.textContent, /Alterações Relevantes/);
+  assert.match(document.body.textContent, /Observações dos Gerentes/);
+  assert.match(document.body.textContent, /Queda de pipeline/);
   assert.match(document.body.textContent, /Orquestração dos Gerentes/);
   assert.match(document.body.textContent, /1 alterações relevantes foram associadas a gerentes/);
   assert.match(document.body.textContent, /552 clientes importados recentemente/);
