@@ -102,7 +102,7 @@ function buildClienteRadar(cliente, pedidos = [], alertas = []) {
     .sort((a, b) => b.data.getTime() - a.data.getTime());
   const totalPedidos = pedidosValidos.length;
   const faturamentoTotal = pedidosValidos.reduce((sum, pedido) => sum + getPedidoTotal(pedido), 0);
-  const ultimaCompra = pedidosOrdenados[0]?.data || toDate(cliente.ultima_compra_em) || toDate(cliente.ultima_compra) || null;
+  const ultimaCompra = pedidosOrdenados[0]?.data || null;
   const diasSemCompra = getDiasSemCompra(ultimaCompra);
   const clienteAlertas = alertas.filter((alerta) => String(alerta.cliente_id || '') === String(cliente.id));
   const alertasAtivos = clienteAlertas.filter((alerta) => normalizeKey(alerta.status) === 'ativo');
@@ -120,6 +120,7 @@ function buildClienteRadar(cliente, pedidos = [], alertas = []) {
     ticket_medio: totalPedidos > 0 ? faturamentoTotal / totalPedidos : 0,
     dias_sem_compra: diasSemCompra,
     ultima_compra: ultimaCompra ? ultimaCompra.toISOString() : null,
+    ultima_compra_em: ultimaCompra ? ultimaCompra.toISOString() : null,
     alertas_ativos: alertasAtivos.length
   };
 }
@@ -142,7 +143,7 @@ async function fetchRadarClientes(accountId, supabase, filtros = {}, options = {
     if (!client) throw new DatabaseError('Supabase indisponivel');
     const querySpec = {
       table: 'clientes',
-      select: 'id,nome,razao_social,cidade,estado,cliente_score,cliente_classificacao,segmento_comercial,vendedor_id,ultima_compra_em,ultima_compra,account_id,ativo',
+      select: 'id,nome,razao_social,cidade,estado,cliente_score,cliente_classificacao,segmento_comercial,vendedor_id,account_id,ativo',
       filters: { account_id: accountId, ...filtros }
     };
     try {
