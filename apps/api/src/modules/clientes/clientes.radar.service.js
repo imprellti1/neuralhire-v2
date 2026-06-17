@@ -42,7 +42,7 @@ function getPedidoDate(pedido = {}) {
 }
 
 function getPedidoTotal(pedido = {}) {
-  const total = Number(pedido.total ?? pedido.valor_total ?? pedido.valor ?? pedido.valor_total_bruto ?? 0);
+  const total = Number(pedido.total ?? 0);
   return Number.isFinite(total) ? total : 0;
 }
 
@@ -174,7 +174,7 @@ async function fetchRadarPedidos(accountId, clienteIds = [], supabase, options =
     if (!client) throw new DatabaseError('Supabase indisponivel');
     const querySpec = {
       table: 'pedidos',
-      select: 'id,cliente_id,account_id,data_faturamento,data_emissao,created_at,status,total,valor_total,valor',
+      select: 'id,cliente_id,account_id,data_faturamento,data_emissao,created_at,status,total',
       filters: { account_id: accountId, cliente_id: ids }
     };
     try {
