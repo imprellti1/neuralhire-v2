@@ -30,6 +30,8 @@ const suiteSpecs = [
   ['Clientes Segmentacao', './clientes-segmentacao.test.js', 'getClientesSegmentacaoTests'],
   ['Clientes Alerts', './clientes-alerts.test.js', 'getClientesAlertsTests'],
   ['Clientes Radar', './clientes-radar.test.js', 'getClientesRadarTests'],
+  ['Jobs', './jobs.test.js', 'getJobsTests'],
+  ['Jobs Admin', './jobs-admin.test.js', 'getJobsAdminTests'],
   ['Grupos Comerciais', './grupos-comerciais.test.js', 'getGruposComerciaisTests'],
   ['Clientes Pagination', './clientes-pagination.test.js', 'getClientesPaginationTests'],
   ['Clientes Tenant', './clientes-tenant.test.js', 'getClientesTenantTests'],

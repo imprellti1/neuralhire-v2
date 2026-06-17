@@ -3,6 +3,7 @@ export function createClientesRadarState() {
     loading: true,
     error: null,
     data: null,
+    message: '',
     filters: {
       vendedor_id: '',
       cidade: '',

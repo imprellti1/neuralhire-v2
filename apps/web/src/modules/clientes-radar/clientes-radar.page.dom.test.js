@@ -22,14 +22,23 @@ test('clientes radar page renderiza kpis, cards e navegação', async () => {
       }
       if (path === '/vendedores') return { items: [{ id: 'ven-1', nome: 'Vendedor 1' }] };
       return {};
+    },
+    post: async (path) => {
+      if (path === '/clientes/radar/recalcular') return { total_clientes: 2, processados: 2, sucessos: 1, falhas: 1, detalhes_falhas: [{ cliente_id: '2', erro: 'fail' }] };
+      return {};
     }
   };
   await renderClientesRadarPage(document.body, { apiClient });
   await flush();
+  assert.equal(document.querySelector('#nhr-recalculate') !== null, true);
   assert.match(document.body.textContent, /Radar Comercial/i);
   assert.match(document.body.textContent, /Clientes/i);
   assert.match(document.body.textContent, /VIP/i);
   assert.match(document.body.textContent, /Hermes Sangalli/i);
   assert.equal(document.querySelector('a[href="#/clientes/1"]') !== null, true);
+  document.querySelector('#nhr-recalculate').click();
+  await flush();
+  await flush();
+  assert.match(document.body.textContent, /Radar atualizado: 2 clientes processados, 1 falhas/i);
   teardownFrontendDom(dom);
 });

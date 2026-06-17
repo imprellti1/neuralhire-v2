@@ -1,5 +1,5 @@
 import { createClientesRadarState } from './clientes-radar.state.js';
-import { fetchClientesRadarData } from './clientes-radar.service.js';
+import { fetchClientesRadarData, recalcularClientesRadarData } from './clientes-radar.service.js';
 import { fetchVendedoresData } from '../vendedores/vendedores.service.js';
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -103,9 +103,11 @@ export function renderClientesRadarPage(root, { apiClient }) {
               <option value="EM_RISCO" ${state.filters.segmento === 'EM_RISCO' ? 'selected' : ''}>Em Risco</option>
               <option value="INATIVO" ${state.filters.segmento === 'INATIVO' ? 'selected' : ''}>Inativo</option>
             </select>
+            <button id="nhr-recalculate" class="nhr-btn">Atualizar Radar</button>
             <button id="nhr-apply" class="nhr-btn">Atualizar</button>
           </div>
         </div>
+        ${state.message ? `<div class="nhr-section">${state.message}</div>` : ''}
         ${state.loading ? `<div class="nhr-section nhr-loading"><div class="s"></div><div class="s"></div><div class="s"></div></div>` : ''}
         ${state.error ? `<div class="nhr-section nhr-error">Erro ao carregar o radar.<br/><br/><button id="nhr-retry" class="nhr-btn">Tentar novamente</button></div>` : ''}
         ${!state.loading && !state.error && d ? `
@@ -147,6 +149,7 @@ export function renderClientesRadarPage(root, { apiClient }) {
     root.querySelector('#nhr-cidade')?.addEventListener('change', (e) => { state.filters.cidade = e.target.value || ''; });
     root.querySelector('#nhr-estado')?.addEventListener('change', (e) => { state.filters.estado = e.target.value || ''; });
     root.querySelector('#nhr-segmento')?.addEventListener('change', (e) => { state.filters.segmento = e.target.value || ''; });
+    root.querySelector('#nhr-recalculate')?.addEventListener('click', () => recalculate());
     root.querySelector('#nhr-apply')?.addEventListener('click', () => load());
     root.querySelector('#nhr-retry')?.addEventListener('click', () => load());
   }
@@ -156,6 +159,23 @@ export function renderClientesRadarPage(root, { apiClient }) {
     state.error = null;
     render();
     try {
+      state.data = await fetchClientesRadarData(apiClient, state.filters);
+    } catch {
+      state.error = true;
+    } finally {
+      state.loading = false;
+      render();
+    }
+  }
+
+  async function recalculate() {
+    state.loading = true;
+    state.error = null;
+    state.message = '';
+    render();
+    try {
+      const result = await recalcularClientesRadarData(apiClient, state.filters);
+      state.message = `Radar atualizado: ${result.processados || 0} clientes processados, ${result.falhas || 0} falhas`;
       state.data = await fetchClientesRadarData(apiClient, state.filters);
     } catch {
       state.error = true;
