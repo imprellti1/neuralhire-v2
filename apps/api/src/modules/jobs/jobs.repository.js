@@ -63,40 +63,56 @@ function resolveMemoryJob(lockKey) {
   return memoryJobs.get(lockKey) || null;
 }
 
-async function ensureSystemJob({ lockKey, nome, accountId = null, metadata = {} }) {
+function logSystemJobSupabaseError(stage, { requestId = null, accountId = null, nome = null, lockKey = null, payload = null, error = null } = {}) {
+  console.error('[jobs.repository] system_job_error', {
+    stage,
+    requestId,
+    account_id: accountId,
+    nome,
+    lock_key: lockKey,
+    payload,
+    error: {
+      message: error?.message || null,
+      code: error?.code || null,
+      details: error?.details || null,
+      hint: error?.hint || null
+    }
+  });
+}
+
+async function ensureSystemJob({ lockKey, nome, accountId = null, metadata = {}, requestId = null }) {
   assertAccountId(accountId);
   const jobNome = nome;
   const jobLockKey = lockKey || `${accountId || 'global'}:${jobNome}`;
   const baseJob = defaultJob(jobNome, jobLockKey, accountId, metadata);
+  const payload = {
+    ...baseJob,
+    nome: jobNome,
+    lock_key: jobLockKey,
+    account_id: accountId,
+    metadata: { ...baseJob.metadata, ...metadata },
+    updated_at: nowIso()
+  };
 
   if (resolveSupabaseConfigured()) {
     const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
 
-    const { data: existing, error: findError } = await supabase
-      .from('system_jobs')
-      .select('*')
-      .eq('nome', jobNome)
-      .maybeSingle();
-
-    if (findError) throw new DatabaseError('Falha ao buscar job', { details: findError });
-
-    const payload = existing
-      ? { ...existing, ...baseJob, id: existing.id, nome: jobNome, lock_key: jobLockKey, account_id: accountId, updated_at: nowIso() }
-      : { ...baseJob };
-
     const { data, error } = await supabase
       .from('system_jobs')
-      .upsert(payload, { onConflict: 'nome' })
+      .upsert(payload, { onConflict: 'lock_key' })
       .select('*')
       .single();
 
-    if (error) throw new DatabaseError('Falha ao persistir job', { details: error });
+    if (error) {
+      logSystemJobSupabaseError('ensureSystemJob', { requestId, accountId, nome: jobNome, lockKey: jobLockKey, payload, error });
+      throw new DatabaseError('Falha ao persistir job', { details: error });
+    }
     return data;
   }
 
   const current = [...memoryJobs.values()].find((job) => job.nome === jobNome && String(job.account_id ?? null) === String(accountId ?? null)) || null;
-  const next = current ? { ...current, ...baseJob, id: current.id, updated_at: nowIso() } : baseJob;
+  const next = current ? { ...current, ...payload, id: current.id } : payload;
   memoryJobs.set(jobLockKey, next);
   return next;
 }
@@ -166,7 +182,7 @@ export async function acquireSystemJobLock({ lockKey, nome, ttlMinutes, accountI
   assertAccountId(accountId);
   if (resolveSupabaseConfigured()) {
     const ttlMs = Math.max(1, Number(ttlMinutes) || 30) * 60000;
-    const job = await ensureSystemJob({ lockKey, nome, accountId, metadata: { ttlMinutes } });
+    const job = await ensureSystemJob({ lockKey, nome, accountId, metadata: { ttlMinutes }, requestId: workerId });
     const lockedAt = job?.locked_at ? new Date(job.locked_at) : null;
     const isRunning = String(job?.status || '').toLowerCase() === 'running';
     const lockValid = lockedAt && (Date.now() - lockedAt.getTime()) < ttlMs;
