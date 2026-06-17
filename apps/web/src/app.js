@@ -50,6 +50,7 @@ import { renderVendedoresPage } from './modules/vendedores/vendedores.page.js';
 import { renderProductAuditPage } from './modules/product-audit/product-audit.page.js';
 import { renderProductEditorPage } from './modules/product-editor/product-editor.page.js';
 import { renderGruposComerciaisPage } from './modules/grupos-comerciais/grupos-comerciais.page.js';
+import { renderAdminJobsPage } from './modules/admin-jobs/admin-jobs.page.js';
 import { renderLoginPage } from './modules/auth/login.page.js';
 import { clearAuthSession, getAuthSession, saveAuthSession } from './core/auth-session.js';
 import { createSupabaseClient } from './core/supabase-client.js';
@@ -129,6 +130,7 @@ const menuSections = [
     items: [
       ['#/auditoria', 'Auditoria'],
       ['#/auditoria-pedidos', 'Auditoria de Pedidos'],
+      ['#/admin/jobs', 'Admin Jobs'],
       ['#/message-approvals', 'Aprovação Humana'],
       ['#/approval-intelligence', 'Inteligência Comercial'],
       ['#/executive-dashboard', 'Dashboard Executivo'],
@@ -349,6 +351,7 @@ export function bootstrapWebApp() {
     if (route === '#/portfolio-dashboard') return renderPortfolioDashboardPage(content, { apiClient: api });
     if (route === '#/legacy-import') return renderLegacyImportPage(content, { apiClient: api });
     if (route === '#/auditoria') return renderAuditoriaPage(content, { apiClient: api });
+    if (route === '#/admin/jobs') return renderAdminJobsPage(content, { apiClient: api });
     if (route === '#/auditoria-pedidos') return renderPedidosAuditoriaPage(content, { apiClient: api });
     if (route.startsWith('#/interest-leads/')) return renderInterestLeadDetailsPage(content, { apiClient: api, leadId: route.slice('#/interest-leads/'.length).split('?')[0] });
     if (route === '#/dashboard-operacional') return renderOperationalDashboardPage(content, { apiClient: api });

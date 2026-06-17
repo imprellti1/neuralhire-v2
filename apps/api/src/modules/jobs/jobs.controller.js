@@ -1,7 +1,8 @@
-import { ForbiddenError } from '../../core/errors.js';
+import { ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { logger } from '../../core/logger.js';
 import { listJobsOverview, runClientesEnriquecimentoJob, runClientesGeolocalizacaoJob, runNotificacoesResumoSemanalJob, runRadarComercialJob } from './jobs.scheduler.js';
+import { getSystemJobById, listSystemJobRuns, listSystemJobRunsForJob, listSystemJobs } from './jobs.repository.js';
 
 function assertJobAdmin(context) {
   const role = String(context?.auth?.role || '').toLowerCase();
@@ -14,6 +15,39 @@ export async function getJobsAdmin(context = {}) {
   assertJobAdmin(context);
   getAccountIdFromContext(context);
   return listJobsOverview(context);
+}
+
+export async function getJobsListAdmin(context = {}) {
+  assertJobAdmin(context);
+  const accountId = getAccountIdFromContext(context);
+  return { ok: true, items: await listSystemJobs(accountId) };
+}
+
+export async function getJobsRunsAdmin(context = {}) {
+  assertJobAdmin(context);
+  const accountId = getAccountIdFromContext(context);
+  const query = context.query || {};
+  return {
+    ok: true,
+    items: await listSystemJobRuns(accountId, {
+      nome: query.nome || '',
+      status: query.status || '',
+      jobId: query.job_id || '',
+      limit: query.limit || 20,
+      startedAfter: query.started_after || ''
+    })
+  };
+}
+
+export async function getJobDetailAdmin(context = {}) {
+  assertJobAdmin(context);
+  const accountId = getAccountIdFromContext(context);
+  const id = String(context.params?.id || '').trim();
+  const item = await getSystemJobById(id, accountId);
+  if (!item) {
+    throw new NotFoundError('Job nao encontrado', { code: 'JOB_NOT_FOUND', domain: 'system-jobs' });
+  }
+  return { ok: true, item, runs: await listSystemJobRunsForJob(item.id, accountId, { limit: 10 }) };
 }
 
 export async function runRadarComercialAdmin(context = {}) {

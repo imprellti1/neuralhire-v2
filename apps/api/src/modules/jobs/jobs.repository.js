@@ -128,10 +128,11 @@ async function listJobsSupabase(accountId = null) {
   return data || [];
 }
 
-export async function listSystemJobs(accountId = null) {
+export async function listSystemJobs(accountId = null, options = {}) {
   if (resolveSupabaseConfigured()) return listJobsSupabase(accountId);
   seedSystemJobs(accountId);
-  return [...memoryJobs.values()].filter((job) => job.account_id === accountId || (!accountId && job.account_id === null));
+  const items = [...memoryJobs.values()].filter((job) => job.account_id === accountId || (!accountId && job.account_id === null));
+  return items.sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
 }
 
 export async function upsertSystemJob(job, options = {}) {
@@ -186,14 +187,33 @@ export async function listSystemJobRuns(accountId = null, options = {}) {
     let query = supabase.from('system_job_runs').select('*').order('started_at', { ascending: false });
     if (accountId) query = query.eq('account_id', accountId);
     if (options.nome) query = query.eq('nome', options.nome);
+    if (options.status) query = query.eq('status', options.status);
+    if (options.jobId) query = query.eq('job_id', options.jobId);
     if (options.startedAfter) query = query.gte('started_at', options.startedAfter);
+    if (options.limit) query = query.limit(Number(options.limit));
     const { data, error } = await query;
     if (error) throw new DatabaseError('Falha ao listar execucoes de jobs', { details: error });
     return data || [];
   }
   return memoryRuns
-    .filter((run) => (!accountId || run.account_id === accountId) && (!options.nome || run.nome === options.nome) && (!options.startedAfter || new Date(run.started_at).getTime() >= new Date(options.startedAfter).getTime()))
+    .filter((run) =>
+      (!accountId || run.account_id === accountId) &&
+      (!options.nome || run.nome === options.nome) &&
+      (!options.status || run.status === options.status) &&
+      (!options.jobId || run.job_id === options.jobId) &&
+      (!options.startedAfter || new Date(run.started_at).getTime() >= new Date(options.startedAfter).getTime()))
+    .sort((a, b) => new Date(b.started_at || 0).getTime() - new Date(a.started_at || 0).getTime())
+    .slice(0, options.limit ? Number(options.limit) : undefined)
     .map((item) => ({ ...item }));
+}
+
+export async function getSystemJobById(jobId, accountId = null) {
+  const jobs = await listSystemJobs(accountId);
+  return jobs.find((job) => String(job.id) === String(jobId)) || null;
+}
+
+export async function listSystemJobRunsForJob(jobId, accountId = null, options = {}) {
+  return listSystemJobRuns(accountId, { ...options, jobId });
 }
 
 export async function acquireSystemJobLock({ lockKey, nome, ttlMinutes, accountId, workerId }) {
