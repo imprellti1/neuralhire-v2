@@ -60,6 +60,17 @@ function normalizeDateValue(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function logSupabaseError(action, error, context = {}) {
+  console.error(`[clientes.repository] ${action}`, {
+    accountId: context.accountId || null,
+    clienteId: context.clienteId || null,
+    message: error?.message || null,
+    code: error?.code || null,
+    details: error?.details || null,
+    hint: error?.hint || null
+  });
+}
+
 function computeCommercialStatusFromDays(daysSinceLastPurchase) {
   if (!Number.isFinite(daysSinceLastPurchase)) return 'sem_pedido';
   if (daysSinceLastPurchase <= 60) return 'ativo';
@@ -86,27 +97,19 @@ async function listClientePedidos(accountId, clienteId) {
   if (repositoryMode.mode === 'supabase') {
     const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    let query = supabase
+    const { data, error } = await supabase
       .from('pedidos')
-      .select('id, account_id, cliente_id, status, data_emissao, data_faturamento, metadata, created_at, createdAt')
+      .select('id, account_id, cliente_id, status, total, data_emissao, data_faturamento, metadata, created_at')
       .eq('account_id', accountId)
       .eq('cliente_id', clienteId)
+      .order('data_faturamento', { ascending: false, nullsLast: true })
+      .order('data_emissao', { ascending: false, nullsLast: true })
       .order('created_at', { ascending: false })
       .limit(250);
-    query = query.not('status', 'in', '(cancelado,rejeitado,estornado)');
-    const { data, error } = await query;
     if (error) {
-      debugRepository('listClientePedidos fallback', { accountId, clienteId, error: error?.message || error });
-      const fallbackQuery = supabase
-        .from('pedidos')
-        .select('id, account_id, cliente_id, status, data_emissao, data_faturamento, metadata, created_at, createdAt')
-        .eq('account_id', accountId)
-        .eq('cliente_id', clienteId)
-        .order('created_at', { ascending: false })
-        .limit(250);
-      const fallback = await fallbackQuery;
-      if (fallback?.error) throw new DatabaseError('Falha ao buscar pedidos do cliente', { details: fallback.error });
-      return fallback.data || [];
+      logSupabaseError('listClientePedidos error', error, { accountId, clienteId });
+      debugRepository('listClientePedidos fallback vazio', { accountId, clienteId });
+      return [];
     }
     return data || [];
   }

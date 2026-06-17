@@ -13,8 +13,16 @@ function normalizeDate(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function normalizeStatusText(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
 function getPedidoStatus(pedido = {}) {
-  return String(pedido?.status || pedido?.metadata?.status || pedido?.metadata?.situacao || '').trim().toLowerCase();
+  return normalizeStatusText(pedido?.status || pedido?.metadata?.status || pedido?.metadata?.situacao);
 }
 
 function isPedidoValido(pedido = {}) {

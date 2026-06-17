@@ -2,12 +2,38 @@ import { assertEqual } from '../assert.js';
 import { createApiApp } from '../../app.js';
 import { createTestRequest } from '../create-test-request.js';
 import { createTestResponse } from '../create-test-response.js';
-import { __resetMemoryClientesForTests, createCliente } from '../../modules/clientes/clientes.repository.js';
+import { __resetMemoryClientesForTests, __setClientesSupabaseClientForTests, createCliente } from '../../modules/clientes/clientes.repository.js';
 import { __resetMemoryPedidosForTests, createPedido } from '../../modules/pedidos/pedidos.repository.js';
 import { calcularScoreCliente } from '../../modules/clientes/clientes.score.service.js';
 
 function parseBody(res) {
   try { return JSON.parse(res.body || '{}'); } catch { return {}; }
+}
+
+function createSupabasePedidosMock({ rows = [], onSelect = null } = {}) {
+  const state = { rows: rows.map((row) => ({ ...row })) };
+  const query = {
+    _filters: {},
+    _select: null,
+    _orders: [],
+    _limit: null,
+    select(fields) {
+      this._select = fields;
+      if (onSelect) onSelect(fields, this);
+      return this;
+    },
+    eq(key, value) { this._filters[key] = value; return this; },
+    order(field, options) { this._orders.push({ field, options }); return this; },
+    limit(value) { this._limit = value; return this; },
+    then(resolve) { return Promise.resolve({ data: state.rows, error: null }).then(resolve); }
+  };
+  return {
+    query,
+    from(table) {
+      if (table !== 'pedidos') throw new Error(`Tabela inesperada: ${table}`);
+      return query;
+    }
+  };
 }
 
 async function call(app, { method, url, role, accountId, userId, body }) {
@@ -67,6 +93,37 @@ export function getClientesScoreTests() {
         assertEqual(typeof out.body.item.cliente_score, 'number');
         assertEqual(out.body.score.classificacao, out.body.item.cliente_classificacao);
         assertEqual(out.body.item.cliente_score_fatores.total_pedidos, 1);
+      }
+    },
+    {
+      name: 'endpoint de score usa query simples em pedidos com colunas reais',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        __resetMemoryPedidosForTests();
+        const app = createApiApp();
+        const cliente = await createCliente({ nome: 'Cliente Query' }, { accountId: 'acc-q1' });
+        const mock = createSupabasePedidosMock({
+          rows: [
+            { id: 'p-1', account_id: 'acc-q1', cliente_id: cliente.id, status: 'faturado_total', total: 1200, data_emissao: '2026-06-10', data_faturamento: null, metadata: {}, created_at: '2026-06-10T10:00:00.000Z' },
+            { id: 'p-2', account_id: 'acc-q1', cliente_id: cliente.id, status: 'CANCÉLADO', total: 999, data_emissao: '2026-06-11', data_faturamento: null, metadata: {}, created_at: '2026-06-11T10:00:00.000Z' }
+          ]
+        });
+        __setClientesSupabaseClientForTests(mock, true);
+        try {
+          const out = await call(app, { method: 'POST', url: `/clientes/${cliente.id}/calcular-score`, role: 'admin', accountId: 'acc-q1' });
+          assertEqual(out.res.statusCode, 200);
+          assertEqual(mock.query._select.includes('total'), true);
+          assertEqual(mock.query._select.includes('data_emissao'), true);
+          assertEqual(mock.query._select.includes('data_faturamento'), true);
+          assertEqual(mock.query._filters.account_id, 'acc-q1');
+          assertEqual(mock.query._filters.cliente_id, cliente.id);
+          assertEqual(mock.query._limit, 250);
+          assertEqual(mock.query._orders[0].field, 'data_faturamento');
+          assertEqual(out.body.item.cliente_score_fatores.total_pedidos, 1);
+          assertEqual(out.body.item.cliente_score_fatores.faturamento_total, 1200);
+        } finally {
+          __setClientesSupabaseClientForTests(null, false);
+        }
       }
     },
     {
