@@ -90,24 +90,64 @@ async function ensureSystemJob({ lockKey, nome, accountId = null, metadata = {},
   assertAccountId(accountId);
   const jobNome = nome;
   const jobLockKey = lockKey || `${accountId || 'global'}:${jobNome}`;
-  const baseJob = defaultJob(jobNome, jobLockKey, accountId, metadata);
+  const timestamp = nowIso();
   const payload = {
-    ...baseJob,
-    nome: jobNome,
-    lock_key: jobLockKey,
+    id: randomUUID(),
     account_id: accountId,
-    status: normalizeSystemJobStatus(baseJob.status),
-    metadata: { ...baseJob.metadata, ...metadata },
-    updated_at: nowIso()
+    nome: jobNome,
+    status: 'ativo',
+    lock_key: jobLockKey,
+    locked_at: null,
+    locked_by: null,
+    last_run_at: null,
+    next_run_at: null,
+    last_success_at: null,
+    last_error: null,
+    metadata: { ...metadata },
+    created_at: timestamp,
+    updated_at: timestamp
   };
 
   if (resolveSupabaseConfigured()) {
     const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
 
+    const { data: current, error: currentError } = await supabase
+      .from('system_jobs')
+      .select('*')
+      .eq('lock_key', jobLockKey)
+      .maybeSingle();
+
+    if (currentError) {
+      logSystemJobSupabaseError('ensureSystemJob.select', { requestId, accountId, nome: jobNome, lockKey: jobLockKey, payload, error: currentError });
+      throw new DatabaseError('Falha ao persistir job', { details: currentError });
+    }
+
+    if (current) {
+      const updatePayload = {
+        nome: jobNome,
+        status: normalizeSystemJobStatus(current.status || 'ativo'),
+        metadata: { ...(current.metadata || {}), ...metadata },
+        updated_at: timestamp
+      };
+
+      const { data, error } = await supabase
+        .from('system_jobs')
+        .update(updatePayload)
+        .eq('lock_key', jobLockKey)
+        .select('*')
+        .single();
+
+      if (error) {
+        logSystemJobSupabaseError('ensureSystemJob.update', { requestId, accountId, nome: jobNome, lockKey: jobLockKey, payload: updatePayload, error });
+        throw new DatabaseError('Falha ao persistir job', { details: error });
+      }
+      return data;
+    }
+
     const { data, error } = await supabase
       .from('system_jobs')
-      .upsert(payload, { onConflict: 'lock_key' })
+      .insert(payload)
       .select('*')
       .single();
 
@@ -174,11 +214,40 @@ export async function listDueSystemJobs({ now = new Date(), limit = 10, accountI
 export async function upsertSystemJob(job, options = {}) {
   const accountId = options.accountId ?? job.account_id ?? null;
   const lockKey = job.lock_key || `${accountId || 'global'}:${job.nome}`;
-  const payload = { ...job, account_id: accountId, lock_key: lockKey, status: normalizeSystemJobStatus(job.status), updated_at: nowIso() };
+  const timestamp = nowIso();
+  const payload = {
+    id: job.id || randomUUID(),
+    account_id: accountId,
+    nome: job.nome,
+    status: normalizeSystemJobStatus(job.status),
+    lock_key: lockKey,
+    locked_at: job.locked_at ?? null,
+    locked_by: job.locked_by ?? null,
+    last_run_at: job.last_run_at ?? null,
+    next_run_at: job.next_run_at ?? null,
+    last_success_at: job.last_success_at ?? null,
+    last_error: job.last_error ?? null,
+    metadata: { ...(job.metadata || {}) },
+    created_at: job.created_at || timestamp,
+    updated_at: timestamp
+  };
   if (resolveSupabaseConfigured()) {
     const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data, error } = await supabase.from('system_jobs').upsert(payload, { onConflict: 'lock_key' }).select('*').single();
+    const { data: current, error: currentError } = await supabase.from('system_jobs').select('*').eq('lock_key', lockKey).maybeSingle();
+    if (currentError) throw new DatabaseError('Falha ao persistir job', { details: currentError });
+    if (current) {
+      const updatePayload = {
+        nome: job.nome,
+        status: normalizeSystemJobStatus(current.status || job.status || 'ativo'),
+        metadata: { ...(current.metadata || {}), ...(job.metadata || {}) },
+        updated_at: timestamp
+      };
+      const { data, error } = await supabase.from('system_jobs').update(updatePayload).eq('lock_key', lockKey).select('*').single();
+      if (error) throw new DatabaseError('Falha ao persistir job', { details: error });
+      return data;
+    }
+    const { data, error } = await supabase.from('system_jobs').insert(payload).select('*').single();
     if (error) throw new DatabaseError('Falha ao persistir job', { details: error });
     return data;
   }

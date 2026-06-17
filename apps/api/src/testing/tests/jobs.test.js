@@ -6,7 +6,7 @@ import { assertEqual } from '../assert.js';
 import { __resetMemoryClientesForTests, createCliente, __dumpMemoryClientes } from '../../modules/clientes/clientes.repository.js';
 import { __resetMemoryAlertasForTests } from '../../modules/clientes/clientes.alerts.service.js';
 import { __resetMemoryTimelineForTests } from '../../modules/clientes/clientes.timeline.service.js';
-import { __resetSystemJobsForTests, __dumpSystemJobsForTests, acquireSystemJobLock, listDueSystemJobs, upsertSystemJob } from '../../modules/jobs/jobs.repository.js';
+import { __resetSystemJobsForTests, __dumpSystemJobsForTests, __setSystemJobsSupabaseClientForTests, acquireSystemJobLock, listDueSystemJobs, upsertSystemJob } from '../../modules/jobs/jobs.repository.js';
 import { __resetJobsSchedulerForTests, dispatchDueJob, nextDaily0300, runJobsSchedulerTick, startJobsScheduler, stopJobsScheduler } from '../../modules/jobs/jobs.scheduler.js';
 
 function parse(res) {
@@ -26,8 +26,137 @@ async function call(app, { method, url, role, accountId, body }) {
   return { res, body: parse(res) };
 }
 
+function createSystemJobsSupabaseMock(initial = {}) {
+  const state = {
+    jobs: (initial.jobs || []).map((item) => ({ ...item })),
+    runs: (initial.runs || []).map((item) => ({ ...item }))
+  };
+
+  function tableChain(table) {
+    return {
+      _table: table,
+      _filters: {},
+      _insertPayload: null,
+      _updatePayload: null,
+      select() { return this; },
+      eq(key, value) { this._filters[key] = value; return this; },
+      or() { return this; },
+      order() { return this; },
+      limit() { return this; },
+      not() { return this; },
+      lte() { return this; },
+      gte() { return this; },
+      insert(payload) {
+        this._insertPayload = payload;
+        if (table === 'system_jobs') {
+          const row = { ...payload };
+          state.jobs.push(row);
+        }
+        if (table === 'system_job_runs') {
+          const row = { ...payload };
+          state.runs.push(row);
+        }
+        return this;
+      },
+      update(payload) {
+        this._updatePayload = payload;
+        return this;
+      },
+      maybeSingle() {
+        if (table === 'system_jobs') {
+          const row = state.jobs.find((item) => (!this._filters.lock_key || item.lock_key === this._filters.lock_key)) || null;
+          return Promise.resolve({ data: row ? { ...row } : null, error: null });
+        }
+        return Promise.resolve({ data: null, error: null });
+      },
+      single() {
+        if (table === 'system_jobs') {
+          if (this._updatePayload) {
+            const row = state.jobs.find((item) => (!this._filters.lock_key || item.lock_key === this._filters.lock_key));
+            if (row) Object.assign(row, this._updatePayload);
+            return Promise.resolve({ data: row ? { ...row } : null, error: null });
+          }
+          if (this._insertPayload) {
+            const row = state.jobs[state.jobs.length - 1] || null;
+            return Promise.resolve({ data: row ? { ...row } : null, error: null });
+          }
+          const row = state.jobs.find((item) => (!this._filters.lock_key || item.lock_key === this._filters.lock_key)) || null;
+          return Promise.resolve({ data: row ? { ...row } : null, error: null });
+        }
+        if (table === 'system_job_runs') {
+          const row = state.runs[state.runs.length - 1] || null;
+          return Promise.resolve({ data: row ? { ...row } : null, error: null });
+        }
+        return Promise.resolve({ data: null, error: null });
+      }
+    };
+  }
+
+  return {
+    state,
+    from(table) {
+      return tableChain(table);
+    }
+  };
+}
+
 export function getJobsTests() {
   return [
+    {
+      name: 'ensureSystemJob atualiza job existente sem trocar id e preserva FK',
+      run: async () => {
+        __resetSystemJobsForTests();
+        const mock = createSystemJobsSupabaseMock({
+          jobs: [{
+            id: 'job-1',
+            account_id: 'acc-jobs',
+            nome: 'job-antigo',
+            status: 'ativo',
+            lock_key: 'acc-jobs:job-retest',
+            locked_at: null,
+            locked_by: null,
+            last_run_at: null,
+            next_run_at: null,
+            last_success_at: null,
+            last_error: null,
+            metadata: { cadence: 'daily' },
+            created_at: '2026-06-17T00:00:00.000Z',
+            updated_at: '2026-06-17T00:00:00.000Z'
+          }],
+          runs: [{
+            id: 'run-1',
+            job_id: 'job-1',
+            account_id: 'acc-jobs',
+            nome: 'job-antigo',
+            status: 'success',
+            started_at: '2026-06-17T01:00:00.000Z',
+            finished_at: '2026-06-17T01:01:00.000Z',
+            duration_ms: 60000,
+            processed_count: 1,
+            success_count: 1,
+            error_count: 0,
+            metadata: {},
+            error: null
+          }]
+        });
+        __setSystemJobsSupabaseClientForTests(mock, true);
+        try {
+          const first = await upsertSystemJob({ id: 'job-new', nome: 'job-retest', lock_key: 'acc-jobs:job-retest', status: 'ativo', metadata: { cadence: 'hourly', ttlMinutes: 20 } }, { accountId: 'acc-jobs' });
+          const second = await upsertSystemJob({ id: 'job-other', nome: 'job-retest', lock_key: 'acc-jobs:job-retest', status: 'ativo', metadata: { ttlMinutes: 45 } }, { accountId: 'acc-jobs' });
+          assert.equal(first.id, 'job-1');
+          assert.equal(second.id, 'job-1');
+          assert.equal(second.created_at, '2026-06-17T00:00:00.000Z');
+          assert.equal(second.account_id, 'acc-jobs');
+          assert.equal(second.status, 'ativo');
+          assert.equal(mock.state.runs[0].job_id, 'job-1');
+          assert.equal(mock.state.jobs[0].id, 'job-1');
+          assert.equal(mock.state.jobs[0].metadata.cadence, 'hourly');
+          assert.equal(mock.state.jobs[0].metadata.ttlMinutes, 45);
+        } finally {
+          __setSystemJobsSupabaseClientForTests(null, false);
+        }
+      }
+    },
     {
       name: 'POST /jobs/radar-comercial/run responde 202 e continua em background',
       run: async () => {
