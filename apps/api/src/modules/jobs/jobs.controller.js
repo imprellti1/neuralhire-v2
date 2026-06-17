@@ -1,7 +1,7 @@
 import { ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { logger } from '../../core/logger.js';
-import { listJobsOverview, runClientesEnriquecimentoJob, runClientesGeolocalizacaoJob, runNotificacoesResumoSemanalJob, runRadarComercialJob } from './jobs.scheduler.js';
+import { listJobsOverview, runClientesEnriquecimentoJob, runClientesGeolocalizacaoJob, runGerenteComercialObservacaoJob, runNotificacoesResumoSemanalJob, runRadarComercialJob } from './jobs.scheduler.js';
 import { getSystemJobById, listSystemJobRuns, listSystemJobRunsForJob, listSystemJobs } from './jobs.repository.js';
 
 function assertJobAdmin(context) {
@@ -125,6 +125,26 @@ export async function runNotificacoesResumoSemanalAdmin(context = {}) {
     .catch((error) => {
       logger.error({
         message: 'Falha na execução assíncrona do job de notificações resumo semanal',
+        error: error?.message || String(error),
+        requestId,
+        account_id: accountId
+      });
+    });
+
+  return { success: true, message: 'Job iniciado', status: 'running' };
+}
+
+export async function runGerenteComercialObservacaoAdmin(context = {}) {
+  assertJobAdmin(context);
+  const accountId = getAccountIdFromContext(context);
+  const workerId = context?.requestId || 'local';
+  const requestId = context?.requestId || null;
+
+  void Promise.resolve()
+    .then(() => runGerenteComercialObservacaoJob({ ...context, accountId, workerId, requestId }))
+    .catch((error) => {
+      logger.error({
+        message: 'Falha na execução assíncrona do job gerente comercial observacao',
         error: error?.message || String(error),
         requestId,
         account_id: accountId

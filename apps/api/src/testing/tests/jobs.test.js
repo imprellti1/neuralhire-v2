@@ -170,6 +170,13 @@ export function getJobsTests() {
         assert.equal(out.body.success, true);
         assert.equal(Array.isArray(out.body.items), true);
         assert.equal(out.body.items.some((job) => job.nome === 'gerente_comercial_observacao'), true);
+        assert.equal(out.body.items.some((job) => job.nome === 'clientes_enriquecimento_geolocalizacao'), false);
+        assert.equal(out.body.items.some((job) => job.nome === 'clientes_resumo_semanal'), false);
+        assert.equal(out.body.items.every((job) => [
+          'radar_comercial_diario',
+          'notificacoes_resumo_semanal',
+          'gerente_comercial_observacao'
+        ].includes(job.nome)), true);
       }
     },
     {

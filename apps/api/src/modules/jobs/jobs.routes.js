@@ -1,6 +1,6 @@
 import { asyncHandler } from '../../core/async-handler.js';
 import { sendJson, sendSuccess } from '../../core/response.js';
-import { getJobDetailAdmin, getJobsListAdmin, getJobsRunsAdmin, runClientesEnriquecimentoAdmin, runClientesGeolocalizacaoAdmin, runNotificacoesResumoSemanalAdmin, runRadarComercialAdmin } from './jobs.controller.js';
+import { getJobDetailAdmin, getJobsListAdmin, getJobsRunsAdmin, runClientesEnriquecimentoAdmin, runClientesGeolocalizacaoAdmin, runGerenteComercialObservacaoAdmin, runNotificacoesResumoSemanalAdmin, runRadarComercialAdmin } from './jobs.controller.js';
 
 export function registerJobsRoutes(router) {
   router.registerRoute({ method: 'GET', path: '/jobs', domain: 'system-jobs', handler: asyncHandler(async (req, res, context) => sendSuccess(res, await getJobsListAdmin(context))) });
@@ -28,6 +28,12 @@ export function registerJobsRoutes(router) {
     path: '/jobs/notificacoes-resumo-semanal/run',
     domain: 'system-jobs',
     handler: asyncHandler(async (req, res, context) => sendJson(res, 202, await runNotificacoesResumoSemanalAdmin(context)))
+  });
+  router.registerRoute({
+    method: 'POST',
+    path: '/jobs/gerente-comercial-observacao/run',
+    domain: 'system-jobs',
+    handler: asyncHandler(async (req, res, context) => sendJson(res, 202, await runGerenteComercialObservacaoAdmin(context)))
   });
   router.registerRoute({ method: 'GET', path: '/jobs/:id', domain: 'system-jobs', handler: asyncHandler(async (req, res, context) => sendSuccess(res, await getJobDetailAdmin(context))) });
 }
