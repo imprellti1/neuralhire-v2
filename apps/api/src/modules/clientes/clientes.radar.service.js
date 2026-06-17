@@ -170,16 +170,34 @@ async function fetchRadarClientes(accountId, supabase, filtros = {}, options = {
   return applyFilters(__dumpMemoryClientes().filter((item) => item.account_id === accountId), filtros);
 }
 
-async function fetchRadarPedidos(accountId, clienteIds = [], supabase) {
+async function fetchRadarPedidos(accountId, clienteIds = [], supabase, options = {}) {
   const ids = [...new Set((Array.isArray(clienteIds) ? clienteIds : [clienteIds]).map((id) => String(id || '').trim()).filter(Boolean))];
   if (!ids.length) return [];
   const mode = getClientesRepositoryMode().mode;
   if (mode === 'supabase') {
     const client = supabase || resolveSupabaseClient();
     if (!client) throw new DatabaseError('Supabase indisponivel');
-    const { data, error } = await client.from('pedidos').select('id,cliente_id,status,total,valor_total,valor,data_emissao,data_faturamento,metadata,created_at,account_id').eq('account_id', accountId).in('cliente_id', ids);
-    if (error) throw new DatabaseError('Falha ao listar pedidos do radar', { details: error });
-    return data || [];
+    const querySpec = {
+      table: 'pedidos',
+      select: 'id,cliente_id,account_id,data_faturamento,data_emissao,created_at,status',
+      filters: { account_id: accountId, cliente_id: ids }
+    };
+    try {
+      const { data, error } = await client
+        .from('pedidos')
+        .select(querySpec.select)
+        .eq('account_id', accountId)
+        .in('cliente_id', ids);
+      if (error) {
+        logRadarSupabaseError('fetchRadarPedidos', error, { accountId, filtros: { cliente_id: ids }, query: querySpec, requestId: options.requestId || options.context?.requestId || null });
+        throw new DatabaseError('Falha ao listar pedidos do radar', { details: error });
+      }
+      return data || [];
+    } catch (error) {
+      if (error instanceof DatabaseError) throw error;
+      logRadarSupabaseError('fetchRadarPedidos', error, { accountId, filtros: { cliente_id: ids }, query: querySpec, requestId: options.requestId || options.context?.requestId || null });
+      throw new DatabaseError('Falha ao listar pedidos do radar', { details: { message: error?.message || String(error), code: error?.code || null, details: error?.details || null, hint: error?.hint || null } });
+    }
   }
   return __dumpMemoryPedidos().pedidos.filter((item) => item.account_id === accountId && ids.includes(String(item.cliente_id || '')));
 }
@@ -229,7 +247,7 @@ function buildGroups(clientes = []) {
 
 async function loadRadarData(accountId, options = {}) {
   const clientes = await fetchRadarClientes(accountId, null, {}, options);
-  const pedidos = await fetchRadarPedidos(accountId, clientes.map((cliente) => cliente.id));
+  const pedidos = await fetchRadarPedidos(accountId, clientes.map((cliente) => cliente.id), null, options);
   const alertas = await fetchRadarAlertas(accountId, clientes.map((cliente) => cliente.id));
   return { clientes, pedidos, alertas };
 }
@@ -283,7 +301,7 @@ export async function recalcularRadarComercial({ supabase, context, accountId, f
     for (const cliente of chunk) {
       processados += 1;
       try {
-        const pedidos = await fetchRadarPedidos(accountId, [cliente.id], supabase);
+        const pedidos = await fetchRadarPedidos(accountId, [cliente.id], supabase, { context, requestId: context?.requestId || null });
         const alertas = await fetchRadarAlertas(accountId, [cliente.id], supabase);
         const score = await calcularScoreComercialCliente({ supabase, context, accountId, clienteId: cliente.id });
         await gerarAlertasCliente(cliente.id, { accountId, context, pedidos });
