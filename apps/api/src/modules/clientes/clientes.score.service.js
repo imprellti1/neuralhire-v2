@@ -1,3 +1,5 @@
+import { isPedidoExcluidoComercial, isPedidoFaturadoComercial } from './clientes.financeiro.helper.js';
+
 function safeNumber(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
@@ -13,22 +15,8 @@ function normalizeDate(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function normalizeStatusText(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-}
-
-function getPedidoStatus(pedido = {}) {
-  return normalizeStatusText(pedido?.status || pedido?.metadata?.status || pedido?.metadata?.situacao);
-}
-
 function isPedidoValido(pedido = {}) {
-  const status = getPedidoStatus(pedido);
-  if (!status) return false;
-  return !['cancelado', 'rejeitado', 'estornado'].includes(status);
+  return !isPedidoExcluidoComercial(pedido);
 }
 
 function getPedidoValor(pedido = {}) {
@@ -60,17 +48,18 @@ function computeFactorScore(value, thresholds, maxScore) {
 
 export function calcularScoreCliente({ cliente = {}, pedidos = [], itens = [] } = {}) {
   const pedidosValidos = (Array.isArray(pedidos) ? pedidos : []).filter(isPedidoValido);
+  const pedidosFaturados = pedidosValidos.filter(isPedidoFaturadoComercial);
   const itensValidos = Array.isArray(itens) ? itens : [];
-  const faturamentoTotal = pedidosValidos.reduce((acc, pedido) => acc + getPedidoValor(pedido), 0);
-  const totalPedidos = pedidosValidos.length;
+  const faturamentoTotal = pedidosFaturados.reduce((acc, pedido) => acc + getPedidoValor(pedido), 0);
+  const totalPedidos = pedidosFaturados.length;
   const ticketMedio = totalPedidos > 0 ? faturamentoTotal / totalPedidos : 0;
-  const datasPedidos = pedidosValidos.map(getPedidoData).filter(Boolean).sort((a, b) => b.getTime() - a.getTime());
+  const datasPedidos = pedidosFaturados.map(getPedidoData).filter(Boolean).sort((a, b) => b.getTime() - a.getTime());
   const ultimaCompra = datasPedidos[0] || null;
   const hoje = new Date();
   const diasSemCompra = ultimaCompra ? Math.max(0, Math.floor((hoje.getTime() - ultimaCompra.getTime()) / 86400000)) : null;
   const produtosDistintos = new Set(
     itensValidos
-      .filter((item) => pedidosValidos.some((pedido) => String(pedido?.id || '') === String(item?.pedido_id || item?.pedidoId || '')))
+      .filter((item) => pedidosFaturados.some((pedido) => String(pedido?.id || '') === String(item?.pedido_id || item?.pedidoId || '')))
       .map(getItemProdutoKey)
       .filter(Boolean)
   ).size;

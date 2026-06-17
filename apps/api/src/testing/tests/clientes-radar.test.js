@@ -3,7 +3,7 @@ import { createApiApp } from '../../app.js';
 import { createTestRequest } from '../create-test-request.js';
 import { createTestResponse } from '../create-test-response.js';
 import { __loadMemoryClientes, __resetMemoryClientesForTests } from '../../modules/clientes/clientes.repository.js';
-import { __resetMemoryPedidosForTests } from '../../modules/pedidos/pedidos.repository.js';
+import { __loadMemoryPedidos, __resetMemoryPedidosForTests } from '../../modules/pedidos/pedidos.repository.js';
 import { __resetMemoryAlertasForTests } from '../../modules/clientes/clientes.alerts.service.js';
 import { __setClientesRadarSupabaseClientForTests } from '../../modules/clientes/clientes.radar.service.js';
 import { __setClientesSupabaseClientForTests } from '../../modules/clientes/clientes.repository.js';
@@ -68,6 +68,33 @@ function createRadarSupabaseMock({ clientes = [], pedidos = [], alertas = [], fa
 
 export function getClientesRadarTests() {
   return [
+    {
+      name: 'endpoint consolida faturamento e ticket medio com pedidos faturados',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        __resetMemoryPedidosForTests();
+        __resetMemoryAlertasForTests();
+        __loadMemoryClientes([
+          { id: 'c-fin', account_id: 'acc-radar', nome: 'Cliente Financeiro', cidade: 'SP', estado: 'SP', cliente_score: 75, cliente_classificacao: 'B', segmento_comercial: 'RECORRENTE' }
+        ]);
+        __loadMemoryPedidos({
+          pedidos: [
+            { id: 'p-1', account_id: 'acc-radar', cliente_id: 'c-fin', status: 'faturado_total', total: 1000, data_faturamento: '2026-06-10T00:00:00.000Z', created_at: '2026-06-10T10:00:00.000Z' },
+            { id: 'p-2', account_id: 'acc-radar', cliente_id: 'c-fin', status: 'faturado_parcial', total: 500, data_faturamento: '2026-06-11T00:00:00.000Z', created_at: '2026-06-11T10:00:00.000Z' },
+            { id: 'p-2b', account_id: 'acc-radar', cliente_id: 'c-fin', status: 'aprovado', total: 700, data_emissao: '2026-06-11T00:00:00.000Z', created_at: '2026-06-11T11:00:00.000Z' },
+            { id: 'p-3', account_id: 'acc-radar', cliente_id: 'c-fin', status: 'cancelado', total: 999, data_faturamento: '2026-06-12T00:00:00.000Z', created_at: '2026-06-12T10:00:00.000Z' }
+          ]
+        });
+        const app = createApiApp();
+        const out = await call(app, { method: 'GET', url: '/clientes/radar', role: 'admin', accountId: 'acc-radar' });
+        assertEqual(out.res.statusCode, 200);
+        assertEqual(out.body.resumo.faturamento_total, 1500);
+        assertEqual(out.body.resumo.ticket_medio_geral, 1500);
+        assertEqual(out.body.grupos.recorrentes[0].faturamento_total, 1500);
+        assertEqual(out.body.grupos.recorrentes[0].ticket_medio, 750);
+        assertEqual(out.body.grupos.recorrentes[0].total_pedidos, 2);
+      }
+    },
     {
       name: 'endpoint agrupa e ordena clientes do radar',
       run: async () => {

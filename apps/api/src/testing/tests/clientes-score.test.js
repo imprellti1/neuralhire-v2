@@ -73,9 +73,9 @@ export function getClientesScoreTests() {
             { pedido_id: 'p2', produto_id: 'b' }
           ]
         });
-        assertEqual(result.fatores.total_pedidos, 2);
-        assertEqual(result.fatores.faturamento_total, 3000);
-        assertEqual(result.fatores.produtos_distintos, 2);
+        assertEqual(result.fatores.total_pedidos, 1);
+        assertEqual(result.fatores.faturamento_total, 1000);
+        assertEqual(result.fatores.produtos_distintos, 1);
         assertEqual(result.score > 0, true);
       }
     },

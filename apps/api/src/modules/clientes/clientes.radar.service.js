@@ -5,6 +5,7 @@ import { __dumpMemoryPedidos } from '../pedidos/pedidos.repository.js';
 import { gerarAlertasCliente, __dumpMemoryAlertas } from './clientes.alerts.service.js';
 import { recalcularSegmentacaoCliente } from './clientes.segmentacao.service.js';
 import { registrarEventoTimeline } from './clientes.timeline.service.js';
+import { isPedidoExcluidoComercial, isPedidoFaturadoComercial } from './clientes.financeiro.helper.js';
 
 let supabaseClientOverride = null;
 let supabaseConfiguredOverride = null;
@@ -41,14 +42,8 @@ function getPedidoDate(pedido = {}) {
 }
 
 function getPedidoTotal(pedido = {}) {
-  const total = Number(pedido.total ?? pedido.valor_total ?? pedido.valor ?? 0);
+  const total = Number(pedido.total ?? pedido.valor_total ?? pedido.valor ?? pedido.valor_total_bruto ?? 0);
   return Number.isFinite(total) ? total : 0;
-}
-
-function isPedidoValido(pedido = {}) {
-  const status = normalizeKey(pedido.status || pedido?.metadata?.status || pedido?.metadata?.situacao);
-  if (!status) return false;
-  return !['cancelado', 'rejeitado', 'estornado'].includes(status);
 }
 
 function getDiasSemCompra(ultimaCompra) {
@@ -58,11 +53,11 @@ function getDiasSemCompra(ultimaCompra) {
 }
 
 function getScoreClassificacao(cliente = {}) {
-  return normalizeText(cliente.cliente_classificacao || cliente.score_classificacao || cliente.scoreClassificacao || '');
+  return String(cliente.cliente_classificacao || cliente.score_classificacao || cliente.scoreClassificacao || '').trim();
 }
 
 function getClienteSegmento(cliente = {}) {
-  return normalizeKey(cliente.segmento_comercial || cliente.segmento || '');
+  return String(cliente.segmento_comercial || cliente.segmento || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
 function getClienteVendedorId(cliente = {}) {
@@ -95,13 +90,13 @@ function chunkArray(items = [], size = 25) {
 
 function buildClienteRadar(cliente, pedidos = [], alertas = []) {
   const pedidosCliente = pedidos.filter((pedido) => String(pedido.cliente_id || '') === String(cliente.id));
-  const pedidosValidos = pedidosCliente.filter(isPedidoValido);
-  const pedidosOrdenados = pedidosValidos
+  const pedidosFaturados = pedidosCliente.filter((pedido) => !isPedidoExcluidoComercial(pedido) && isPedidoFaturadoComercial(pedido));
+  const pedidosOrdenados = pedidosFaturados
     .map((pedido) => ({ pedido, data: getPedidoDate(pedido) }))
     .filter((entry) => entry.data)
     .sort((a, b) => b.data.getTime() - a.data.getTime());
-  const totalPedidos = pedidosValidos.length;
-  const faturamentoTotal = pedidosValidos.reduce((sum, pedido) => sum + getPedidoTotal(pedido), 0);
+  const totalPedidos = pedidosFaturados.length;
+  const faturamentoTotal = pedidosFaturados.reduce((sum, pedido) => sum + getPedidoTotal(pedido), 0);
   const ultimaCompra = pedidosOrdenados[0]?.data || null;
   const diasSemCompra = getDiasSemCompra(ultimaCompra);
   const clienteAlertas = alertas.filter((alerta) => String(alerta.cliente_id || '') === String(cliente.id));
@@ -131,7 +126,7 @@ function applyFilters(clientes = [], filters = {}) {
     if (filters.vendedor_id && String(getClienteVendedorId(cliente)) !== String(filters.vendedor_id)) return false;
     if (filters.cidade && normalizeKey(cliente.cidade) !== normalizeKey(filters.cidade)) return false;
     if (filters.estado && normalizeKey(cliente.estado) !== normalizeKey(filters.estado)) return false;
-    if (filters.segmento && normalizeKey(cliente.segmento_comercial || cliente.segmento) !== normalizeKey(filters.segmento)) return false;
+    if (filters.segmento && getClienteSegmento(cliente) !== getClienteSegmento({ segmento_comercial: filters.segmento })) return false;
     return true;
   });
 }
@@ -179,7 +174,7 @@ async function fetchRadarPedidos(accountId, clienteIds = [], supabase, options =
     if (!client) throw new DatabaseError('Supabase indisponivel');
     const querySpec = {
       table: 'pedidos',
-      select: 'id,cliente_id,account_id,data_faturamento,data_emissao,created_at,status',
+      select: 'id,cliente_id,account_id,data_faturamento,data_emissao,created_at,status,total,valor_total,valor',
       filters: { account_id: accountId, cliente_id: ids }
     };
     try {
