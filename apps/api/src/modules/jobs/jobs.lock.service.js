@@ -7,7 +7,6 @@ export async function withSystemJobLock(jobConfig, fn) {
     const result = await fn(acquired.job);
     return { acquired: true, job: result?.job || acquired.job, result };
   } finally {
-    await releaseSystemJobLock(jobConfig.lockKey, { status: 'idle' }).catch(() => null);
+    await releaseSystemJobLock(jobConfig.lockKey, { locked_at: null, locked_by: null }).catch(() => null);
   }
 }
-

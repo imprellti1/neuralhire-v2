@@ -54,7 +54,8 @@ export function getJobsTests() {
         }
 
         assert.equal(dump.runs.length > 0, true);
-        assert.equal(dump.jobs.some((job) => job.nome === 'radar_comercial_diario' && ['success', 'error', 'running'].includes(job.status)), true);
+        assert.equal(dump.jobs.some((job) => job.nome === 'radar_comercial_diario' && job.status === 'ativo'), true);
+        assert.equal(dump.runs.some((run) => run.nome === 'radar_comercial_diario' && ['success', 'error', 'running'].includes(run.status)), true);
       }
     },
     {
@@ -301,7 +302,19 @@ export function getJobsTests() {
         assert.equal(dump.runs[0].status, 'success');
         assert.equal(dump.runs[0].processed_count, 0);
         assert.equal(dump.runs[0].metadata.result, 'empty_queue');
+        assert.equal(dump.jobs.find((job) => job.nome === 'clientes_enriquecimento_automatico')?.status, 'ativo');
         assert.equal(String(dump.jobs.find((job) => job.nome === 'clientes_enriquecimento_automatico')?.next_run_at || '').length > 0, true);
+      }
+    },
+    {
+      name: 'lock e execução mantêm system_jobs em ativo',
+      run: async () => {
+        __resetSystemJobsForTests();
+        const acquired = await acquireSystemJobLock({ lockKey: 'acc-status:jobs:radar_comercial_diario', nome: 'radar_comercial_diario', ttlMinutes: 120, accountId: 'acc-status', workerId: 'worker-status' });
+        assert.equal(acquired.acquired, true);
+        assert.equal(acquired.job.status, 'ativo');
+        const dump = __dumpSystemJobsForTests();
+        assert.equal(dump.jobs.every((job) => ['ativo', 'inativo'].includes(job.status)), true);
       }
     },
     {

@@ -30,7 +30,7 @@ function defaultJob(nome, lockKey, accountId = null, metadata = {}) {
     id: randomUUID(),
     account_id: accountId,
     nome,
-    status: 'idle',
+    status: 'ativo',
     lock_key: lockKey,
     locked_at: null,
     locked_by: null,
@@ -42,6 +42,11 @@ function defaultJob(nome, lockKey, accountId = null, metadata = {}) {
     created_at: nowIso(),
     updated_at: nowIso()
   };
+}
+
+function normalizeSystemJobStatus(status) {
+  const value = String(status || '').toLowerCase();
+  return value === 'inativo' ? 'inativo' : 'ativo';
 }
 
 export function getSystemJobDefaults() {
@@ -91,6 +96,7 @@ async function ensureSystemJob({ lockKey, nome, accountId = null, metadata = {},
     nome: jobNome,
     lock_key: jobLockKey,
     account_id: accountId,
+    status: normalizeSystemJobStatus(baseJob.status),
     metadata: { ...baseJob.metadata, ...metadata },
     updated_at: nowIso()
   };
@@ -168,7 +174,7 @@ export async function listDueSystemJobs({ now = new Date(), limit = 10, accountI
 export async function upsertSystemJob(job, options = {}) {
   const accountId = options.accountId ?? job.account_id ?? null;
   const lockKey = job.lock_key || `${accountId || 'global'}:${job.nome}`;
-  const payload = { ...job, account_id: accountId, lock_key: lockKey, updated_at: nowIso() };
+  const payload = { ...job, account_id: accountId, lock_key: lockKey, status: normalizeSystemJobStatus(job.status), updated_at: nowIso() };
   if (resolveSupabaseConfigured()) {
     const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
@@ -177,7 +183,7 @@ export async function upsertSystemJob(job, options = {}) {
     return data;
   }
   const current = resolveMemoryJob(lockKey) || defaultJob(job.nome, lockKey, accountId, job.metadata);
-  const next = { ...current, ...payload };
+  const next = { ...current, ...payload, status: normalizeSystemJobStatus(payload.status) };
   memoryJobs.set(lockKey, next);
   return next;
 }
@@ -252,19 +258,19 @@ export async function acquireSystemJobLock({ lockKey, nome, ttlMinutes, accountI
     const ttlMs = Math.max(1, Number(ttlMinutes) || 30) * 60000;
     const job = await ensureSystemJob({ lockKey, nome, accountId, metadata: { ttlMinutes }, requestId: workerId });
     const lockedAt = job?.locked_at ? new Date(job.locked_at) : null;
-    const isRunning = String(job?.status || '').toLowerCase() === 'running';
+    const isRunning = Boolean(job?.locked_at);
     const lockValid = lockedAt && (Date.now() - lockedAt.getTime()) < ttlMs;
     if (isRunning && lockValid) return { acquired: false, job };
-    const next = await upsertSystemJob({ ...job, status: 'running', locked_at: nowIso(), locked_by: workerId || 'local', last_run_at: nowIso() }, { accountId });
+    const next = await upsertSystemJob({ ...job, status: 'ativo', locked_at: nowIso(), locked_by: workerId || 'local', last_run_at: nowIso() }, { accountId });
     return { acquired: true, job: next };
   }
   seedSystemJobs(accountId);
   const current = resolveMemoryJob(lockKey) || defaultJob(nome, lockKey, accountId);
   const ttlMs = Math.max(1, Number(ttlMinutes) || 30) * 60000;
   const lockedAt = current.locked_at ? new Date(current.locked_at) : null;
-  const lockValid = current.status === 'running' && lockedAt && (Date.now() - lockedAt.getTime()) < ttlMs;
+  const lockValid = Boolean(current.locked_at) && lockedAt && (Date.now() - lockedAt.getTime()) < ttlMs;
   if (lockValid) return { acquired: false, job: current };
-  const next = { ...current, status: 'running', locked_at: nowIso(), locked_by: workerId || 'local', last_run_at: nowIso(), updated_at: nowIso() };
+  const next = { ...current, status: 'ativo', locked_at: nowIso(), locked_by: workerId || 'local', last_run_at: nowIso(), updated_at: nowIso() };
   memoryJobs.set(lockKey, next);
   return { acquired: true, job: next };
 }
@@ -273,11 +279,13 @@ export async function releaseSystemJobLock(lockKey, updates = {}) {
   if (resolveSupabaseConfigured()) {
     const current = await getSystemJobByLockKey(lockKey);
     if (!current) return null;
-    return upsertSystemJob({ ...current, ...updates, status: updates.status || current.status || 'idle' }, { accountId: current.account_id });
+    const { status, ...safeUpdates } = updates || {};
+    return upsertSystemJob({ ...current, ...safeUpdates, status: current.status || 'ativo' }, { accountId: current.account_id });
   }
   const job = resolveMemoryJob(lockKey);
   if (!job) return null;
-  const next = { ...job, ...updates, status: updates.status || job.status || 'idle', updated_at: nowIso() };
+  const { status, ...safeUpdates } = updates || {};
+  const next = { ...job, ...safeUpdates, status: job.status || 'ativo', updated_at: nowIso() };
   memoryJobs.set(lockKey, next);
   return next;
 }

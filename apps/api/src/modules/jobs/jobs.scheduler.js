@@ -134,7 +134,7 @@ export async function runRadarComercialJob(context = {}) {
     nome: 'radar_comercial_diario',
     lock_key: lockKey,
     account_id: accountId,
-    status: 'running',
+    status: 'ativo',
     last_run_at: isoNow(),
     next_run_at: nextDaily0300(new Date())
   }, { accountId });
@@ -184,7 +184,7 @@ export async function runRadarComercialJob(context = {}) {
       return null;
     });
 
-    await releaseSystemJobLock(lockKey, { status, locked_at: null, locked_by: null }).catch((error) => {
+    await releaseSystemJobLock(lockKey, { locked_at: null, locked_by: null }).catch((error) => {
       logJobError('releaseSystemJobLock', error, { accountId, lockKey, requestId: context.requestId || null });
       return null;
     });
@@ -192,7 +192,7 @@ export async function runRadarComercialJob(context = {}) {
 
   await upsertSystemJob({
     ...job,
-    status: fatalError || falhas ? 'error' : 'success',
+    status: 'ativo',
     last_success_at: fatalError || falhas ? job.last_success_at : isoNow(),
     last_error: fatalError ? (fatalError?.message || 'Falha fatal no job') : (falhas ? 'Alguns clientes falharam' : null),
     next_run_at: nextDaily0300(new Date())
@@ -219,7 +219,7 @@ async function runClienteAutomacaoJob({ context = {}, lockKey, nome, ttlMinutes,
   if (!acquired.acquired) return { ok: true, skipped: true, job: acquired.job };
 
   const startedAt = Date.now();
-  const job = await upsertSystemJob({ nome, lock_key: lockKey, account_id: accountId, status: 'running', last_run_at: isoNow(), next_run_at: nextInMinutes(new Date(), nextRunIfEmptyMinutes) }, { accountId });
+  const job = await upsertSystemJob({ nome, lock_key: lockKey, account_id: accountId, status: 'ativo', last_run_at: isoNow(), next_run_at: nextInMinutes(new Date(), nextRunIfEmptyMinutes) }, { accountId });
   let processedCount = 0;
   let successCount = 0;
   let errorCount = 0;
@@ -248,7 +248,6 @@ async function runClienteAutomacaoJob({ context = {}, lockKey, nome, ttlMinutes,
   } finally {
     const finishedAt = isoNow();
     const hasItems = processedCount > 0;
-    const status = fatalError && hasItems ? 'error' : 'success';
     const nextRunAt = hasItems ? nextInMinutes(new Date(), nextRunIfProcessedMinutes) : nextInMinutes(new Date(), nextRunIfEmptyMinutes);
     await recordSystemJobRun({
       job_id: job.id,
@@ -267,11 +266,11 @@ async function runClienteAutomacaoJob({ context = {}, lockKey, nome, ttlMinutes,
       logJobError('recordSystemJobRun', error, { accountId, lockKey, requestId: context.requestId || null });
       return null;
     });
-    await releaseSystemJobLock(lockKey, { status: 'idle', locked_at: null, locked_by: null, next_run_at: nextRunAt }).catch((error) => {
+    await releaseSystemJobLock(lockKey, { locked_at: null, locked_by: null, next_run_at: nextRunAt }).catch((error) => {
       logJobError('releaseSystemJobLock', error, { accountId, lockKey, requestId: context.requestId || null });
       return null;
     });
-    await upsertSystemJob({ ...job, status, last_success_at: status === 'success' ? isoNow() : job.last_success_at, last_error: fatalError?.message || null, next_run_at: nextRunAt }, { accountId });
+    await upsertSystemJob({ ...job, status: 'ativo', last_success_at: fatalError ? job.last_success_at : isoNow(), last_error: fatalError?.message || null, next_run_at: nextRunAt }, { accountId });
   }
 
   return { ok: true, processados: processedCount, sucessos: successCount, falhas: errorCount, job };
@@ -345,7 +344,7 @@ export async function runNotificacoesResumoSemanalJob(context = {}) {
   if (!acquired.acquired) return { ok: true, skipped: true, job: acquired.job };
 
   const startedAt = Date.now();
-  const job = await upsertSystemJob({ nome: 'notificacoes_resumo_semanal', lock_key: lockKey, account_id: accountId, status: 'running', last_run_at: isoNow(), next_run_at: nextInMinutes(new Date(), 60 * 24 * 7) }, { accountId });
+  const job = await upsertSystemJob({ nome: 'notificacoes_resumo_semanal', lock_key: lockKey, account_id: accountId, status: 'ativo', last_run_at: isoNow(), next_run_at: nextInMinutes(new Date(), 60 * 24 * 7) }, { accountId });
   const periodEndDate = new Date();
   const periodStartDate = new Date(periodEndDate.getTime() - 7 * 24 * 60 * 60 * 1000);
   const periodStart = periodStartDate.toISOString();
@@ -398,11 +397,11 @@ export async function runNotificacoesResumoSemanalJob(context = {}) {
       return null;
     });
 
-    await releaseSystemJobLock(lockKey, { status: 'idle', locked_at: null, locked_by: null }).catch((error) => {
+    await releaseSystemJobLock(lockKey, { locked_at: null, locked_by: null }).catch((error) => {
       logJobError('releaseSystemJobLock', error, { accountId, lockKey, requestId: context.requestId || null });
       return null;
     });
-    await upsertSystemJob({ ...job, status: 'success', last_success_at: isoNow(), last_error: null, next_run_at: new Date(periodEndDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString() }, { accountId });
+    await upsertSystemJob({ ...job, status: 'ativo', last_success_at: isoNow(), last_error: null, next_run_at: new Date(periodEndDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString() }, { accountId });
   } catch (error) {
     await recordSystemJobRun({
       job_id: job.id,
@@ -418,7 +417,7 @@ export async function runNotificacoesResumoSemanalJob(context = {}) {
       metadata,
       error: error?.message || String(error)
     }, { accountId }).catch(() => null);
-    await releaseSystemJobLock(lockKey, { status: 'idle', locked_at: null, locked_by: null }).catch(() => null);
+    await releaseSystemJobLock(lockKey, { locked_at: null, locked_by: null }).catch(() => null);
     throw error;
   }
 
