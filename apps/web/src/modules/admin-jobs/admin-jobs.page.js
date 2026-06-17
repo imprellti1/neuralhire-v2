@@ -26,6 +26,24 @@ function summaryText(value) {
   return text.length > 120 ? `${text.slice(0, 120)}...` : text;
 }
 
+function kpiIcon(type) {
+  const icons = {
+    total: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v10H4z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 7V5h10v2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 11h8M8 14h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+    active: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a8 8 0 1 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 8v4l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    error: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.5 20h19L12 3z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 9v4m0 3.5h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+    running: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>'
+  };
+  return icons[type] || icons.total;
+}
+
+function statusClass(status) {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'success') return 'is-success';
+  if (normalized === 'error') return 'is-error';
+  if (normalized === 'running') return 'is-running';
+  return '';
+}
+
 export async function renderAdminJobsPage(container, { apiClient } = {}) {
   const state = createAdminJobsState();
   const runTargets = Object.keys(JOB_LABELS);
@@ -83,40 +101,91 @@ export async function renderAdminJobsPage(container, { apiClient } = {}) {
     const blocked = state.jobs.filter((job) => ['running', 'locked', 'blocked'].includes(String(job.status || '').toLowerCase()) || job.locked_at).length;
 
     container.innerHTML = `
-      <section style="display:grid;gap:18px">
-        <header style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap">
+      <section class="admin-jobs-page">
+        <style>
+          .admin-jobs-page{display:grid;gap:18px;color:#E5E7EB}
+          .admin-jobs-header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}
+          .admin-jobs-title{margin:0;font-size:30px;line-height:1.1;color:#F8FAFC}
+          .admin-jobs-subtitle{margin:8px 0 0;color:#94A3B8}
+          .admin-jobs-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+          .admin-jobs-btn{height:40px;padding:0 14px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:rgba(15,23,42,.55);color:#E5E7EB;cursor:pointer;transition:background .15s ease,border-color .15s ease,transform .15s ease}
+          .admin-jobs-btn:hover{transform:translateY(-1px)}
+          .admin-jobs-btn-primary{background:#2563eb;border-color:#2563eb;color:#fff}
+          .admin-jobs-btn-primary:hover{background:#1d4ed8;border-color:#1d4ed8}
+          .admin-jobs-card{background:rgba(10,20,40,.75);border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(12px);border-radius:20px;padding:16px;box-shadow:0 18px 60px rgba(2,8,23,.28)}
+          .admin-jobs-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+          .admin-jobs-kpi{display:flex;align-items:center;gap:14px;min-height:110px}
+          .admin-jobs-kpi-icon{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;flex:0 0 auto}
+          .admin-jobs-kpi-icon svg{width:22px;height:22px;display:block}
+          .admin-jobs-kpi-icon.total{background:#1d4ed8;color:#dbeafe}
+          .admin-jobs-kpi-icon.active{background:#166534;color:#bbf7d0}
+          .admin-jobs-kpi-icon.error{background:#991b1b;color:#fecaca}
+          .admin-jobs-kpi-icon.running{background:#92400e;color:#fde68a}
+          .admin-jobs-kpi-label{font-size:13px;color:#94A3B8}
+          .admin-jobs-kpi-value{font-size:30px;font-weight:700;line-height:1;color:#F8FAFC;margin-top:6px}
+          .admin-jobs-kpi-copy{display:flex;flex-direction:column;gap:3px}
+          .admin-jobs-table-wrap{overflow-x:auto}
+          .admin-jobs-table{width:100%;min-width:1080px;border-collapse:collapse;font-size:14px}
+          .admin-jobs-table th,.admin-jobs-table td{padding:12px 10px;border-bottom:1px solid rgba(148,163,184,.16);text-align:left;vertical-align:top;color:#E5E7EB}
+          .admin-jobs-table th{color:#F8FAFC;font-weight:600;white-space:nowrap}
+          .admin-jobs-table tbody tr:hover td{background:rgba(59,130,246,.08)}
+          .admin-jobs-muted{color:#94A3B8}
+          .admin-jobs-status{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:600;text-transform:lowercase}
+          .admin-jobs-status.is-success{background:#14532d;color:#86efac}
+          .admin-jobs-status.is-error{background:#7f1d1d;color:#fca5a5}
+          .admin-jobs-status.is-running{background:#78350f;color:#fde68a}
+          .admin-jobs-btn-secondary{background:transparent;border-color:rgba(255,255,255,.15)}
+          .admin-jobs-filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+          .admin-jobs-select,.admin-jobs-input{height:38px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(2,6,23,.92);color:#E5E7EB;padding:0 10px}
+          .admin-jobs-select option{background:#020617;color:#E5E7EB}
+          .admin-jobs-meta-panel{background:#020617}
+          .admin-jobs-pre{white-space:pre;overflow:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;background:#020617;color:#cbd5e1;padding:14px;border-radius:14px;border:1px solid rgba(255,255,255,.08)}
+          .admin-jobs-feedback{padding:12px 14px;border-radius:14px}
+          .admin-jobs-feedback.success{background:rgba(20,83,45,.5);color:#86efac;border:1px solid rgba(134,239,172,.18)}
+          .admin-jobs-feedback.error{background:rgba(127,29,29,.45);color:#fca5a5;border:1px solid rgba(252,165,165,.16)}
+          .admin-jobs-empty{color:#94A3B8}
+          .admin-jobs-actions-cell{white-space:nowrap}
+          .admin-jobs-inline-small{color:#94A3B8;font-size:12px;margin-left:8px}
+          .admin-jobs-section-title{margin:0;color:#F8FAFC}
+          .admin-jobs-detail-title{margin:0 0 10px;color:#F8FAFC}
+          @media (max-width: 1100px){.admin-jobs-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+          @media (max-width: 720px){.admin-jobs-grid{grid-template-columns:1fr}.admin-jobs-header{flex-direction:column}.admin-jobs-actions{width:100%;justify-content:flex-start}.admin-jobs-card{padding:14px}}
+        </style>
+        <header class="admin-jobs-header">
           <div>
-            <h1 style="margin:0;font-size:30px">Central de Jobs</h1>
-            <p style="margin:8px 0 0;color:#91a4c4">Monitoramento e execução manual dos jobs administrativos.</p>
+            <h1 class="admin-jobs-title">Central de Jobs</h1>
+            <p class="admin-jobs-subtitle">Monitore e execute manualmente os jobs administrativos da plataforma.</p>
           </div>
-          <button id="admin-jobs-refresh" type="button">Atualizar</button>
+          <div class="admin-jobs-actions">
+            <button id="admin-jobs-refresh" class="admin-jobs-btn admin-jobs-btn-primary" type="button">Atualizar</button>
+          </div>
         </header>
-        ${state.successMessage ? `<div id="admin-jobs-success" style="padding:12px 14px;border-radius:12px;background:rgba(52,211,153,.14);color:#34d399">${esc(state.successMessage)}</div>` : ''}
-        ${state.error ? `<div id="admin-jobs-error" style="padding:12px 14px;border-radius:12px;background:rgba(248,113,113,.12);color:#f87171">Não foi possível carregar os jobs.</div>` : ''}
-        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px">
+        ${state.successMessage ? `<div id="admin-jobs-success" class="admin-jobs-feedback success">${esc(state.successMessage)}</div>` : ''}
+        ${state.error ? `<div id="admin-jobs-error" class="admin-jobs-feedback error">Não foi possível carregar os jobs.</div>` : ''}
+        <div class="admin-jobs-grid">
           ${[
-            ['Total de jobs', total],
-            ['Jobs ativos', active],
-            ['Jobs com erro', errored],
-            ['Jobs em execução/bloqueados', blocked]
-          ].map(([label, value]) => `<article style="background:#fff;border:1px solid #dbe4f2;border-radius:16px;padding:16px"><div style="font-size:12px;color:#61708f">${label}</div><div style="font-size:28px;font-weight:700">${esc(value)}</div></article>`).join('')}
+            ['Total Jobs', total, 'total'],
+            ['Ativos', active, 'active'],
+            ['Erros', errored, 'error'],
+            ['Em execução', blocked, 'running']
+          ].map(([label, value, icon]) => `<article class="admin-jobs-card admin-jobs-kpi"><div class="admin-jobs-kpi-icon ${icon}">${kpiIcon(icon)}</div><div class="admin-jobs-kpi-copy"><div class="admin-jobs-kpi-label">${label}</div><div class="admin-jobs-kpi-value">${esc(value)}</div></div></article>`).join('')}
         </div>
-        <article style="background:#fff;border:1px solid #dbe4f2;border-radius:16px;padding:16px">
-          <h2 style="margin-top:0">Jobs</h2>
-          ${state.loading ? '<p>Carregando...</p>' : !state.jobs.length ? '<p>Nenhum job encontrado.</p>' : `<table style="width:100%;border-collapse:collapse"><thead><tr><th align="left">Nome</th><th align="left">Status</th><th align="left">Última execução</th><th align="left">Último sucesso</th><th align="left">Próxima execução</th><th align="left">Duração</th><th align="left">Erro</th><th align="left">Ações</th></tr></thead><tbody>${state.jobs.map((job) => `<tr style="border-top:1px solid #eef3fb"><td>${esc(JOB_LABELS[job.nome] || job.nome)}</td><td>${esc(job.status || '-')}</td><td>${esc(fmtDate(job.last_run_at))}</td><td>${esc(fmtDate(job.last_success_at))}</td><td>${esc(fmtDate(job.next_run_at))}</td><td>${esc(fmtDuration(job.last_duration_ms))}</td><td>${esc(job.last_error || '-')}</td><td><button type="button" class="admin-job-run" data-job="${esc(job.nome)}">Executar agora</button> <button type="button" class="admin-job-open" data-id="${esc(job.id)}">Ver execuções</button></td></tr>`).join('')}</tbody></table>`}
+        <article class="admin-jobs-card">
+          <h2 class="admin-jobs-section-title">Jobs</h2>
+          ${state.loading ? '<p class="admin-jobs-muted">Carregando...</p>' : !state.jobs.length ? '<p class="admin-jobs-empty">Nenhum job encontrado.</p>' : `<div class="admin-jobs-table-wrap"><table class="admin-jobs-table"><thead><tr><th>Nome</th><th>Status</th><th>Última execução</th><th>Último sucesso</th><th>Próxima execução</th><th>Duração</th><th>Erro</th><th>Ações</th></tr></thead><tbody>${state.jobs.map((job) => `<tr><td>${esc(JOB_LABELS[job.nome] || job.nome)}</td><td><span class="admin-jobs-status ${statusClass(job.status)}">${esc(job.status || '-')}</span></td><td>${esc(fmtDate(job.last_run_at))}</td><td>${esc(fmtDate(job.last_success_at))}</td><td>${esc(fmtDate(job.next_run_at))}</td><td>${esc(fmtDuration(job.last_duration_ms))}</td><td>${esc(job.last_error || '-')}</td><td class="admin-jobs-actions-cell"><button type="button" class="admin-job-run admin-jobs-btn admin-jobs-btn-primary" data-job="${esc(job.nome)}">Executar agora</button> <button type="button" class="admin-job-open admin-jobs-btn admin-jobs-btn-secondary" data-id="${esc(job.id)}">Ver execuções</button></td></tr>`).join('')}</tbody></table></div>`}
         </article>
-        <article style="background:#fff;border:1px solid #dbe4f2;border-radius:16px;padding:16px">
+        <article class="admin-jobs-card">
           <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
-            <h2 style="margin:0">Últimas execuções</h2>
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <select id="admin-jobs-filter-name">${['', ...runTargets].map((name) => `<option value="${esc(name)}" ${state.runFilters.nome === name ? 'selected' : ''}>${name ? esc(JOB_LABELS[name]) : 'Todos jobs'}</option>`).join('')}</select>
-              <select id="admin-jobs-filter-status"><option value="">Todos status</option><option value="success">success</option><option value="error">error</option><option value="running">running</option></select>
-              <input id="admin-jobs-filter-limit" type="number" min="1" max="100" value="${esc(state.runFilters.limit)}" style="width:90px">
+            <h2 class="admin-jobs-section-title">Últimas execuções</h2>
+            <div class="admin-jobs-filters">
+              <select id="admin-jobs-filter-name" class="admin-jobs-select">${['', ...runTargets].map((name) => `<option value="${esc(name)}" ${state.runFilters.nome === name ? 'selected' : ''}>${name ? esc(JOB_LABELS[name]) : 'Todos jobs'}</option>`).join('')}</select>
+              <select id="admin-jobs-filter-status" class="admin-jobs-select"><option value="">Todos status</option><option value="success">success</option><option value="error">error</option><option value="running">running</option></select>
+              <input id="admin-jobs-filter-limit" class="admin-jobs-input" type="number" min="1" max="100" value="${esc(state.runFilters.limit)}" style="width:90px">
             </div>
           </div>
-          ${state.loading ? '<p>Carregando...</p>' : !state.runs.length ? '<p>Nenhuma execução encontrada.</p>' : `<table style="width:100%;border-collapse:collapse;margin-top:12px"><thead><tr><th align="left">Início</th><th align="left">Job</th><th align="left">Status</th><th align="left">Duração</th><th align="left">Processados</th><th align="left">Sucessos</th><th align="left">Erros</th><th align="left">Erro textual</th><th align="left">Metadata</th></tr></thead><tbody>${state.runs.map((run) => `<tr style="border-top:1px solid #eef3fb"><td>${esc(fmtDate(run.started_at))}</td><td>${esc(JOB_LABELS[run.nome] || run.nome)}</td><td>${esc(run.status || '-')}</td><td>${esc(fmtDuration(run.duration_ms))}</td><td>${esc(run.processed_count ?? 0)}</td><td>${esc(run.success_count ?? 0)}</td><td>${esc(run.error_count ?? 0)}</td><td>${esc(run.error || '-')}</td><td><button type="button" class="admin-job-meta" data-meta="${esc(JSON.stringify(run.metadata || {}))}">Ver JSON</button> <small>${esc(summaryText(run.metadata))}</small></td></tr>`).join('')}</tbody></table>`}
+          ${state.loading ? '<p class="admin-jobs-muted">Carregando...</p>' : !state.runs.length ? '<p class="admin-jobs-empty">Nenhuma execução encontrada.</p>' : `<div class="admin-jobs-table-wrap"><table class="admin-jobs-table" style="margin-top:12px"><thead><tr><th>Início</th><th>Job</th><th>Status</th><th>Duração</th><th>Processados</th><th>Sucessos</th><th>Erros</th><th>Erro textual</th><th>Metadata</th></tr></thead><tbody>${state.runs.map((run) => `<tr><td>${esc(fmtDate(run.started_at))}</td><td>${esc(JOB_LABELS[run.nome] || run.nome)}</td><td><span class="admin-jobs-status ${statusClass(run.status)}">${esc(run.status || '-')}</span></td><td>${esc(fmtDuration(run.duration_ms))}</td><td>${esc(run.processed_count ?? 0)}</td><td>${esc(run.success_count ?? 0)}</td><td>${esc(run.error_count ?? 0)}</td><td>${esc(run.error || '-')}</td><td><button type="button" class="admin-job-meta admin-jobs-btn admin-jobs-btn-secondary" data-meta="${esc(JSON.stringify(run.metadata || {}))}">Ver JSON</button> <small class="admin-jobs-inline-small">${esc(summaryText(run.metadata))}</small></td></tr>`).join('')}</tbody></table></div>`}
         </article>
-        ${state.selectedJob ? `<article style="background:#fff;border:1px solid #dbe4f2;border-radius:16px;padding:16px"><h2>Detalhe / Metadata</h2><p><strong>${esc(JOB_LABELS[state.selectedJob.nome] || state.selectedJob.nome)}</strong></p><pre id="admin-jobs-detail" style="white-space:pre-wrap;background:#07111f;color:#e2e8f0;padding:14px;border-radius:12px;overflow:auto">${esc(JSON.stringify(state.selectedJob.metadata || {}, null, 2))}</pre></article>` : ''}
+        ${state.selectedJob ? `<article class="admin-jobs-card admin-jobs-meta-panel"><h2 class="admin-jobs-detail-title">Detalhe / Metadata</h2><p><strong>${esc(JOB_LABELS[state.selectedJob.nome] || state.selectedJob.nome)}</strong></p><pre id="admin-jobs-detail" class="admin-jobs-pre">${esc(JSON.stringify(state.selectedJob.metadata || {}, null, 2))}</pre></article>` : ''}
       </section>`;
 
     container.querySelector('#admin-jobs-refresh')?.addEventListener('click', load);
