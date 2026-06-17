@@ -455,3 +455,70 @@ test('cliente details mostra erro claro ao falhar enriquecimento', async () => {
 
   teardownFrontendDom(dom);
 });
+
+test('cliente details mostra aba de geolocalizacao e executa geolocalizacao manual', async () => {
+  const dom = setupFrontendDom('#/clientes/c1');
+  const root = document.getElementById('root');
+  const calls = [];
+  const apiClient = {
+    get: async (url, params = {}) => {
+      calls.push({ method: 'GET', url, params });
+      if (url === '/clientes/c1') {
+        return {
+          item: {
+            id: 'c1',
+            empresa: 'Cliente A',
+            cidade: 'São Paulo',
+            estado: 'SP',
+            created_at: '2026-05-01T00:00:00.000Z',
+            status: 'ativo',
+            geolocalizacao_status: 'pendente'
+          }
+        };
+      }
+      if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
+      return { items: [] };
+    },
+    post: async (url) => {
+      calls.push({ method: 'POST', url });
+      if (url === '/clientes/c1/geolocalizar') {
+        return {
+          cliente: {
+            id: 'c1',
+            geolocalizacao_status: 'sucesso',
+            geolocalizacao_fonte: 'nominatim',
+            latitude: -23.55052,
+            longitude: -46.63331,
+            google_maps_url: 'https://www.google.com/maps?q=-23.55052,-46.63331',
+            geolocalizacao_ultima_execucao: '2026-06-16T18:29:32.000Z',
+            geolocalizacao_erro: null
+          },
+          resultado: { status: 'sucesso' }
+        };
+      }
+      throw new Error('unexpected post');
+    }
+  };
+
+  renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
+  await flush();
+  await flush();
+
+  root.querySelector('[data-tab="geolocalizacao"]')?.click();
+  await flush();
+  await flush();
+
+  assert.match(root.textContent, /Geolocalização/);
+  assert.match(root.textContent, /Geolocalizar Cliente/);
+
+  root.querySelector('#nho2d-geocode')?.click();
+  await flush();
+  await flush();
+
+  assert.match(root.textContent, /Cliente geolocalizado com sucesso/);
+  assert.match(root.textContent, /-23\.55052/);
+  assert.match(root.textContent, /Abrir no Google Maps/);
+  assert.ok(calls.some((call) => call.method === 'POST' && call.url === '/clientes/c1/geolocalizar'));
+
+  teardownFrontendDom(dom);
+});

@@ -1,7 +1,7 @@
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { NotFoundError, ValidationError } from '../../core/errors.js';
 import { applyOwnerFilter, canAccessAllTenantData } from '../../core/commercial-scope.js';
-import { createCliente, enrichClienteByCnpj, getClienteById, getClientesRepositoryMode, listClientes, updateCliente } from './clientes.repository.js';
+import { createCliente, enrichClienteByCnpj, geolocalizarCliente, getClienteById, getClientesRepositoryMode, listClientes, updateCliente } from './clientes.repository.js';
 import { recordAuditLog } from '../../core/audit-logs.js';
 import { getGruposComerciaisByClienteId } from '../grupos-comerciais/grupos-comerciais.repository.js';
 
@@ -106,6 +106,21 @@ export async function enrichClienteHandler(context = {}) {
     return { ok: true, repositoryMode: getClientesRepositoryMode(), item };
   } catch (error) {
     await recordAuditLog(context, { modulo: 'clientes', entidade: 'cliente', entidade_id: id, acao: 'enriquecer', descricao: 'Falha ao enriquecer cliente', status: 'failed', sucesso: false, erro_codigo: error?.code || 'INTERNAL_SERVER_ERROR', erro_mensagem: error?.message || 'Erro ao enriquecer cliente' }).catch(() => null);
+    throw error;
+  }
+}
+
+export async function geolocalizarClienteHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const id = String(context?.params?.id || '').trim();
+  if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
+  try {
+    const result = await geolocalizarCliente({ accountId, clienteId: id, fetchImpl: context.fetchImpl, context });
+    return { ok: true, repositoryMode: getClientesRepositoryMode(), ...result };
+  } catch (error) {
+    if (error?.code === 'OWNER_SCOPE_FORBIDDEN' || error?.code === 'VENDEDOR_SCOPE_FORBIDDEN') {
+      throw new NotFoundError('Cliente nao encontrado', { code: 'CLIENTE_NOT_FOUND', domain: 'clientes-crm' });
+    }
     throw error;
   }
 }

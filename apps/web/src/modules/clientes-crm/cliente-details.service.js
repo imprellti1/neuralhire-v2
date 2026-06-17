@@ -22,6 +22,10 @@ export async function enriquecerCliente(apiClient, clienteId) {
   return apiClient.post(`/clientes/${clienteId}/enriquecer`);
 }
 
+export async function geolocalizarCliente(apiClient, clienteId) {
+  return apiClient.post(`/clientes/${clienteId}/geolocalizar`);
+}
+
 export async function fetchClienteDetailsData(apiClient, clienteId) {
   const [clienteResponse, pedidosResponse] = await Promise.all([
     apiClient.get(`/clientes/${clienteId}`),

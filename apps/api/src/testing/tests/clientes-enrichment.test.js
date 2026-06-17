@@ -141,6 +141,117 @@ export function getClientesEnrichmentTests() {
           globalThis.fetch = previousFetch;
         }
       }
+    },
+    {
+      name: 'Geolocalizacao com sucesso grava coordenadas e maps url',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        const previousFetch = globalThis.fetch;
+        globalThis.fetch = async (url, options = {}) => {
+          if (String(url).includes('nominatim.openstreetmap.org/search')) {
+            return createFetchResponse({
+              ok: true,
+              status: 200,
+              body: [
+                { lat: '-23.550520', lon: '-46.633308', place_id: '123456', display_name: 'São Paulo, SP' }
+              ]
+            });
+          }
+          throw new Error(`fetch inesperado ${url} ${JSON.stringify(options.headers || {})}`);
+        };
+        try {
+          const app = createApiApp();
+          const cliente = await createCliente({
+            nome: 'Cliente Geo',
+            logradouro: 'Rua A',
+            numero: '100',
+            bairro: 'Centro',
+            cidade: 'São Paulo',
+            estado: 'SP',
+            cep: '01001000'
+          }, { accountId: 'acc-g1' });
+          const out = await call(app, { method: 'POST', url: `/clientes/${cliente.id}/geolocalizar`, role: 'admin', accountId: 'acc-g1' });
+          assertEqual(out.res.statusCode, 200);
+          assertEqual(out.body.resultado.status, 'sucesso');
+          assertEqual(out.body.item.geolocalizacao_status, 'sucesso');
+          assertEqual(out.body.item.latitude, -23.55052);
+          assertEqual(out.body.item.longitude, -46.633308);
+          assertEqual(out.body.item.google_maps_url, 'https://www.google.com/maps?q=-23.55052,-46.633308');
+          assertEqual(out.body.item.geolocalizacao_fonte, 'nominatim');
+          assertEqual(Boolean(out.body.item.geolocalizacao_ultima_execucao), true);
+        } finally {
+          globalThis.fetch = previousFetch;
+        }
+      }
+    },
+    {
+      name: 'Geolocalizacao com endereco insuficiente retorna nao_encontrado',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        const previousFetch = globalThis.fetch;
+        let called = false;
+        globalThis.fetch = async () => {
+          called = true;
+          throw new Error('fetch nao deveria ser chamado');
+        };
+        try {
+          const app = createApiApp();
+          const cliente = await createCliente({ nome: 'Cliente Geo' }, { accountId: 'acc-g2' });
+          const out = await call(app, { method: 'POST', url: `/clientes/${cliente.id}/geolocalizar`, role: 'admin', accountId: 'acc-g2' });
+          assertEqual(out.res.statusCode, 200);
+          assertEqual(out.body.resultado.status, 'nao_encontrado');
+          assertEqual(out.body.item.geolocalizacao_status, 'nao_encontrado');
+          assertEqual(out.body.item.latitude, null);
+          assertEqual(out.body.item.google_maps_url, null);
+          assertEqual(called, false);
+        } finally {
+          globalThis.fetch = previousFetch;
+        }
+      }
+    },
+    {
+      name: 'Geolocalizacao com erro do Nominatim nao derruba API e grava erro',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        const previousFetch = globalThis.fetch;
+        globalThis.fetch = async () => createFetchResponse({ ok: false, status: 500, body: 'upstream down', contentType: 'text/plain' });
+        try {
+          const app = createApiApp();
+          const cliente = await createCliente({
+            nome: 'Cliente Geo',
+            logradouro: 'Rua A',
+            numero: '100',
+            bairro: 'Centro',
+            cidade: 'São Paulo',
+            estado: 'SP'
+          }, { accountId: 'acc-g3' });
+          const out = await call(app, { method: 'POST', url: `/clientes/${cliente.id}/geolocalizar`, role: 'admin', accountId: 'acc-g3' });
+          assertEqual(out.res.statusCode, 200);
+          assertEqual(out.body.resultado.status, 'erro');
+          assertEqual(out.body.item.geolocalizacao_status, 'erro');
+          assertEqual(out.body.item.geolocalizacao_erro.includes('Nominatim retornou status 500'), true);
+        } finally {
+          globalThis.fetch = previousFetch;
+        }
+      }
+    },
+    {
+      name: 'Geolocalizacao cross-tenant retorna 404 controlado',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        const app = createApiApp();
+        const cliente = await createCliente({
+          nome: 'Cliente Geo',
+          logradouro: 'Rua A',
+          numero: '100',
+          bairro: 'Centro',
+          cidade: 'São Paulo',
+          estado: 'SP'
+        }, { accountId: 'acc-g4' });
+        const out = await call(app, { method: 'POST', url: `/clientes/${cliente.id}/geolocalizar`, role: 'sales', accountId: 'acc-other', userId: 'sales-x' });
+        assertEqual(out.res.statusCode, 404);
+        assertEqual(out.body.error.code, 'CLIENTE_NOT_FOUND');
+      }
     }
   ];
 }

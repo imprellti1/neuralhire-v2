@@ -5,6 +5,7 @@ import { applyOwnerFilter, getUserIdFromContext } from '../../core/commercial-sc
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { findVendedorByUserId } from '../vendedores/vendedores.repository.js';
 import { buildEnrichmentUpdateFromBrasilApi, buildEnrichmentUpdateFromCnpjWs, fetchBrasilApiCnpj, fetchCnpjWsCnpj, isValidCnpj, normalizeCnpj } from './clientes.enrichment.js';
+import { geocodificarEndereco, montarEnderecoCliente } from './clientes.geocoding.service.js';
 
 const memoryClientes = [];
 let supabaseClientOverride = null;
@@ -433,6 +434,33 @@ async function persistClienteEnrichment(cliente, payload, options = {}) {
   return memoryClientes[idx];
 }
 
+async function persistClienteGeolocalizacao(cliente, payload, options = {}) {
+  const accountId = options.accountId || null;
+  const basePayload = {
+    geolocalizacao_status: payload.geolocalizacao_status || null,
+    geolocalizacao_fonte: payload.geolocalizacao_fonte || null,
+    geolocalizacao_erro: payload.geolocalizacao_erro || null,
+    geolocalizacao_ultima_execucao: payload.geolocalizacao_ultima_execucao || new Date().toISOString()
+  };
+  if (payload.latitude !== undefined) basePayload.latitude = payload.latitude;
+  if (payload.longitude !== undefined) basePayload.longitude = payload.longitude;
+  if (payload.google_maps_url !== undefined) basePayload.google_maps_url = payload.google_maps_url;
+  if (payload.google_place_id !== undefined) basePayload.google_place_id = payload.google_place_id;
+
+  if (getClientesRepositoryMode().mode === 'supabase') {
+    const supabase = resolveSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data, error } = await supabase.from('clientes').update(basePayload).eq('account_id', accountId).eq('id', cliente.id).select('*').single();
+    if (error) throw new DatabaseError('Falha ao atualizar geolocalizacao do cliente', { details: error, domain: 'clientes-crm' });
+    return data;
+  }
+
+  const idx = memoryClientes.findIndex((item) => item.id === cliente.id && item.account_id === accountId);
+  if (idx < 0) throw new NotFoundError('Cliente nao encontrado', { code: 'CLIENTE_NOT_FOUND', domain: 'clientes-crm' });
+  memoryClientes[idx] = { ...memoryClientes[idx], ...basePayload, updated_at: new Date().toISOString() };
+  return memoryClientes[idx];
+}
+
 export async function enrichClienteByCnpj(clienteId, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
@@ -490,4 +518,37 @@ export async function enrichClienteByCnpj(clienteId, options = {}) {
     }
     throw new DatabaseError('Falha ao consultar BrasilAPI', { domain: 'clientes-crm', details: { message: erro } });
   }
+}
+
+export async function geolocalizarCliente({ supabase, accountId, clienteId, fetchImpl, context } = {}) {
+  assertAccountId(accountId);
+  const cliente = await getClienteById(clienteId, { accountId, context });
+  const endereco_consultado = montarEnderecoCliente(cliente);
+  const resultadoBase = await geocodificarEndereco(endereco_consultado, { fetchImpl });
+
+  const payload = {
+    geolocalizacao_status: resultadoBase.status,
+    geolocalizacao_fonte: resultadoBase.fonte || 'nominatim',
+    geolocalizacao_erro: resultadoBase.erro || null,
+    geolocalizacao_ultima_execucao: new Date().toISOString()
+  };
+
+  if (resultadoBase.status === 'sucesso') {
+    payload.latitude = resultadoBase.latitude;
+    payload.longitude = resultadoBase.longitude;
+    payload.google_maps_url = resultadoBase.google_maps_url;
+    payload.google_place_id = resultadoBase.google_place_id || null;
+  } else {
+    payload.latitude = null;
+    payload.longitude = null;
+    payload.google_maps_url = null;
+    payload.google_place_id = null;
+  }
+
+  const updated = await persistClienteGeolocalizacao(cliente, payload, { accountId, supabase });
+  return {
+    cliente: updated,
+    endereco_consultado,
+    resultado: resultadoBase
+  };
 }

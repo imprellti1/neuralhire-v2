@@ -1,5 +1,5 @@
 import { createClienteDetailsState } from './cliente-details.state.js';
-import { enriquecerCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente } from './cliente-details.service.js';
+import { enriquecerCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, geolocalizarCliente } from './cliente-details.service.js';
 
 function fmtCurrency(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 function fmtDate(v) {
@@ -122,6 +122,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   const state = createClienteDetailsState();
   let activeTab = 'geral';
   let enrichmentLoading = false;
+  let geolocationLoading = false;
   let feedbackMessage = '';
   const groupAccordionState = new Map();
   const pedidoAccordionState = new Map();
@@ -195,6 +196,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     if (key === 'comercial') return 'Comercial';
     if (key === 'crm') return 'CRM';
     if (key === 'enriquecimento') return 'Enriquecimento';
+    if (key === 'geolocalizacao') return 'Geolocalização';
     return 'Geral';
   }
 
@@ -229,7 +231,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         <button id="nhcd-back" class="nho2-btn" style="background:#fff;color:#1f56dc">Voltar</button>
       </div>
       <div class="nho2d-tabs" role="tablist" aria-label="Detalhes do cliente">
-        ${['geral', 'comercial', 'crm', 'enriquecimento'].map((tab) => `<button class="nho2d-tab ${activeTab === tab ? 'is-active' : ''}" data-tab="${tab}" role="tab" aria-selected="${activeTab === tab ? 'true' : 'false'}">${getTabLabel(tab)}</button>`).join('')}
+        ${['geral', 'comercial', 'crm', 'enriquecimento', 'geolocalizacao'].map((tab) => `<button class="nho2d-tab ${activeTab === tab ? 'is-active' : ''}" data-tab="${tab}" role="tab" aria-selected="${activeTab === tab ? 'true' : 'false'}">${getTabLabel(tab)}</button>`).join('')}
       </div>
     `;
   }
@@ -459,6 +461,33 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     `;
   }
 
+  function renderGeolocalizacao(d) {
+    const status = safeValue(d?.geolocalizacao_status ? String(d.geolocalizacao_status).replace(/^./, (m) => m.toUpperCase()) : 'Pendente');
+    return `
+      <div class="nho2d-section">
+        <article class="nho2d-card">
+          <div class="nho2d-header" style="margin-bottom:12px">
+            <div>
+              <h3 style="margin:0 0 4px">Geolocalização</h3>
+              <div class="nho2d-sub">Consulta manual do endereço do cliente via Nominatim/OpenStreetMap.</div>
+            </div>
+            <button id="nho2d-geocode" class="nho2-btn" ${geolocationLoading ? 'disabled' : ''}>${geolocationLoading ? 'Geolocalizando...' : 'Geolocalizar Cliente'}</button>
+          </div>
+          ${feedbackMessage ? `<div class="nho2d-crm-empty" style="margin-bottom:12px">${safeText(feedbackMessage, '')}</div>` : ''}
+          <dl class="nho2d-dl">
+            <dt class="nho2d-dt">Status</dt><dd class="nho2d-dd">${status}</dd>
+            <dt class="nho2d-dt">Fonte</dt><dd class="nho2d-dd">${safeValue(d?.geolocalizacao_fonte)}</dd>
+            <dt class="nho2d-dt">Latitude</dt><dd class="nho2d-dd">${safeValue(d?.latitude)}</dd>
+            <dt class="nho2d-dt">Longitude</dt><dd class="nho2d-dd">${safeValue(d?.longitude)}</dd>
+            <dt class="nho2d-dt">Última execução</dt><dd class="nho2d-dd">${formatDateFriendly(d?.geolocalizacao_ultima_execucao)}</dd>
+            <dt class="nho2d-dt">Google Maps</dt><dd class="nho2d-dd">${d?.google_maps_url ? `<a href="${d.google_maps_url}" target="_blank" rel="noreferrer">Abrir no Google Maps</a>` : 'Não informado'}</dd>
+            <dt class="nho2d-dt">Erro</dt><dd class="nho2d-dd">${safeValue(d?.geolocalizacao_erro)}</dd>
+          </dl>
+        </article>
+      </div>
+    `;
+  }
+
   function renderGruposComerciais(d) {
     const grupos = Array.isArray(d?.gruposComerciais) ? d.gruposComerciais : [];
     return `<article class="nho2d-card"><h3>Grupos Comerciais</h3>${grupos.length ? `<div class="nho2d-stack">${grupos.map((grupo) => `<div class="nho2d-crm-empty"><strong>${safeText(grupo.nome)}</strong>${grupo.descricao ? `<div class="nho2d-item-note">${safeText(grupo.descricao)}</div>` : ''}</div>`).join('')}</div>` : '<div class="nho2d-crm-empty">Nenhum grupo comercial vinculado.</div>'}</article>`;
@@ -476,6 +505,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       ${activeTab === 'comercial' ? renderComercial(d) : ''}
       ${activeTab === 'crm' ? renderCrm(d) : ''}
       ${activeTab === 'enriquecimento' ? renderEnriquecimento(d) : ''}
+      ${activeTab === 'geolocalizacao' ? renderGeolocalizacao(d) : ''}
     </section>`;
   }
 
@@ -522,6 +552,24 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
           feedbackMessage = error?.message || 'Falha ao enriquecer cliente.';
         } finally {
           enrichmentLoading = false;
+          render();
+        }
+      };
+    }
+    const geocodeBtn = root.querySelector('#nho2d-geocode');
+    if (geocodeBtn) {
+      geocodeBtn.onclick = async () => {
+        geolocationLoading = true;
+        feedbackMessage = 'Geolocalizando cliente...';
+        render();
+        try {
+          const response = await geolocalizarCliente(apiClient, clienteId);
+          state.data = response?.cliente ? { ...state.data, ...response.cliente } : state.data;
+          feedbackMessage = response?.resultado?.status === 'sucesso' ? 'Cliente geolocalizado com sucesso.' : (response?.resultado?.erro || 'Geolocalização concluída.');
+        } catch (error) {
+          feedbackMessage = error?.message || 'Falha ao geolocalizar cliente.';
+        } finally {
+          geolocationLoading = false;
           render();
         }
       };
