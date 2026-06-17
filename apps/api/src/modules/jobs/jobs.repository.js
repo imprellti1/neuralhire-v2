@@ -54,7 +54,8 @@ export function getSystemJobDefaults() {
     { nome: 'radar_comercial_diario', lock_key: 'jobs:radar_comercial_diario', metadata: { cadence: 'daily-0300', ttlMinutes: 120 } },
     { nome: 'clientes_enriquecimento_geolocalizacao', lock_key: 'jobs:clientes_enriquecimento_geolocalizacao', metadata: { cadence: 'adaptive', ttlMinutes: 20 } },
     { nome: 'clientes_resumo_semanal', lock_key: 'jobs:clientes_resumo_semanal', metadata: { cadence: 'weekly-monday-0800', ttlMinutes: 30 } },
-    { nome: 'notificacoes_resumo_semanal', lock_key: 'notificacoes:resumo-semanal', metadata: { cadence: 'weekly-monday-0800', ttlMinutes: 30 } }
+    { nome: 'notificacoes_resumo_semanal', lock_key: 'notificacoes:resumo-semanal', metadata: { cadence: 'weekly-monday-0800', ttlMinutes: 30 } },
+    { nome: 'gerente_comercial_observacao', lock_key: 'gerente_comercial_observacao', metadata: { cadence: 'daily-0310', ttlMinutes: 60 } }
   ];
 }
 

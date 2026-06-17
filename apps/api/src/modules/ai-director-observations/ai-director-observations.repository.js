@@ -98,6 +98,37 @@ export async function createObservation(context = {}, payload = {}) {
   return shape(row);
 }
 
+function isEquivalentOpenObservation(row, payload) {
+  return (
+    row &&
+    row.status === 'open' &&
+    row.manager_id === payload.manager_id &&
+    row.category === payload.category &&
+    row.source_type === payload.source_type &&
+    String(row.source_id ?? '') === String(payload.source_id ?? '') &&
+    row.title === payload.title &&
+    row.account_id === payload.account_id
+  );
+}
+
+export async function createObservationIfNotOpen(context = {}, payload = {}) {
+  const accountId = context?.accountId || null;
+  assertAccountId(accountId);
+  const normalized = normalizeCreateObservationPayload(payload);
+  const errors = validateObservationPayload(normalized);
+  if (errors.length) throw new BadRequestError('Dados invalidos', { details: errors, domain: 'ai-director-observations' });
+
+  const openEquivalent = mode() === 'supabase'
+    ? null
+    : store.find((row) => isEquivalentOpenObservation(row, { ...normalized, account_id: accountId })) || null;
+  if (openEquivalent) {
+    return { created: false, reason: 'duplicate', observation: shape(openEquivalent) };
+  }
+
+  const observation = await createObservation(context, { ...normalized, metadata: normalized.metadata || {} });
+  return { created: true, observation };
+}
+
 export async function updateObservationStatus(context = {}, id, payload = {}) {
   const accountId = context?.accountId || null;
   assertAccountId(accountId);

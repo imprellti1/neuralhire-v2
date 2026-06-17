@@ -6,6 +6,9 @@ import { assertEqual } from '../assert.js';
 import { __resetMemoryClientesForTests, createCliente, __dumpMemoryClientes } from '../../modules/clientes/clientes.repository.js';
 import { __resetMemoryAlertasForTests } from '../../modules/clientes/clientes.alerts.service.js';
 import { __resetMemoryTimelineForTests } from '../../modules/clientes/clientes.timeline.service.js';
+import { __resetMemoryPedidosForTests, createPedido } from '../../modules/pedidos/pedidos.repository.js';
+import { __resetMemoryProdutosForTests, createProduto } from '../../modules/produtos/produtos.repository.js';
+import { __resetMemoryAiDirectorObservationsForTests, createObservation, listObservations } from '../../modules/ai-director-observations/ai-director-observations.repository.js';
 import { __resetSystemJobsForTests, __dumpSystemJobsForTests, __setSystemJobsSupabaseClientForTests, acquireSystemJobLock, listDueSystemJobs, upsertSystemJob } from '../../modules/jobs/jobs.repository.js';
 import { __resetJobsSchedulerForTests, dispatchDueJob, nextDaily0300, runJobsSchedulerTick, startJobsScheduler, stopJobsScheduler } from '../../modules/jobs/jobs.scheduler.js';
 
@@ -155,6 +158,125 @@ export function getJobsTests() {
         } finally {
           __setSystemJobsSupabaseClientForTests(null, false);
         }
+      }
+    },
+    {
+      name: 'GET /jobs inclui gerente comercial observacao',
+      run: async () => {
+        __resetSystemJobsForTests();
+        const app = createApiApp();
+        const out = await call(app, { method: 'GET', url: '/jobs', role: 'admin', accountId: 'acc-jobs' });
+        assert.equal(out.res.statusCode, 200);
+        assert.equal(out.body.success, true);
+        assert.equal(Array.isArray(out.body.items), true);
+        assert.equal(out.body.items.some((job) => job.nome === 'gerente_comercial_observacao'), true);
+      }
+    },
+    {
+      name: 'POST /jobs/gerente-comercial-observacao/run responde 202 e cria observacoes comerciais',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryClientesForTests();
+        __resetMemoryPedidosForTests();
+        __resetMemoryProdutosForTests();
+        __resetMemoryAiDirectorObservationsForTests();
+        const app = createApiApp();
+        const produto = await createProduto({ nome: 'Produto A', preco: 600 }, { accountId: 'acc-manager' });
+        const clienteRisco = await createCliente({ nome: 'Cliente Risco', documento: '12345678000190', ativo: true }, { accountId: 'acc-manager' });
+        const clienteReativado = await createCliente({ nome: 'Cliente Reativado', documento: '22345678000190', ativo: true }, { accountId: 'acc-manager' });
+        const clienteQueda = await createCliente({ nome: 'Cliente Queda', documento: '32345678000190', ativo: true }, { accountId: 'acc-manager' });
+        const clienteCrescimento = await createCliente({ nome: 'Cliente Crescimento', documento: '42345678000190', ativo: true }, { accountId: 'acc-manager' });
+
+        await createPedido({ cliente_id: clienteRisco.id, itens: [{ produto_id: produto.id, quantidade: 1, preco_unitario: 600 }], data_emissao: '2026-01-01', data_faturamento: '2026-01-01', numero: 'P-1' }, { accountId: 'acc-manager' });
+        await createPedido({ cliente_id: clienteReativado.id, itens: [{ produto_id: produto.id, quantidade: 1, preco_unitario: 600 }], data_emissao: '2026-03-01', data_faturamento: '2026-03-01', numero: 'P-2' }, { accountId: 'acc-manager' });
+        await createPedido({ cliente_id: clienteReativado.id, itens: [{ produto_id: produto.id, quantidade: 1, preco_unitario: 600 }], data_emissao: '2026-06-12', data_faturamento: '2026-06-12', numero: 'P-3' }, { accountId: 'acc-manager' });
+        await createPedido({ cliente_id: clienteQueda.id, itens: [{ produto_id: produto.id, quantidade: 1, preco_unitario: 600 }], data_emissao: '2026-05-01', data_faturamento: '2026-05-01', numero: 'P-4' }, { accountId: 'acc-manager' });
+        await createPedido({ cliente_id: clienteQueda.id, itens: [{ produto_id: produto.id, quantidade: 1, preco_unitario: 600 }], data_emissao: '2026-05-15', data_faturamento: '2026-05-15', numero: 'P-5' }, { accountId: 'acc-manager' });
+        await createPedido({ cliente_id: clienteQueda.id, itens: [{ produto_id: produto.id, quantidade: 1, preco_unitario: 100 }], data_emissao: '2026-06-10', data_faturamento: '2026-06-10', numero: 'P-6' }, { accountId: 'acc-manager' });
+        await createPedido({ cliente_id: clienteCrescimento.id, itens: [{ produto_id: produto.id, quantidade: 1, preco_unitario: 100 }], data_emissao: '2026-05-01', data_faturamento: '2026-05-01', numero: 'P-7' }, { accountId: 'acc-manager' });
+        await createPedido({ cliente_id: clienteCrescimento.id, itens: [{ produto_id: produto.id, quantidade: 1, preco_unitario: 100 }, { produto_id: produto.id, quantidade: 1, preco_unitario: 100 }], data_emissao: '2026-06-08', data_faturamento: '2026-06-08', numero: 'P-8' }, { accountId: 'acc-manager' });
+
+        const out = await call(app, { method: 'POST', url: '/jobs/gerente-comercial-observacao/run', role: 'admin', accountId: 'acc-manager' });
+        assert.equal(out.res.statusCode, 202);
+        let dump = __dumpSystemJobsForTests();
+        for (let attempt = 0; attempt < 40 && dump.runs.length === 0; attempt += 1) {
+          await wait(25);
+          dump = __dumpSystemJobsForTests();
+        }
+        const run = dump.runs.find((item) => item.nome === 'gerente_comercial_observacao');
+        assert.ok(run);
+        assert.equal(run.metadata.accounts_processed, 1);
+        assert.equal(run.metadata.clientes_analisados >= 4, true);
+        assert.equal(run.metadata.observations_created >= 4, true);
+        const observations = await listObservations({ accountId: 'acc-manager' }, { status: 'open', limit: 50 });
+        assert.equal(observations.items.some((item) => item.category === 'clientes_em_risco'), true);
+        assert.equal(observations.items.some((item) => item.category === 'clientes_reativados'), true);
+        assert.equal(observations.items.some((item) => item.category === 'queda_faturamento'), true);
+        assert.equal(observations.items.some((item) => item.category === 'crescimento_comercial'), true);
+      }
+    },
+    {
+      name: 'job não duplica observação aberta existente',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryClientesForTests();
+        __resetMemoryPedidosForTests();
+        __resetMemoryProdutosForTests();
+        __resetMemoryAiDirectorObservationsForTests();
+        const app = createApiApp();
+        const produto = await createProduto({ nome: 'Produto A', preco: 600 }, { accountId: 'acc-dup' });
+        const cliente = await createCliente({ nome: 'Cliente Duplicado', documento: '52345678000190', ativo: true }, { accountId: 'acc-dup' });
+        await createPedido({ cliente_id: cliente.id, itens: [{ produto_id: produto.id, quantidade: 1, preco_unitario: 600 }], data_emissao: '2026-01-01', data_faturamento: '2026-01-01', numero: 'P-9' }, { accountId: 'acc-dup' });
+        await createObservation({ accountId: 'acc-dup' }, {
+          manager_id: 'gerente_comercial',
+          manager_name: 'Gerente Comercial',
+          category: 'clientes_em_risco',
+          title: 'Cliente sem compra há mais de 90 dias',
+          description: 'Cliente Cliente Duplicado não compra desde 2026-01-01.',
+          severity: 'high',
+          source_type: 'cliente',
+          source_id: cliente.id,
+          metadata: { cliente_id: cliente.id, cliente_nome: 'Cliente Duplicado' }
+        });
+        const out = await call(app, { method: 'POST', url: '/jobs/gerente-comercial-observacao/run', role: 'admin', accountId: 'acc-dup' });
+        assert.equal(out.res.statusCode, 202);
+        let dump = __dumpSystemJobsForTests();
+        for (let attempt = 0; attempt < 40 && dump.runs.length === 0; attempt += 1) {
+          await wait(25);
+          dump = __dumpSystemJobsForTests();
+        }
+        const run = dump.runs.find((item) => item.nome === 'gerente_comercial_observacao');
+        assert.ok(run);
+        assert.equal(run.metadata.observations_skipped_duplicate >= 1, true);
+        const observations = await listObservations({ accountId: 'acc-dup' }, { status: 'open', limit: 50 });
+        assert.equal(observations.items.filter((item) => item.category === 'clientes_em_risco').length, 1);
+      }
+    },
+    {
+      name: 'job registra métricas no resultado',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryClientesForTests();
+        __resetMemoryPedidosForTests();
+        __resetMemoryProdutosForTests();
+        __resetMemoryAiDirectorObservationsForTests();
+        const app = createApiApp();
+        const cliente = await createCliente({ nome: 'Cliente Métrica', documento: '62345678000190', ativo: true }, { accountId: 'acc-metrics' });
+        const produto = await createProduto({ nome: 'Produto Métrica', preco: 100 }, { accountId: 'acc-metrics' });
+        await createPedido({ cliente_id: cliente.id, itens: [{ produto_id: produto.id, quantidade: 1, preco_unitario: 100 }], data_emissao: '2026-06-10', data_faturamento: '2026-06-10', numero: 'P-10' }, { accountId: 'acc-metrics' });
+        const out = await call(app, { method: 'POST', url: '/jobs/gerente-comercial-observacao/run', role: 'admin', accountId: 'acc-metrics' });
+        assert.equal(out.res.statusCode, 202);
+        let dump = __dumpSystemJobsForTests();
+        for (let attempt = 0; attempt < 40 && dump.runs.length === 0; attempt += 1) {
+          await wait(25);
+          dump = __dumpSystemJobsForTests();
+        }
+        const run = dump.runs.find((item) => item.nome === 'gerente_comercial_observacao');
+        assert.ok(run);
+        assert.equal(typeof run.metadata.observations_created, 'number');
+        assert.equal(typeof run.metadata.observations_skipped_duplicate, 'number');
+        assert.equal(typeof run.metadata.accounts_processed, 'number');
+        assert.equal(typeof run.metadata.clientes_analisados, 'number');
       }
     },
     {

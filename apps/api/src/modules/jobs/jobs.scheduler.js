@@ -2,10 +2,12 @@ import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { logger } from '../../core/logger.js';
 import { listClientes } from '../clientes/clientes.repository.js';
 import { enrichClienteByCnpj, geolocalizarCliente, getNextClienteForEnrichment, getNextClienteForGeolocation } from '../clientes/clientes.repository.js';
+import { listClientePedidos } from '../clientes/clientes.repository.js';
 import { gerarAlertasCliente } from '../clientes/clientes.alerts.service.js';
 import { recalcularSegmentacaoCliente } from '../clientes/clientes.segmentacao.service.js';
 import { registrarEventoTimeline } from '../clientes/clientes.timeline.service.js';
 import { calcularScoreComercialCliente } from '../clientes/clientes.repository.js';
+import { createObservationIfNotOpen } from '../ai-director-observations/ai-director-observations.repository.js';
 import { acquireSystemJobLock, listDueSystemJobs, listSystemJobRuns, listSystemJobs, recordSystemJobRun, releaseSystemJobLock, upsertSystemJob } from './jobs.repository.js';
 import { resolveJobNotificationRecipient, sendJobNotificationEmail } from '../notifications/notifications.email.service.js';
 
@@ -48,7 +50,8 @@ const JOB_HANDLERS = {
   radar_comercial_diario: runRadarComercialJob,
   clientes_enriquecimento_automatico: runClientesEnriquecimentoJob,
   clientes_geolocalizacao_automatico: runClientesGeolocalizacaoJob,
-  notificacoes_resumo_semanal: runNotificacoesResumoSemanalJob
+  notificacoes_resumo_semanal: runNotificacoesResumoSemanalJob,
+  gerente_comercial_observacao: runGerenteComercialObservacaoJob
 };
 
 let schedulerTimer = null;
@@ -72,6 +75,38 @@ function formatJobTextSummary(summary) {
     `Fila restante de enriquecimento: ${summary.fila_enriquecimento_restante}`,
     `Fila restante de geolocalização: ${summary.fila_geolocalizacao_restante}`
   ].join('\n');
+}
+
+function toDateOrNull(value) {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date : null;
+}
+
+function purchaseDateFromPedido(pedido = {}) {
+  return toDateOrNull(pedido.data_faturamento) || toDateOrNull(pedido.data_emissao) || toDateOrNull(pedido.created_at) || toDateOrNull(pedido.createdAt);
+}
+
+function sumPedidosInRange(pedidos = [], fromDate, toDate) {
+  return (Array.isArray(pedidos) ? pedidos : [])
+    .map((pedido) => ({ pedido, date: purchaseDateFromPedido(pedido) }))
+    .filter((item) => item.date && item.date >= fromDate && item.date < toDate)
+    .reduce((sum, item) => sum + Number(item.pedido?.total || 0), 0);
+}
+
+function computeClientSalesSignals(pedidos = [], now = new Date()) {
+  const currentEnd = now;
+  const currentStart = new Date(currentEnd.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const previousStart = new Date(currentEnd.getTime() - 60 * 24 * 60 * 60 * 1000);
+  const previousEnd = currentStart;
+  return {
+    faturamentoAtual: sumPedidosInRange(pedidos, currentStart, currentEnd),
+    faturamentoAnterior: sumPedidosInRange(pedidos, previousStart, previousEnd)
+  };
+}
+
+async function createCommercialObservation(context, payload) {
+  const result = await createObservationIfNotOpen(context, payload);
+  return { created: Boolean(result?.created), reason: result?.reason || null, observation: result?.observation || null };
 }
 
 async function sendWeeklySummaryNotification({ accountId, summary, periodStart, periodEnd, jobRunId }) {
@@ -423,6 +458,175 @@ export async function runNotificacoesResumoSemanalJob(context = {}) {
   }
 
   return { ok: true, job };
+}
+
+export async function runGerenteComercialObservacaoJob(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const lockKey = `${accountId}:gerente_comercial_observacao`;
+  const acquired = await acquireSystemJobLock({ lockKey, nome: 'gerente_comercial_observacao', ttlMinutes: 60, accountId, workerId: context.requestId || 'local' });
+  if (!acquired.acquired) return { ok: true, skipped: true, job: acquired.job };
+
+  const startedAt = Date.now();
+  const job = await upsertSystemJob({
+    nome: 'gerente_comercial_observacao',
+    lock_key: lockKey,
+    account_id: accountId,
+    status: 'ativo',
+    last_run_at: isoNow(),
+    next_run_at: nextDaily0300(new Date())
+  }, { accountId });
+
+  let observationsCreated = 0;
+  let observationsSkippedDuplicate = 0;
+  let accountsProcessed = 0;
+  let clientesAnalisados = 0;
+  let fatalError = null;
+
+  try {
+    accountsProcessed = 1;
+    const clientes = (await listClientes({ page: 1, limit: 5000, ativo: true }, { accountId, context })).items || [];
+    const now = new Date();
+    for (const cliente of clientes) {
+      clientesAnalisados += 1;
+      const pedidos = await listClientePedidos(accountId, cliente.id);
+      const validPedidos = (Array.isArray(pedidos) ? pedidos : []).filter((pedido) => Boolean(purchaseDateFromPedido(pedido)));
+      const sortedPedidos = [...validPedidos].sort((a, b) => purchaseDateFromPedido(b).getTime() - purchaseDateFromPedido(a).getTime());
+      const latestPedido = sortedPedidos[0] || null;
+      const previousPedido = sortedPedidos[1] || null;
+
+      if (latestPedido) {
+        const lastPurchaseDate = purchaseDateFromPedido(latestPedido);
+        const daysWithoutPurchase = Math.floor((now.getTime() - lastPurchaseDate.getTime()) / 86400000);
+        if (daysWithoutPurchase >= 90) {
+          const outcome = await createCommercialObservation(context, {
+            manager_id: 'gerente_comercial',
+            manager_name: 'Gerente Comercial',
+            category: 'clientes_em_risco',
+            severity: 'high',
+            title: 'Cliente sem compra há mais de 90 dias',
+            description: `Cliente ${cliente.nome || 'Cliente'} não compra desde ${lastPurchaseDate.toISOString().slice(0, 10)}.`,
+            source_type: 'cliente',
+            source_id: cliente.id,
+            metadata: {
+              cliente_id: cliente.id,
+              cliente_nome: cliente.nome || null,
+              ultima_compra_em: lastPurchaseDate.toISOString(),
+              dias_sem_compra: daysWithoutPurchase
+            }
+          });
+          if (outcome.created) observationsCreated += 1; else observationsSkippedDuplicate += 1;
+        }
+
+        const recentPurchase = lastPurchaseDate.getTime() >= now.getTime() - 7 * 24 * 60 * 60 * 1000;
+        const daysBetweenTwoLastPurchases = previousPedido ? Math.floor((lastPurchaseDate.getTime() - purchaseDateFromPedido(previousPedido).getTime()) / 86400000) : 0;
+        if (recentPurchase && previousPedido && daysBetweenTwoLastPurchases >= 90) {
+          const outcome = await createCommercialObservation(context, {
+            manager_id: 'gerente_comercial',
+            manager_name: 'Gerente Comercial',
+            category: 'clientes_reativados',
+            severity: 'medium',
+            title: 'Cliente reativado',
+            description: `Cliente ${cliente.nome || 'Cliente'} voltou a comprar após ${daysBetweenTwoLastPurchases} dias sem compra.`,
+            source_type: 'cliente',
+            source_id: cliente.id,
+            metadata: {
+              cliente_id: cliente.id,
+              cliente_nome: cliente.nome || null,
+              pedido_id: latestPedido.id || null,
+              pedido_numero: latestPedido.numero || null,
+              data_pedido: lastPurchaseDate.toISOString(),
+              dias_sem_compra_antes_do_pedido: daysBetweenTwoLastPurchases
+            }
+          });
+          if (outcome.created) observationsCreated += 1; else observationsSkippedDuplicate += 1;
+        }
+      }
+
+      const { faturamentoAtual, faturamentoAnterior } = computeClientSalesSignals(validPedidos, now);
+      if (faturamentoAnterior >= 500) {
+        const quedaPercentual = faturamentoAnterior > 0 ? Math.round(((faturamentoAnterior - faturamentoAtual) / faturamentoAnterior) * 100) : 0;
+        const crescimentoPercentual = faturamentoAnterior > 0 ? Math.round(((faturamentoAtual - faturamentoAnterior) / faturamentoAnterior) * 100) : 0;
+
+        if (quedaPercentual >= 50) {
+          const outcome = await createCommercialObservation(context, {
+            manager_id: 'gerente_comercial',
+            manager_name: 'Gerente Comercial',
+            category: 'queda_faturamento',
+            severity: 'high',
+            title: 'Queda relevante de faturamento',
+            description: `Cliente ${cliente.nome || 'Cliente'} teve queda de ${quedaPercentual}% no faturamento dos últimos 30 dias.`,
+            source_type: 'cliente',
+            source_id: cliente.id,
+            metadata: {
+              cliente_id: cliente.id,
+              cliente_nome: cliente.nome || null,
+              faturamento_30d_atual: faturamentoAtual,
+              faturamento_30d_anterior: faturamentoAnterior,
+              queda_percentual: quedaPercentual
+            }
+          });
+          if (outcome.created) observationsCreated += 1; else observationsSkippedDuplicate += 1;
+        }
+
+        if (faturamentoAtual >= 500 && crescimentoPercentual >= 50) {
+          const outcome = await createCommercialObservation(context, {
+            manager_id: 'gerente_comercial',
+            manager_name: 'Gerente Comercial',
+            category: 'crescimento_comercial',
+            severity: 'medium',
+            title: 'Crescimento relevante de faturamento',
+            description: `Cliente ${cliente.nome || 'Cliente'} cresceu ${crescimentoPercentual}% nos últimos 30 dias.`,
+            source_type: 'cliente',
+            source_id: cliente.id,
+            metadata: {
+              cliente_id: cliente.id,
+              cliente_nome: cliente.nome || null,
+              faturamento_30d_atual: faturamentoAtual,
+              faturamento_30d_anterior: faturamentoAnterior,
+              crescimento_percentual: crescimentoPercentual
+            }
+          });
+          if (outcome.created) observationsCreated += 1; else observationsSkippedDuplicate += 1;
+        }
+      }
+    }
+  } catch (error) {
+    fatalError = error;
+    logJobError('runGerenteComercialObservacaoJob', error, { accountId, lockKey, requestId: context.requestId || null });
+  } finally {
+    const finishedAt = isoNow();
+    const status = fatalError ? 'error' : 'success';
+    await recordSystemJobRun({
+      job_id: job.id,
+      account_id: accountId,
+      nome: job.nome,
+      status,
+      started_at: new Date(startedAt).toISOString(),
+      finished_at: finishedAt,
+      duration_ms: Date.now() - startedAt,
+      processed_count: clientesAnalisados,
+      success_count: observationsCreated,
+      error_count: fatalError ? 1 : 0,
+      metadata: {
+        observations_created: observationsCreated,
+        observations_skipped_duplicate: observationsSkippedDuplicate,
+        accounts_processed: accountsProcessed,
+        clientes_analisados: clientesAnalisados,
+        fatal_error: fatalError ? { message: fatalError?.message || String(fatalError), code: fatalError?.code || null } : null
+      },
+      error: fatalError?.message || null
+    }, { accountId }).catch((error) => {
+      logJobError('recordSystemJobRun', error, { accountId, lockKey, requestId: context.requestId || null });
+      return null;
+    });
+    await releaseSystemJobLock(lockKey, { locked_at: null, locked_by: null }).catch((error) => {
+      logJobError('releaseSystemJobLock', error, { accountId, lockKey, requestId: context.requestId || null });
+      return null;
+    });
+    await upsertSystemJob({ ...job, status: 'ativo', last_success_at: fatalError ? job.last_success_at : isoNow(), last_error: fatalError?.message || null, next_run_at: nextDaily0300(new Date()) }, { accountId });
+  }
+
+  return { ok: true, job, observations_created: observationsCreated, observations_skipped_duplicate: observationsSkippedDuplicate, clientes_analisados: clientesAnalisados };
 }
 
 export async function listJobsOverview(context = {}) {
