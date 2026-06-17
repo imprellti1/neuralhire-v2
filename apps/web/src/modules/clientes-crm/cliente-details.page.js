@@ -214,7 +214,6 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   function getTabLabel(key) {
     if (key === 'comercial') return 'Comercial';
     if (key === 'crm') return 'CRM';
-    if (key === 'alertas') return 'Alertas Comerciais';
     if (key === 'enriquecimento') return 'Enriquecimento';
     if (key === 'geolocalizacao') return 'Geolocalização';
     if (key === 'timeline') return 'Timeline';
@@ -265,7 +264,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         <button id="nhcd-back" class="nho2-btn" style="background:#fff;color:#1f56dc">Voltar</button>
       </div>
       <div class="nho2d-tabs" role="tablist" aria-label="Detalhes do cliente">
-        ${['geral', 'comercial', 'alertas', 'crm', 'enriquecimento', 'geolocalizacao', 'timeline'].map((tab) => `<button class="nho2d-tab ${activeTab === tab ? 'is-active' : ''}" data-tab="${tab}" role="tab" aria-selected="${activeTab === tab ? 'true' : 'false'}">${getTabLabel(tab)}</button>`).join('')}
+        ${['geral', 'comercial', 'crm', 'enriquecimento', 'geolocalizacao', 'timeline'].map((tab) => `<button class="nho2d-tab ${activeTab === tab ? 'is-active' : ''}" data-tab="${tab}" role="tab" aria-selected="${activeTab === tab ? 'true' : 'false'}">${getTabLabel(tab)}</button>`).join('')}
       </div>
     `;
   }
@@ -655,7 +654,6 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       ${renderHeader(d)}
       ${activeTab === 'geral' ? renderGeral(d) : ''}
       ${activeTab === 'comercial' ? renderComercial(d) : ''}
-      ${activeTab === 'alertas' ? renderAlertas(d) : ''}
       ${activeTab === 'crm' ? renderCrm(d) : ''}
       ${activeTab === 'enriquecimento' ? renderEnriquecimento(d) : ''}
       ${activeTab === 'geolocalizacao' ? renderGeolocalizacao(d) : ''}

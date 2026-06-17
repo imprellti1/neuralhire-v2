@@ -42,6 +42,9 @@ test('cliente details comercial agrupa pedidos por status e mantém accordions f
   await flush();
   await flush();
 
+  assert.ok(document.querySelector('[data-tab="timeline"]'));
+  assert.ok(!document.querySelector('[data-tab="alertas"]'));
+
   root.querySelector('[data-tab="comercial"]')?.click();
   await flush();
   await flush();
@@ -207,6 +210,9 @@ test('cliente details comercial calcula total do item e agrupa variações por p
   await flush();
   await flush();
 
+  assert.ok(document.querySelector('[data-tab="timeline"]'));
+  assert.ok(!document.querySelector('[data-tab="alertas"]'));
+
   root.querySelector('[data-tab="comercial"]')?.click();
   await flush();
   await flush();
@@ -238,6 +244,66 @@ test('cliente details comercial calcula total do item e agrupa variações por p
   assert.ok(calls.some((call) => call.url === '/pedidos/p1'));
 
   teardownFrontendDom(dom);
+});
+
+test('cliente details timeline mostra eventos e estado vazio sem quebrar', async () => {
+  const dom = setupFrontendDom('#/clientes/c1');
+  const root = document.getElementById('root');
+  const calls = [];
+  const apiClient = {
+    get: async (url, params = {}) => {
+      calls.push({ url, params });
+      if (url === '/clientes/c1') {
+        return {
+          item: {
+            id: 'c1',
+            empresa: 'Cliente Timeline',
+            cidade: 'São Paulo',
+            estado: 'SP',
+            created_at: '2026-05-01T00:00:00.000Z',
+            status: 'ativo'
+          }
+        };
+      }
+      if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
+      if (url === '/clientes/c1/timeline') return { items: [{ id: 't1', categoria: 'cadastro', titulo: 'Cliente cadastrado', descricao: 'Cadastro concluído', created_at: '2026-06-10T10:00:00.000Z' }] };
+      return { items: [] };
+    }
+  };
+
+  renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
+  await flush();
+  await flush();
+
+  root.querySelector('[data-tab="timeline"]')?.click();
+  await flush();
+  await flush();
+  assert.match(root.textContent, /Timeline/);
+  assert.match(root.textContent, /Cliente cadastrado/);
+  assert.ok(calls.some((call) => call.url === '/clientes/c1/timeline'));
+
+  const apiClientEmpty = {
+    get: async (url, params = {}) => {
+      if (url === '/clientes/c1') {
+        return { item: { id: 'c1', empresa: 'Cliente Timeline', cidade: 'São Paulo', estado: 'SP', created_at: '2026-05-01T00:00:00.000Z', status: 'ativo' } };
+      }
+      if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
+      if (url === '/clientes/c1/timeline') return { items: [] };
+      return { items: [] };
+    }
+  };
+
+  teardownFrontendDom(dom);
+  const domEmpty = setupFrontendDom('#/clientes/c1');
+  const rootEmpty = document.getElementById('root');
+  renderClienteDetailsPage(rootEmpty, { apiClient: apiClientEmpty, clienteId: 'c1' });
+  await flush();
+  await flush();
+  rootEmpty.querySelector('[data-tab="timeline"]')?.click();
+  await flush();
+  await flush();
+  assert.match(rootEmpty.textContent, /Nenhum evento registrado ainda/);
+  teardownFrontendDom(domEmpty);
 });
 
 test('cliente details comercial atualiza valor do pedido e resumo do grupo quando itens chegam sob demanda', async () => {
