@@ -16,27 +16,39 @@ export function getClientesTimelineTests() {
       __resetMemoryTimelineForTests();
       const app = createApiApp();
       const accountId = 'acc-timeline';
-      const cliente = await createCliente({ nome: 'Cliente Timeline' }, { accountId });
+      const previousFetch = globalThis.fetch;
+      globalThis.fetch = async () => ({
+        ok: true,
+        status: 200,
+        headers: { get: () => 'application/json' },
+        text: async () => JSON.stringify({ nome: 'Cliente Timeline', razao_social: 'Cliente Timeline LTDA' }),
+        json: async () => ({ nome: 'Cliente Timeline', razao_social: 'Cliente Timeline LTDA' })
+      });
+      const cliente = await createCliente({ nome: 'Cliente Timeline', documento: '12345678000190' }, { accountId });
 
-      let req = createTestRequest({ method: 'GET', url: `/clientes/${cliente.id}/timeline`, headers: { 'x-account-id': accountId } });
-      let res = createTestResponse();
-      await app(req, res);
-      assert.equal(res.statusCode, 200);
-      let payload = JSON.parse(res.body);
-      assert.equal((payload.data || payload.item || payload).items.length, 0);
+      try {
+        let req = createTestRequest({ method: 'GET', url: `/clientes/${cliente.id}/timeline`, headers: { 'x-test-role': 'admin', 'x-test-account-id': accountId } });
+        let res = createTestResponse();
+        await app(req, res);
+        assert.equal(res.statusCode, 200);
+        let payload = JSON.parse(res.body);
+        assert.equal((payload.data || payload.item || payload).items.length, 0);
 
-      req = createTestRequest({ method: 'POST', url: `/clientes/${cliente.id}/enriquecer`, headers: { 'x-account-id': accountId } });
-      res = createTestResponse();
-      await app(req, res);
+        req = createTestRequest({ method: 'POST', url: `/clientes/${cliente.id}/enriquecer`, headers: { 'x-test-role': 'admin', 'x-test-account-id': accountId } });
+        res = createTestResponse();
+        await app(req, res);
 
-      req = createTestRequest({ method: 'GET', url: `/clientes/${cliente.id}/timeline`, headers: { 'x-account-id': accountId } });
-      res = createTestResponse();
-      await app(req, res);
-      payload = JSON.parse(res.body);
-      const items = (payload.data || payload.item || payload).items;
-      assert.ok(items.length >= 1);
-      assert.equal(items[0].categoria, 'enriquecimento');
-      assert.equal(items.every((item, index, array) => index === 0 || new Date(array[index - 1].created_at) >= new Date(item.created_at)), true);
+        req = createTestRequest({ method: 'GET', url: `/clientes/${cliente.id}/timeline`, headers: { 'x-test-role': 'admin', 'x-test-account-id': accountId } });
+        res = createTestResponse();
+        await app(req, res);
+        payload = JSON.parse(res.body);
+        const items = (payload.data || payload.item || payload).items;
+        assert.ok(items.length >= 1);
+        assert.equal(items[0].categoria, 'enriquecimento');
+        assert.equal(items.every((item, index, array) => index === 0 || new Date(array[index - 1].created_at) >= new Date(item.created_at)), true);
+      } finally {
+        globalThis.fetch = previousFetch;
+      }
     }
   }];
 }

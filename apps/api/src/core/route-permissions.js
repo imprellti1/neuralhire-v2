@@ -21,6 +21,8 @@ export const ROUTE_PERMISSIONS = {
   'POST /clientes/:id/enriquecer': { authenticated: true, permission: 'clientes:write', tenantRequired: true, domain: 'clientes-crm' },
   'GET /jobs': { authenticated: true, role: 'admin' },
   'POST /jobs/radar-comercial/run': { authenticated: true, role: 'admin' },
+  'POST /jobs/clientes-enriquecimento/run': { authenticated: true, role: 'admin' },
+  'POST /jobs/clientes-geolocalizacao/run': { authenticated: true, role: 'admin' },
   'POST /jobs/clientes-enriquecimento-geolocalizacao/run': { authenticated: true, role: 'admin' },
   'POST /jobs/clientes-resumo-semanal/run': { authenticated: true, role: 'admin' },
   'GET /fabricantes': { authenticated: true, permission: 'fabricantes:read', tenantRequired: true, domain: 'fabricantes' },

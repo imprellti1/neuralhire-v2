@@ -177,7 +177,7 @@ export async function geolocalizarClienteHandler(context = {}) {
       referencia_id: id,
       metadata: { cliente_id: id, status: result?.resultado?.status || null }
     }, { accountId, clienteId: id });
-    return { ok: true, repositoryMode: getClientesRepositoryMode(), ...result };
+    return { ok: true, repositoryMode: getClientesRepositoryMode(), item: result?.cliente || null, ...result };
   } catch (error) {
     if (error?.code === 'OWNER_SCOPE_FORBIDDEN' || error?.code === 'VENDEDOR_SCOPE_FORBIDDEN') {
       throw new NotFoundError('Cliente nao encontrado', { code: 'CLIENTE_NOT_FOUND', domain: 'clientes-crm' });

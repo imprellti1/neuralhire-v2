@@ -226,6 +226,103 @@ function normalizeClienteMetadata(metadata, fallback = {}) {
   return Object.keys(merged).length ? merged : {};
 }
 
+function normalizeTextValue(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isTruthyValue(value) {
+  return value !== null && value !== undefined && String(value).trim() !== '';
+}
+
+function hasLatitudeLongitude(cliente = {}) {
+  return Number.isFinite(Number(cliente.latitude)) && Number.isFinite(Number(cliente.longitude));
+}
+
+function hasAnyAddressSignal(cliente = {}) {
+  return [
+    cliente.logradouro,
+    cliente.numero,
+    cliente.bairro,
+    cliente.cidade,
+    cliente.estado,
+    cliente.cep
+  ].some(isTruthyValue);
+}
+
+function hasEnoughAddressForGeolocation(cliente = {}) {
+  const streetParts = [cliente.logradouro, cliente.numero, cliente.bairro, cliente.cidade, cliente.estado].filter(isTruthyValue);
+  return hasAnyAddressSignal(cliente) && streetParts.length >= 3;
+}
+
+function getEnrichmentPriorityScore(cliente = {}) {
+  const status = normalizeTextValue(cliente.enriquecimento_status);
+  const hasError = status === 'erro' || isTruthyValue(cliente.enriquecimento_erro);
+  const isIncomplete = status === 'incompleto';
+  const neverEnriched = !isTruthyValue(cliente.enriquecimento_ultima_execucao) && !status;
+  if (neverEnriched) return 0;
+  if (hasError) return 1;
+  if (isIncomplete) return 2;
+  return 3;
+}
+
+function getGeolocationPriorityScore(cliente = {}) {
+  const status = normalizeTextValue(cliente.geolocalizacao_status);
+  const hasError = status === 'erro' || isTruthyValue(cliente.geolocalizacao_erro);
+  const needsGeo = !hasLatitudeLongitude(cliente);
+  if (!needsGeo) return 3;
+  if (normalizeTextValue(cliente.enriquecimento_status) === 'concluido' || hasLatitudeLongitude(cliente) === false) return hasError ? 1 : 0;
+  return hasError ? 1 : 2;
+}
+
+function compareClienteEligibility(a = {}, b = {}, kind = 'enrichment') {
+  const priorityA = kind === 'geolocation' ? getGeolocationPriorityScore(a) : getEnrichmentPriorityScore(a);
+  const priorityB = kind === 'geolocation' ? getGeolocationPriorityScore(b) : getEnrichmentPriorityScore(b);
+  if (priorityA !== priorityB) return priorityA - priorityB;
+  const dateA = new Date(a.created_at || a.createdAt || 0).getTime();
+  const dateB = new Date(b.created_at || b.createdAt || 0).getTime();
+  return dateA - dateB;
+}
+
+export async function getNextClienteForEnrichment(accountId, options = {}) {
+  assertAccountId(accountId);
+  const repositoryMode = getClientesRepositoryMode();
+  const candidates = [];
+
+  if (repositoryMode.mode === 'supabase') {
+    const supabase = resolveSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data, error } = await supabase.from('clientes').select('*').eq('account_id', accountId).eq('ativo', true).order('created_at', { ascending: true }).limit(1000);
+    if (error) throw new DatabaseError('Falha ao buscar clientes elegiveis', { details: error });
+    candidates.push(...(data || []));
+  } else {
+    candidates.push(...memoryClientes.filter((item) => item.account_id === accountId && item.ativo !== false));
+  }
+
+  const eligible = candidates.filter((cliente) => isTruthyValue(cliente.documento) && !hasLatitudeLongitude(cliente) ? true : true).filter((cliente) => isTruthyValue(cliente.documento));
+  eligible.sort((a, b) => compareClienteEligibility(a, b, 'enrichment'));
+  return eligible[0] || null;
+}
+
+export async function getNextClienteForGeolocation(accountId, options = {}) {
+  assertAccountId(accountId);
+  const repositoryMode = getClientesRepositoryMode();
+  const candidates = [];
+
+  if (repositoryMode.mode === 'supabase') {
+    const supabase = resolveSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data, error } = await supabase.from('clientes').select('*').eq('account_id', accountId).eq('ativo', true).order('created_at', { ascending: true }).limit(1000);
+    if (error) throw new DatabaseError('Falha ao buscar clientes elegiveis', { details: error });
+    candidates.push(...(data || []));
+  } else {
+    candidates.push(...memoryClientes.filter((item) => item.account_id === accountId && item.ativo !== false));
+  }
+
+  const eligible = candidates.filter((cliente) => hasEnoughAddressForGeolocation(cliente) && (!hasLatitudeLongitude(cliente) || normalizeTextValue(cliente.geolocalizacao_status) === 'erro' || !isTruthyValue(cliente.geolocalizacao_ultima_execucao)));
+  eligible.sort((a, b) => compareClienteEligibility(a, b, 'geolocation'));
+  return eligible[0] || null;
+}
+
 export async function listClientes(filters = {}, options = {}) {
   const { page, limit } = normalizePagination(filters);
   const accountId = options.accountId || null;
@@ -330,6 +427,11 @@ export async function createCliente(data, options = {}) {
       telefone: data.telefone || null,
       cidade: data.cidade || null,
       estado: data.estado || null,
+      logradouro: data.logradouro || null,
+      numero: data.numero || null,
+      complemento: data.complemento || null,
+      bairro: data.bairro || null,
+      cep: data.cep || null,
       tags: Array.isArray(data.tags) ? data.tags : [],
       ativo: typeof data.ativo === 'boolean' ? data.ativo : true,
       metadata: normalizeClienteMetadata(data.metadata, data.metadata_importacao),
@@ -351,6 +453,11 @@ export async function createCliente(data, options = {}) {
     telefone: data.telefone || null,
     cidade: data.cidade || null,
     estado: data.estado || null,
+    logradouro: data.logradouro || null,
+    numero: data.numero || null,
+    complemento: data.complemento || null,
+    bairro: data.bairro || null,
+    cep: data.cep || null,
     tags: Array.isArray(data.tags) ? data.tags : [],
     ativo: typeof data.ativo === 'boolean' ? data.ativo : true,
     metadata: data.metadata || {},
@@ -385,6 +492,11 @@ export async function updateCliente(id, data, options = {}) {
     ...(data.telefone !== undefined ? { telefone: data.telefone || null } : {}),
     ...(data.cidade !== undefined ? { cidade: data.cidade || null } : {}),
     ...(data.estado !== undefined ? { estado: data.estado || null } : {}),
+    ...(data.logradouro !== undefined ? { logradouro: data.logradouro || null } : {}),
+    ...(data.numero !== undefined ? { numero: data.numero || null } : {}),
+    ...(data.complemento !== undefined ? { complemento: data.complemento || null } : {}),
+    ...(data.bairro !== undefined ? { bairro: data.bairro || null } : {}),
+    ...(data.cep !== undefined ? { cep: data.cep || null } : {}),
     ...(data.tags !== undefined ? { tags: Array.isArray(data.tags) ? data.tags : [] } : {}),
     ...(data.ativo !== undefined ? { ativo: typeof data.ativo === 'boolean' ? data.ativo : current.ativo } : {}),
     ...(data.metadata !== undefined ? { metadata: data.metadata || {} } : {})
@@ -403,6 +515,11 @@ export async function updateCliente(id, data, options = {}) {
       telefone: next.telefone,
       cidade: next.cidade,
       estado: next.estado,
+      logradouro: next.logradouro,
+      numero: next.numero,
+      complemento: next.complemento,
+      bairro: next.bairro,
+      cep: next.cep,
       tags: next.tags,
       ativo: next.ativo,
       metadata: normalizeClienteMetadata(next.metadata),

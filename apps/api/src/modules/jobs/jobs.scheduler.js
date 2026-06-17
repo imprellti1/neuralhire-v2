@@ -1,5 +1,6 @@
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { listClientes } from '../clientes/clientes.repository.js';
+import { enrichClienteByCnpj, geolocalizarCliente, getNextClienteForEnrichment, getNextClienteForGeolocation } from '../clientes/clientes.repository.js';
 import { gerarAlertasCliente } from '../clientes/clientes.alerts.service.js';
 import { recalcularSegmentacaoCliente } from '../clientes/clientes.segmentacao.service.js';
 import { registrarEventoTimeline } from '../clientes/clientes.timeline.service.js';
@@ -22,6 +23,10 @@ function chunkArray(items = [], size = 25) {
   const chunks = [];
   for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
   return chunks;
+}
+
+function nextInMinutes(now = new Date(), minutes = 30) {
+  return new Date(now.getTime() + Math.max(1, Number(minutes) || 30) * 60000).toISOString();
 }
 
 function logJobError(stage, error, details = {}) {
@@ -142,6 +147,100 @@ export async function runRadarComercialJob(context = {}) {
     duracao_ms: Date.now() - startedAt,
     job
   };
+}
+
+async function runClienteAutomacaoJob({ context = {}, lockKey, nome, ttlMinutes, nextRunIfProcessedMinutes, nextRunIfEmptyMinutes, action, selectNextCliente, executeCliente, metadataAction }) {
+  const accountId = getAccountIdFromContext(context);
+  const acquired = await acquireSystemJobLock({ lockKey, nome, ttlMinutes, accountId, workerId: context.requestId || 'local' });
+  if (!acquired.acquired) return { ok: true, skipped: true, job: acquired.job };
+
+  const startedAt = Date.now();
+  const job = await upsertSystemJob({ nome, lock_key: lockKey, account_id: accountId, status: 'running', last_run_at: isoNow(), next_run_at: nextInMinutes(new Date(), nextRunIfEmptyMinutes) }, { accountId });
+  let processedCount = 0;
+  let successCount = 0;
+  let errorCount = 0;
+  let metadata = { action, result: 'empty_queue', next_run_reason: 'empty_queue' };
+  let fatalError = null;
+
+  try {
+    const cliente = await selectNextCliente(accountId, context);
+    if (cliente) {
+      processedCount = 1;
+      try {
+        const result = await executeCliente(cliente, context, accountId);
+        successCount = 1;
+        metadata = { cliente_id: cliente.id, cliente_nome: cliente.nome || null, documento: cliente.documento || null, action, result: 'success', next_run_reason: 'queue_has_items', ...(metadataAction ? { ...metadataAction(result, cliente) } : {}) };
+      } catch (error) {
+        errorCount = 1;
+        metadata = { cliente_id: cliente.id, cliente_nome: cliente.nome || null, documento: cliente.documento || null, action, result: 'error', next_run_reason: 'queue_has_items' };
+        throw error;
+      }
+    }
+  } catch (error) {
+    fatalError = error;
+    if (!processedCount) metadata = { action, result: 'empty_queue', next_run_reason: 'empty_queue' };
+    if (processedCount && !successCount) errorCount = 1;
+    logJobError(`run${nome}`, error, { accountId, lockKey, requestId: context.requestId || null });
+  } finally {
+    const finishedAt = isoNow();
+    const hasItems = processedCount > 0;
+    const status = fatalError && hasItems ? 'error' : 'success';
+    const nextRunAt = hasItems ? nextInMinutes(new Date(), nextRunIfProcessedMinutes) : nextInMinutes(new Date(), nextRunIfEmptyMinutes);
+    await recordSystemJobRun({
+      job_id: job.id,
+      account_id: accountId,
+      nome: job.nome,
+      status,
+      started_at: new Date(startedAt).toISOString(),
+      finished_at: finishedAt,
+      duration_ms: Date.now() - startedAt,
+      processed_count: processedCount,
+      success_count: successCount,
+      error_count: errorCount,
+      metadata,
+      error: fatalError?.message || null
+    }, { accountId }).catch((error) => {
+      logJobError('recordSystemJobRun', error, { accountId, lockKey, requestId: context.requestId || null });
+      return null;
+    });
+    await releaseSystemJobLock(lockKey, { status: 'idle', locked_at: null, locked_by: null, next_run_at: nextRunAt }).catch((error) => {
+      logJobError('releaseSystemJobLock', error, { accountId, lockKey, requestId: context.requestId || null });
+      return null;
+    });
+    await upsertSystemJob({ ...job, status, last_success_at: status === 'success' ? isoNow() : job.last_success_at, last_error: fatalError?.message || null, next_run_at: nextRunAt }, { accountId });
+  }
+
+  return { ok: true, processados: processedCount, sucessos: successCount, falhas: errorCount, job };
+}
+
+export async function runClientesEnriquecimentoJob(context = {}) {
+  return runClienteAutomacaoJob({
+    context,
+    lockKey: `${getAccountIdFromContext(context)}:clientes:enriquecimento:automatico`,
+    nome: 'clientes_enriquecimento_automatico',
+    ttlMinutes: 30,
+    nextRunIfProcessedMinutes: 30,
+    nextRunIfEmptyMinutes: 60,
+    action: 'enriquecimento',
+    selectNextCliente: (accountId) => getNextClienteForEnrichment(accountId),
+    executeCliente: (cliente, ctx, accountId) => enrichClienteByCnpj(cliente.id, { accountId, context: ctx, fetchImpl: ctx.fetchImpl }),
+    metadataAction: (result, cliente) => ({ fonte: result?.enriquecimento_fonte || cliente?.enriquecimento_fonte || null })
+  });
+}
+
+export async function runClientesGeolocalizacaoJob(context = {}) {
+  return runClienteAutomacaoJob({
+    context,
+    lockKey: `${getAccountIdFromContext(context)}:clientes:geolocalizacao:automatico`,
+    nome: 'clientes_geolocalizacao_automatico',
+    ttlMinutes: 30,
+    nextRunIfProcessedMinutes: 30,
+    nextRunIfEmptyMinutes: 60,
+    action: 'geolocalizacao',
+    selectNextCliente: (accountId, ctx) => getNextClienteForGeolocation(accountId, ctx),
+    executeCliente: (cliente, ctx, accountId) => geolocalizarCliente({ accountId, clienteId: cliente.id, fetchImpl: ctx.fetchImpl, context: ctx }),
+    metadataAction: (result) => ({ status: result?.resultado?.status || null })
+  });
 }
 
 export async function listJobsOverview(context = {}) {
