@@ -185,14 +185,19 @@ export function getJobsTests() {
       name: 'bootstrap padrão inclui gerente comercial observacao',
       run: async () => {
         const defaults = getSystemJobDefaults();
+        assert.equal(defaults.length, 5);
         assert.equal(defaults.some((job) => job.nome === 'gerente_comercial_observacao'), true);
         __resetSystemJobsForTests();
         const logs = [];
         await ensureDefaultSystemJobs(null, { logger: { info: (...args) => logs.push(args) } });
         const dump = __dumpSystemJobsForTests();
+        assert.equal(dump.jobs.length, 5);
         assert.equal(dump.jobs.some((job) => job.nome === 'gerente_comercial_observacao'), true);
         assert.equal(logs.some(([message]) => message === 'system_jobs_bootstrap_started'), true);
         assert.equal(logs.some(([message]) => message === 'system_jobs_bootstrap_finished'), true);
+        await ensureDefaultSystemJobs(null, { logger: { info: () => null } });
+        const secondDump = __dumpSystemJobsForTests();
+        assert.equal(secondDump.jobs.length, 5);
       }
     },
     {
