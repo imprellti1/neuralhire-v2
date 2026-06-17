@@ -249,11 +249,12 @@ async function runClienteAutomacaoJob({ context = {}, lockKey, nome, ttlMinutes,
     const finishedAt = isoNow();
     const hasItems = processedCount > 0;
     const nextRunAt = hasItems ? nextInMinutes(new Date(), nextRunIfProcessedMinutes) : nextInMinutes(new Date(), nextRunIfEmptyMinutes);
+    const runStatus = fatalError ? 'error' : 'success';
     await recordSystemJobRun({
       job_id: job.id,
       account_id: accountId,
       nome: job.nome,
-      status,
+      status: runStatus,
       started_at: new Date(startedAt).toISOString(),
       finished_at: finishedAt,
       duration_ms: Date.now() - startedAt,

@@ -227,6 +227,7 @@ export function getJobsTests() {
           assert.equal(dump.runs[0].processed_count, 1);
           assert.equal(dump.runs[0].success_count, 1);
           assert.equal(dump.runs[0].metadata.result, 'success');
+          assert.equal(dump.jobs.some((job) => job.nome === 'clientes_enriquecimento_automatico' && job.status === 'ativo'), true);
           const clientes = __dumpMemoryClientes();
           assert.equal(Boolean(clientes.find((item) => item.id === first.id)?.enriquecimento_status), true);
           assert.equal(Boolean(clientes.find((item) => item.id === second.id)?.enriquecimento_status), false);
@@ -267,6 +268,7 @@ export function getJobsTests() {
           }
           assert.equal(dump.runs[0].nome, 'clientes_geolocalizacao_automatico');
           assert.equal(dump.runs[0].processed_count, 1);
+          assert.equal(dump.jobs.some((job) => job.nome === 'clientes_geolocalizacao_automatico' && job.status === 'ativo'), true);
           const clientes = __dumpMemoryClientes();
           assert.equal(Boolean(clientes.find((item) => item.id === first.id)?.geolocalizacao_status), true);
           assert.equal(Boolean(clientes.find((item) => item.id === second.id)?.geolocalizacao_status), false);
