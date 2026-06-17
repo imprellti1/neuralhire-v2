@@ -5,6 +5,7 @@ import { applyOwnerFilter, getUserIdFromContext } from '../../core/commercial-sc
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { findVendedorByUserId } from '../vendedores/vendedores.repository.js';
 import { buildEnrichmentUpdateFromBrasilApi, buildEnrichmentUpdateFromCnpjWs, fetchBrasilApiCnpj, fetchCnpjWsCnpj, isValidCnpj, normalizeCnpj } from './clientes.enrichment.js';
+import { calcularScoreCliente } from './clientes.score.service.js';
 import { geocodificarEndereco, montarEnderecoCliente } from './clientes.geocoding.service.js';
 
 const memoryClientes = [];
@@ -113,6 +114,22 @@ async function listClientePedidos(accountId, clienteId) {
   const { __dumpMemoryPedidos } = await import('../pedidos/pedidos.repository.js');
   const snapshot = __dumpMemoryPedidos();
   return (snapshot.pedidos || []).filter((pedido) => pedido.account_id === accountId && pedido.cliente_id === clienteId);
+}
+
+async function listClientePedidoItens(accountId, pedidoIds = [], pedidosFallback = []) {
+  const ids = [...new Set((Array.isArray(pedidoIds) ? pedidoIds : [pedidoIds]).map((id) => String(id || '').trim()).filter(Boolean))];
+  if (!ids.length) return [];
+  const repositoryMode = getClientesRepositoryMode();
+  if (repositoryMode.mode === 'supabase') {
+    const supabase = resolveSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const query = supabase.from('pedido_itens').select('*').eq('account_id', accountId).in('pedido_id', ids);
+    const { data, error } = await query;
+    if (!error) return data || [];
+    debugRepository('listClientePedidoItens fallback', { accountId, ids, error: error?.message || error });
+    return (Array.isArray(pedidosFallback) ? pedidosFallback : []).flatMap((pedido) => Array.isArray(pedido?.itens) ? pedido.itens.map((item) => ({ ...item, pedido_id: pedido.id })) : []);
+  }
+  return (Array.isArray(pedidosFallback) ? pedidosFallback : []).flatMap((pedido) => Array.isArray(pedido?.itens) ? pedido.itens.map((item) => ({ ...item, pedido_id: pedido.id })) : []);
 }
 
 async function persistClientCommercialHistory(cliente, payload, options = {}) {
@@ -551,4 +568,31 @@ export async function geolocalizarCliente({ supabase, accountId, clienteId, fetc
     endereco_consultado,
     resultado: resultadoBase
   };
+}
+
+export async function calcularScoreComercialCliente({ supabase, context, accountId, clienteId } = {}) {
+  assertAccountId(accountId);
+  const cliente = await getClienteById(clienteId, { accountId, context });
+  const pedidos = await listClientePedidos(accountId, cliente.id);
+  const pedidosValidos = (Array.isArray(pedidos) ? pedidos : []).filter(isValidCommercialPedido);
+  const itens = await listClientePedidoItens(accountId, pedidosValidos.map((pedido) => pedido.id), pedidosValidos);
+  const scoreResult = calcularScoreCliente({ cliente, pedidos: pedidosValidos, itens });
+  const payload = {
+    cliente_score: scoreResult.score,
+    cliente_classificacao: scoreResult.classificacao,
+    cliente_potencial: scoreResult.potencial,
+    cliente_score_ultima_execucao: new Date().toISOString(),
+    cliente_score_fatores: scoreResult.fatores
+  };
+
+  if (getClientesRepositoryMode().mode === 'supabase') {
+    const supabaseClient = supabase || resolveSupabaseClient();
+    if (!supabaseClient) throw new DatabaseError('Supabase indisponivel');
+    const { data, error } = await supabaseClient.from('clientes').update(payload).eq('account_id', accountId).eq('id', cliente.id).select('*').single();
+    if (error) throw new DatabaseError('Falha ao atualizar score comercial do cliente', { details: error, domain: 'clientes-crm' });
+    return { cliente: data, score: scoreResult };
+  }
+
+  const updated = await persistClientCommercialHistory(cliente, payload, { accountId });
+  return { cliente: updated, score: scoreResult };
 }

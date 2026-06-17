@@ -1,6 +1,6 @@
 import { asyncHandler } from '../../core/async-handler.js';
 import { sendSuccess } from '../../core/response.js';
-import { createClienteHandler, enrichClienteHandler, geolocalizarClienteHandler, getClienteByIdHandler, getClientes, updateClienteHandler } from './clientes.controller.js';
+import { calcularScoreClienteHandler, createClienteHandler, enrichClienteHandler, geolocalizarClienteHandler, getClienteByIdHandler, getClientes, updateClienteHandler } from './clientes.controller.js';
 import { createClienteSchema, updateClienteSchema } from './clientes.schemas.js';
 
 export function registerClientesRoutes(router) {
@@ -57,6 +57,15 @@ export function registerClientesRoutes(router) {
     domain: 'clientes-crm',
     handler: asyncHandler(async (req, res, context) => {
       sendSuccess(res, await geolocalizarClienteHandler(context));
+    })
+  });
+
+  router.registerRoute({
+    method: 'POST',
+    path: '/clientes/:id/calcular-score',
+    domain: 'clientes-crm',
+    handler: asyncHandler(async (req, res, context) => {
+      sendSuccess(res, await calcularScoreClienteHandler(context));
     })
   });
 }

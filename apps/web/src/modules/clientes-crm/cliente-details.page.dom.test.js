@@ -524,3 +524,84 @@ test('cliente details mostra aba de geolocalizacao e executa geolocalizacao manu
 
   teardownFrontendDom(dom);
 });
+
+test('cliente details mostra score comercial e executa calculo manual', async () => {
+  const dom = setupFrontendDom('#/clientes/c1');
+  const root = document.getElementById('root');
+  const calls = [];
+  const apiClient = {
+    get: async (url, params = {}) => {
+      calls.push({ method: 'GET', url, params });
+      if (url === '/clientes/c1') {
+        return {
+          item: {
+            id: 'c1',
+            empresa: 'Cliente Score',
+            cidade: 'São Paulo',
+            estado: 'SP',
+            created_at: '2026-05-01T00:00:00.000Z',
+            status: 'ativo',
+            cliente_score: 72,
+            cliente_classificacao: 'B',
+            cliente_potencial: 'Médio',
+            cliente_score_ultima_execucao: '2026-06-16T18:29:32.000Z',
+            cliente_score_fatores: {
+              faturamento_total: 5000,
+              total_pedidos: 5,
+              ticket_medio: 1000,
+              ultima_compra: '2026-06-15T00:00:00.000Z',
+              dias_sem_compra: 2,
+              produtos_distintos: 3
+            }
+          }
+        };
+      }
+      if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
+      return { items: [] };
+    },
+    post: async (url) => {
+      calls.push({ method: 'POST', url });
+      if (url === '/clientes/c1/calcular-score') {
+        return {
+          cliente: {
+            id: 'c1',
+            cliente_score: 88,
+            cliente_classificacao: 'A',
+            cliente_potencial: 'Alto',
+            cliente_score_ultima_execucao: '2026-06-17T10:00:00.000Z',
+            cliente_score_fatores: {
+              faturamento_total: 10000,
+              total_pedidos: 10,
+              ticket_medio: 1000,
+              ultima_compra: '2026-06-17T00:00:00.000Z',
+              dias_sem_compra: 0,
+              produtos_distintos: 10
+            }
+          },
+          score: { score: 88, classificacao: 'A', potencial: 'Alto' }
+        };
+      }
+      throw new Error('unexpected post');
+    }
+  };
+
+  renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
+  await flush();
+  await flush();
+
+  assert.match(root.textContent, /Score Comercial/);
+  assert.match(root.textContent, /72/);
+  assert.match(root.textContent, /Classificação/);
+  assert.match(root.textContent, /Potencial/);
+
+  root.querySelector('#nho2d-score')?.click();
+  await flush();
+  await flush();
+
+  assert.match(root.textContent, /Score comercial calculado com sucesso/);
+  assert.match(root.textContent, /88/);
+  assert.match(root.textContent, /Alto/);
+  assert.ok(calls.some((call) => call.method === 'POST' && call.url === '/clientes/c1/calcular-score'));
+
+  teardownFrontendDom(dom);
+});

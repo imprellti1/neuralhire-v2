@@ -1,7 +1,7 @@
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { NotFoundError, ValidationError } from '../../core/errors.js';
 import { applyOwnerFilter, canAccessAllTenantData } from '../../core/commercial-scope.js';
-import { createCliente, enrichClienteByCnpj, geolocalizarCliente, getClienteById, getClientesRepositoryMode, listClientes, updateCliente } from './clientes.repository.js';
+import { calcularScoreComercialCliente, createCliente, enrichClienteByCnpj, geolocalizarCliente, getClienteById, getClientesRepositoryMode, listClientes, updateCliente } from './clientes.repository.js';
 import { recordAuditLog } from '../../core/audit-logs.js';
 import { getGruposComerciaisByClienteId } from '../grupos-comerciais/grupos-comerciais.repository.js';
 
@@ -116,6 +116,21 @@ export async function geolocalizarClienteHandler(context = {}) {
   if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
   try {
     const result = await geolocalizarCliente({ accountId, clienteId: id, fetchImpl: context.fetchImpl, context });
+    return { ok: true, repositoryMode: getClientesRepositoryMode(), ...result };
+  } catch (error) {
+    if (error?.code === 'OWNER_SCOPE_FORBIDDEN' || error?.code === 'VENDEDOR_SCOPE_FORBIDDEN') {
+      throw new NotFoundError('Cliente nao encontrado', { code: 'CLIENTE_NOT_FOUND', domain: 'clientes-crm' });
+    }
+    throw error;
+  }
+}
+
+export async function calcularScoreClienteHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const id = String(context?.params?.id || '').trim();
+  if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
+  try {
+    const result = await calcularScoreComercialCliente({ accountId, clienteId: id, context });
     return { ok: true, repositoryMode: getClientesRepositoryMode(), ...result };
   } catch (error) {
     if (error?.code === 'OWNER_SCOPE_FORBIDDEN' || error?.code === 'VENDEDOR_SCOPE_FORBIDDEN') {

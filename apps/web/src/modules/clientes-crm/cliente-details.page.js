@@ -1,5 +1,5 @@
 import { createClienteDetailsState } from './cliente-details.state.js';
-import { enriquecerCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, geolocalizarCliente } from './cliente-details.service.js';
+import { calcularScoreCliente, enriquecerCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, geolocalizarCliente } from './cliente-details.service.js';
 
 function fmtCurrency(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 function fmtDate(v) {
@@ -123,6 +123,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   let activeTab = 'geral';
   let enrichmentLoading = false;
   let geolocationLoading = false;
+  let scoreLoading = false;
   let feedbackMessage = '';
   const groupAccordionState = new Map();
   const pedidoAccordionState = new Map();
@@ -237,6 +238,18 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   }
 
   function renderGeral(d) {
+    const score = Number(d?.cliente_score);
+    const scoreClassificacao = safeValue(d?.cliente_classificacao);
+    const scorePotencial = safeValue(d?.cliente_potencial);
+    const scoreFatores = d?.cliente_score_fatores && typeof d.cliente_score_fatores === 'object' ? d.cliente_score_fatores : {};
+    const scoreFactorsList = [
+      ['Faturamento total', fmtCurrency(scoreFatores.faturamento_total)],
+      ['Total de pedidos', scoreFatores.total_pedidos ?? 0],
+      ['Ticket médio', fmtCurrency(scoreFatores.ticket_medio)],
+      ['Última compra', scoreFatores.ultima_compra ? fmtDate(scoreFatores.ultima_compra) : 'Sem compras'],
+      ['Dias sem compra', scoreFatores.dias_sem_compra ?? '-'],
+      ['Produtos distintos', scoreFatores.produtos_distintos ?? 0]
+    ];
     const fields = [
       ['Faturamento total', fmtCurrency(d?.kpis?.faturamentoTotal)],
       ['Total de pedidos', d?.kpis?.totalPedidos ?? 0],
@@ -252,6 +265,26 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     return `
       <div class="nho2d-grid">
         <div class="nho2d-stack">
+          <article class="nho2d-card">
+            <div class="nho2d-header" style="margin-bottom:12px">
+              <div>
+                <h3 style="margin:0 0 4px">Score Comercial</h3>
+                <div class="nho2d-sub">Cálculo manual com base em pedidos válidos, frequência, ticket, recência e diversidade.</div>
+              </div>
+              <button id="nho2d-score" class="nho2-btn" ${scoreLoading ? 'disabled' : ''}>${scoreLoading ? 'Calculando score...' : 'Calcular Score'}</button>
+            </div>
+            ${feedbackMessage ? `<div class="nho2d-crm-empty" style="margin-bottom:12px">${safeText(feedbackMessage, '')}</div>` : ''}
+            <dl class="nho2d-dl">
+              <dt class="nho2d-dt">Pontuação</dt><dd class="nho2d-dd">${Number.isFinite(score) ? score : 'Não calculado'}</dd>
+              <dt class="nho2d-dt">Classificação</dt><dd class="nho2d-dd">${scoreClassificacao}</dd>
+              <dt class="nho2d-dt">Potencial</dt><dd class="nho2d-dd">${scorePotencial}</dd>
+              <dt class="nho2d-dt">Última atualização</dt><dd class="nho2d-dd">${formatDateFriendly(d?.cliente_score_ultima_execucao)}</dd>
+            </dl>
+            <div style="margin-top:12px">
+              <div class="nho2d-dt" style="margin-bottom:8px">Principais fatores</div>
+              ${scoreFatores && Object.keys(scoreFatores).length ? `<div class="nho2d-kpi-grid">${scoreFactorsList.map(([label, value]) => `<div class="nho2d-kpi"><div class="nho2d-kpi-label">${label}</div><div class="nho2d-kpi-value">${value}</div></div>`).join('')}</div>` : '<p class="nho2d-empty">O score ainda não foi calculado.</p>'}
+            </div>
+          </article>
           <article class="nho2d-card">
             <h3>Resumo gerencial</h3>
             <div class="nho2d-kpi-grid">
@@ -573,6 +606,24 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
           feedbackMessage = error?.message || 'Falha ao geolocalizar cliente.';
         } finally {
           geolocationLoading = false;
+          render();
+        }
+      };
+    }
+    const scoreBtn = root.querySelector('#nho2d-score');
+    if (scoreBtn) {
+      scoreBtn.onclick = async () => {
+        scoreLoading = true;
+        feedbackMessage = 'Calculando score comercial...';
+        render();
+        try {
+          const response = await calcularScoreCliente(apiClient, clienteId);
+          state.data = response?.cliente ? { ...state.data, ...response.cliente } : state.data;
+          feedbackMessage = 'Score comercial calculado com sucesso.';
+        } catch (error) {
+          feedbackMessage = error?.message || 'Falha ao calcular score comercial.';
+        } finally {
+          scoreLoading = false;
           render();
         }
       };

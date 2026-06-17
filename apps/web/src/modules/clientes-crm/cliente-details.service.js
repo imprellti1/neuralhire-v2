@@ -26,6 +26,10 @@ export async function geolocalizarCliente(apiClient, clienteId) {
   return apiClient.post(`/clientes/${clienteId}/geolocalizar`);
 }
 
+export async function calcularScoreCliente(apiClient, clienteId) {
+  return apiClient.post(`/clientes/${clienteId}/calcular-score`);
+}
+
 export async function fetchClienteDetailsData(apiClient, clienteId) {
   const [clienteResponse, pedidosResponse] = await Promise.all([
     apiClient.get(`/clientes/${clienteId}`),

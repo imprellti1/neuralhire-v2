@@ -3,5 +3,5 @@
 export const clientesModule = defineModule({
   name: 'clientes',
   domain: 'clientes-crm',
-  routes: ['GET /clientes', 'GET /clientes/:id', 'POST /clientes', 'POST /clientes/:id/enriquecer', 'POST /clientes/:id/geolocalizar']
+  routes: ['GET /clientes', 'GET /clientes/:id', 'POST /clientes', 'POST /clientes/:id/enriquecer', 'POST /clientes/:id/geolocalizar', 'POST /clientes/:id/calcular-score']
 });
