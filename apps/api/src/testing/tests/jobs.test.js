@@ -1391,6 +1391,36 @@ export function getJobsTests() {
       }
     },
     {
+      name: 'diretor_reuniao_executiva é idempotente para memória executiva equivalente',
+      run: async () => {
+        __resetMemoryAiDirectorForTests();
+        __resetMemoryAiDirectorObservationsForTests();
+        __resetSystemJobsForTests();
+        const accountId = 'acc-exec';
+        await createObservation({ accountId }, {
+          manager_id: 'gerente_produtos',
+          manager_name: 'Gerente Produtos',
+          category: 'produtos',
+          title: 'Pendencias criticas de produtos',
+          description: 'Falhas recorrentes no catalogo',
+          severity: 'high',
+          status: 'open',
+          metadata: { logical_theme: 'pendencias criticas de produtos' }
+        });
+        const job = await upsertSystemJob({ nome: 'diretor_reuniao_executiva', lock_key: 'diretor_reuniao_executiva', account_id: null, status: 'ativo', next_run_at: '2026-06-17T05:00:00.000Z' }, { accountId: null });
+        const first = await runDiretorReuniaoExecutivaJob({ accountId, job, auth: { accountId } });
+        assert.equal(first.ok, true);
+        let memories = __dumpMemoryAiDirectorForTests().filter((item) => item.account_id === accountId && item.tipo === 'prioridade_executiva' && item.origem === 'diretor_reuniao_executiva');
+        assert.equal(memories.length, 1);
+        const firstId = memories[0].id;
+        const second = await runDiretorReuniaoExecutivaJob({ accountId, job, auth: { accountId } });
+        assert.equal(second.ok, true);
+        memories = __dumpMemoryAiDirectorForTests().filter((item) => item.account_id === accountId && item.tipo === 'prioridade_executiva' && item.origem === 'diretor_reuniao_executiva');
+        assert.equal(memories.length, 1);
+        assert.equal(memories[0].id, firstId);
+      }
+    },
+    {
       name: 'status inválido de plano é rejeitado',
       run: async () => {
         __resetMemoryAiDirectorActionPlansForTests();

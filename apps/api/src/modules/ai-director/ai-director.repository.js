@@ -413,6 +413,70 @@ function buildExecutiveMemoryLogicalKey(row = {}) {
   ].join('|');
 }
 
+function isUniqueConstraintViolation(error) {
+  return String(error?.code || '') === '23505';
+}
+
+function buildExecutiveMemoryIdentityQuery(query, row = {}) {
+  return query
+    .eq('account_id', row.account_id)
+    .eq('tipo', row.tipo)
+    .eq('categoria', row.categoria)
+    .ilike('titulo', row.titulo)
+    .eq('origem', row.origem);
+}
+
+async function findExistingExecutiveMemory(supabase, row) {
+  const { data, error } = await buildExecutiveMemoryIdentityQuery(
+    supabase.from('ai_director_executive_memories').select('*'),
+    row
+  ).maybeSingle();
+  if (error) throw new DatabaseError('Falha ao consultar memoria executiva do diretor', { details: error });
+  return data || null;
+}
+
+async function saveExecutiveMemoryRow(supabase, row) {
+  const current = await findExistingExecutiveMemory(supabase, row);
+  if (current) {
+    const next = {
+      ...current,
+      ...row,
+      id: current.id,
+      account_id: current.account_id,
+      created_at: current.created_at || current.criado_em || row.criado_em,
+      criado_em: current.criado_em || current.created_at || row.criado_em,
+      updated_at: new Date().toISOString(),
+      metadata: { ...(current.metadata || {}), ...(row.metadata || {}) }
+    };
+    const { data: updated, error: updateError } = await supabase.from('ai_director_executive_memories').update(next).eq('id', current.id).select('*').single();
+    if (updateError) throw new DatabaseError('Falha ao atualizar memoria executiva do diretor', { details: updateError });
+    return updated;
+  }
+
+  const { data: inserted, error } = await supabase.from('ai_director_executive_memories').insert(row).select('*').single();
+  if (error) {
+    if (isUniqueConstraintViolation(error)) {
+      const retryCurrent = await findExistingExecutiveMemory(supabase, row);
+      if (retryCurrent) {
+        const next = {
+          ...retryCurrent,
+          ...row,
+          id: retryCurrent.id,
+          account_id: retryCurrent.account_id,
+          created_at: retryCurrent.created_at || retryCurrent.criado_em || row.criado_em,
+          criado_em: retryCurrent.criado_em || retryCurrent.created_at || row.criado_em,
+          updated_at: new Date().toISOString(),
+          metadata: { ...(retryCurrent.metadata || {}), ...(row.metadata || {}) }
+        };
+        const { data: updated, error: retryUpdateError } = await supabase.from('ai_director_executive_memories').update(next).eq('id', retryCurrent.id).select('*').single();
+        if (!retryUpdateError) return updated;
+      }
+    }
+    throw new DatabaseError('Falha ao criar memoria executiva do diretor', { details: error });
+  }
+  return inserted;
+}
+
 export async function createExecutiveMemory(data = {}, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
@@ -427,9 +491,7 @@ export async function createExecutiveMemory(data = {}, options = {}) {
   if (mode() === 'supabase') {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data: inserted, error } = await supabase.from('ai_director_executive_memories').insert(row).select('*').single();
-    if (error) throw new DatabaseError('Falha ao criar memoria executiva do diretor', { details: error });
-    return inserted;
+    return saveExecutiveMemoryRow(supabase, row);
   }
 
   memoryStore.push({ ...row, executive: true });
@@ -452,33 +514,7 @@ export async function upsertExecutiveMemory(data = {}, options = {}) {
   if (mode() === 'supabase') {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data: current, error: selectError } = await supabase
-      .from('ai_director_executive_memories')
-      .select('*')
-      .eq('account_id', accountId)
-      .eq('tipo', row.tipo)
-      .eq('categoria', row.categoria)
-      .ilike('titulo', row.titulo)
-      .eq('origem', row.origem)
-      .maybeSingle();
-    if (selectError) throw new DatabaseError('Falha ao consultar memoria executiva do diretor', { details: selectError });
-    if (current) {
-      const next = {
-        ...current,
-        ...row,
-        id: current.id,
-        account_id: current.account_id,
-        created_at: current.created_at || current.criado_em || row.criado_em,
-        updated_at: new Date().toISOString(),
-        metadata: { ...(current.metadata || {}), ...(row.metadata || {}) }
-      };
-      const { data: updated, error: updateError } = await supabase.from('ai_director_executive_memories').update(next).eq('id', current.id).select('*').single();
-      if (updateError) throw new DatabaseError('Falha ao atualizar memoria executiva do diretor', { details: updateError });
-      return updated;
-    }
-    const { data: inserted, error } = await supabase.from('ai_director_executive_memories').insert(row).select('*').single();
-    if (error) throw new DatabaseError('Falha ao criar memoria executiva do diretor', { details: error });
-    return inserted;
+    return saveExecutiveMemoryRow(supabase, row);
   }
 
   const current = memoryStore.find((item) => item.executive && buildExecutiveMemoryLogicalKey(item) === buildExecutiveMemoryLogicalKey(row)) || null;
