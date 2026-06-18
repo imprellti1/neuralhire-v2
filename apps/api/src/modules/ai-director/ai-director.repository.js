@@ -434,16 +434,34 @@ function matchesExecutiveMemoryIdentity(row = {}, candidate = {}) {
 
 async function findExistingExecutiveMemoryByLogicalKey(supabase, row) {
   const normalizedTitle = normalizeExecutiveMemoryTitle(row.titulo);
-  const { data, error } = await supabase
-    .from('ai_director_executive_memories')
-    .select('*')
-    .eq('account_id', row.account_id)
-    .eq('tipo', row.tipo)
-    .eq('categoria', row.categoria)
-    .eq('origem', row.origem)
-    .ilike('titulo', row.titulo);
+  logger.info('ai_director_executive_memory_retry_params', {
+    account_id: row.account_id,
+    tipo: row.tipo,
+    categoria: row.categoria,
+    origem: row.origem,
+    titulo: row.titulo,
+    titulo_normalizado: normalizedTitle
+  });
+  const rpcResult = await supabase.rpc('find_ai_director_executive_memory_by_logical_key', {
+    p_account_id: row.account_id,
+    p_tipo: row.tipo,
+    p_categoria: row.categoria,
+    p_origem: row.origem,
+    p_titulo: row.titulo
+  });
+  const { data, error } = rpcResult || {};
   if (error) throw new DatabaseError('Falha ao consultar memoria executiva do diretor', { details: error });
-  return (data || []).find((item) => normalizeExecutiveMemoryTitle(item.titulo) === normalizedTitle) || null;
+  logger.info('ai_director_executive_memory_retry_result', {
+    account_id: row.account_id,
+    tipo: row.tipo,
+    categoria: row.categoria,
+    origem: row.origem,
+    titulo: row.titulo,
+    titulo_normalizado: normalizedTitle,
+    raw_count: Array.isArray(data) ? data.length : 0,
+    raw_rows: data || []
+  });
+  return (data || [])[0] || null;
 }
 
 async function saveExecutiveMemoryRow(supabase, row) {
@@ -464,17 +482,17 @@ async function saveExecutiveMemoryRow(supabase, row) {
     return updated;
   }
 
+  logger.info('ai_director_executive_memory_before_insert', {
+    account_id: row.account_id,
+    tipo: row.tipo,
+    categoria: row.categoria,
+    origem: row.origem,
+    titulo: row.titulo,
+    titulo_normalizado: normalizeExecutiveMemoryTitle(row.titulo)
+  });
   const { data: inserted, error } = await supabase.from('ai_director_executive_memories').insert(row).select('*').single();
   if (error) {
     if (isUniqueConstraintViolation(error)) {
-      logger.warn('ai_director_executive_memory_23505_retry', {
-        account_id: row.account_id,
-        tipo: row.tipo,
-        categoria: row.categoria,
-        titulo: row.titulo,
-        titulo_normalizado: normalizeExecutiveMemoryTitle(row.titulo),
-        origem: row.origem
-      });
       const retryCurrent = await findExistingExecutiveMemoryByLogicalKey(supabase, row);
       if (retryCurrent) {
         const next = {

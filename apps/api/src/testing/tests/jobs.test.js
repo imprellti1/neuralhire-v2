@@ -1535,6 +1535,18 @@ export function getJobsTests() {
               }
             };
           }
+          ,
+          rpc(name, params) {
+            if (name !== 'find_ai_director_executive_memory_by_logical_key') throw new Error(`rpc inesperada: ${name}`);
+            const item = records.find((row) =>
+              String(row.account_id || '') === String(params.p_account_id || '') &&
+              String(row.tipo || '') === String(params.p_tipo || '') &&
+              String(row.categoria || '') === String(params.p_categoria || '') &&
+              String(row.origem || '') === String(params.p_origem || '') &&
+              String(row.titulo || '').toLowerCase() === String(params.p_titulo || '').toLowerCase()
+            ) || null;
+            return Promise.resolve({ data: item ? [item] : [], error: null });
+          }
         };
         records.push({ ...savedRow });
         __setAiDirectorSupabaseClientForTests(fakeSupabase, true);
