@@ -167,7 +167,7 @@ export function getJobsTests() {
         const app = createApiApp();
         const out = await call(app, { method: 'GET', url: '/jobs', role: 'admin', accountId: 'acc-jobs' });
         assert.equal(out.res.statusCode, 200);
-        assert.equal(out.body.success, true);
+        assert.equal(out.body.ok, true);
         assert.equal(Array.isArray(out.body.items), true);
         assert.equal(out.body.items.some((job) => job.nome === 'gerente_comercial_observacao'), true);
         assert.equal(out.body.items.some((job) => job.nome === 'clientes_enriquecimento_geolocalizacao'), false);
@@ -237,10 +237,11 @@ export function getJobsTests() {
         assert.equal(run.metadata.clientes_analisados >= 4, true);
         assert.equal(run.metadata.observations_created >= 4, true);
         const observations = await listObservations({ accountId: 'acc-manager' }, { status: 'open', limit: 50 });
-        assert.equal(observations.items.some((item) => item.category === 'clientes_em_risco'), true);
-        assert.equal(observations.items.some((item) => item.category === 'clientes_reativados'), true);
-        assert.equal(observations.items.some((item) => item.category === 'queda_faturamento'), true);
-        assert.equal(observations.items.some((item) => item.category === 'crescimento_comercial'), true);
+        assert.equal(observations.items.some((item) => item.category === 'comercial'), true);
+        assert.equal(observations.items.some((item) => item.title === 'Cliente sem compra há mais de 90 dias'), true);
+        assert.equal(observations.items.some((item) => item.title === 'Cliente reativado'), true);
+        assert.equal(observations.items.some((item) => item.title === 'Queda relevante de faturamento'), true);
+        assert.equal(observations.items.some((item) => item.title === 'Crescimento relevante de faturamento'), true);
       }
     },
     {
@@ -258,7 +259,7 @@ export function getJobsTests() {
         await createObservation({ accountId: 'acc-dup' }, {
           manager_id: 'gerente_comercial',
           manager_name: 'Gerente Comercial',
-          category: 'clientes_em_risco',
+          category: 'comercial',
           title: 'Cliente sem compra há mais de 90 dias',
           description: 'Cliente Cliente Duplicado não compra desde 2026-01-01.',
           severity: 'high',
@@ -277,7 +278,7 @@ export function getJobsTests() {
         assert.ok(run);
         assert.equal(run.metadata.observations_skipped_duplicate >= 1, true);
         const observations = await listObservations({ accountId: 'acc-dup' }, { status: 'open', limit: 50 });
-        assert.equal(observations.items.filter((item) => item.category === 'clientes_em_risco').length, 1);
+        assert.equal(observations.items.filter((item) => item.category === 'comercial').length, 1);
       }
     },
     {
@@ -421,6 +422,7 @@ export function getJobsTests() {
           assert.equal(Boolean(globalJob?.next_run_at), true);
           assert.equal(Boolean(globalJob?.last_run_at), true);
           assert.equal(Boolean(globalJob?.last_success_at), true);
+          assert.equal(new Date(globalJob.next_run_at).getTime() > Date.parse('2026-06-17T11:00:00.000Z'), true);
         } finally {
           globalThis.fetch = previousFetch;
         }
@@ -459,6 +461,8 @@ export function getJobsTests() {
           assert.equal(dump.runs[0].nome, 'clientes_geolocalizacao_automatico');
           assert.equal(dump.runs[0].processed_count, 1);
           assert.equal(dump.jobs.some((job) => job.nome === 'clientes_geolocalizacao_automatico' && job.status === 'ativo'), true);
+          const job = dump.jobs.find((item) => item.nome === 'clientes_geolocalizacao_automatico');
+          assert.equal(new Date(job.next_run_at).getTime() > Date.parse('2026-06-17T11:00:00.000Z'), true);
           const clientes = __dumpMemoryClientes();
           assert.equal(Boolean(clientes.find((item) => item.id === first.id)?.geolocalizacao_status), true);
           assert.equal(Boolean(clientes.find((item) => item.id === second.id)?.geolocalizacao_status), false);
@@ -674,6 +678,19 @@ export function getJobsTests() {
       }
     },
     {
+      name: 'lista jobs vencidos respeita ordenação e limite',
+      run: async () => {
+        __resetSystemJobsForTests();
+        const now = new Date('2026-06-17T12:00:00.000Z');
+        await upsertSystemJob({ nome: 'job_a', lock_key: 'acc-due:job-a', account_id: 'acc-due', status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: 'acc-due' });
+        await upsertSystemJob({ nome: 'job_b', lock_key: 'acc-due:job-b', account_id: 'acc-due', status: 'ativo', next_run_at: '2026-06-17T10:30:00.000Z' }, { accountId: 'acc-due' });
+        await upsertSystemJob({ nome: 'job_c', lock_key: 'acc-due:job-c', account_id: 'acc-due', status: 'inativo', next_run_at: '2026-06-17T09:00:00.000Z' }, { accountId: 'acc-due' });
+        const due = await listDueSystemJobs({ now, limit: 1, accountId: 'acc-due' });
+        assert.equal(due.length, 1);
+        assert.equal(due[0].nome, 'job_b');
+      }
+    },
+    {
       name: 'não lista jobs futuros',
       run: async () => {
         __resetSystemJobsForTests();
@@ -681,6 +698,44 @@ export function getJobsTests() {
         await upsertSystemJob({ nome: 'notificacoes_resumo_semanal', lock_key: 'acc-future:weekly', account_id: 'acc-future', status: 'ativo', next_run_at: '2026-06-17T12:01:00.000Z' }, { accountId: 'acc-future' });
         const due = await listDueSystemJobs({ now, limit: 10, accountId: 'acc-future' });
         assert.equal(due.length, 0);
+      }
+    },
+    {
+      name: 'execução atualiza exatamente o mesmo registro do system_jobs',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryClientesForTests();
+        const previousFetch = globalThis.fetch;
+        globalThis.fetch = async (url) => {
+          if (String(url).includes('brasilapi.com.br')) {
+            return {
+              ok: true,
+              status: 200,
+              headers: { get: () => 'application/json' },
+              text: async () => JSON.stringify({ nome: 'Cliente Scheduler', razao_social: 'Cliente Scheduler LTDA' }),
+              json: async () => ({ nome: 'Cliente Scheduler', razao_social: 'Cliente Scheduler LTDA' })
+            };
+          }
+          throw new Error(`fetch inesperado ${url}`);
+        };
+        try {
+          await createCliente({ nome: 'Cliente Scheduler', documento: '32345678000190' }, { accountId: 'acc-sched' });
+          const job = await upsertSystemJob({ nome: 'clientes_enriquecimento_automatico', lock_key: 'acc-sched:clientes:enriquecimento:automatico', account_id: 'acc-sched', status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: 'acc-sched' });
+          const result = await dispatchDueJob(job, { accountId: 'acc-sched', requestId: 'scheduler-test', workerId: 'scheduler:test' });
+          assert.equal(result.ok, true);
+          await wait(100);
+          const dump = __dumpSystemJobsForTests();
+          const stored = dump.jobs.find((item) => item.id === job.id);
+          assert.ok(stored);
+          assert.equal(stored.id, job.id);
+          assert.equal(stored.lock_key, job.lock_key);
+          assert.equal(stored.last_run_at !== null, true);
+          assert.equal(stored.next_run_at !== null, true);
+          assert.equal(stored.locked_at, null);
+          assert.equal(stored.locked_by, null);
+        } finally {
+          globalThis.fetch = previousFetch;
+        }
       }
     },
     {

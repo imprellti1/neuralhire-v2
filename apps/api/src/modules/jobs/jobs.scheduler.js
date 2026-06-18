@@ -8,7 +8,7 @@ import { recalcularSegmentacaoCliente } from '../clientes/clientes.segmentacao.s
 import { registrarEventoTimeline } from '../clientes/clientes.timeline.service.js';
 import { calcularScoreComercialCliente } from '../clientes/clientes.repository.js';
 import { createObservationIfNotOpen } from '../ai-director-observations/ai-director-observations.repository.js';
-import { acquireSystemJobLock, getSystemJobByLockKey, listDueSystemJobs, listSystemJobRuns, listSystemJobs, recordSystemJobRun, releaseSystemJobLock, upsertSystemJob } from './jobs.repository.js';
+import { acquireSystemJobLock, getSystemJobByLockKey, listDueSystemJobs, listSystemJobRuns, listSystemJobs, recordSystemJobRun, releaseSystemJobLock, updateSystemJobSchedule, upsertSystemJob } from './jobs.repository.js';
 import { resolveJobNotificationRecipient, sendJobNotificationEmail } from '../notifications/notifications.email.service.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 
@@ -183,17 +183,29 @@ async function dispatchTenantAwareJob(job, handler, context = {}) {
 
   const globalJob = await getSystemJobByLockKey(job.lock_key).catch(() => null);
   if (globalJob) {
-    const nextRunAt = nextInMinutes(new Date(), job.nome === 'clientes_enriquecimento_automatico' ? 30 : 30);
-    logger.info('job_next_run_updated', { job: job.nome || null, accountId: null, nextRunAt, schedulerManaged: true });
-    await upsertSystemJob({
-      ...globalJob,
-      last_run_at: isoNow(),
-      last_success_at: summary.failures ? globalJob.last_success_at : isoNow(),
-      last_error: summary.failures ? 'Falha em uma ou mais execucoes por tenant' : null,
+    const nextRunAt = nextInMinutes(new Date(), 30);
+    logger.info('job_next_run_updated', {
+      job_key: job.nome || null,
+      jobId: globalJob.id || null,
+      job_id: globalJob.id || null,
+      previous_next_run_at: globalJob.next_run_at || null,
       next_run_at: nextRunAt,
-      status: 'ativo'
-    }, { accountId: null }).catch((error) => {
-      logJobError('upsertSystemJob', error, { accountId: null, requestId: context.requestId || null });
+      schedulerManaged: true
+    });
+    await updateSystemJobSchedule(
+      { id: globalJob.id, lockKey: globalJob.lock_key },
+      {
+        last_run_at: isoNow(),
+        last_success_at: summary.failures ? globalJob.last_success_at : isoNow(),
+        last_error: summary.failures ? 'Falha em uma ou mais execucoes por tenant' : null,
+        next_run_at: nextRunAt,
+        locked_at: null,
+        locked_by: null,
+        status: 'ativo'
+      },
+      { accountId: null }
+    ).catch((error) => {
+      logJobError('updateSystemJobSchedule', error, { accountId: null, requestId: context.requestId || null });
       return null;
     });
   }
@@ -349,7 +361,7 @@ async function runClienteAutomacaoJob({ context = {}, lockKey, nome, ttlMinutes,
   if (!acquired.acquired) return { ok: true, skipped: true, job: acquired.job };
 
   const job = schedulerManaged
-    ? { id: null, nome, lock_key: lockKey, account_id: accountId, status: 'ativo' }
+    ? (await getSystemJobByLockKey(lockKey).catch(() => null)) || { id: null, nome, lock_key: lockKey, account_id: accountId, status: 'ativo' }
     : await upsertSystemJob({ nome, lock_key: lockKey, account_id: accountId, status: 'ativo', last_run_at: isoNow(), next_run_at: nextInMinutes(new Date(), nextRunIfEmptyMinutes) }, { accountId });
   let processedCount = 0;
   let successCount = 0;
@@ -381,9 +393,9 @@ async function runClienteAutomacaoJob({ context = {}, lockKey, nome, ttlMinutes,
     const hasItems = processedCount > 0;
     const nextRunAt = hasItems ? nextInMinutes(new Date(), nextRunIfProcessedMinutes) : nextInMinutes(new Date(), nextRunIfEmptyMinutes);
     const runStatus = fatalError ? 'error' : 'success';
-    logger.info('job_next_run_updated', { job: nome, accountId, nextRunAt, schedulerManaged });
-    if (!schedulerManaged) {
-      await recordSystemJobRun({
+    const previousNextRunAt = job?.next_run_at || null;
+    logger.info('job_next_run_updated', { job_key: nome, id: job?.id || null, previous_next_run_at: previousNextRunAt, next_run_at: nextRunAt, schedulerManaged });
+    await recordSystemJobRun({
       job_id: job.id,
       account_id: accountId,
       nome: job.nome,
@@ -396,16 +408,26 @@ async function runClienteAutomacaoJob({ context = {}, lockKey, nome, ttlMinutes,
       error_count: errorCount,
       metadata,
       error: fatalError?.message || null
-      }, { accountId }).catch((error) => {
-        logJobError('recordSystemJobRun', error, { accountId, lockKey, requestId: context.requestId || null });
-        return null;
-      });
-      await releaseSystemJobLock(lockKey, { locked_at: null, locked_by: null, next_run_at: nextRunAt }).catch((error) => {
-        logJobError('releaseSystemJobLock', error, { accountId, lockKey, requestId: context.requestId || null });
-        return null;
-      });
-      await upsertSystemJob({ ...job, status: 'ativo', last_success_at: fatalError ? job.last_success_at : isoNow(), last_error: fatalError?.message || null, next_run_at: nextRunAt }, { accountId });
-    }
+    }, { accountId }).catch((error) => {
+      logJobError('recordSystemJobRun', error, { accountId, lockKey, requestId: context.requestId || null });
+      return null;
+    });
+    await updateSystemJobSchedule(
+      { id: job.id, lockKey },
+      {
+        last_run_at: finishedAt,
+        last_success_at: fatalError ? job.last_success_at : finishedAt,
+        last_error: fatalError?.message || null,
+        next_run_at: nextRunAt,
+        locked_at: null,
+        locked_by: null,
+        status: 'ativo'
+      },
+      { accountId }
+    ).catch((error) => {
+      logJobError('updateSystemJobSchedule', error, { accountId, lockKey, requestId: context.requestId || null });
+      return null;
+    });
   }
 
   return { ok: true, processados: processedCount, sucessos: successCount, falhas: errorCount, job };
@@ -602,7 +624,7 @@ export async function runGerenteComercialObservacaoJob(context = {}) {
           const outcome = await createCommercialObservation(context, {
             manager_id: 'gerente_comercial',
             manager_name: 'Gerente Comercial',
-            category: 'clientes_em_risco',
+            category: 'comercial',
             severity: 'high',
             title: 'Cliente sem compra há mais de 90 dias',
             description: `Cliente ${cliente.nome || 'Cliente'} não compra desde ${lastPurchaseDate.toISOString().slice(0, 10)}.`,
@@ -624,7 +646,7 @@ export async function runGerenteComercialObservacaoJob(context = {}) {
           const outcome = await createCommercialObservation(context, {
             manager_id: 'gerente_comercial',
             manager_name: 'Gerente Comercial',
-            category: 'clientes_reativados',
+            category: 'comercial',
             severity: 'medium',
             title: 'Cliente reativado',
             description: `Cliente ${cliente.nome || 'Cliente'} voltou a comprar após ${daysBetweenTwoLastPurchases} dias sem compra.`,
@@ -652,7 +674,7 @@ export async function runGerenteComercialObservacaoJob(context = {}) {
           const outcome = await createCommercialObservation(context, {
             manager_id: 'gerente_comercial',
             manager_name: 'Gerente Comercial',
-            category: 'queda_faturamento',
+            category: 'comercial',
             severity: 'high',
             title: 'Queda relevante de faturamento',
             description: `Cliente ${cliente.nome || 'Cliente'} teve queda de ${quedaPercentual}% no faturamento dos últimos 30 dias.`,
@@ -673,7 +695,7 @@ export async function runGerenteComercialObservacaoJob(context = {}) {
           const outcome = await createCommercialObservation(context, {
             manager_id: 'gerente_comercial',
             manager_name: 'Gerente Comercial',
-            category: 'crescimento_comercial',
+            category: 'comercial',
             severity: 'medium',
             title: 'Crescimento relevante de faturamento',
             description: `Cliente ${cliente.nome || 'Cliente'} cresceu ${crescimentoPercentual}% nos últimos 30 dias.`,
@@ -778,8 +800,29 @@ export async function runJobsSchedulerTick({ now = new Date(), limit = 10, accou
   let dueJobs = [];
   try {
     dueJobs = await listDueSystemJobs({ now, limit, accountId });
-    logger.info('jobs_scheduler_due_jobs_found', { requestId, workerId, accountId: accountId || null, count: dueJobs.length });
+    logger.info('due_jobs_found', {
+      requestId,
+      workerId,
+      accountId: accountId || null,
+      now: now instanceof Date ? now.toISOString() : new Date(now).toISOString(),
+      jobs: dueJobs.map((job) => ({
+        id: job.id || null,
+        job_key: job.nome || null,
+        next_run_at: job.next_run_at || null
+      }))
+    });
     for (const job of dueJobs) {
+      if (job?.next_run_at && new Date(job.next_run_at).getTime() > new Date(now).getTime()) {
+        logger.warn('job_due_future_detected', {
+          requestId,
+          workerId,
+          job_key: job.nome || null,
+          id: job.id || null,
+          now: now instanceof Date ? now.toISOString() : new Date(now).toISOString(),
+          next_run_at: job.next_run_at,
+          diff_ms: new Date(job.next_run_at).getTime() - new Date(now).getTime()
+        });
+      }
       void Promise.resolve()
         .then(() => dispatchDueJob(job, { requestId: `scheduler-${job.nome}-${Date.now()}`, workerId, accountId: job.account_id || accountId || null, auth: { accountId: job.account_id || accountId || null } }))
         .catch((error) => {

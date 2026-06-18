@@ -295,6 +295,40 @@ export async function upsertSystemJob(job, options = {}) {
   return next;
 }
 
+export async function updateSystemJobSchedule(identifier, updates = {}, options = {}) {
+  const accountId = options.accountId ?? null;
+  const timestamp = nowIso();
+  const safeUpdates = {
+    ...updates,
+    updated_at: timestamp
+  };
+
+  if (resolveSupabaseConfigured()) {
+    const supabase = resolveSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+
+    let query = supabase.from('system_jobs').update(safeUpdates).select('*');
+    if (identifier?.id) {
+      query = query.eq('id', identifier.id);
+    } else if (identifier?.lockKey) {
+      query = query.eq('lock_key', identifier.lockKey);
+    } else {
+      throw new DatabaseError('Identificador de job ausente');
+    }
+    if (accountId) query = query.eq('account_id', accountId);
+
+    const { data, error } = await query.single();
+    if (error) throw new DatabaseError('Falha ao atualizar job', { details: error });
+    return data;
+  }
+
+  const target = identifier?.lockKey ? resolveMemoryJob(identifier.lockKey) : [...memoryJobs.values()].find((job) => String(job.id) === String(identifier?.id)) || null;
+  if (!target) return null;
+  const next = { ...target, ...safeUpdates };
+  memoryJobs.set(next.lock_key, next);
+  return next;
+}
+
 export async function recordSystemJobRun(payload, options = {}) {
   const accountId = options.accountId ?? payload.account_id ?? null;
   const run = {
