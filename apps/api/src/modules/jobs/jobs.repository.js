@@ -59,7 +59,10 @@ export function getSystemJobDefaults() {
     { nome: 'clientes_enriquecimento_automatico', lock_key: 'clientes:enriquecimento:automatico', metadata: { cadence: 'adaptive', ttlMinutes: 30 } },
     { nome: 'clientes_geolocalizacao_automatico', lock_key: 'clientes:geolocalizacao:automatico', metadata: { cadence: 'adaptive', ttlMinutes: 30 } },
     { nome: 'notificacoes_resumo_semanal', lock_key: 'notificacoes:resumo-semanal', metadata: { cadence: 'weekly-monday-0800', ttlMinutes: 30 } },
-    { nome: 'gerente_comercial_observacao', lock_key: 'gerente_comercial_observacao', metadata: { cadence: 'daily-0310', ttlMinutes: 60 } }
+    { nome: 'gerente_comercial_observacao', lock_key: 'gerente_comercial_observacao', metadata: { cadence: 'daily-0400', ttlMinutes: 60 } },
+    { nome: 'gerente_produtos_observacao', lock_key: 'gerente_produtos_observacao', metadata: { cadence: 'daily-0415', ttlMinutes: 60 } },
+    { nome: 'gerente_auditoria_observacao', lock_key: 'gerente_auditoria_observacao', metadata: { cadence: 'daily-0430', ttlMinutes: 60 } },
+    { nome: 'gerente_administrativo_observacao', lock_key: 'gerente_administrativo_observacao', metadata: { cadence: 'daily-0445', ttlMinutes: 60 } }
   ];
 }
 

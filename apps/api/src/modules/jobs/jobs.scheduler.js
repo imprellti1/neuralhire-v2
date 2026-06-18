@@ -1,6 +1,7 @@
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { logger } from '../../core/logger.js';
 import { listClientes } from '../clientes/clientes.repository.js';
+import { listAuditLogs } from '../audit-logs/audit-logs.repository.js';
 import { enrichClienteByCnpj, geolocalizarCliente, getNextClienteForEnrichment, getNextClienteForGeolocation } from '../clientes/clientes.repository.js';
 import { listClientePedidos } from '../clientes/clientes.repository.js';
 import { gerarAlertasCliente } from '../clientes/clientes.alerts.service.js';
@@ -11,6 +12,9 @@ import { createObservationIfNotOpen } from '../ai-director-observations/ai-direc
 import { acquireSystemJobLock, getSystemJobByLockKey, listDueSystemJobs, listSystemJobRuns, listSystemJobs, recordSystemJobRun, releaseSystemJobLock, updateSystemJobSchedule, upsertSystemJob } from './jobs.repository.js';
 import { resolveJobNotificationRecipient, sendJobNotificationEmail } from '../notifications/notifications.email.service.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
+import { listProdutos } from '../produtos/produtos.repository.js';
+import { listPromocoes } from '../promocoes/promocoes.repository.js';
+import { listBatches } from '../legacy-import/legacy-import-staging.repository.js';
 
 function isoNow() {
   return new Date().toISOString();
@@ -40,7 +44,10 @@ function canonicalJobLockKey(nome) {
     clientes_enriquecimento_automatico: 'clientes:enriquecimento:automatico',
     clientes_geolocalizacao_automatico: 'clientes:geolocalizacao:automatico',
     notificacoes_resumo_semanal: 'notificacoes:resumo-semanal',
-    gerente_comercial_observacao: 'gerente_comercial_observacao'
+    gerente_comercial_observacao: 'gerente_comercial_observacao',
+    gerente_produtos_observacao: 'gerente_produtos_observacao',
+    gerente_auditoria_observacao: 'gerente_auditoria_observacao',
+    gerente_administrativo_observacao: 'gerente_administrativo_observacao'
   })[nome] || nome;
 }
 
@@ -66,10 +73,13 @@ const JOB_HANDLERS = {
   clientes_enriquecimento_automatico: runClientesEnriquecimentoJob,
   clientes_geolocalizacao_automatico: runClientesGeolocalizacaoJob,
   notificacoes_resumo_semanal: runNotificacoesResumoSemanalJob,
-  gerente_comercial_observacao: runGerenteComercialObservacaoJob
+  gerente_comercial_observacao: runGerenteComercialObservacaoJob,
+  gerente_produtos_observacao: runGerenteProdutosObservacaoJob,
+  gerente_auditoria_observacao: runGerenteAuditoriaObservacaoJob,
+  gerente_administrativo_observacao: runGerenteAdministrativoObservacaoJob
 };
 
-const TENANT_AWARE_JOB_NAMES = new Set(['clientes_enriquecimento_automatico', 'clientes_geolocalizacao_automatico']);
+const TENANT_AWARE_JOB_NAMES = new Set(['clientes_enriquecimento_automatico', 'clientes_geolocalizacao_automatico', 'gerente_comercial_observacao', 'gerente_produtos_observacao', 'gerente_auditoria_observacao', 'gerente_administrativo_observacao']);
 
 let schedulerTimer = null;
 let schedulerRunning = false;
@@ -144,6 +154,73 @@ async function listTenantAccountIds() {
   const { __dumpMemoryClientes } = await import('../clientes/clientes.repository.js');
   const clientes = __dumpMemoryClientes();
   return [...new Set((Array.isArray(clientes) ? clientes : []).map((cliente) => String(cliente.account_id || '').trim()).filter(Boolean))];
+}
+
+function observationContext(managerId, origin = managerId) {
+  return {
+    manager_id: managerId,
+    manager_name: managerId.replace(/_/g, ' ').replace(/\b\w/g, (match) => match.toUpperCase()),
+    origin
+  };
+}
+
+async function runObservationByTenant(job, context, accountId, analyzer) {
+  const startedAt = Date.now();
+  let created = 0;
+  let skipped = 0;
+  let analyzed = 0;
+  let metadata = {};
+  let fatalError = null;
+
+  try {
+    const outcome = await analyzer({ accountId, context });
+    created = Number(outcome?.created || 0);
+    skipped = Number(outcome?.skipped || 0);
+    analyzed = Number(outcome?.analyzed || 0);
+    metadata = outcome?.metadata || { created, skipped, analyzed };
+  } catch (error) {
+    fatalError = error;
+    logJobError(`run${job.nome}`, error, { accountId, lockKey: job.lock_key, requestId: context.requestId || null });
+  }
+
+  const finishedAt = isoNow();
+  await recordSystemJobRun({
+    job_id: job.id,
+    account_id: accountId,
+    nome: job.nome,
+    status: fatalError ? 'error' : 'success',
+    started_at: new Date(startedAt).toISOString(),
+    finished_at: finishedAt,
+    duration_ms: Date.now() - startedAt,
+    processed_count: analyzed,
+    success_count: created,
+    error_count: fatalError ? 1 : 0,
+    metadata: { ...(metadata || {}), fatal_error: fatalError ? { message: fatalError?.message || String(fatalError), code: fatalError?.code || null } : null },
+    error: fatalError?.message || null
+  }, { accountId }).catch(() => null);
+
+  await updateSystemJobSchedule({ id: job.id, jobKey: job.nome }, {
+    status: 'ativo',
+    last_run_at: finishedAt,
+    last_success_at: fatalError ? job.last_success_at : isoNow(),
+    last_error: fatalError?.message || null,
+    next_run_at: nextInMinutes(new Date(), 15),
+    locked_at: null,
+    locked_by: null
+  }, { accountId: null }).catch((error) => {
+    logJobError('updateSystemJobSchedule', error, { accountId, lockKey: job.lock_key, requestId: context.requestId || null });
+  });
+
+  return { ok: true, created, skipped, analyzed, fatalError };
+}
+
+async function runObservationAcrossTenants(job, context, analyzer) {
+  const accountIds = await listTenantAccountIds();
+  const results = [];
+  for (const accountId of accountIds) {
+    results.push(await runObservationByTenant(job, context, accountId, analyzer));
+  }
+  return { ok: true, accountIds, results };
 }
 
 async function runHandlerForTenant(job, handler, accountId, context = {}) {
@@ -540,6 +617,123 @@ function countQueueRemainingByCandidates(items = [], kind = 'enrichment') {
   }).length;
 }
 
+async function upsertManagerObservation(context, payload) {
+  return createObservationIfNotOpen(context, {
+    ...payload,
+    origin: payload.origin || payload.manager_id,
+    metadata: {
+      ...(payload.metadata || {}),
+      dedupe_key: payload.metadata?.dedupe_key || payload.metadata?.dedupeKey || `${payload.manager_id}:${payload.category}:${payload.title}:${payload.source_type || 'system'}:${payload.source_id || 'global'}`
+    }
+  });
+}
+
+async function analyzeCommercialTenant({ accountId, context }) {
+  const clientes = (await listClientes({ page: 1, limit: 5000, ativo: true }, { accountId, context })).items || [];
+  const now = new Date();
+  let created = 0;
+  let skipped = 0;
+  for (const cliente of clientes) {
+    const pedidos = await listClientePedidos(accountId, cliente.id);
+    const validPedidos = (Array.isArray(pedidos) ? pedidos : []).filter((pedido) => Boolean(purchaseDateFromPedido(pedido)));
+    const sortedPedidos = [...validPedidos].sort((a, b) => purchaseDateFromPedido(b).getTime() - purchaseDateFromPedido(a).getTime());
+    const latestPedido = sortedPedidos[0] || null;
+    const previousPedido = sortedPedidos[1] || null;
+    if (latestPedido) {
+      const lastPurchaseDate = purchaseDateFromPedido(latestPedido);
+      const daysWithoutPurchase = Math.floor((now.getTime() - lastPurchaseDate.getTime()) / 86400000);
+      if (daysWithoutPurchase >= 90) {
+        const outcome = await upsertManagerObservation(context, { ...observationContext('gerente_comercial'), category: 'comercial', severity: 'high', title: 'Cliente sem compra há mais de 90 dias', description: `Cliente ${cliente.nome || 'Cliente'} não compra desde ${lastPurchaseDate.toISOString().slice(0, 10)}.`, source_type: 'cliente', source_id: cliente.id, metadata: { cliente_id: cliente.id, cliente_nome: cliente.nome || null, ultima_compra_em: lastPurchaseDate.toISOString(), dias_sem_compra: daysWithoutPurchase }, impact: 'Queda de recorrência e risco de churn', urgency: 'Alta urgência comercial' });
+        outcome.created ? created += 1 : skipped += 1;
+      }
+      const recentPurchase = lastPurchaseDate.getTime() >= now.getTime() - 7 * 24 * 60 * 60 * 1000;
+      const daysBetweenTwoLastPurchases = previousPedido ? Math.floor((lastPurchaseDate.getTime() - purchaseDateFromPedido(previousPedido).getTime()) / 86400000) : 0;
+      if (recentPurchase && previousPedido && daysBetweenTwoLastPurchases >= 90) {
+        const outcome = await upsertManagerObservation(context, { ...observationContext('gerente_comercial'), category: 'comercial', severity: 'medium', title: 'Cliente reativado', description: `Cliente ${cliente.nome || 'Cliente'} voltou a comprar após ${daysBetweenTwoLastPurchases} dias sem compra.`, source_type: 'cliente', source_id: cliente.id, metadata: { cliente_id: cliente.id, cliente_nome: cliente.nome || null, pedido_id: latestPedido.id || null, pedido_numero: latestPedido.numero || null, data_pedido: lastPurchaseDate.toISOString(), dias_sem_compra_antes_do_pedido: daysBetweenTwoLastPurchases }, impact: 'Recuperação de carteira', urgency: 'Urgente para acompanhamento' });
+        outcome.created ? created += 1 : skipped += 1;
+      }
+    }
+    const { faturamentoAtual, faturamentoAnterior } = computeClientSalesSignals(validPedidos, now);
+    if (faturamentoAnterior >= 500) {
+      const quedaPercentual = faturamentoAnterior > 0 ? Math.round(((faturamentoAnterior - faturamentoAtual) / faturamentoAnterior) * 100) : 0;
+      const crescimentoPercentual = faturamentoAnterior > 0 ? Math.round(((faturamentoAtual - faturamentoAnterior) / faturamentoAnterior) * 100) : 0;
+      if (quedaPercentual >= 50) {
+        const outcome = await upsertManagerObservation(context, { ...observationContext('gerente_comercial'), category: 'comercial', severity: 'high', title: 'Queda relevante de faturamento', description: `Cliente ${cliente.nome || 'Cliente'} teve queda de ${quedaPercentual}% no faturamento dos últimos 30 dias.`, source_type: 'cliente', source_id: cliente.id, metadata: { cliente_id: cliente.id, cliente_nome: cliente.nome || null, faturamento_30d_atual: faturamentoAtual, faturamento_30d_anterior: faturamentoAnterior, queda_percentual: quedaPercentual }, impact: 'Faturamento em retração', urgency: 'Alta urgência' });
+        outcome.created ? created += 1 : skipped += 1;
+      }
+      if (faturamentoAtual >= 500 && crescimentoPercentual >= 50) {
+        const outcome = await upsertManagerObservation(context, { ...observationContext('gerente_comercial'), category: 'comercial', severity: 'medium', title: 'Crescimento relevante de faturamento', description: `Cliente ${cliente.nome || 'Cliente'} cresceu ${crescimentoPercentual}% nos últimos 30 dias.`, source_type: 'cliente', source_id: cliente.id, metadata: { cliente_id: cliente.id, cliente_nome: cliente.nome || null, faturamento_30d_atual: faturamentoAtual, faturamento_30d_anterior: faturamentoAnterior, crescimento_percentual: crescimentoPercentual }, impact: 'Oportunidade de expansão', urgency: 'Média urgência comercial' });
+        outcome.created ? created += 1 : skipped += 1;
+      }
+    }
+  }
+  return { created, skipped, analyzed: clientes.length, metadata: { observations_created: created, observations_skipped_duplicate: skipped, accounts_processed: 1, clientes_analisados: clientes.length } };
+}
+
+async function analyzeProductsTenant({ accountId, context }) {
+  const produtos = (await listProdutos({ page: 1, limit: 5000 }, { accountId })).items || [];
+  const promocoes = (await listPromocoes({}, { accountId })).items || [];
+  let created = 0;
+  let skipped = 0;
+  for (const produto of produtos) {
+    const hasImagem = Boolean(produto.imagem_url || produto.imagemUrl || produto.foto_url);
+    const hasCategoria = Boolean(produto.categoria_id || produto.categoria);
+    const hasVendas = Number(produto.total_vendas || 0) > 0 || Number(produto.vendas || 0) > 0;
+    if (!hasImagem) {
+      const outcome = await upsertManagerObservation(context, { ...observationContext('gerente_produtos'), category: 'produtos', severity: 'medium', title: 'Produto sem imagem', description: `Produto ${produto.nome || produto.id} está sem imagem cadastrada.`, source_type: 'produto', source_id: produto.id, metadata: { produto_id: produto.id, produto_nome: produto.nome || null }, impact: 'Baixa conversão no catálogo', urgency: 'Média urgência' });
+      outcome.created ? created += 1 : skipped += 1;
+    }
+    if (!hasCategoria) {
+      const outcome = await upsertManagerObservation(context, { ...observationContext('gerente_produtos'), category: 'produtos', severity: 'medium', title: 'Produto sem categoria', description: `Produto ${produto.nome || produto.id} está sem categoria definida.`, source_type: 'produto', source_id: produto.id, metadata: { produto_id: produto.id, produto_nome: produto.nome || null }, impact: 'Dificulta organização e busca', urgency: 'Média urgência' });
+      outcome.created ? created += 1 : skipped += 1;
+    }
+    if (!hasVendas) {
+      const outcome = await upsertManagerObservation(context, { ...observationContext('gerente_produtos'), category: 'produtos', severity: 'low', title: 'Produto sem vendas', description: `Produto ${produto.nome || produto.id} não apresenta vendas registradas.`, source_type: 'produto', source_id: produto.id, metadata: { produto_id: produto.id, produto_nome: produto.nome || null }, impact: 'Estoque parado e capital imobilizado', urgency: 'Baixa urgência' });
+      outcome.created ? created += 1 : skipped += 1;
+    }
+    if (Number(produto.estoque || produto.estoque_atual || 0) <= 0) {
+      const outcome = await upsertManagerObservation(context, { ...observationContext('gerente_produtos'), category: 'produtos', severity: 'high', title: 'Produto sem estoque', description: `Produto ${produto.nome || produto.id} está sem estoque disponível.`, source_type: 'produto', source_id: produto.id, metadata: { produto_id: produto.id, produto_nome: produto.nome || null }, impact: 'Risco de perda de pedido', urgency: 'Alta urgência' });
+      outcome.created ? created += 1 : skipped += 1;
+    }
+  }
+  for (const promocao of promocoes) {
+    if (promocao?.ativaAgora === false) {
+      const outcome = await upsertManagerObservation(context, { ...observationContext('gerente_produtos'), category: 'produtos', severity: 'low', title: 'Promoção vencida', description: `Promoção ${promocao.nome || promocao.id} está vencida ou inativa.`, source_type: 'promocao', source_id: promocao.id, metadata: { promocao_id: promocao.id, promocao_nome: promocao.nome || null, data_fim: promocao.data_fim || null }, impact: 'Oferta desatualizada', urgency: 'Baixa urgência' });
+      outcome.created ? created += 1 : skipped += 1;
+    }
+  }
+  return { created, skipped, analyzed: produtos.length + promocoes.length };
+}
+
+async function analyzeAuditTenant({ accountId, context }) {
+  const auditLogs = (await listAuditLogs({}, { accountId })).items || [];
+  const batches = await listBatches({ accountId }).catch(() => []);
+  const totalIssues = auditLogs.filter((log) => String(log.status || '').toLowerCase() === 'failed' || String(log.status || '').toLowerCase() === 'error').length + batches.filter((batch) => String(batch.status || '').toLowerCase() === 'failed').length;
+  const outcome = await upsertManagerObservation(context, { ...observationContext('gerente_auditoria'), category: 'auditoria', severity: totalIssues > 0 ? 'high' : 'low', title: 'Falhas operacionais identificadas', description: `Foram identificadas ${totalIssues} ocorrências relevantes em logs, erros, importações ou jobs.`, source_type: 'operacao', source_id: 'auditoria', metadata: { audit_logs: auditLogs.length, batches: batches.length, issues: totalIssues }, impact: 'Operação sob risco', urgency: totalIssues > 0 ? 'Alta urgência operacional' : 'Baixa urgência' });
+  return { created: outcome.created ? 1 : 0, skipped: outcome.created ? 0 : 1, analyzed: auditLogs.length + batches.length };
+}
+
+async function analyzeAdministrativeTenant({ accountId, context }) {
+  const clientes = (await listClientes({ page: 1, limit: 5000, ativo: true }, { accountId, context })).items || [];
+  let created = 0;
+  let skipped = 0;
+  for (const cliente of clientes) {
+    if (!cliente.enriquecido_em && !cliente.enriquecimento_fonte) {
+      const outcome = await upsertManagerObservation(context, { ...observationContext('gerente_administrativo'), category: 'administrativo', severity: 'medium', title: 'Cliente sem enriquecimento', description: `Cliente ${cliente.nome || cliente.id} ainda não foi enriquecido.`, source_type: 'cliente', source_id: cliente.id, metadata: { cliente_id: cliente.id, cliente_nome: cliente.nome || null }, impact: 'Cadastro incompleto', urgency: 'Média urgência administrativa' });
+      outcome.created ? created += 1 : skipped += 1;
+    }
+    if (!Number.isFinite(Number(cliente.latitude)) || !Number.isFinite(Number(cliente.longitude))) {
+      const outcome = await upsertManagerObservation(context, { ...observationContext('gerente_administrativo'), category: 'administrativo', severity: 'medium', title: 'Cliente sem geolocalização', description: `Cliente ${cliente.nome || cliente.id} não possui geolocalização válida.`, source_type: 'cliente', source_id: cliente.id, metadata: { cliente_id: cliente.id, cliente_nome: cliente.nome || null }, impact: 'Reduz precisão operacional', urgency: 'Média urgência administrativa' });
+      outcome.created ? created += 1 : skipped += 1;
+    }
+    if (!cliente.documento || String(cliente.documento).replace(/\D/g, '').length < 11) {
+      const outcome = await upsertManagerObservation(context, { ...observationContext('gerente_administrativo'), category: 'administrativo', severity: 'high', title: 'Cadastro inválido', description: `Cliente ${cliente.nome || cliente.id} possui cadastro/documento inválido.`, source_type: 'cliente', source_id: cliente.id, metadata: { cliente_id: cliente.id, cliente_nome: cliente.nome || null, documento: cliente.documento || null }, impact: 'Risco de integridade cadastral', urgency: 'Alta urgência administrativa' });
+      outcome.created ? created += 1 : skipped += 1;
+    }
+  }
+  return { created, skipped, analyzed: clientes.length };
+}
+
 export async function runNotificacoesResumoSemanalJob(context = {}) {
   const accountId = getAccountIdFromContext(context);
   const startedAt = Date.now();
@@ -634,157 +828,26 @@ export async function runGerenteComercialObservacaoJob(context = {}) {
     last_run_at: isoNow(),
     next_run_at: nextDaily0300(new Date())
   }, { accountId: null });
+  if (!accountId) return runObservationAcrossTenants(job, context, analyzeCommercialTenant);
+  return runObservationByTenant(job, context, accountId, analyzeCommercialTenant);
+}
 
-  let observationsCreated = 0;
-  let observationsSkippedDuplicate = 0;
-  let accountsProcessed = 0;
-  let clientesAnalisados = 0;
-  let fatalError = null;
+export async function runGerenteProdutosObservacaoJob(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const job = context.job || await resolveGlobalSystemJob('gerente_produtos_observacao') || await upsertSystemJob({ nome: 'gerente_produtos_observacao', lock_key: canonicalJobLockKey('gerente_produtos_observacao'), account_id: null, status: 'ativo', last_run_at: isoNow(), next_run_at: nextDaily0300(new Date()) }, { accountId: null });
+  return accountId ? runObservationByTenant(job, context, accountId, analyzeProductsTenant) : runObservationAcrossTenants(job, context, analyzeProductsTenant);
+}
 
-  try {
-    accountsProcessed = 1;
-    const clientes = (await listClientes({ page: 1, limit: 5000, ativo: true }, { accountId, context })).items || [];
-    const now = new Date();
-    for (const cliente of clientes) {
-      clientesAnalisados += 1;
-      const pedidos = await listClientePedidos(accountId, cliente.id);
-      const validPedidos = (Array.isArray(pedidos) ? pedidos : []).filter((pedido) => Boolean(purchaseDateFromPedido(pedido)));
-      const sortedPedidos = [...validPedidos].sort((a, b) => purchaseDateFromPedido(b).getTime() - purchaseDateFromPedido(a).getTime());
-      const latestPedido = sortedPedidos[0] || null;
-      const previousPedido = sortedPedidos[1] || null;
+export async function runGerenteAuditoriaObservacaoJob(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const job = context.job || await resolveGlobalSystemJob('gerente_auditoria_observacao') || await upsertSystemJob({ nome: 'gerente_auditoria_observacao', lock_key: canonicalJobLockKey('gerente_auditoria_observacao'), account_id: null, status: 'ativo', last_run_at: isoNow(), next_run_at: nextDaily0300(new Date()) }, { accountId: null });
+  return accountId ? runObservationByTenant(job, context, accountId, analyzeAuditTenant) : runObservationAcrossTenants(job, context, analyzeAuditTenant);
+}
 
-      if (latestPedido) {
-        const lastPurchaseDate = purchaseDateFromPedido(latestPedido);
-        const daysWithoutPurchase = Math.floor((now.getTime() - lastPurchaseDate.getTime()) / 86400000);
-        if (daysWithoutPurchase >= 90) {
-          const outcome = await createCommercialObservation(context, {
-            manager_id: 'gerente_comercial',
-            manager_name: 'Gerente Comercial',
-            category: 'comercial',
-            severity: 'high',
-            title: 'Cliente sem compra há mais de 90 dias',
-            description: `Cliente ${cliente.nome || 'Cliente'} não compra desde ${lastPurchaseDate.toISOString().slice(0, 10)}.`,
-            source_type: 'cliente',
-            source_id: cliente.id,
-            metadata: {
-              cliente_id: cliente.id,
-              cliente_nome: cliente.nome || null,
-              ultima_compra_em: lastPurchaseDate.toISOString(),
-              dias_sem_compra: daysWithoutPurchase
-            }
-          });
-          if (outcome.created) observationsCreated += 1; else observationsSkippedDuplicate += 1;
-        }
-
-        const recentPurchase = lastPurchaseDate.getTime() >= now.getTime() - 7 * 24 * 60 * 60 * 1000;
-        const daysBetweenTwoLastPurchases = previousPedido ? Math.floor((lastPurchaseDate.getTime() - purchaseDateFromPedido(previousPedido).getTime()) / 86400000) : 0;
-        if (recentPurchase && previousPedido && daysBetweenTwoLastPurchases >= 90) {
-          const outcome = await createCommercialObservation(context, {
-            manager_id: 'gerente_comercial',
-            manager_name: 'Gerente Comercial',
-            category: 'comercial',
-            severity: 'medium',
-            title: 'Cliente reativado',
-            description: `Cliente ${cliente.nome || 'Cliente'} voltou a comprar após ${daysBetweenTwoLastPurchases} dias sem compra.`,
-            source_type: 'cliente',
-            source_id: cliente.id,
-            metadata: {
-              cliente_id: cliente.id,
-              cliente_nome: cliente.nome || null,
-              pedido_id: latestPedido.id || null,
-              pedido_numero: latestPedido.numero || null,
-              data_pedido: lastPurchaseDate.toISOString(),
-              dias_sem_compra_antes_do_pedido: daysBetweenTwoLastPurchases
-            }
-          });
-          if (outcome.created) observationsCreated += 1; else observationsSkippedDuplicate += 1;
-        }
-      }
-
-      const { faturamentoAtual, faturamentoAnterior } = computeClientSalesSignals(validPedidos, now);
-      if (faturamentoAnterior >= 500) {
-        const quedaPercentual = faturamentoAnterior > 0 ? Math.round(((faturamentoAnterior - faturamentoAtual) / faturamentoAnterior) * 100) : 0;
-        const crescimentoPercentual = faturamentoAnterior > 0 ? Math.round(((faturamentoAtual - faturamentoAnterior) / faturamentoAnterior) * 100) : 0;
-
-        if (quedaPercentual >= 50) {
-          const outcome = await createCommercialObservation(context, {
-            manager_id: 'gerente_comercial',
-            manager_name: 'Gerente Comercial',
-            category: 'comercial',
-            severity: 'high',
-            title: 'Queda relevante de faturamento',
-            description: `Cliente ${cliente.nome || 'Cliente'} teve queda de ${quedaPercentual}% no faturamento dos últimos 30 dias.`,
-            source_type: 'cliente',
-            source_id: cliente.id,
-            metadata: {
-              cliente_id: cliente.id,
-              cliente_nome: cliente.nome || null,
-              faturamento_30d_atual: faturamentoAtual,
-              faturamento_30d_anterior: faturamentoAnterior,
-              queda_percentual: quedaPercentual
-            }
-          });
-          if (outcome.created) observationsCreated += 1; else observationsSkippedDuplicate += 1;
-        }
-
-        if (faturamentoAtual >= 500 && crescimentoPercentual >= 50) {
-          const outcome = await createCommercialObservation(context, {
-            manager_id: 'gerente_comercial',
-            manager_name: 'Gerente Comercial',
-            category: 'comercial',
-            severity: 'medium',
-            title: 'Crescimento relevante de faturamento',
-            description: `Cliente ${cliente.nome || 'Cliente'} cresceu ${crescimentoPercentual}% nos últimos 30 dias.`,
-            source_type: 'cliente',
-            source_id: cliente.id,
-            metadata: {
-              cliente_id: cliente.id,
-              cliente_nome: cliente.nome || null,
-              faturamento_30d_atual: faturamentoAtual,
-              faturamento_30d_anterior: faturamentoAnterior,
-              crescimento_percentual: crescimentoPercentual
-            }
-          });
-          if (outcome.created) observationsCreated += 1; else observationsSkippedDuplicate += 1;
-        }
-      }
-    }
-  } catch (error) {
-    fatalError = error;
-    logJobError('runGerenteComercialObservacaoJob', error, { accountId, lockKey: job.lock_key, requestId: context.requestId || null });
-  } finally {
-    const finishedAt = isoNow();
-    const status = fatalError ? 'error' : 'success';
-    await recordSystemJobRun({
-      job_id: job.id,
-      account_id: accountId,
-      nome: job.nome,
-      status,
-      started_at: new Date(startedAt).toISOString(),
-      finished_at: finishedAt,
-      duration_ms: Date.now() - startedAt,
-      processed_count: clientesAnalisados,
-      success_count: observationsCreated,
-      error_count: fatalError ? 1 : 0,
-      metadata: {
-        observations_created: observationsCreated,
-        observations_skipped_duplicate: observationsSkippedDuplicate,
-        accounts_processed: accountsProcessed,
-        clientes_analisados: clientesAnalisados,
-        fatal_error: fatalError ? { message: fatalError?.message || String(fatalError), code: fatalError?.code || null } : null
-      },
-      error: fatalError?.message || null
-    }, { accountId }).catch((error) => {
-      logJobError('recordSystemJobRun', error, { accountId, lockKey, requestId: context.requestId || null });
-      return null;
-    });
-    await updateSystemJobSchedule({ id: job.id, jobKey: job.nome }, { status: 'ativo', last_success_at: fatalError ? job.last_success_at : isoNow(), last_error: fatalError?.message || null, next_run_at: fatalError ? nextInMinutes(new Date(), 15) : nextDaily0300(new Date()), locked_at: null, locked_by: null, last_run_at: finishedAt }, { accountId: null }).catch((error) => {
-      logJobError('updateSystemJobSchedule', error, { accountId, lockKey: job.lock_key, requestId: context.requestId || null });
-      return null;
-    });
-  }
-
-  return { ok: true, job, observations_created: observationsCreated, observations_skipped_duplicate: observationsSkippedDuplicate, clientes_analisados: clientesAnalisados };
+export async function runGerenteAdministrativoObservacaoJob(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const job = context.job || await resolveGlobalSystemJob('gerente_administrativo_observacao') || await upsertSystemJob({ nome: 'gerente_administrativo_observacao', lock_key: canonicalJobLockKey('gerente_administrativo_observacao'), account_id: null, status: 'ativo', last_run_at: isoNow(), next_run_at: nextDaily0300(new Date()) }, { accountId: null });
+  return accountId ? runObservationByTenant(job, context, accountId, analyzeAdministrativeTenant) : runObservationAcrossTenants(job, context, analyzeAdministrativeTenant);
 }
 
 export async function listJobsOverview(context = {}) {

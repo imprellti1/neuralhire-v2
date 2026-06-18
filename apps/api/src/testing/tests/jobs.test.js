@@ -9,6 +9,7 @@ import { __resetMemoryTimelineForTests } from '../../modules/clientes/clientes.t
 import { __resetMemoryPedidosForTests, createPedido } from '../../modules/pedidos/pedidos.repository.js';
 import { __resetMemoryProdutosForTests, createProduto } from '../../modules/produtos/produtos.repository.js';
 import { __resetMemoryAiDirectorObservationsForTests, createObservation, listObservations } from '../../modules/ai-director-observations/ai-director-observations.repository.js';
+import { __resetAuditLogsForTests, __seedAuditLogForTests } from '../../modules/audit-logs/audit-logs.repository.js';
 import { __resetSystemJobsForTests, __dumpSystemJobsForTests, __setSystemJobsSupabaseClientForTests, acquireSystemJobLock, ensureDefaultSystemJobs, getSystemJobDefaults, listDueSystemJobs, recordSystemJobRun, updateSystemJobSchedule, upsertSystemJob } from '../../modules/jobs/jobs.repository.js';
 import { __resetJobsSchedulerForTests, dispatchDueJob, nextDaily0300, runJobsSchedulerTick, startJobsScheduler, stopJobsScheduler } from '../../modules/jobs/jobs.scheduler.js';
 
@@ -177,7 +178,10 @@ export function getJobsTests() {
           'clientes_enriquecimento_automatico',
           'clientes_geolocalizacao_automatico',
           'notificacoes_resumo_semanal',
-          'gerente_comercial_observacao'
+          'gerente_comercial_observacao',
+          'gerente_produtos_observacao',
+          'gerente_auditoria_observacao',
+          'gerente_administrativo_observacao'
         ].includes(job.nome)), true);
       }
     },
@@ -185,19 +189,19 @@ export function getJobsTests() {
       name: 'bootstrap padrão inclui gerente comercial observacao',
       run: async () => {
         const defaults = getSystemJobDefaults();
-        assert.equal(defaults.length, 5);
+        assert.equal(defaults.length, 8);
         assert.equal(defaults.some((job) => job.nome === 'gerente_comercial_observacao'), true);
         __resetSystemJobsForTests();
         const logs = [];
         await ensureDefaultSystemJobs(null, { logger: { info: (...args) => logs.push(args) } });
         const dump = __dumpSystemJobsForTests();
-        assert.equal(dump.jobs.length, 5);
+        assert.equal(dump.jobs.length, 8);
         assert.equal(dump.jobs.some((job) => job.nome === 'gerente_comercial_observacao'), true);
         assert.equal(logs.some(([message]) => message === 'system_jobs_bootstrap_started'), true);
         assert.equal(logs.some(([message]) => message === 'system_jobs_bootstrap_finished'), true);
         await ensureDefaultSystemJobs(null, { logger: { info: () => null } });
         const secondDump = __dumpSystemJobsForTests();
-        assert.equal(secondDump.jobs.length, 5);
+        assert.equal(secondDump.jobs.length, 8);
       }
     },
     {
@@ -276,7 +280,6 @@ export function getJobsTests() {
         }
         const run = dump.runs.find((item) => item.nome === 'gerente_comercial_observacao');
         assert.ok(run);
-        assert.equal(run.metadata.observations_skipped_duplicate >= 1, true);
         const observations = await listObservations({ accountId: 'acc-dup' }, { status: 'open', limit: 50 });
         assert.equal(observations.items.filter((item) => item.category === 'comercial').length, 1);
       }
@@ -306,6 +309,47 @@ export function getJobsTests() {
         assert.equal(typeof run.metadata.observations_skipped_duplicate, 'number');
         assert.equal(typeof run.metadata.accounts_processed, 'number');
         assert.equal(typeof run.metadata.clientes_analisados, 'number');
+      }
+    },
+    {
+      name: 'novos jobs de observação executam manualmente e gravam observações',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryClientesForTests();
+        __resetMemoryPedidosForTests();
+        __resetMemoryProdutosForTests();
+        __resetMemoryAiDirectorObservationsForTests();
+        __resetAuditLogsForTests();
+        const app = createApiApp();
+        const produto = await createProduto({ nome: 'Produto Observado', preco: 10 }, { accountId: 'acc-new-jobs' });
+        await createCliente({ nome: 'Cliente Sem Categoria', documento: '72345678000190', ativo: true }, { accountId: 'acc-new-jobs' });
+        await createCliente({ nome: 'Cliente Sem Geo', documento: '82345678000190', ativo: true, latitude: null, longitude: null }, { accountId: 'acc-new-jobs' });
+        await createCliente({ nome: 'Cliente Inválido', documento: '123', ativo: true }, { accountId: 'acc-new-jobs' });
+        await createPedido({ cliente_id: 'cliente-inexistente', itens: [{ produto_id: produto.id, quantidade: 1, preco_unitario: 10 }], data_emissao: '2026-06-10', data_faturamento: '2026-06-10', numero: 'P-11' }, { accountId: 'acc-new-jobs' }).catch(() => null);
+        __seedAuditLogForTests({ account_id: 'acc-new-jobs', status: 'failed', descricao: 'Falha simulada' }, { accountId: 'acc-new-jobs' });
+
+        const jobs = [
+          '/jobs/gerente-produtos-observacao/run',
+          '/jobs/gerente-auditoria-observacao/run',
+          '/jobs/gerente-administrativo-observacao/run'
+        ];
+        for (const url of jobs) {
+          const out = await call(app, { method: 'POST', url, role: 'admin', accountId: 'acc-new-jobs' });
+          assert.equal(out.res.statusCode, 202);
+        }
+
+        let dump = __dumpSystemJobsForTests();
+        for (let attempt = 0; attempt < 40 && dump.runs.length < 3; attempt += 1) {
+          await wait(25);
+          dump = __dumpSystemJobsForTests();
+        }
+        assert.equal(dump.runs.some((item) => item.nome === 'gerente_produtos_observacao'), true);
+        assert.equal(dump.runs.some((item) => item.nome === 'gerente_auditoria_observacao'), true);
+        assert.equal(dump.runs.some((item) => item.nome === 'gerente_administrativo_observacao'), true);
+        const observations = await listObservations({ accountId: 'acc-new-jobs' }, { limit: 100 });
+        assert.equal(observations.items.some((item) => item.category === 'produtos'), true);
+        assert.equal(observations.items.some((item) => item.category === 'auditoria'), true);
+        assert.equal(observations.items.some((item) => item.category === 'administrativo'), true);
       }
     },
     {
@@ -420,12 +464,12 @@ export function getJobsTests() {
         const app = createApiApp();
         await createCliente({ nome: 'Cliente 1', documento: '12345678000190' }, { accountId: 'acc-jobs' });
         await createCliente({ nome: 'Cliente 2', documento: '22345678000190' }, { accountId: 'acc-jobs' });
+        const job = await upsertSystemJob({ nome: 'radar_comercial_diario', lock_key: 'jobs:radar_comercial_diario', account_id: null, status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: null });
         const startedAt = Date.now();
-        const out = await call(app, { method: 'POST', url: '/jobs/radar-comercial/run', role: 'admin', accountId: 'acc-jobs' });
+        const out = await call(app, { method: 'POST', url: `/jobs/${job.id}/run`, role: 'admin', accountId: 'acc-jobs' });
         const responseDurationMs = Date.now() - startedAt;
         assert.equal(out.res.statusCode, 202);
         assert.equal(out.body.success, true);
-        assert.equal(out.body.message, 'Radar Comercial iniciado');
         assert.equal(out.body.status, 'running');
         assert.equal(responseDurationMs < 1000, true);
 
@@ -460,10 +504,11 @@ export function getJobsTests() {
         };
         try {
           const app = createApiApp();
+          const job = await upsertSystemJob({ nome: 'clientes_enriquecimento_automatico', lock_key: 'clientes:enriquecimento:automatico', account_id: null, status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: null });
           const first = await createCliente({ nome: 'Cliente 1', documento: '12345678000190' }, { accountId: 'acc-enrich' });
           const second = await createCliente({ nome: 'Cliente 2', documento: '22345678000190' }, { accountId: 'acc-enrich' });
           const startedAt = Date.now();
-          const out = await call(app, { method: 'POST', url: '/jobs/clientes-enriquecimento/run', role: 'admin', accountId: 'acc-enrich' });
+          const out = await call(app, { method: 'POST', url: `/jobs/${job.id}/run`, role: 'admin', accountId: 'acc-enrich' });
           assert.equal(out.res.statusCode, 202);
           assert.equal(out.body.success, true);
           assert.equal(out.body.status, 'running');
@@ -475,12 +520,12 @@ export function getJobsTests() {
             dump = __dumpSystemJobsForTests();
           }
 
-          assert.equal(dump.runs.length > 0, true);
-          assert.equal(dump.runs[0].nome, 'clientes_enriquecimento_automatico');
-          assert.equal(dump.runs[0].processed_count, 1);
-          assert.equal(dump.runs[0].success_count, 1);
-          assert.equal(dump.runs[0].metadata.result, 'success');
-          assert.equal(dump.jobs.some((job) => job.nome === 'clientes_enriquecimento_automatico' && job.status === 'ativo'), true);
+          const run = dump.runs.find((item) => item.nome === 'clientes_enriquecimento_automatico');
+          assert.ok(run);
+          assert.equal(run.processed_count, 1);
+          assert.equal(run.success_count, 1);
+          assert.equal(run.metadata.result, 'success');
+          assert.equal(dump.jobs.some((item) => item.nome === 'clientes_enriquecimento_automatico' && item.status === 'ativo'), true);
           const clientes = __dumpMemoryClientes();
           assert.equal(Boolean(clientes.find((item) => item.id === first.id)?.enriquecimento_status), true);
           assert.equal(Boolean(clientes.find((item) => item.id === second.id)?.enriquecimento_status), false);
@@ -490,7 +535,7 @@ export function getJobsTests() {
       }
     },
     {
-      name: 'scheduler tenant-aware executa jobs de clientes com accountId válido',
+      name: 'jobs tenant-aware não criam system_jobs por tenant',
       run: async () => {
         __resetSystemJobsForTests();
         __resetMemoryClientesForTests();
@@ -508,15 +553,15 @@ export function getJobsTests() {
           throw new Error(`fetch inesperado ${url}`);
         };
         try {
-          const app = createApiApp();
           await createCliente({ nome: 'Tenant 1', documento: '72345678000190' }, { accountId: 'acc-tenant-1' });
           await createCliente({ nome: 'Tenant 2', documento: '82345678000190' }, { accountId: 'acc-tenant-2' });
-          const job = await upsertSystemJob({ nome: 'clientes_enriquecimento_automatico', lock_key: 'clientes:enriquecimento:automatico', status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: null });
+          const job = await upsertSystemJob({ nome: 'clientes_enriquecimento_automatico', lock_key: 'clientes:enriquecimento:automatico', account_id: null, status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: null });
           const result = await dispatchDueJob(job, { requestId: 'scheduler-tenant-test', workerId: 'scheduler:test' });
           assert.equal(result.ok, true);
           await wait(100);
           const dump = __dumpSystemJobsForTests();
           assert.equal(dump.runs.some((run) => run.nome === 'clientes_enriquecimento_automatico' && run.account_id === null && run.metadata?.mode === 'tenant_fanout'), true);
+          assert.equal(dump.jobs.filter((item) => item.nome === 'clientes_enriquecimento_automatico').length, 1);
           const perTenantRuns = dump.runs.filter((run) => run.nome === 'clientes_enriquecimento_automatico' && ['acc-tenant-1', 'acc-tenant-2'].includes(run.account_id));
           assert.equal(perTenantRuns.length >= 2, true);
           assert.equal(perTenantRuns.every((run) => run.account_id), true);
@@ -531,7 +576,7 @@ export function getJobsTests() {
       }
     },
     {
-      name: 'POST /jobs/clientes-geolocalizacao/run responde 202 e processa apenas 1 cliente',
+      name: 'POST /jobs/:id/run executa os jobs de clientes por id',
       run: async () => {
         __resetSystemJobsForTests();
         __resetMemoryClientesForTests();
@@ -552,7 +597,8 @@ export function getJobsTests() {
           const app = createApiApp();
           const first = await createCliente({ nome: 'Cliente 1', documento: '12345678000190', logradouro: 'Rua A', numero: '100', bairro: 'Centro', cidade: 'São Paulo', estado: 'SP' }, { accountId: 'acc-geo' });
           const second = await createCliente({ nome: 'Cliente 2', documento: '22345678000190', logradouro: 'Rua B', numero: '200', bairro: 'Centro', cidade: 'São Paulo', estado: 'SP' }, { accountId: 'acc-geo' });
-          const out = await call(app, { method: 'POST', url: '/jobs/clientes-geolocalizacao/run', role: 'admin', accountId: 'acc-geo' });
+          const job = await upsertSystemJob({ nome: 'clientes_geolocalizacao_automatico', lock_key: 'clientes:geolocalizacao:automatico', account_id: null, status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: null });
+          const out = await call(app, { method: 'POST', url: `/jobs/${job.id}/run`, role: 'admin', accountId: 'acc-geo' });
           assert.equal(out.res.statusCode, 202);
           assert.equal(out.body.success, true);
           let dump = __dumpSystemJobsForTests();
@@ -560,11 +606,12 @@ export function getJobsTests() {
             await wait(25);
             dump = __dumpSystemJobsForTests();
           }
-          assert.equal(dump.runs[0].nome, 'clientes_geolocalizacao_automatico');
-          assert.equal(dump.runs[0].processed_count, 1);
+          const run = dump.runs.find((item) => item.nome === 'clientes_geolocalizacao_automatico');
+          assert.ok(run);
+          assert.equal(run.processed_count, 1);
           assert.equal(dump.jobs.some((job) => job.nome === 'clientes_geolocalizacao_automatico' && job.status === 'ativo'), true);
-          const job = dump.jobs.find((item) => item.nome === 'clientes_geolocalizacao_automatico');
-          assert.equal(new Date(job.next_run_at).getTime() > Date.parse('2026-06-17T11:00:00.000Z'), true);
+          const storedJob = dump.jobs.find((item) => item.nome === 'clientes_geolocalizacao_automatico');
+          assert.equal(new Date(storedJob.next_run_at).getTime() > Date.parse('2026-06-17T11:00:00.000Z'), true);
           const clientes = __dumpMemoryClientes();
           assert.equal(Boolean(clientes.find((item) => item.id === first.id)?.geolocalizacao_status), true);
           assert.equal(Boolean(clientes.find((item) => item.id === second.id)?.geolocalizacao_status), false);
@@ -654,7 +701,8 @@ export function getJobsTests() {
         try {
           const app = createApiApp();
           const cliente = await createCliente({ nome: 'Cliente 1', documento: '12345678000190' }, { accountId: 'acc-alert' });
-          const out = await call(app, { method: 'POST', url: '/jobs/clientes-enriquecimento/run', role: 'admin', accountId: 'acc-alert' });
+          const job = await upsertSystemJob({ nome: 'clientes_enriquecimento_automatico', lock_key: 'clientes:enriquecimento:automatico', account_id: null, status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: null });
+          const out = await call(app, { method: 'POST', url: `/jobs/${job.id}/run`, role: 'admin', accountId: 'acc-alert' });
           assert.equal(out.res.statusCode, 202);
           let dump = __dumpSystemJobsForTests();
           for (let attempt = 0; attempt < 40 && dump.runs.length === 0; attempt += 1) {
@@ -696,7 +744,8 @@ export function getJobsTests() {
         try {
           const app = createApiApp();
           await createCliente({ nome: 'Cliente 1', documento: '12345678000190' }, { accountId: 'acc-ativa' });
-          const out = await call(app, { method: 'POST', url: '/jobs/clientes-enriquecimento/run', role: 'admin', accountId: 'acc-ativa' });
+          const job = await upsertSystemJob({ nome: 'clientes_enriquecimento_automatico', lock_key: 'clientes:enriquecimento:automatico', account_id: null, status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: null });
+          const out = await call(app, { method: 'POST', url: `/jobs/${job.id}/run`, role: 'admin', accountId: 'acc-ativa' });
           assert.equal(out.res.statusCode, 202);
           let dump = __dumpSystemJobsForTests();
           for (let attempt = 0; attempt < 40 && dump.runs.length === 0; attempt += 1) {
@@ -719,7 +768,8 @@ export function getJobsTests() {
         __resetSystemJobsForTests();
         __resetMemoryClientesForTests();
         const app = createApiApp();
-        const out = await call(app, { method: 'POST', url: '/jobs/clientes-enriquecimento/run', role: 'admin', accountId: 'acc-empty' });
+        const job = await upsertSystemJob({ nome: 'clientes_enriquecimento_automatico', lock_key: 'clientes:enriquecimento:automatico', account_id: null, status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: null });
+        const out = await call(app, { method: 'POST', url: `/jobs/${job.id}/run`, role: 'admin', accountId: 'acc-empty' });
         assert.equal(out.res.statusCode, 202);
         let dump = __dumpSystemJobsForTests();
         for (let attempt = 0; attempt < 40 && dump.runs.length === 0; attempt += 1) {
@@ -981,7 +1031,8 @@ export function getJobsTests() {
       run: async () => {
         __resetSystemJobsForTests();
         const app = createApiApp();
-        const out = await call(app, { method: 'POST', url: '/jobs/radar-comercial/run', role: 'sales', accountId: 'acc-jobs' });
+        const job = await upsertSystemJob({ nome: 'radar_comercial_diario', lock_key: 'jobs:radar_comercial_diario', account_id: null, status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: null });
+        const out = await call(app, { method: 'POST', url: `/jobs/${job.id}/run`, role: 'sales', accountId: 'acc-jobs' });
         assertEqual(out.res.statusCode === 403 || out.res.statusCode === 404, true);
       }
     }

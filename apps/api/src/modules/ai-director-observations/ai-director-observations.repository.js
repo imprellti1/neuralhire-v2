@@ -42,6 +42,31 @@ function applyFilters(items, filters) {
 
 function shape(row) { return row ? clone(row) : null; }
 
+function buildObservationKey(accountId, payload = {}) {
+  const origin = String(payload.origin || payload.source_type || 'manual').trim();
+  return [
+    String(accountId || '').trim(),
+    String(payload.manager_id || '').trim(),
+    String(payload.category || '').trim(),
+    String(payload.title || '').trim().toLowerCase(),
+    origin.toLowerCase(),
+    String(payload.metadata?.dedupe_key || payload.metadata?.dedupeKey || '').trim().toLowerCase()
+  ].join('|');
+}
+
+function isOpenEquivalent(row, accountId, payload) {
+  return (
+    row &&
+    row.account_id === accountId &&
+    row.status === 'open' &&
+    row.manager_id === payload.manager_id &&
+    row.category === payload.category &&
+    row.title === payload.title &&
+    String(row.origin || row.source_type || '') === String(payload.origin || payload.source_type || 'manual') &&
+    buildObservationKey(accountId, { ...row, origin: row.origin || row.source_type || 'manual', metadata: row.metadata || {} }) === buildObservationKey(accountId, payload)
+  );
+}
+
 export async function listObservations(context = {}, filters = {}) {
   const accountId = context?.accountId || null;
   assertAccountId(accountId);
@@ -86,7 +111,7 @@ export async function createObservation(context = {}, payload = {}) {
   const normalized = normalizeCreateObservationPayload(payload);
   const errors = validateObservationPayload(normalized);
   if (errors.length) throw new BadRequestError('Dados invalidos', { details: errors, domain: 'ai-director-observations' });
-  const row = { id: randomUUID(), account_id: accountId, ...normalized, metadata: normalized.metadata || {}, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+  const row = { id: randomUUID(), account_id: accountId, ...normalized, origin: payload.origin || payload.source_type || 'manual', metadata: normalized.metadata || {}, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
   if (mode() === 'supabase') {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
@@ -101,13 +126,8 @@ export async function createObservation(context = {}, payload = {}) {
 function isEquivalentOpenObservation(row, payload) {
   return (
     row &&
-    row.status === 'open' &&
-    row.manager_id === payload.manager_id &&
-    row.category === payload.category &&
-    row.source_type === payload.source_type &&
-    String(row.source_id ?? '') === String(payload.source_id ?? '') &&
-    row.title === payload.title &&
-    row.account_id === payload.account_id
+    isOpenEquivalent(row, payload.account_id, payload) &&
+    String(row.source_id ?? '') === String(payload.source_id ?? '')
   );
 }
 
@@ -118,9 +138,28 @@ export async function createObservationIfNotOpen(context = {}, payload = {}) {
   const errors = validateObservationPayload(normalized);
   if (errors.length) throw new BadRequestError('Dados invalidos', { details: errors, domain: 'ai-director-observations' });
 
+  if (mode() === 'supabase') {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const origin = String(payload.origin || payload.source_type || 'manual').trim();
+    const { data: current, error: currentError } = await supabase
+      .from('ai_director_observations')
+      .select('*')
+      .eq('account_id', accountId)
+      .eq('manager_id', normalized.manager_id)
+      .eq('category', normalized.category)
+      .eq('title', normalized.title)
+      .eq('status', 'open')
+      .maybeSingle();
+    if (currentError) throw new DatabaseError('Falha ao verificar observacao existente', { details: currentError });
+    if (current && isOpenEquivalent(current, accountId, { ...normalized, account_id: accountId, origin })) {
+      return { created: false, reason: 'duplicate', observation: current };
+    }
+  }
+
   const openEquivalent = mode() === 'supabase'
     ? null
-    : store.find((row) => isEquivalentOpenObservation(row, { ...normalized, account_id: accountId })) || null;
+    : store.find((row) => isEquivalentOpenObservation(row, { ...normalized, account_id: accountId, origin: payload.origin || payload.source_type || 'manual' })) || null;
   if (openEquivalent) {
     return { created: false, reason: 'duplicate', observation: shape(openEquivalent) };
   }

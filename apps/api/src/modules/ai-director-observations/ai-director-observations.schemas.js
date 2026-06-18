@@ -12,6 +12,8 @@ export function normalizeCreateObservationPayload(payload = {}) {
   const category = trimText(payload.category);
   const title = trimText(payload.title);
   const description = trimText(payload.description);
+  const impact = trimText(payload.impact ?? payload.impacto);
+  const urgency = trimText(payload.urgency ?? payload.urgencia);
   const severity = trimText(payload.severity || 'medium');
   const status = trimText(payload.status || 'open');
   const impact_score = Number(payload.impact_score ?? payload.impactScore ?? 0);
@@ -24,11 +26,15 @@ export function normalizeCreateObservationPayload(payload = {}) {
     category,
     title,
     description,
+    impact,
+    urgency,
     severity,
     status,
     impact_score,
     urgency_score,
     metadata,
+    impact,
+    urgency,
     source_type: payload.source_type ?? payload.sourceType ?? null,
     source_id: payload.source_id ?? payload.sourceId ?? null
   };

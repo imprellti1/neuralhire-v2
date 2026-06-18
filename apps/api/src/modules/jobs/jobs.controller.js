@@ -1,7 +1,7 @@
 import { ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { logger } from '../../core/logger.js';
-import { listJobsOverview, runClientesEnriquecimentoJob, runClientesGeolocalizacaoJob, runGerenteComercialObservacaoJob, runNotificacoesResumoSemanalJob, runRadarComercialJob } from './jobs.scheduler.js';
+import { listJobsOverview, runClientesEnriquecimentoJob, runClientesGeolocalizacaoJob, runGerenteAdministrativoObservacaoJob, runGerenteAuditoriaObservacaoJob, runGerenteComercialObservacaoJob, runGerenteProdutosObservacaoJob, runNotificacoesResumoSemanalJob, runRadarComercialJob } from './jobs.scheduler.js';
 import { getSystemJobById, listSystemJobRuns, listSystemJobRunsForJob, listSystemJobs } from './jobs.repository.js';
 
 function assertJobAdmin(context) {
@@ -54,9 +54,20 @@ async function resolveAdminJobForManualRun(context = {}) {
   const accountId = getAccountIdFromContext(context);
   const id = String(context.params?.id || '').trim();
   const normalizedId = id.replace(/-/g, '_');
+  const aliases = {
+    'radar-comercial': 'radar_comercial_diario',
+    'clientes-enriquecimento': 'clientes_enriquecimento_automatico',
+    'clientes-geolocalizacao': 'clientes_geolocalizacao_automatico',
+    'notificacoes-resumo-semanal': 'notificacoes_resumo_semanal',
+    'gerente-comercial-observacao': 'gerente_comercial_observacao',
+    'gerente-produtos-observacao': 'gerente_produtos_observacao',
+    'gerente-auditoria-observacao': 'gerente_auditoria_observacao',
+    'gerente-administrativo-observacao': 'gerente_administrativo_observacao'
+  };
+  const canonicalId = aliases[id] || normalizedId;
   const jobs = await listSystemJobs(null);
   let item = jobs.find((job) => String(job.id) === String(id)) || null;
-  if (!item) item = jobs.find((job) => String(job.nome) === normalizedId || String(job.lock_key) === id || String(job.nome) === id) || null;
+  if (!item) item = jobs.find((job) => String(job.nome) === canonicalId || String(job.lock_key) === id || String(job.nome) === id || String(job.lock_key) === canonicalId) || null;
   if (!item && accountId) item = await getSystemJobById(id, accountId);
   if (!item) {
     throw new NotFoundError('Job nao encontrado', { code: 'JOB_NOT_FOUND', domain: 'system-jobs' });
@@ -93,7 +104,10 @@ export async function runJobManualAdmin(context = {}) {
     clientes_enriquecimento_automatico: runClientesEnriquecimentoJob,
     clientes_geolocalizacao_automatico: runClientesGeolocalizacaoJob,
     notificacoes_resumo_semanal: runNotificacoesResumoSemanalJob,
-    gerente_comercial_observacao: runGerenteComercialObservacaoJob
+    gerente_comercial_observacao: runGerenteComercialObservacaoJob,
+    gerente_produtos_observacao: runGerenteProdutosObservacaoJob,
+    gerente_auditoria_observacao: runGerenteAuditoriaObservacaoJob,
+    gerente_administrativo_observacao: runGerenteAdministrativoObservacaoJob
   };
   const runner = runners[job.nome];
   if (!runner) throw new NotFoundError('Job sem handler', { code: 'JOB_HANDLER_NOT_FOUND', domain: 'system-jobs' });
