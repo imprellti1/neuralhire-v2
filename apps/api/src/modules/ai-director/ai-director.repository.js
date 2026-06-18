@@ -105,8 +105,8 @@ function normalizeExecutiveMemoryPayload(data = {}) {
   if (!validExecutiveCategorias.has(categoria)) throw new BadRequestError('categoria invalida');
   const severidade = String(data.severidade ?? 'media').trim() || 'media';
   if (!validExecutiveSeveridades.has(severidade)) throw new BadRequestError('severidade invalida');
-  const dados_json = data.dados_json && typeof data.dados_json === 'object' && !Array.isArray(data.dados_json) ? data.dados_json : {};
-  return { tipo, titulo, descricao, categoria, severidade, dados_json };
+  const metadata = data.metadata && typeof data.metadata === 'object' && !Array.isArray(data.metadata) ? data.metadata : {};
+  return { tipo, titulo, descricao, categoria, severidade, metadata };
 }
 
 export async function getAiDirectorDashboard(context = {}) {

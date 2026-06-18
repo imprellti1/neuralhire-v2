@@ -236,11 +236,12 @@ export function getAiDirectorTests() {
       name: 'GET /ai-director/executive-memories retorna lista por categoria',
       run: async () => {
         resetState();
-        await createExecutiveMemory({ tipo: 'risk', titulo: 'Aumento de clientes em risco', descricao: 'Observado aumento', categoria: 'comercial', severidade: 'alta', dados_json: { delta: 4 } }, { accountId: 'acc-a' });
-        await createExecutiveMemory({ tipo: 'trend', titulo: 'Outro insight', descricao: 'Outubro', categoria: 'produtos', severidade: 'media', dados_json: {} }, { accountId: 'acc-a' });
+        await createExecutiveMemory({ tipo: 'risk', titulo: 'Aumento de clientes em risco', descricao: 'Observado aumento', categoria: 'comercial', severidade: 'alta', metadata: { delta: 4 } }, { accountId: 'acc-a' });
+        await createExecutiveMemory({ tipo: 'trend', titulo: 'Outro insight', descricao: 'Outubro', categoria: 'produtos', severidade: 'media', metadata: {} }, { accountId: 'acc-a' });
         const result = await listExecutiveMemories({ categoria: 'comercial' }, { accountId: 'acc-a' });
         assert.equal(result.items.length, 1);
         assert.equal(result.items[0].categoria, 'comercial');
+        assert.equal(result.items[0].metadata.delta, 4);
       }
     },
     {

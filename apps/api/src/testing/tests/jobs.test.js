@@ -407,6 +407,16 @@ export function getJobsTests() {
         const result = await runDiretorReuniaoExecutivaJob({ accountId: 'acc-director', auth: { role: 'admin', accountId: 'acc-director' }, job });
         assert.equal(result.ok, true);
         assert.equal(typeof result.next_run_at, 'string');
+        const { listExecutiveMemories } = await import('../../modules/ai-director/ai-director.repository.js');
+        const memories = await listExecutiveMemories({ limit: 20 }, { accountId: 'acc-director' });
+        const memory = memories.items.find((item) => item.origem === 'diretor_reuniao_executiva' && item.tipo === 'prioridade_executiva');
+        assert.equal(Boolean(memory), true);
+        assert.equal(memory.metadata.generated_by, 'diretor_reuniao_executiva');
+        assert.equal(Array.isArray(memory.metadata.observation_ids), true);
+        assert.equal(typeof memory.metadata.total_observations, 'number');
+        assert.equal(Array.isArray(memory.metadata.managers), true);
+        assert.equal(typeof memory.metadata.score, 'number');
+        assert.equal(typeof memory.metadata.window_days, 'number');
       }
     },
     {

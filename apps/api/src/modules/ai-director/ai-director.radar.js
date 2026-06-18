@@ -264,7 +264,7 @@ function buildRadarInsightCandidate(item, tipo) {
     descricao: buildRadarInsightDescription(item),
     gerenteResponsavel: String(item?.gerenteResponsavel || item?.gerenteSugerido || pickManagerNameByCategory(category)).trim(),
     origem: String(item?.origem || item?.modulo || category || 'geral').trim() || 'geral',
-    dados_json: {
+    metadata: {
       fonte: tipo,
       payload: item
     }

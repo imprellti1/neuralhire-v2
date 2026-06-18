@@ -11,8 +11,8 @@ function toNumber(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function buildMemory(tipo, titulo, descricao, categoria, severidade, dados_json) {
-  return { tipo, titulo, descricao, categoria, severidade, dados_json };
+function buildMemory(tipo, titulo, descricao, categoria, severidade, metadata) {
+  return { tipo, titulo, descricao, categoria, severidade, metadata };
 }
 
 export function analyzeExecutiveFacts(managerFacts = [], previousMemories = []) {
