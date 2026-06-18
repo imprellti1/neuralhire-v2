@@ -5,7 +5,7 @@ import { createApiApp } from '../../app.js';
 import { env } from '../../config/env.js';
 import { createTestRequest } from '../create-test-request.js';
 import { createTestResponse } from '../create-test-response.js';
-import { __resetMemoryClientesForTests, createCliente, __dumpMemoryClientes } from '../../modules/clientes/clientes.repository.js';
+import { __resetMemoryClientesForTests, createCliente, __dumpMemoryClientes, __setClientesSupabaseClientForTests } from '../../modules/clientes/clientes.repository.js';
 import { __resetClientesImportSessionsForTests, __normalizeClientesImportMoneyForTests, __normalizeClientesImportDigitsForTests } from '../../modules/clientes-import/clientes-import.repository.js';
 
 function parseBody(res) {
@@ -177,6 +177,7 @@ export function getClientesImportTests() {
         globalThis.__NEURALHIRE_SUPABASE_MOCK__ = createSupabaseMock({
           onInsert: (payload) => captured.push(payload)
         });
+        __setClientesSupabaseClientForTests(globalThis.__NEURALHIRE_SUPABASE_MOCK__, true);
         try {
           const created = await createCliente({
             nome: 'Cliente com metadata',
@@ -196,6 +197,7 @@ export function getClientesImportTests() {
         } finally {
           env.SUPABASE_URL = previous.supabaseUrl;
           env.SUPABASE_SERVICE_ROLE_KEY = previous.supabaseKey;
+          __setClientesSupabaseClientForTests(null, false);
           if (previous.mock === undefined) delete globalThis.__NEURALHIRE_SUPABASE_MOCK__;
           else globalThis.__NEURALHIRE_SUPABASE_MOCK__ = previous.mock;
         }
@@ -214,6 +216,7 @@ export function getClientesImportTests() {
           globalThis.__NEURALHIRE_SUPABASE_MOCK__ = createSupabaseMock({
             insertError: { message: 'null value in column "nome" violates not-null constraint', code: '23502' }
           });
+          __setClientesSupabaseClientForTests(globalThis.__NEURALHIRE_SUPABASE_MOCK__, true);
           const base64 = makeWorkbook([
             { Cliente: '009', CNPJ: '11.111.111/1111-11', 'Razão Social': 'Cliente X LTDA', Cidade: 'Curitiba', UF: 'PR' }
           ]);
@@ -226,6 +229,7 @@ export function getClientesImportTests() {
         } finally {
           env.SUPABASE_URL = previous.supabaseUrl;
           env.SUPABASE_SERVICE_ROLE_KEY = previous.supabaseKey;
+          __setClientesSupabaseClientForTests(null, false);
           if (previous.mock === undefined) delete globalThis.__NEURALHIRE_SUPABASE_MOCK__;
           else globalThis.__NEURALHIRE_SUPABASE_MOCK__ = previous.mock;
         }

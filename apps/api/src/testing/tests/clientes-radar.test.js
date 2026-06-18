@@ -27,17 +27,27 @@ async function call(app, { method, url, role, accountId, body }) {
 }
 
 function createRadarSupabaseMock({ clientes = [], pedidos = [], alertas = [], failClienteId = null } = {}) {
-  const state = { clientes, pedidos, alertas, failClienteId, lastQueries: {} };
+  const state = {
+    clientes: clientes.map((row) => ({ ...row })),
+    pedidos: pedidos.map((row) => ({ ...row })),
+    alertas: alertas.map((row) => ({ ...row })),
+    failClienteId,
+    lastQueries: {}
+  };
   const query = (table) => ({
     _table: table,
     _filters: {},
     _select: null,
     _in: null,
+    _update: null,
     select(fields) { this._select = fields; return this; },
     eq(key, value) { this._filters[key] = value; return this; },
+    order() { return this; },
+    limit() { return this; },
     neq(key, value) { this._filters[`neq:${key}`] = value; return this; },
     in(key, values) { this._in = { key, values }; return this; },
     or() { return this; },
+    update(payload) { this._update = payload; return this; },
     maybeSingle() {
       const result = this._resolve();
       return Promise.resolve(result);
@@ -47,13 +57,17 @@ function createRadarSupabaseMock({ clientes = [], pedidos = [], alertas = [], fa
       return Promise.resolve(result);
     },
     _resolve() {
-      const ids = Array.isArray(this._in?.values) ? this._in.values.map(String) : [];
-      state.lastQueries[table] = { filters: { ...this._filters }, in: this._in ? { ...this._in, values: [...(this._in.values || [])] } : null, select: this._select };
-      if (state.failClienteId && ids.includes(String(state.failClienteId))) return { data: null, error: new Error(`fail:${state.failClienteId}`) };
-      if (table === 'clientes') {
-        const rows = state.clientes.filter((item) => String(item.account_id) === String(this._filters.account_id) && (!this._filters.id || String(item.id) === String(this._filters.id)) && item.ativo !== false);
-        return { data: rows[0] || null, error: null };
-      }
+        const ids = Array.isArray(this._in?.values) ? this._in.values.map(String) : [];
+        state.lastQueries[table] = { filters: { ...this._filters }, in: this._in ? { ...this._in, values: [...(this._in.values || [])] } : null, select: this._select };
+        if (state.failClienteId && ids.includes(String(state.failClienteId))) return { data: null, error: new Error(`fail:${state.failClienteId}`) };
+        if (table === 'clientes') {
+          const rows = state.clientes.filter((item) => String(item.account_id) === String(this._filters.account_id) && (!this._filters.id || String(item.id) === String(this._filters.id)) && item.ativo !== false);
+          if (this._update && this._filters.id) {
+            for (const row of rows) Object.assign(row, this._update);
+            return { data: rows[0] || null, error: null };
+          }
+          return { data: rows, error: null };
+        }
       if (table === 'pedidos') return { data: state.pedidos.filter((item) => String(item.account_id) === String(this._filters.account_id)), error: null };
       if (table === 'cliente_alertas') return { data: state.alertas.filter((item) => String(item.account_id) === String(this._filters.account_id)), error: null };
       if (table === 'pedido_itens') return { data: [], error: null };

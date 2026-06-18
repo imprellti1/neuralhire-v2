@@ -284,3 +284,8 @@ export function __setClientesAlertsSupabaseClientForTests(client, configured = t
   supabaseClientOverride = client;
   supabaseConfiguredOverride = configured;
 }
+
+export function __resetClientesAlertsForTests() {
+  supabaseClientOverride = null;
+  supabaseConfiguredOverride = null;
+}

@@ -101,14 +101,15 @@ export function getPedidosRepositoryTests() {
       }
     },
     {
-      name: 'listPedidos nao envia filtro owner_user_id quando usa supabase',
+      name: 'listPedidos envia filtro owner_user_id quando usa supabase',
       run: async () => {
         __resetMemoryPedidosForTests();
         const mock = createSupabaseMock();
         __setPedidosSupabaseClientForTests(mock, true);
         try {
           await listPedidos({ status: 'confirmado', cliente_id: 'cliente-1', owner_user_id: 'sales-1' }, { accountId });
-          assertEqual(Object.prototype.hasOwnProperty.call(mock.query._filter, 'owner_user_id'), false);
+          assertEqual(Object.prototype.hasOwnProperty.call(mock.query._filter, 'owner_user_id'), true);
+          assertEqual(mock.query._filter.owner_user_id, 'sales-1');
           assertEqual(mock.query._filter.account_id, accountId);
           assertEqual(mock.query._filter.status, 'confirmado');
           assertEqual(mock.query._filter.cliente_id, 'cliente-1');

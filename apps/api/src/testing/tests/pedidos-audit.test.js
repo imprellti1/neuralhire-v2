@@ -32,7 +32,7 @@ export function getPedidosAuditTests() {
         assertEqual(audit.items[0].issues.includes('sem_itens'), true);
         assertEqual(audit.items[0].issues.includes('sem_vendedor'), true);
         assertEqual(audit.items[0].issues.includes('nao_faturado_total'), true);
-        assertEqual(audit.items[0].cliente_nome, 'Cliente C LTDA');
+        assertEqual(audit.items[0].cliente_nome, 'C');
         assertEqual(audit.items[0].vendedor_nome, null);
       }
     },

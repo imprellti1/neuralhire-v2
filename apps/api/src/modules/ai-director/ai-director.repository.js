@@ -449,7 +449,6 @@ async function findExistingExecutiveMemoryByLogicalKey(supabase, row) {
     titulo: row.titulo,
     titulo_normalizado: normalizedTitle
   });
-  logger.info('executive_memory_rpc_payload', payload);
   const rpcResult = await supabase.rpc('find_ai_director_executive_memory_by_logical_key', payload);
   const { data, error } = rpcResult || {};
   if (error) throw new DatabaseError('Falha ao consultar memoria executiva do diretor', { details: error });
@@ -467,17 +466,21 @@ async function findExistingExecutiveMemoryByLogicalKey(supabase, row) {
 }
 
 async function saveExecutiveMemoryRow(supabase, row) {
-  const current = await findExistingExecutiveMemoryByLogicalKey(supabase, row);
+  const normalizedRow = {
+    ...row,
+    origem: row.origem || 'diretor_ia'
+  };
+  const current = await findExistingExecutiveMemoryByLogicalKey(supabase, normalizedRow);
   if (current) {
     const next = {
       ...current,
-      ...row,
+      ...normalizedRow,
       id: current.id,
       account_id: current.account_id,
-      created_at: current.created_at || current.criado_em || row.criado_em,
-      criado_em: current.criado_em || current.created_at || row.criado_em,
+      created_at: current.created_at || current.criado_em || normalizedRow.criado_em,
+      criado_em: current.criado_em || current.created_at || normalizedRow.criado_em,
       updated_at: new Date().toISOString(),
-      metadata: { ...(current.metadata || {}), ...(row.metadata || {}) }
+      metadata: { ...(current.metadata || {}), ...(normalizedRow.metadata || {}) }
     };
     const { data: updated, error: updateError } = await supabase.from('ai_director_executive_memories').update(next).eq('id', current.id).select('*').single();
     if (updateError) throw new DatabaseError('Falha ao atualizar memoria executiva do diretor', { details: updateError });
@@ -485,27 +488,27 @@ async function saveExecutiveMemoryRow(supabase, row) {
   }
 
   logger.info('ai_director_executive_memory_before_insert', {
-    account_id: row.account_id,
-    tipo: row.tipo,
-    categoria: row.categoria,
-    origem: row.origem,
-    titulo: row.titulo,
-    titulo_normalizado: normalizeExecutiveMemoryTitle(row.titulo)
+    account_id: normalizedRow.account_id,
+    tipo: normalizedRow.tipo,
+    categoria: normalizedRow.categoria,
+    origem: normalizedRow.origem,
+    titulo: normalizedRow.titulo,
+    titulo_normalizado: normalizeExecutiveMemoryTitle(normalizedRow.titulo)
   });
-  const { data: inserted, error } = await supabase.from('ai_director_executive_memories').insert(row).select('*').single();
+  const { data: inserted, error } = await supabase.from('ai_director_executive_memories').insert(normalizedRow).select('*').single();
   if (error) {
     if (isUniqueConstraintViolation(error)) {
-      const retryCurrent = await findExistingExecutiveMemoryByLogicalKey(supabase, row);
+      const retryCurrent = await findExistingExecutiveMemoryByLogicalKey(supabase, normalizedRow);
       if (retryCurrent) {
         const next = {
           ...retryCurrent,
-          ...row,
+          ...normalizedRow,
           id: retryCurrent.id,
           account_id: retryCurrent.account_id,
-          created_at: retryCurrent.created_at || retryCurrent.criado_em || row.criado_em,
-          criado_em: retryCurrent.criado_em || retryCurrent.created_at || row.criado_em,
+          created_at: retryCurrent.created_at || retryCurrent.criado_em || normalizedRow.criado_em,
+          criado_em: retryCurrent.criado_em || retryCurrent.created_at || normalizedRow.criado_em,
           updated_at: new Date().toISOString(),
-          metadata: { ...(retryCurrent.metadata || {}), ...(row.metadata || {}) }
+          metadata: { ...(retryCurrent.metadata || {}), ...(normalizedRow.metadata || {}) }
         };
         const { data: updated, error: retryUpdateError } = await supabase.from('ai_director_executive_memories').update(next).eq('id', retryCurrent.id).select('*').single();
         if (!retryUpdateError) return updated;
@@ -518,7 +521,7 @@ async function saveExecutiveMemoryRow(supabase, row) {
           categoria: row.categoria,
           titulo_normalizado: normalizeExecutiveMemoryTitle(row.titulo),
           titulo: row.titulo,
-          origem: row.origem
+          origem: normalizedRow.origem
         }
       });
     }
@@ -544,6 +547,7 @@ export async function createExecutiveMemory(data = {}, options = {}) {
     id: randomUUID(),
     account_id: accountId,
     ...payload,
+    origem: String(data.origem ?? 'diretor_ia').trim() || 'diretor_ia',
     criado_em: new Date().toISOString()
   };
   if (resolveAiDirectorSupabaseConfigured()) {
@@ -564,6 +568,7 @@ export async function upsertExecutiveMemory(data = {}, options = {}) {
     id: randomUUID(),
     account_id: accountId,
     ...payload,
+    origem: String(data.origem ?? 'diretor_ia').trim() || 'diretor_ia',
     metadata: data.metadata && typeof data.metadata === 'object' && !Array.isArray(data.metadata) ? data.metadata : {},
     criado_em: new Date().toISOString(),
     updated_at: new Date().toISOString()
@@ -672,6 +677,15 @@ export function __resetMemoryAiDirectorForTests() {
 
 export function __dumpMemoryAiDirectorForTests() {
   return clone(memoryStore);
+}
+
+export function __dumpAiDirectorTestStateForTests() {
+  return {
+    memories: clone(memoryStore),
+    managerOverrides: managerProviderOverrides.size,
+    supabaseOverrideConfigured: supabaseConfiguredOverride,
+    supabaseOverrideActive: Boolean(supabaseClientOverride)
+  };
 }
 
 export function __setAiDirectorManagerProviderOverrideForTests(managerId, provider) {

@@ -59,6 +59,16 @@ function parseNumber(value) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function parseMoney(value) {
+  const parsed = parseNumber(value);
+  if (parsed === null || parsed < 0) return null;
+  const rawText = typeof value === 'string' ? value.trim() : '';
+  const hasDecimalSeparator = rawText.includes(',') || rawText.includes('.');
+  const isIntegerLike = Number.isInteger(parsed) && !hasDecimalSeparator;
+  const normalized = isIntegerLike ? parsed / 100 : parsed;
+  return Number(normalized.toFixed(3));
+}
+
 export function normalizePedidoItensHeader(value) {
   return normalizeHeaderKey(value);
 }
@@ -115,7 +125,7 @@ export function parsePedidosItensWorkbook(buffer) {
     ean_original: resolveCell(row, mapping.ean_original),
     quantidade: parseNumber(resolveCell(row, mapping.quantidade)),
     valor_unitario: parseNumber(resolveCell(row, mapping.valor_unitario)),
-    valor_total: parseNumber(resolveCell(row, mapping.valor_total))
+    valor_total: parseMoney(resolveCell(row, mapping.valor_total))
   })).filter((row) => Object.values(row).some((value) => value !== '' && value !== null && value !== undefined));
 
   return { workbook, sheetName, headers, mapping, dataRows };

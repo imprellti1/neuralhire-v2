@@ -85,3 +85,8 @@ export async function listarTimelineCliente(clienteId, options = {}) {
 export function __resetMemoryTimelineForTests() {
   memoryTimeline.length = 0;
 }
+
+export function __resetClientesTimelineForTests() {
+  supabaseClientOverride = null;
+  supabaseConfiguredOverride = null;
+}

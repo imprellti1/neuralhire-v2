@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { __resetMemoryAiDirectorForTests, __setAiDirectorManagerProviderOverrideForTests, consultManager, createAiDirectorMemory, createExecutiveMemory, findRelevantExecutiveMemories, getAiDirectorDashboard, listAiDirectorMemories, listExecutiveMemories, listManagers } from '../../modules/ai-director/ai-director.repository.js';
-import { __resetMemoryAiDirectorObservationsForTests, createObservation, listObservations, updateObservationStatus } from '../../modules/ai-director-observations/ai-director-observations.repository.js';
+import { __resetMemoryAiDirectorObservationsForTests, createObservation, listObservations, updateObservationStatus, getOpenObservationsForDirector } from '../../modules/ai-director-observations/ai-director-observations.repository.js';
 import { answerAiDirectorQuestion, delegateAiDirectorQuestion } from '../../modules/ai-director/ai-director.orchestrator.js';
+import { buildAiDirectorContext } from '../../modules/ai-director/ai-director.context-builder.js';
 import { askAiDirectorLlm } from '../../modules/ai-director/ai-director.llm.js';
 import { buildStrategicRadar } from '../../modules/ai-director/ai-director.radar.js';
 import { __resetMemoryClientesForTests, createCliente } from '../../modules/clientes/clientes.repository.js';
@@ -452,9 +453,18 @@ export function getAiDirectorTests() {
       run: async () => {
         resetState();
         await createObservation({ accountId: 'acc-a' }, { manager_id: 'comercial', manager_name: 'Gerente Comercial', category: 'comercial', title: 'Alerta comercial', description: 'Observacao aberta', severity: 'high', impact_score: 50, urgency_score: 40, metadata: {} });
-        const result = await answerAiDirectorQuestion({ question: 'Como está a operação?' }, { accountId: 'acc-a' });
-        assert.equal(Array.isArray(result.facts.observations), true);
-        assert.equal(result.facts.observationsCount >= 1, true);
+        const openObservations = await getOpenObservationsForDirector({ accountId: 'acc-a' }, { limit: 10 });
+        const context = await buildAiDirectorContext({
+          question: 'Como está a operação?',
+          delegation: { selectedManagers: [] },
+          dashboard: await getAiDirectorDashboard({ accountId: 'acc-a' }),
+          memories: [],
+          executiveMemories: [],
+          observations: openObservations.items
+        });
+        assert.equal(openObservations.items.length >= 1, true, `open observations: ${openObservations.items.length}`);
+        assert.equal(Array.isArray(context.observations), true, `observations array: ${typeof context.observations}`);
+        assert.equal(context.facts.observationsCount >= 1, true, `observationsCount: ${context.facts.observationsCount}`);
       }
     },
     {

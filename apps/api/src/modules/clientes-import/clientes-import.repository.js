@@ -6,7 +6,7 @@ import { getClientesRepositoryMode, listClientes, createCliente, updateCliente }
 const importSessions = new Map();
 
 const HEADERS = {
-  codigo: ['Código', 'Codigo'],
+  codigo: ['Código', 'Codigo', 'Cliente'],
   cnpj: ['CNPJ'],
   razaoSocial: ['Razão Social', 'Razao Social'],
   fantasia: ['Fantasia'],

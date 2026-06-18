@@ -40,7 +40,12 @@ function assertAccountId(accountId) {
 
 function debugRepository(action, payload) {
   if (env.NODE_ENV === 'production') return;
-  console.debug(`[clientes.repository] ${action}`, payload);
+  try {
+    console.debug(`[clientes.repository] ${action}`, payload);
+  } catch (error) {
+    if (error?.code === 'EPIPE') return;
+    throw error;
+  }
 }
 
 function resolveVendedorScope(accountId, context = {}) {
@@ -138,7 +143,7 @@ export async function listClientePedidoItens(accountId, pedidoIds = [], pedidosF
 async function persistClientCommercialHistory(cliente, payload, options = {}) {
   const accountId = options.accountId || null;
   if (getClientesRepositoryMode().mode === 'supabase') {
-    const supabase = getSupabaseClient();
+    const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data, error } = await supabase.from('clientes').update(payload).eq('account_id', accountId).eq('id', cliente.id).select('*').single();
     if (error) throw new DatabaseError('Falha ao atualizar historico comercial do cliente', { details: error });
@@ -380,7 +385,7 @@ export async function getClienteById(id, options = {}) {
   assertAccountId(accountId);
 
   if (getClientesRepositoryMode().mode === 'supabase') {
-    const supabase = getSupabaseClient();
+    const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data, error } = await supabase.from('clientes').select('*').eq('account_id', accountId).eq('id', id).maybeSingle();
     if (error) throw new DatabaseError('Falha ao buscar cliente', { details: error });
@@ -413,7 +418,7 @@ export async function createCliente(data, options = {}) {
   debugRepository('createCliente', { repositoryMode, accountId, filters: null });
 
   if (repositoryMode.mode === 'supabase') {
-    const supabase = getSupabaseClient();
+    const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const vendedor = resolveVendedorScope(accountId, options.context);
     const vendedorId = vendedor?.id || data.vendedor_id || null;

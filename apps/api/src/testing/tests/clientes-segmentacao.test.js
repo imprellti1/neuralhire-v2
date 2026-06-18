@@ -2,9 +2,11 @@ import { assertEqual } from '../assert.js';
 import { createApiApp } from '../../app.js';
 import { createTestRequest } from '../create-test-request.js';
 import { createTestResponse } from '../create-test-response.js';
-import { __resetMemoryAlertasForTests, gerarAlertasCliente } from '../../modules/clientes/clientes.alerts.service.js';
-import { __resetMemoryClientesForTests, createCliente, updateCliente } from '../../modules/clientes/clientes.repository.js';
+import { __resetClientesAlertsForTests, __resetMemoryAlertasForTests, gerarAlertasCliente } from '../../modules/clientes/clientes.alerts.service.js';
+import { __loadMemoryClientes, __resetMemoryClientesForTests, __setClientesSupabaseClientForTests, createCliente } from '../../modules/clientes/clientes.repository.js';
 import { __resetMemoryPedidosForTests, createPedido } from '../../modules/pedidos/pedidos.repository.js';
+import { createProduto } from '../../modules/produtos/produtos.repository.js';
+import { __resetClientesTimelineForTests } from '../../modules/clientes/clientes.timeline.service.js';
 import { calcularSegmentacaoCliente } from '../../modules/clientes/clientes.segmentacao.service.js';
 
 function parseBody(res) {
@@ -101,19 +103,34 @@ export function getClientesSegmentacaoTests() {
         __resetMemoryClientesForTests();
         __resetMemoryPedidosForTests();
         __resetMemoryAlertasForTests();
+        __resetClientesAlertsForTests();
+        __resetClientesTimelineForTests();
+        __setClientesSupabaseClientForTests(null, false);
         const app = createApiApp();
         const accountId = 'acc-seg';
         const cliente = await createCliente({
           nome: 'Cliente Seg',
+        }, { accountId });
+        __loadMemoryClientes([{
+          ...cliente,
           cliente_classificacao: 'A',
           cliente_potencial: 'Alto',
           cliente_score_fatores: { total_pedidos: 10, faturamento_total: 50000, dias_sem_compra: 1, ultima_compra: new Date().toISOString() }
-        }, { accountId });
-        await createPedido({ cliente_id: cliente.id, status: 'faturado', total: 50000, data_faturamento: new Date().toISOString() }, { accountId });
+        }]);
+        const produto = await createProduto({ nome: 'Produto Seg', preco: 50000 }, { accountId });
+        for (let index = 0; index < 10; index += 1) {
+          await createPedido({
+            cliente_id: cliente.id,
+            status: 'faturado',
+            total: 5000,
+            data_faturamento: new Date().toISOString(),
+            itens: [{ produto_id: produto.id, quantidade: 1, total: 5000 }]
+          }, { accountId });
+        }
         const out = await call(app, { method: 'POST', url: `/clientes/${cliente.id}/calcular-segmentacao`, role: 'admin', accountId });
         assertEqual(out.res.statusCode, 200);
-        assertEqual(out.body.item.segmento_comercial, 'VIP');
-        assertEqual(Array.isArray(out.body.item.segmento_motivos), true);
+        assertEqual(out.body.segmentacao.segmento, 'VIP');
+        assertEqual(Array.isArray(out.body.segmentacao.motivos), true);
         const timeline = await call(app, { method: 'GET', url: `/clientes/${cliente.id}/timeline`, role: 'admin', accountId });
         assertEqual(timeline.body.items.some((item) => item.categoria === 'segmentacao' && item.tipo === 'segmentacao_atualizada'), true);
       }
@@ -124,6 +141,9 @@ export function getClientesSegmentacaoTests() {
         __resetMemoryClientesForTests();
         __resetMemoryPedidosForTests();
         __resetMemoryAlertasForTests();
+        __resetClientesAlertsForTests();
+        __resetClientesTimelineForTests();
+        __setClientesSupabaseClientForTests(null, false);
         const app = createApiApp();
         const cliente = await createCliente({ nome: 'Cliente Tenant', cliente_score_fatores: { total_pedidos: 1 } }, { accountId: 'acc-a' });
         const blocked = await call(app, { method: 'POST', url: `/clientes/${cliente.id}/calcular-segmentacao`, role: 'admin', accountId: 'acc-b' });

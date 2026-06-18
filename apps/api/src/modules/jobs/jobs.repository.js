@@ -496,7 +496,9 @@ export function __dumpSystemJobsForTests() {
   return {
     jobs: [...memoryJobs.values()].map((item) => ({ ...item })),
     runs: memoryRuns.map((item) => ({ ...item })),
-    logs: memoryLogs.map((item) => ({ ...item }))
+    logs: memoryLogs.map((item) => ({ ...item })),
+    supabaseOverrideConfigured: supabaseConfiguredOverride,
+    supabaseOverrideActive: Boolean(supabaseClientOverride)
   };
 }
 

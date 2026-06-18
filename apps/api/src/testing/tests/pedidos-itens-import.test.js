@@ -194,7 +194,7 @@ export function getPedidosItensImportTests() {
         __resetMemoryClientesForTests();
 
         const cliente = await createCliente({ nome: 'Cliente Preview', codigo: 'CLI-PREVIEW' }, { accountId: 'acc-preview-import' });
-        const pedido = await createPedidoFromImport({ cliente_id: cliente.id, numero: '9992', status: 'rascunho', origem: 'manual', total: 0, metadata: {} }, { accountId: 'acc-preview-import' });
+        const { pedido } = await createPedidoFromImport({ cliente_id: cliente.id, numero: '9992', status: 'rascunho', origem: 'manual', total: 0, metadata: {} }, { accountId: 'acc-preview-import' });
         const snapshotAntes = __dumpMemoryPedidos();
         snapshotAntes.pedidoItens = [];
         __resetMemoryPedidosForTests();
@@ -245,7 +245,7 @@ export function getPedidosItensImportTests() {
         __resetMemoryClientesForTests();
 
         const cliente = await createCliente({ nome: 'Cliente Reimportacao', codigo: 'CLI-9992' }, { accountId: 'acc-reimport' });
-        const pedido = await createPedidoFromImport({ cliente_id: cliente.id, numero: '9992', status: 'rascunho', origem: 'manual', total: 0, metadata: {} }, { accountId: 'acc-reimport' });
+        const { pedido } = await createPedidoFromImport({ cliente_id: cliente.id, numero: '9992', status: 'rascunho', origem: 'manual', total: 0, metadata: {} }, { accountId: 'acc-reimport' });
         const snapshotAntes = __dumpMemoryPedidos();
         snapshotAntes.pedidoItens = [
           { id: 'old-item-1', account_id: 'acc-reimport', pedido_id: pedido.id, produto_nome: 'Antigo', preco_unitario: 999 }

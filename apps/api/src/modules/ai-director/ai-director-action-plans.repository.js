@@ -234,3 +234,7 @@ export async function updateActionPlanStatus(id, accountId, status) {
 export function __resetMemoryAiDirectorActionPlansForTests() {
   memoryStore.length = 0;
 }
+
+export function __dumpMemoryAiDirectorActionPlansForTests() {
+  return memoryStore.map(clone);
+}
