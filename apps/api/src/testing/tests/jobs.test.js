@@ -1440,7 +1440,8 @@ export function getJobsTests() {
           metadata: { logical_theme: 'pendencias criticas de produtos' }
         });
         const job = await upsertSystemJob({ nome: 'diretor_reuniao_executiva', lock_key: 'diretor_reuniao_executiva', account_id: null, status: 'ativo', next_run_at: '2026-06-17T05:00:00.000Z' }, { accountId: null });
-        let lookupCount = 0;
+        const records = [];
+        let insertCount = 0;
         const savedRow = {
           id: 'mem-retry-1',
           account_id: accountId,
@@ -1457,48 +1458,74 @@ export function getJobsTests() {
         const fakeSupabase = {
           from(table) {
             if (table !== 'ai_director_executive_memories') throw new Error(`table inesperada: ${table}`);
+            const query = {
+              _filters: {},
+              select() { return this; },
+              eq(column, value) { this._filters[column] = value; return this; },
+              order() { return this; },
+              limit() { return this; },
+              async single() {
+                const item = records.find((row) =>
+                  String(row.account_id || '') === String(this._filters.account_id || '') &&
+                  String(row.tipo || '') === String(this._filters.tipo || '') &&
+                  String(row.categoria || '') === String(this._filters.categoria || '') &&
+                  String(row.origem || '') === String(this._filters.origem || '') &&
+                  String(row.id || '') === String(this._filters.id || '')
+                ) || null;
+                return item ? { data: item, error: null } : { data: null, error: { code: 'PGRST116', message: 'No rows found' } };
+              },
+              async maybeSingle() {
+                const item = records.find((row) =>
+                  String(row.account_id || '') === String(this._filters.account_id || '') &&
+                  String(row.id || '') === String(this._filters.id || '')
+                ) || null;
+                return { data: item, error: null };
+              },
+              async then(resolve, reject) {
+                try {
+                  const data = records.filter((row) =>
+                    String(row.account_id || '') === String(this._filters.account_id || '') &&
+                    (!this._filters.tipo || String(row.tipo || '') === String(this._filters.tipo || '')) &&
+                    (!this._filters.categoria || String(row.categoria || '') === String(this._filters.categoria || '')) &&
+                    (!this._filters.origem || String(row.origem || '') === String(this._filters.origem || ''))
+                  );
+                  resolve({ data, error: null });
+                } catch (error) {
+                  reject(error);
+                }
+              }
+            };
             return {
-              select() {
+              select() { return query; },
+              update(payload) {
                 return {
-                  eq() {
-                    return {
-                      eq() {
-                        return {
-                          eq() {
-                            return {
-                              async maybeSingle() {
-                                lookupCount += 1;
-                                return lookupCount === 1 ? { data: [], error: null } : { data: [savedRow], error: null };
-                              }
-                            };
-                          }
-                        };
-                      }
-                    };
-                  },
-                  insert() {
+                  eq(column, value) {
                     return {
                       select() {
                         return {
                           async single() {
-                            return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "ai_director_executive_memories_logical_dedupe_idx"' } };
+                            const idx = records.findIndex((row) => String(row[column] || '') === String(value || ''));
+                            if (idx === -1) return { data: null, error: { code: 'PGRST116', message: 'No rows found' } };
+                            records[idx] = { ...records[idx], ...payload };
+                            return { data: records[idx], error: null };
                           }
                         };
                       }
                     };
-                  },
-                  update() {
+                  }
+                };
+              },
+              insert(payload) {
+                return {
+                  select() {
                     return {
-                      eq() {
-                        return {
-                          select() {
-                            return {
-                              async single() {
-                                return { data: savedRow, error: null };
-                              }
-                            };
-                          }
-                        };
+                      async single() {
+                        insertCount += 1;
+                        if (insertCount === 1) {
+                          return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "ai_director_executive_memories_logical_dedupe_idx"' } };
+                        }
+                        records.push({ ...payload });
+                        return { data: payload, error: null };
                       }
                     };
                   }
@@ -1507,13 +1534,17 @@ export function getJobsTests() {
             };
           }
         };
+        records.push({ ...savedRow });
         __setAiDirectorSupabaseClientForTests(fakeSupabase, true);
         try {
           const result = await runDiretorReuniaoExecutivaJob({ accountId, job, auth: { accountId } });
           assert.equal(result.ok, true);
-          const memories = __dumpMemoryAiDirectorForTests().filter((item) => item.account_id === accountId && item.tipo === 'prioridade_executiva' && item.origem === 'diretor_reuniao_executiva');
-          assert.equal(memories.length, 1);
+          const second = await runDiretorReuniaoExecutivaJob({ accountId, job, auth: { accountId } });
+          assert.equal(second.ok, true);
+          assert.equal(insertCount, 1);
+          assert.equal(records.filter((item) => item.account_id === accountId && item.tipo === 'prioridade_executiva' && item.origem === 'diretor_reuniao_executiva').length, 1);
           assert.equal(result.fatalError, null);
+          assert.equal(second.fatalError, null);
         } finally {
           __setAiDirectorSupabaseClientForTests(null, false);
         }

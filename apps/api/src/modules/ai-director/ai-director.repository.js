@@ -440,8 +440,7 @@ async function findExistingExecutiveMemory(supabase, row) {
     .eq('categoria', row.categoria)
     .eq('origem', row.origem);
   if (error) throw new DatabaseError('Falha ao consultar memoria executiva do diretor', { details: error });
-  const existing = (data || []).find((item) => matchesExecutiveMemoryIdentity(item, row)) || null;
-  return existing;
+  return (data || []).find((item) => matchesExecutiveMemoryIdentity(item, row)) || null;
 }
 
 async function saveExecutiveMemoryRow(supabase, row) {
@@ -480,6 +479,16 @@ async function saveExecutiveMemoryRow(supabase, row) {
         const { data: updated, error: retryUpdateError } = await supabase.from('ai_director_executive_memories').update(next).eq('id', retryCurrent.id).select('*').single();
         if (!retryUpdateError) return updated;
       }
+      throw new DatabaseError('Falha ao criar memoria executiva do diretor apos 23505 sem registro correspondente', {
+        details: error,
+        context: {
+          account_id: row.account_id,
+          tipo: row.tipo,
+          categoria: row.categoria,
+          titulo: row.titulo,
+          origem: row.origem
+        }
+      });
     }
     throw new DatabaseError('Falha ao criar memoria executiva do diretor', { details: error });
   }
@@ -505,7 +514,6 @@ export async function createExecutiveMemory(data = {}, options = {}) {
     ...payload,
     criado_em: new Date().toISOString()
   };
-
   if (resolveAiDirectorSupabaseConfigured()) {
     const supabase = resolveAiDirectorSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
@@ -528,7 +536,6 @@ export async function upsertExecutiveMemory(data = {}, options = {}) {
     criado_em: new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
-
   if (resolveAiDirectorSupabaseConfigured()) {
     const supabase = resolveAiDirectorSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
