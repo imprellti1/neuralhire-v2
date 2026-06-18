@@ -41,3 +41,11 @@ export async function listActionPlans(apiClient, params = {}) {
 export async function updateActionPlanStatus(apiClient, id, payload) {
   return apiClient.patch(`/ai-director/action-plans/${id}/status`, payload);
 }
+
+export async function listTasks(apiClient, params = {}) {
+  return apiClient.get('/ai-director/tasks', params);
+}
+
+export async function updateTaskStatus(apiClient, id, payload) {
+  return apiClient.patch(`/ai-director/tasks/${id}/status`, payload);
+}

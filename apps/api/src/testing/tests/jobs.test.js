@@ -11,9 +11,10 @@ import { __resetMemoryProdutosForTests, createProduto } from '../../modules/prod
 import { __resetMemoryAiDirectorObservationsForTests, createObservation, listObservations } from '../../modules/ai-director-observations/ai-director-observations.repository.js';
 import { __dumpMemoryAiDirectorForTests, __resetMemoryAiDirectorForTests, createExecutiveMemory, listExecutiveMemories } from '../../modules/ai-director/ai-director.repository.js';
 import { __resetMemoryAiDirectorActionPlansForTests, buildExecutiveActionPlan, listActionPlans, upsertActionPlan } from '../../modules/ai-director/ai-director-action-plans.repository.js';
+import { __resetMemoryAiDirectorTasksForTests, buildDirectorTasksForActionPlan, listDirectorTasks, normalizeDirectorTaskKey } from '../../modules/ai-director/ai-director-tasks.repository.js';
 import { __resetAuditLogsForTests, __seedAuditLogForTests } from '../../modules/audit-logs/audit-logs.repository.js';
 import { __resetSystemJobsForTests, __dumpSystemJobsForTests, __setSystemJobsSupabaseClientForTests, acquireSystemJobLock, ensureDefaultSystemJobs, getSystemJobDefaults, listDueSystemJobs, recordSystemJobRun, updateSystemJobSchedule, upsertSystemJob } from '../../modules/jobs/jobs.repository.js';
-import { __resetJobsSchedulerForTests, dispatchDueJob, nextDaily0300, runDiretorPlanoAcaoJob, runJobsSchedulerTick, startJobsScheduler, stopJobsScheduler } from '../../modules/jobs/jobs.scheduler.js';
+import { __resetJobsSchedulerForTests, dispatchDueJob, nextDaily0300, runDiretorDelegacaoJob, runDiretorPlanoAcaoJob, runJobsSchedulerTick, startJobsScheduler, stopJobsScheduler } from '../../modules/jobs/jobs.scheduler.js';
 
 function parse(res) {
   try { return JSON.parse(res.body || '{}'); } catch { return {}; }
@@ -193,7 +194,7 @@ export function getJobsTests() {
       name: 'bootstrap padrão inclui diretor reunião executiva',
       run: async () => {
         const defaults = getSystemJobDefaults();
-        assert.equal(defaults.length, 10);
+        assert.equal(defaults.length, 11);
         assert.equal(defaults.some((job) => job.nome === 'gerente_comercial_observacao'), true);
         assert.equal(defaults.some((job) => job.nome === 'diretor_reuniao_executiva'), true);
         assert.equal(defaults.some((job) => job.nome === 'diretor_plano_acao'), true);
@@ -201,7 +202,7 @@ export function getJobsTests() {
         const logs = [];
         await ensureDefaultSystemJobs(null, { logger: { info: (...args) => logs.push(args) } });
         const dump = __dumpSystemJobsForTests();
-        assert.equal(dump.jobs.length, 10);
+        assert.equal(dump.jobs.length, 11);
         assert.equal(dump.jobs.some((job) => job.nome === 'gerente_comercial_observacao'), true);
         assert.equal(dump.jobs.some((job) => job.nome === 'diretor_reuniao_executiva'), true);
         assert.equal(dump.jobs.some((job) => job.nome === 'diretor_plano_acao'), true);
@@ -211,7 +212,7 @@ export function getJobsTests() {
         assert.equal(logs.some(([message]) => message === 'system_jobs_bootstrap_finished'), true);
         await ensureDefaultSystemJobs(null, { logger: { info: () => null } });
         const secondDump = __dumpSystemJobsForTests();
-        assert.equal(secondDump.jobs.length, 10);
+        assert.equal(secondDump.jobs.length, 11);
       }
     },
     {
@@ -1400,6 +1401,78 @@ export function getJobsTests() {
           failed = true;
         }
         assert.equal(failed, true);
+      }
+    },
+    {
+      name: 'buildDirectorTasksForActionPlan gera tarefas de produtos e prioriza alto',
+      run: async () => {
+        __resetMemoryAiDirectorTasksForTests();
+        const tasks = buildDirectorTasksForActionPlan({
+          id: 'plan-1',
+          account_id: 'acc-task',
+          titulo: 'Pendências de produtos',
+          descricao: 'Catálogo com inconsistências',
+          gerente_responsavel: 'gerente_produtos',
+          impacto: 'alto',
+          prioridade_score: 120,
+          metadata: {}
+        });
+        assert.equal(tasks.length, 3);
+        assert.equal(tasks[0].gerente, 'gerente_produtos');
+        assert.equal(tasks[0].prioridade, 'alta');
+      }
+    },
+    {
+      name: 'buildDirectorTasksForActionPlan gera tarefas comerciais',
+      run: async () => {
+        const tasks = buildDirectorTasksForActionPlan({
+          id: 'plan-2',
+          account_id: 'acc-task',
+          titulo: 'Plano comercial',
+          descricao: 'Carteira e clientes',
+          gerente_responsavel: 'gerente_comercial',
+          impacto: 'medio',
+          prioridade_score: 60,
+          metadata: {}
+        });
+        assert.equal(tasks.length, 3);
+        assert.equal(tasks.some((task) => task.titulo === 'Revisar clientes sem vendedor'), true);
+      }
+    },
+    {
+      name: 'normalizeDirectorTaskKey remove acentos, pontuação e espaços duplicados',
+      run: async () => {
+        assert.equal(normalizeDirectorTaskKey('  Revisar  pedidos, sem comissão!!  '), 'revisar_pedidos_sem_comissao');
+      }
+    },
+    {
+      name: 'diretor_delegacao cria tarefas e não duplica',
+      run: async () => {
+        __resetMemoryAiDirectorTasksForTests();
+        __resetMemoryAiDirectorActionPlansForTests();
+        __resetSystemJobsForTests();
+        const app = createApiApp();
+        await upsertActionPlan({
+          account_id: 'acc-task',
+          executive_memory_id: 'mem-1',
+          titulo: 'Plano comercial',
+          descricao: 'Carteira e clientes',
+          gerente_responsavel: 'gerente_comercial',
+          impacto: 'medio',
+          esforco: 'medio',
+          prioridade_score: 60,
+          prazo_dias: 7,
+          status: 'aberto',
+          metadata: {}
+        }, { accountId: 'acc-task' });
+        const job = await upsertSystemJob({ nome: 'diretor_delegacao', lock_key: 'diretor_delegacao', account_id: null, status: 'ativo', next_run_at: '2026-06-17T04:30:00.000Z' }, { accountId: null });
+        const first = await runDiretorDelegacaoJob({ accountId: 'acc-task', job, auth: { accountId: 'acc-task' } });
+        assert.equal(first.ok, true);
+        let tasks = await listDirectorTasks('acc-task', {});
+        assert.equal(tasks.length, 3);
+        await runDiretorDelegacaoJob({ accountId: 'acc-task', job, auth: { accountId: 'acc-task' } });
+        tasks = await listDirectorTasks('acc-task', {});
+        assert.equal(tasks.length, 3);
       }
     }
   ];

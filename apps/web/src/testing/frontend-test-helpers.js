@@ -9,6 +9,8 @@ export function setupFrontendDom(hash = '#/', hostname = 'localhost') {
   const previousBlob = global.Blob;
   const previousFile = global.File;
   const previousFormData = global.FormData;
+  const rafTimers = new Map();
+  let rafTimerId = 0;
   global.window = dom.window;
   global.document = dom.window.document;
   window.__NEURALHIRE_CONFIG__ = {
@@ -34,8 +36,26 @@ export function setupFrontendDom(hash = '#/', hostname = 'localhost') {
   global.URL = dom.window.URL;
   global.Event = dom.window.Event;
   global.KeyboardEvent = dom.window.KeyboardEvent;
-  window.requestAnimationFrame = (callback) => setTimeout(callback, 16);
-  window.cancelAnimationFrame = clearTimeout;
+  window.requestAnimationFrame = (callback) => {
+    const id = ++rafTimerId;
+    const timeoutId = setTimeout(() => {
+      rafTimers.delete(id);
+      callback(Date.now());
+    }, 16);
+    rafTimers.set(id, timeoutId);
+    return id;
+  };
+  window.cancelAnimationFrame = (id) => {
+    const timeoutId = rafTimers.get(id);
+    if (typeof timeoutId !== 'undefined') {
+      clearTimeout(timeoutId);
+      rafTimers.delete(id);
+    }
+  };
+  globalThis.__clearRafTimers = () => {
+    for (const timeoutId of rafTimers.values()) clearTimeout(timeoutId);
+    rafTimers.clear();
+  };
   dom.__previousGlobals = { previousBlob, previousFile, previousFormData };
   return dom;
 }
@@ -67,6 +87,8 @@ export function teardownFrontendDom(dom) {
     delete win.requestAnimationFrame;
     delete win.cancelAnimationFrame;
   }
+  if (typeof globalThis.__clearRafTimers === 'function') globalThis.__clearRafTimers();
+  delete globalThis.__clearRafTimers;
   dom.window.close();
   delete global.window;
   delete global.document;

@@ -11,6 +11,7 @@ import { calcularScoreComercialCliente } from '../clientes/clientes.repository.j
 import { createObservationIfNotOpen, listObservations } from '../ai-director-observations/ai-director-observations.repository.js';
 import { listExecutiveMemories, upsertExecutiveMemory } from '../ai-director/ai-director.repository.js';
 import { buildExecutiveActionPlan, listActionPlans, upsertActionPlan } from '../ai-director/ai-director-action-plans.repository.js';
+import { buildDirectorTasksForActionPlan, listDirectorTasks, listOpenActionPlansWithoutTasks, upsertDirectorTask } from '../ai-director/ai-director-tasks.repository.js';
 import { acquireSystemJobLock, getSystemJobByLockKey, listDueSystemJobs, listSystemJobRuns, listSystemJobs, recordSystemJobRun, releaseSystemJobLock, updateSystemJobSchedule, upsertSystemJob } from './jobs.repository.js';
 import { resolveJobNotificationRecipient, sendJobNotificationEmail } from '../notifications/notifications.email.service.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
@@ -48,6 +49,14 @@ function nextDaily0500(now = new Date()) {
   return next.toISOString();
 }
 
+function nextDaily0430(now = new Date()) {
+  const next = new Date(now);
+  next.setSeconds(0, 0);
+  next.setHours(4, 30, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  return next.toISOString();
+}
+
 function canonicalJobLockKey(nome) {
   return ({
     radar_comercial_diario: 'jobs:radar_comercial_diario',
@@ -59,7 +68,8 @@ function canonicalJobLockKey(nome) {
     gerente_auditoria_observacao: 'gerente_auditoria_observacao',
     gerente_administrativo_observacao: 'gerente_administrativo_observacao',
     diretor_reuniao_executiva: 'diretor_reuniao_executiva',
-    diretor_plano_acao: 'diretor_plano_acao'
+    diretor_plano_acao: 'diretor_plano_acao',
+    diretor_delegacao: 'diretor_delegacao'
   })[nome] || nome;
 }
 
@@ -90,7 +100,8 @@ const JOB_HANDLERS = {
   gerente_auditoria_observacao: runGerenteAuditoriaObservacaoJob,
   gerente_administrativo_observacao: runGerenteAdministrativoObservacaoJob,
   diretor_reuniao_executiva: runDiretorReuniaoExecutivaJob,
-  diretor_plano_acao: runDiretorPlanoAcaoJob
+  diretor_plano_acao: runDiretorPlanoAcaoJob,
+  diretor_delegacao: runDiretorDelegacaoJob
 };
 
 const TENANT_AWARE_JOB_NAMES = new Set(['clientes_enriquecimento_automatico', 'clientes_geolocalizacao_automatico', 'gerente_comercial_observacao', 'gerente_produtos_observacao', 'gerente_auditoria_observacao', 'gerente_administrativo_observacao', 'diretor_reuniao_executiva', 'diretor_plano_acao']);
@@ -520,6 +531,61 @@ async function runDiretorPlanoAcaoForAccount(job, context, accountId) {
     last_success_at: fatalError ? job.last_success_at : finishedAt,
     last_error: fatalError?.message || null,
     next_run_at: fatalError ? nextInMinutes(new Date(), 15) : nextDaily0500(new Date()),
+    locked_at: null,
+    locked_by: null
+  }, { accountId: null }).catch((error) => {
+    logJobError('updateSystemJobSchedule', error, { accountId, lockKey: job.lock_key, requestId: context.requestId || null });
+  });
+
+  return { ok: true, created, scanned, fatalError };
+}
+
+async function runDiretorDelegacaoForAccount(job, context, accountId) {
+  const startedAt = Date.now();
+  let created = 0;
+  let scanned = 0;
+  let fatalError = null;
+  let metadata = { result: 'empty_queue' };
+
+  try {
+    const plans = await listOpenActionPlansWithoutTasks(accountId);
+    scanned = plans.length;
+    for (const actionPlan of plans) {
+      const tasks = buildDirectorTasksForActionPlan(actionPlan);
+      for (const task of tasks) {
+        await upsertDirectorTask({ ...task, account_id: accountId, action_plan_id: actionPlan.id });
+        created += 1;
+      }
+    }
+    metadata = { result: 'success', generated: created, scanned };
+  } catch (error) {
+    fatalError = error;
+    metadata = { result: 'error', scanned, created };
+    logJobError('runDiretorDelegacaoJob', error, { accountId, lockKey: job.lock_key, requestId: context.requestId || null });
+  }
+
+  const finishedAt = isoNow();
+  await recordSystemJobRun({
+    job_id: job.id,
+    account_id: accountId,
+    nome: job.nome,
+    status: fatalError ? 'error' : 'success',
+    started_at: new Date(startedAt).toISOString(),
+    finished_at: finishedAt,
+    duration_ms: Date.now() - startedAt,
+    processed_count: scanned,
+    success_count: created,
+    error_count: fatalError ? 1 : 0,
+    metadata,
+    error: fatalError?.message || null
+  }, { accountId }).catch(() => null);
+
+  await updateSystemJobSchedule({ id: job.id, jobKey: job.nome }, {
+    status: 'ativo',
+    last_run_at: finishedAt,
+    last_success_at: fatalError ? job.last_success_at : finishedAt,
+    last_error: fatalError?.message || null,
+    next_run_at: fatalError ? nextInMinutes(new Date(), 15) : nextDaily0430(new Date()),
     locked_at: null,
     locked_by: null
   }, { accountId: null }).catch((error) => {
@@ -1198,6 +1264,27 @@ export async function runDiretorPlanoAcaoJob(context = {}) {
     return { ok: true, mode: 'tenant_fanout', accountIds, results };
   }
   return runDiretorPlanoAcaoForAccount(job, context, accountId);
+}
+
+export async function runDiretorDelegacaoJob(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const job = context.job || await resolveGlobalSystemJob('diretor_delegacao') || await upsertSystemJob({
+    nome: 'diretor_delegacao',
+    lock_key: canonicalJobLockKey('diretor_delegacao'),
+    account_id: null,
+    status: 'ativo',
+    last_run_at: isoNow(),
+    next_run_at: nextDaily0430(new Date())
+  }, { accountId: null });
+  if (!accountId) {
+    const accountIds = await listTenantExecutiveAccounts();
+    const results = [];
+    for (const tenantAccountId of accountIds) {
+      results.push(await runDiretorDelegacaoForAccount(job, context, tenantAccountId));
+    }
+    return { ok: true, mode: 'tenant_fanout', accountIds, results };
+  }
+  return runDiretorDelegacaoForAccount(job, context, accountId);
 }
 
 export async function listJobsOverview(context = {}) {

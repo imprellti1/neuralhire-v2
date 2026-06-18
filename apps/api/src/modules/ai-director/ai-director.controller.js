@@ -1,6 +1,7 @@
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { createAiDirectorMemory, consultManager, getAiDirectorDashboard, listAiDirectorMemories, listExecutiveMemories, listManagers } from './ai-director.repository.js';
 import { listActionPlans, updateActionPlanStatus } from './ai-director-action-plans.repository.js';
+import { listDirectorTasks, updateDirectorTaskStatus } from './ai-director-tasks.repository.js';
 import { answerAiDirectorQuestion, delegateAiDirectorQuestion } from './ai-director.orchestrator.js';
 
 export async function getAiDirectorDashboardHandler() {
@@ -68,4 +69,24 @@ export async function patchAiDirectorActionPlanStatusHandler(context = {}) {
   const id = context?.params?.id;
   const status = String(context?.body?.status || '').trim();
   return { ok: true, item: await updateActionPlanStatus(id, accountId, status) };
+}
+
+export async function listAiDirectorTasksHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const query = context.query || {};
+  return {
+    ok: true,
+    items: await listDirectorTasks(accountId, {
+      status: query.status ? String(query.status).trim() : undefined,
+      gerente: query.gerente ? String(query.gerente).trim() : undefined,
+      action_plan_id: query.action_plan_id ? String(query.action_plan_id).trim() : undefined
+    })
+  };
+}
+
+export async function patchAiDirectorTaskStatusHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const id = context?.params?.id;
+  const status = String(context?.body?.status || '').trim();
+  return { ok: true, item: await updateDirectorTaskStatus(id, accountId, status) };
 }

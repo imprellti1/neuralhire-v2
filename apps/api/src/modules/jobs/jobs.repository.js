@@ -64,7 +64,8 @@ export function getSystemJobDefaults() {
     { nome: 'gerente_auditoria_observacao', lock_key: 'gerente_auditoria_observacao', metadata: { cadence: 'daily-0430', ttlMinutes: 60 } },
     { nome: 'gerente_administrativo_observacao', lock_key: 'gerente_administrativo_observacao', metadata: { cadence: 'daily-0445', ttlMinutes: 60 } },
     { nome: 'diretor_reuniao_executiva', lock_key: 'diretor_reuniao_executiva', metadata: { cadence: 'daily-0500', ttlMinutes: 60 } },
-    { nome: 'diretor_plano_acao', lock_key: 'diretor_plano_acao', metadata: { cadence: 'daily-0530', ttlMinutes: 60 } }
+    { nome: 'diretor_plano_acao', lock_key: 'diretor_plano_acao', metadata: { cadence: 'daily-0530', ttlMinutes: 60 } },
+    { nome: 'diretor_delegacao', lock_key: 'diretor_delegacao', metadata: { cadence: 'daily-0430', ttlMinutes: 60 } }
   ];
 }
 

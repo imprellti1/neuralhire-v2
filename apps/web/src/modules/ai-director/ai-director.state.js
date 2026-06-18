@@ -11,6 +11,11 @@ export function createAiDirectorState() {
       status: 'all',
       gerente_responsavel: 'all'
     },
+    tasks: [],
+    tasksFilter: {
+      status: 'all',
+      gerente: 'all'
+    },
     observations: [],
     observationsFilter: 'all',
     managers: [],

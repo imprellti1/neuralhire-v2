@@ -1,4 +1,4 @@
-import { askDirector, consultManager, createMemory, fetchAiDirectorDashboard, listActionPlans, listExecutiveMemories, listManagers, listMemories, listObservations, updateActionPlanStatus } from './ai-director.service.js';
+import { askDirector, consultManager, createMemory, fetchAiDirectorDashboard, listActionPlans, listExecutiveMemories, listManagers, listMemories, listObservations, listTasks, updateActionPlanStatus, updateTaskStatus } from './ai-director.service.js';
 import { createAiDirectorState } from './ai-director.state.js';
 
 function esc(value) {
@@ -61,6 +61,16 @@ function badgeClass(value) {
   if (['medium', 'media', 'média', 'atencao', 'atenção', 'bom'].includes(normalized)) return 'warning';
   if (['low', 'baixa', 'excelente'].includes(normalized)) return 'success';
   return 'muted';
+}
+
+function formatManagerLabel(value) {
+  return ({
+    gerente_produtos: 'Gerente de Produtos',
+    gerente_comercial: 'Gerente Comercial',
+    gerente_auditoria: 'Gerente de Auditoria',
+    gerente_administrativo: 'Gerente Administrativo',
+    diretor_ia: 'Diretor IA'
+  })[value] || value || '—';
 }
 
 function observationSeverityLabel(value) {
@@ -447,6 +457,11 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
     const actionPlans = (state.actionPlans || []).filter((plan) => {
       if (state.actionPlansFilter.status !== 'all' && plan.status !== state.actionPlansFilter.status) return false;
       if (state.actionPlansFilter.gerente_responsavel !== 'all' && plan.gerente_responsavel !== state.actionPlansFilter.gerente_responsavel) return false;
+      return true;
+    });
+    const tasks = (state.tasks || []).filter((task) => {
+      if (state.tasksFilter.status !== 'all' && task.status !== state.tasksFilter.status) return false;
+      if (state.tasksFilter.gerente !== 'all' && task.gerente !== state.tasksFilter.gerente) return false;
       return true;
     });
     const observations = (state.observations || []).filter((item) => observationCategoryMatchesFilter(item, state.observationsFilter));
@@ -846,6 +861,41 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
               `).join('') : '<div class="nh-mini">Sem planos de ação gerados para o momento.</div>'}
             </div>
           </section>
+          <section class="nh-card">
+            <div class="nh-between">
+              <div>
+                <h2 class="nh-section-title">Delegações</h2>
+                <p class="nh-section-subtitle">Plano de ação convertido em tarefas operacionais.</p>
+              </div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <select id="ai-director-tasks-status" class="nh-select" style="max-width: 180px;">
+                  ${['all', 'aberto', 'em_andamento', 'concluido', 'bloqueado', 'cancelado'].map((status) => `<option value="${status}"${state.tasksFilter.status === status ? ' selected' : ''}>${status === 'all' ? 'Todos os status' : status}</option>`).join('')}
+                </select>
+                <select id="ai-director-tasks-gerente" class="nh-select" style="max-width: 220px;">
+                  ${['all', 'gerente_produtos', 'gerente_comercial', 'gerente_auditoria', 'gerente_administrativo', 'diretor_ia'].map((gerente) => `<option value="${gerente}"${state.tasksFilter.gerente === gerente ? ' selected' : ''}>${gerente === 'all' ? 'Todos os gerentes' : formatManagerLabel(gerente)}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+            <div class="nh-list" style="margin-top: 14px;">
+              ${tasks.length ? tasks.map((item) => `
+                <div class="nh-list-item">
+                  <div class="nh-between">
+                    <strong>${esc(item.titulo)}</strong>
+                    <span class="nh-badge ${badgeClass(item.status)}">${esc(item.status)}</span>
+                  </div>
+                  <div class="nh-mini" style="margin-top: 6px;">${esc(formatManagerLabel(item.gerente))} · prioridade ${esc(item.prioridade)} · ${esc(item.percentual_conclusao)}%</div>
+                  <div class="nh-mini" style="margin-top: 6px;">Plano de origem: ${esc(item.action_plan_id || '—')} · ${esc(formatCompactDate(item.criado_em))}</div>
+                  <div style="margin-top: 8px;">${esc(item.descricao || '—')}</div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top: 10px;">
+                    <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="em_andamento" type="button">Em andamento</button>
+                    <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="concluido" type="button">Concluído</button>
+                    <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="bloqueado" type="button">Bloqueado</button>
+                    <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="cancelado" type="button">Cancelar</button>
+                  </div>
+                </div>
+              `).join('') : '<div class="nh-mini">Sem delegações no momento.</div>'}
+            </div>
+          </section>
         </article>
         <article class="nh-card">
           <div class="nh-between">
@@ -988,6 +1038,14 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
       state.actionPlansFilter.gerente_responsavel = event.target.value || 'all';
       render();
     });
+    container.querySelector('#ai-director-tasks-status')?.addEventListener('change', (event) => {
+      state.tasksFilter.status = event.target.value || 'all';
+      render();
+    });
+    container.querySelector('#ai-director-tasks-gerente')?.addEventListener('change', (event) => {
+      state.tasksFilter.gerente = event.target.value || 'all';
+      render();
+    });
 
     container.querySelectorAll('.action-plan-status-button').forEach((button) => {
       button.addEventListener('click', async () => {
@@ -995,6 +1053,16 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
         const planId = button.getAttribute('data-plan-id');
         const status = button.getAttribute('data-status');
         await updateActionPlanStatus(apiClient, planId, { status }).catch(() => null);
+        await load();
+      });
+    });
+
+    container.querySelectorAll('.task-status-button').forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (!apiClient) return;
+        const taskId = button.getAttribute('data-task-id');
+        const status = button.getAttribute('data-status');
+        await updateTaskStatus(apiClient, taskId, { status }).catch(() => null);
         await load();
       });
     });
@@ -1008,7 +1076,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
     state.managersLoading = true;
     render();
     try {
-      const [dashboardResult, memoriesResult, executiveMemoriesResult, actionPlansResult, observationsResult, managersResult] = await Promise.all([
+      const [dashboardResult, memoriesResult, executiveMemoriesResult, actionPlansResult, tasksResult, observationsResult, managersResult] = await Promise.all([
         fetchAiDirectorDashboard(apiClient),
         listMemories(apiClient).catch(() => {
           state.memoryError = 'Não foi possível carregar as memórias.';
@@ -1016,6 +1084,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
         }),
         listExecutiveMemories(apiClient).catch(() => ({ items: [] })),
         listActionPlans(apiClient).catch(() => ({ items: [] })),
+        listTasks(apiClient).catch(() => ({ items: [] })),
         listObservations(apiClient, { status: 'open', limit: 20 }).catch(() => ({ items: [] })),
         listManagers(apiClient).catch(() => {
           return { managers: [] };
@@ -1026,6 +1095,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
       state.memories = memoriesResult.items || [];
       state.executiveMemories = executiveMemoriesResult.items || [];
       state.actionPlans = actionPlansResult.items || [];
+      state.tasks = tasksResult.items || [];
       state.observations = observationsResult.items || [];
       state.managers = managersResult.managers || [];
     } catch (error) {
