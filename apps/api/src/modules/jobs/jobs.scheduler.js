@@ -229,10 +229,10 @@ function executivePriorityScore(observations = []) {
 function buildExecutivePriorityTitle(category, managerId, theme, count) {
   const labels = { auditoria: 'Pendências críticas de auditoria', comercial: 'Clientes em risco comercial', administrativo: 'Pendências administrativas de cadastro', produtos: 'Pendências críticas de produtos' };
   const base = labels[String(category || '').toLowerCase()] || 'Prioridade executiva';
-  const manager = String(managerId || '').trim().replace(/_/g, ' ');
-  const themeLabel = String(theme || '').trim().replace(/_/g, ' ');
-  const focus = manager || themeLabel || 'grupo consolidado';
-  return `${base}: ${focus}`.slice(0, 120);
+  void managerId;
+  void theme;
+  void count;
+  return base.slice(0, 120);
 }
 
 function buildExecutivePriorityDescription(observations = [], windowDays = 7) {
@@ -276,7 +276,8 @@ function mergeExecutivePriorityGroups(items = []) {
           score,
           merged_groups_count: 1,
           merged_titles: [String(item?.titulo || '').trim()].filter(Boolean)
-        }
+        },
+        titulo: String(item?.titulo || '').trim().split(':')[0].trim() || item?.titulo
       });
       continue;
     }
@@ -290,6 +291,7 @@ function mergeExecutivePriorityGroups(items = []) {
     current.metadata.normalized_title_key = titleKey;
     current.metadata.merged_groups_count = Number(current.metadata.merged_groups_count || 1) + 1;
     current.metadata.merged_titles = [...new Set([...(current.metadata.merged_titles || []), String(item?.titulo || '').trim()].filter(Boolean))];
+    current.titulo = String(current.titulo || item?.titulo || '').trim().split(':')[0].trim() || current.titulo;
     current.severidade = current.metadata.score >= 100 ? 'critica' : current.metadata.score >= 70 ? 'alta' : current.metadata.score >= 40 ? 'media' : 'baixa';
   }
   return [...merged.values()];

@@ -511,7 +511,7 @@ export function getJobsTests() {
         await runDiretorReuniaoExecutivaJob({ accountId, auth: { role: 'admin', accountId }, job });
         const priorities = __dumpMemoryAiDirectorForTests().filter((item) => item.account_id === accountId && item.origem === 'diretor_reuniao_executiva' && item.tipo === 'prioridade_executiva');
         assert.equal(priorities.length, 1);
-        assert.equal(priorities[0].titulo.includes('('), false);
+        assert.equal(priorities[0].titulo, 'Pendências críticas de produtos');
         assert.equal(priorities[0].metadata.rank, 1);
         assert.equal(priorities[0].metadata.score > 0, true);
         assert.equal(Array.isArray(priorities[0].metadata.observation_ids), true);
@@ -520,6 +520,9 @@ export function getJobsTests() {
         assert.equal(typeof priorities[0].metadata.normalized_title_key, 'string');
         assert.equal(Array.isArray(priorities[0].metadata.merged_titles), true);
         assert.equal(priorities[0].metadata.merged_titles.length, 3);
+        assert.equal(Array.isArray(priorities[0].metadata.managers), true);
+        assert.equal(Array.isArray(priorities[0].metadata.categories), true);
+        assert.equal(priorities[0].metadata.total_observations, 3);
         assert.match(priorities[0].descricao, /Consolida/i);
         assert.match(priorities[0].descricao, /gerentes?/i);
         assert.match(priorities[0].descricao, /categorias?/i);
