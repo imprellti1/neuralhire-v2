@@ -42,6 +42,14 @@ function applyFilters(items, filters) {
 
 function shape(row) { return row ? clone(row) : null; }
 
+function logObservationDedupeCheck(event, payload = {}) {
+  console.log(JSON.stringify({
+    event,
+    timestamp: new Date().toISOString(),
+    ...payload
+  }));
+}
+
 function buildObservationKey(accountId, payload = {}) {
   const origin = String(payload.origin || payload.source_type || 'manual').trim();
   return [
@@ -69,31 +77,71 @@ function isOpenEquivalent(row, accountId, payload) {
 
 async function cleanupDuplicateOpenObservations(supabase, accountId, payload) {
   const origin = String(payload.origin || payload.source_type || 'manual').trim();
-  const { data, error } = await supabase
-    .from('ai_director_observations')
-    .select('*')
-    .eq('account_id', accountId)
-    .eq('manager_id', payload.manager_id)
-    .eq('category', payload.category)
-    .eq('title', payload.title)
-    .eq('status', 'open')
-    .eq('origin', origin)
-    .order('created_at', { ascending: false })
-    .limit(10);
+  const dedupeKey = String(payload.metadata?.dedupe_key || payload.metadata?.dedupeKey || '').trim();
+  const queryFilters = {
+    account_id: accountId,
+    manager_id: payload.manager_id,
+    category: payload.category,
+    title: payload.title,
+    status: 'open',
+    origin,
+    dedupe_key: dedupeKey || null
+  };
+  logObservationDedupeCheck('observation_dedupe_check_started', { filters: queryFilters });
 
-  if (error) throw new DatabaseError('Falha ao verificar observacoes duplicadas', { details: error });
+  try {
+    const { data, error } = await supabase
+      .from('ai_director_observations')
+      .select('*')
+      .eq('account_id', accountId)
+      .eq('manager_id', payload.manager_id)
+      .eq('category', payload.category)
+      .eq('title', payload.title)
+      .eq('status', 'open')
+      .eq('origin', origin)
+      .order('created_at', { ascending: false })
+      .limit(10);
 
-  const rows = Array.isArray(data) ? data : [];
-  if (rows.length <= 1) return rows[0] || null;
+    if (error) {
+      logObservationDedupeCheck('observation_dedupe_check_failed', {
+        filters: queryFilters,
+        error: {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          stack: error.stack
+        }
+      });
+      throw error;
+    }
 
-  const [latest, ...duplicates] = rows;
-  const duplicateIds = duplicates.map((row) => row.id).filter(Boolean);
-  if (duplicateIds.length > 0) {
-    const { error: deleteError } = await supabase.from('ai_director_observations').delete().in('id', duplicateIds);
-    if (deleteError) throw new DatabaseError('Falha ao remover observacoes duplicadas', { details: deleteError });
+    const rows = Array.isArray(data) ? data : [];
+    if (rows.length <= 1) return rows[0] || null;
+
+    const [latest, ...duplicates] = rows;
+    const duplicateIds = duplicates.map((row) => row.id).filter(Boolean);
+    if (duplicateIds.length > 0) {
+      const { error: deleteError } = await supabase.from('ai_director_observations').delete().in('id', duplicateIds);
+      if (deleteError) throw new DatabaseError('Falha ao remover observacoes duplicadas', { details: deleteError });
+    }
+
+    return latest || null;
+  } catch (error) {
+    if (error?.message !== 'Falha ao remover observacoes duplicadas') {
+      logObservationDedupeCheck('observation_dedupe_check_failed', {
+        filters: queryFilters,
+        error: {
+          message: error?.message,
+          code: error?.code,
+          details: error?.details,
+          hint: error?.hint,
+          stack: error?.stack
+        }
+      });
+    }
+    throw error;
   }
-
-  return latest || null;
 }
 
 export async function listObservations(context = {}, filters = {}) {
