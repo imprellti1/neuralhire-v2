@@ -22,6 +22,8 @@ const validExecutiveTipos = new Set(['trend', 'alert', 'opportunity', 'risk', 'p
 const validExecutiveCategorias = new Set(['comercial', 'produtos', 'auditoria', 'followup', 'administrativo', 'geral']);
 const validExecutiveSeveridades = new Set(['baixa', 'media', 'alta', 'critica']);
 const memoryStore = [];
+let supabaseClientOverride = null;
+let supabaseConfiguredOverride = null;
 const managerProviderOverrides = new Map();
 const managers = [
   {
@@ -417,22 +419,29 @@ function isUniqueConstraintViolation(error) {
   return String(error?.code || '') === '23505';
 }
 
-function buildExecutiveMemoryIdentityQuery(query, row = {}) {
-  return query
-    .eq('account_id', row.account_id)
-    .eq('tipo', row.tipo)
-    .eq('categoria', row.categoria)
-    .ilike('titulo', row.titulo)
-    .eq('origem', row.origem);
+function normalizeExecutiveMemoryTitle(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function matchesExecutiveMemoryIdentity(row = {}, candidate = {}) {
+  return String(row.account_id || '') === String(candidate.account_id || '') &&
+    String(row.tipo || '') === String(candidate.tipo || '') &&
+    String(row.categoria || '') === String(candidate.categoria || '') &&
+    normalizeExecutiveMemoryTitle(row.titulo) === normalizeExecutiveMemoryTitle(candidate.titulo) &&
+    String(row.origem || '') === String(candidate.origem || '');
 }
 
 async function findExistingExecutiveMemory(supabase, row) {
-  const { data, error } = await buildExecutiveMemoryIdentityQuery(
-    supabase.from('ai_director_executive_memories').select('*'),
-    row
-  ).maybeSingle();
+  const { data, error } = await supabase
+    .from('ai_director_executive_memories')
+    .select('*')
+    .eq('account_id', row.account_id)
+    .eq('tipo', row.tipo)
+    .eq('categoria', row.categoria)
+    .eq('origem', row.origem);
   if (error) throw new DatabaseError('Falha ao consultar memoria executiva do diretor', { details: error });
-  return data || null;
+  const existing = (data || []).find((item) => matchesExecutiveMemoryIdentity(item, row)) || null;
+  return existing;
 }
 
 async function saveExecutiveMemoryRow(supabase, row) {
@@ -477,6 +486,15 @@ async function saveExecutiveMemoryRow(supabase, row) {
   return inserted;
 }
 
+function resolveAiDirectorSupabaseClient() {
+  return supabaseClientOverride || getSupabaseClient();
+}
+
+function resolveAiDirectorSupabaseConfigured() {
+  if (supabaseConfiguredOverride !== null) return supabaseConfiguredOverride;
+  return isSupabaseConfigured();
+}
+
 export async function createExecutiveMemory(data = {}, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
@@ -488,8 +506,8 @@ export async function createExecutiveMemory(data = {}, options = {}) {
     criado_em: new Date().toISOString()
   };
 
-  if (mode() === 'supabase') {
-    const supabase = getSupabaseClient();
+  if (resolveAiDirectorSupabaseConfigured()) {
+    const supabase = resolveAiDirectorSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     return saveExecutiveMemoryRow(supabase, row);
   }
@@ -511,8 +529,8 @@ export async function upsertExecutiveMemory(data = {}, options = {}) {
     updated_at: new Date().toISOString()
   };
 
-  if (mode() === 'supabase') {
-    const supabase = getSupabaseClient();
+  if (resolveAiDirectorSupabaseConfigured()) {
+    const supabase = resolveAiDirectorSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     return saveExecutiveMemoryRow(supabase, row);
   }
@@ -601,6 +619,11 @@ export async function createAiDirectorMemory(data = {}, options = {}) {
 
   memoryStore.push(row);
   return clone(row);
+}
+
+export function __setAiDirectorSupabaseClientForTests(client, configured = true) {
+  supabaseClientOverride = client;
+  supabaseConfiguredOverride = configured;
 }
 
 export function __resetMemoryAiDirectorForTests() {

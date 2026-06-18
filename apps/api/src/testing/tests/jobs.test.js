@@ -9,7 +9,7 @@ import { __resetMemoryTimelineForTests } from '../../modules/clientes/clientes.t
 import { __resetMemoryPedidosForTests, createPedido } from '../../modules/pedidos/pedidos.repository.js';
 import { __resetMemoryProdutosForTests, createProduto } from '../../modules/produtos/produtos.repository.js';
 import { __resetMemoryAiDirectorObservationsForTests, createObservation, listObservations } from '../../modules/ai-director-observations/ai-director-observations.repository.js';
-import { __dumpMemoryAiDirectorForTests, __resetMemoryAiDirectorForTests, createExecutiveMemory, listExecutiveMemories } from '../../modules/ai-director/ai-director.repository.js';
+import { __dumpMemoryAiDirectorForTests, __resetMemoryAiDirectorForTests, __setAiDirectorSupabaseClientForTests, createExecutiveMemory, listExecutiveMemories } from '../../modules/ai-director/ai-director.repository.js';
 import { __resetMemoryAiDirectorActionPlansForTests, buildExecutiveActionPlan, listActionPlans, upsertActionPlan } from '../../modules/ai-director/ai-director-action-plans.repository.js';
 import { __resetMemoryAiDirectorTasksForTests, buildDirectorTasksForActionPlan, listDirectorTasks, normalizeDirectorTaskKey } from '../../modules/ai-director/ai-director-tasks.repository.js';
 import { __resetAuditLogsForTests, __seedAuditLogForTests } from '../../modules/audit-logs/audit-logs.repository.js';
@@ -1418,6 +1418,105 @@ export function getJobsTests() {
         memories = __dumpMemoryAiDirectorForTests().filter((item) => item.account_id === accountId && item.tipo === 'prioridade_executiva' && item.origem === 'diretor_reuniao_executiva');
         assert.equal(memories.length, 1);
         assert.equal(memories[0].id, firstId);
+      }
+    },
+    {
+      name: 'diretor_reuniao_executiva recupera de 23505 sem erro',
+      run: async () => {
+        __resetMemoryAiDirectorForTests();
+        __resetMemoryAiDirectorObservationsForTests();
+        __resetSystemJobsForTests();
+        const accountId = 'acc-exec-23505';
+        await createObservation({
+          accountId
+        }, {
+          manager_id: 'gerente_produtos',
+          manager_name: 'Gerente Produtos',
+          category: 'produtos',
+          title: 'Pendencias criticas de produtos',
+          description: 'Falhas recorrentes no catalogo',
+          severity: 'high',
+          status: 'open',
+          metadata: { logical_theme: 'pendencias criticas de produtos' }
+        });
+        const job = await upsertSystemJob({ nome: 'diretor_reuniao_executiva', lock_key: 'diretor_reuniao_executiva', account_id: null, status: 'ativo', next_run_at: '2026-06-17T05:00:00.000Z' }, { accountId: null });
+        let lookupCount = 0;
+        const savedRow = {
+          id: 'mem-retry-1',
+          account_id: accountId,
+          tipo: 'prioridade_executiva',
+          titulo: 'Pendências críticas de produtos',
+          descricao: 'Falhas recorrentes no catálogo',
+          categoria: 'produtos',
+          severidade: 'alta',
+          origem: 'diretor_reuniao_executiva',
+          metadata: { generated_by: 'diretor_reuniao_executiva' },
+          criado_em: '2026-06-17T05:00:00.000Z',
+          updated_at: '2026-06-17T05:00:00.000Z'
+        };
+        const fakeSupabase = {
+          from(table) {
+            if (table !== 'ai_director_executive_memories') throw new Error(`table inesperada: ${table}`);
+            return {
+              select() {
+                return {
+                  eq() {
+                    return {
+                      eq() {
+                        return {
+                          eq() {
+                            return {
+                              async maybeSingle() {
+                                lookupCount += 1;
+                                return lookupCount === 1 ? { data: [], error: null } : { data: [savedRow], error: null };
+                              }
+                            };
+                          }
+                        };
+                      }
+                    };
+                  },
+                  insert() {
+                    return {
+                      select() {
+                        return {
+                          async single() {
+                            return { data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "ai_director_executive_memories_logical_dedupe_idx"' } };
+                          }
+                        };
+                      }
+                    };
+                  },
+                  update() {
+                    return {
+                      eq() {
+                        return {
+                          select() {
+                            return {
+                              async single() {
+                                return { data: savedRow, error: null };
+                              }
+                            };
+                          }
+                        };
+                      }
+                    };
+                  }
+                };
+              }
+            };
+          }
+        };
+        __setAiDirectorSupabaseClientForTests(fakeSupabase, true);
+        try {
+          const result = await runDiretorReuniaoExecutivaJob({ accountId, job, auth: { accountId } });
+          assert.equal(result.ok, true);
+          const memories = __dumpMemoryAiDirectorForTests().filter((item) => item.account_id === accountId && item.tipo === 'prioridade_executiva' && item.origem === 'diretor_reuniao_executiva');
+          assert.equal(memories.length, 1);
+          assert.equal(result.fatalError, null);
+        } finally {
+          __setAiDirectorSupabaseClientForTests(null, false);
+        }
       }
     },
     {

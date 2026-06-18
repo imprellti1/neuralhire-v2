@@ -145,7 +145,7 @@ function resolveSupabaseClient() {
 async function listTasksSupabase(accountId, filters = {}) {
   const supabase = resolveSupabaseClient();
   if (!supabase) throw new DatabaseError('Supabase indisponivel');
-  let query = supabase.from('ai_director_tasks').select('*').eq('account_id', accountId).order('criado_em', { ascending: false });
+  let query = supabase.from('ai_director_tasks').select('*').eq('account_id', accountId).order('updated_at', { ascending: false });
   if (filters.status) query = query.eq('status', filters.status);
   if (filters.gerente) query = query.eq('gerente', filters.gerente);
   if (filters.action_plan_id) query = query.eq('action_plan_id', filters.action_plan_id);
