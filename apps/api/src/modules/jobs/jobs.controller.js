@@ -2,7 +2,7 @@ import { ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { logger } from '../../core/logger.js';
 import { listJobsOverview, runClientesEnriquecimentoJob, runClientesGeolocalizacaoJob, runGerenteComercialObservacaoJob, runNotificacoesResumoSemanalJob, runRadarComercialJob } from './jobs.scheduler.js';
-import { getSystemJobById, getSystemJobByLockKey, listSystemJobRuns, listSystemJobRunsForJob, listSystemJobs } from './jobs.repository.js';
+import { getSystemJobById, listSystemJobRuns, listSystemJobRunsForJob, listSystemJobs } from './jobs.repository.js';
 
 function assertJobAdmin(context) {
   const role = String(context?.auth?.role || '').toLowerCase();
@@ -53,13 +53,11 @@ export async function getJobDetailAdmin(context = {}) {
 async function resolveAdminJobForManualRun(context = {}) {
   const accountId = getAccountIdFromContext(context);
   const id = String(context.params?.id || '').trim();
+  const normalizedId = id.replace(/-/g, '_');
   const jobs = await listSystemJobs(null);
-  let item = jobs.find((job) => String(job.id) === String(id) && (job.account_id === accountId || job.account_id === null || !accountId)) || null;
-  if (!item) item = jobs.find((job) => String(job.nome) === id || String(job.lock_key) === id) || null;
-  if (!item) item = await getSystemJobByLockKey(id).catch(() => null);
-  if (!item) {
-    item = await getSystemJobById(id, accountId);
-  }
+  let item = jobs.find((job) => String(job.id) === String(id)) || null;
+  if (!item) item = jobs.find((job) => String(job.nome) === normalizedId || String(job.lock_key) === id || String(job.nome) === id) || null;
+  if (!item && accountId) item = await getSystemJobById(id, accountId);
   if (!item) {
     throw new NotFoundError('Job nao encontrado', { code: 'JOB_NOT_FOUND', domain: 'system-jobs' });
   }

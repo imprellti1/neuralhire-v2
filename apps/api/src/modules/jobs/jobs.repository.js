@@ -49,6 +49,10 @@ function normalizeSystemJobStatus(status) {
   return value === 'inativo' ? 'inativo' : 'ativo';
 }
 
+function canonicalJobLockKey(nome) {
+  return getSystemJobDefaults().find((job) => job.nome === nome)?.lock_key || nome;
+}
+
 export function getSystemJobDefaults() {
   return [
     { nome: 'radar_comercial_diario', lock_key: 'jobs:radar_comercial_diario', metadata: { cadence: 'daily-0300', ttlMinutes: 120 } },
@@ -61,7 +65,7 @@ export function getSystemJobDefaults() {
 
 function seedSystemJobs(accountId = null) {
   for (const job of getSystemJobDefaults()) {
-    const key = `${accountId || 'global'}:${job.lock_key}`;
+    const key = job.lock_key;
     if (!memoryJobs.has(key)) memoryJobs.set(key, defaultJob(job.nome, key, accountId, job.metadata));
   }
 }
@@ -79,14 +83,14 @@ export async function ensureDefaultSystemJobs(accountId = null, { logger: bootst
   let skipped = 0;
 
   for (const job of defaults) {
-    const before = await getSystemJobByLockKey(accountId ? `${accountId}:${job.lock_key}` : job.lock_key);
+    const before = await getSystemJobByLockKey(job.lock_key);
     const result = await upsertSystemJob({
       nome: job.nome,
-      lock_key: accountId ? `${accountId}:${job.lock_key}` : job.lock_key,
-      account_id: accountId,
+      lock_key: job.lock_key,
+      account_id: null,
       status: 'ativo',
       metadata: job.metadata
-    }, { accountId });
+    }, { accountId: null });
     if (!before) created += 1;
     else if (result?.updated_at && before?.updated_at && result.updated_at !== before.updated_at) updated += 1;
     else skipped += 1;
@@ -125,9 +129,8 @@ function logSystemJobSupabaseError(stage, { requestId = null, accountId = null, 
 }
 
 async function ensureSystemJob({ lockKey, nome, accountId = null, metadata = {}, requestId = null }) {
-  assertAccountId(accountId);
   const jobNome = nome;
-  const jobLockKey = lockKey || `${accountId || 'global'}:${jobNome}`;
+  const jobLockKey = lockKey || canonicalJobLockKey(jobNome);
   const timestamp = nowIso();
   const payload = {
     id: randomUUID(),
@@ -209,14 +212,15 @@ async function listJobsSupabase(accountId = null) {
   if (accountId) query = query.or(`account_id.is.null,account_id.eq.${accountId}`);
   const { data, error } = await query;
   if (error) throw new DatabaseError('Falha ao listar jobs', { details: error });
-  return data || [];
+  return [...new Map((data || []).map((job) => [job.lock_key, job])).values()];
 }
 
 export async function listSystemJobs(accountId = null, options = {}) {
   if (resolveSupabaseConfigured()) return listJobsSupabase(accountId);
   seedSystemJobs(accountId);
   const items = [...memoryJobs.values()].filter((job) => job.account_id === accountId || (!accountId && job.account_id === null));
-  return items.sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
+  const deduped = [...new Map(items.map((job) => [job.lock_key, job])).values()];
+  return deduped.sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
 }
 
 export async function listDueSystemJobs({ now = new Date(), limit = 10, accountId = null } = {}) {
@@ -251,7 +255,7 @@ export async function listDueSystemJobs({ now = new Date(), limit = 10, accountI
 
 export async function upsertSystemJob(job, options = {}) {
   const accountId = options.accountId ?? job.account_id ?? null;
-  const lockKey = job.lock_key || `${accountId || 'global'}:${job.nome}`;
+  const lockKey = job.lock_key || canonicalJobLockKey(job.nome);
   const timestamp = nowIso();
   const payload = {
     id: job.id || randomUUID(),
@@ -310,20 +314,28 @@ export async function updateSystemJobSchedule(identifier, updates = {}, options 
     let query = supabase.from('system_jobs').update(safeUpdates).select('*');
     if (identifier?.id) {
       query = query.eq('id', identifier.id);
+    } else if (identifier?.jobKey) {
+      query = query.eq('lock_key', canonicalJobLockKey(identifier.jobKey));
     } else if (identifier?.lockKey) {
-      query = query.eq('lock_key', identifier.lockKey);
+      query = query.eq('lock_key', canonicalJobLockKey(identifier.lockKey));
     } else {
       throw new DatabaseError('Identificador de job ausente');
     }
-    if (accountId) query = query.eq('account_id', accountId);
+    if (accountId) query = query.or(`account_id.is.null,account_id.eq.${accountId}`);
 
     const { data, error } = await query.single();
     if (error) throw new DatabaseError('Falha ao atualizar job', { details: error });
     return data;
   }
 
-  const target = identifier?.lockKey ? resolveMemoryJob(identifier.lockKey) : [...memoryJobs.values()].find((job) => String(job.id) === String(identifier?.id)) || null;
-  if (!target) return null;
+  const target = identifier?.id
+    ? [...memoryJobs.values()].find((job) => String(job.id) === String(identifier.id)) || null
+    : identifier?.jobKey
+      ? [...memoryJobs.values()].find((job) => job.lock_key === canonicalJobLockKey(identifier.jobKey) || job.nome === identifier.jobKey) || null
+      : identifier?.lockKey
+        ? resolveMemoryJob(canonicalJobLockKey(identifier.lockKey))
+        : null;
+  if (!target) throw new DatabaseError('Job nao encontrado para atualizar');
   const next = { ...target, ...safeUpdates };
   memoryJobs.set(next.lock_key, next);
   return next;
@@ -331,6 +343,14 @@ export async function updateSystemJobSchedule(identifier, updates = {}, options 
 
 export async function recordSystemJobRun(payload, options = {}) {
   const accountId = options.accountId ?? payload.account_id ?? null;
+  const jobId = payload.job_id || options.jobId || null;
+  if (!jobId) {
+    const fallbackJob = payload.nome ? await getSystemJobByLockKey(canonicalJobLockKey(payload.nome)).catch(() => null) : null;
+    if (!fallbackJob?.id) throw new DatabaseError('Job id obrigatorio para registrar execucao');
+    payload.job_id = fallbackJob.id;
+  } else {
+    payload.job_id = jobId;
+  }
   const run = {
     id: randomUUID(),
     job_id: payload.job_id,
@@ -394,7 +414,6 @@ export async function listSystemJobRunsForJob(jobId, accountId = null, options =
 }
 
 export async function acquireSystemJobLock({ lockKey, nome, ttlMinutes, accountId, workerId }) {
-  assertAccountId(accountId);
   if (resolveSupabaseConfigured()) {
     const ttlMs = Math.max(1, Number(ttlMinutes) || 30) * 60000;
     const job = await ensureSystemJob({ lockKey, nome, accountId, metadata: { ttlMinutes }, requestId: workerId });

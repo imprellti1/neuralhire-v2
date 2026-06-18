@@ -9,7 +9,7 @@ import { __resetMemoryTimelineForTests } from '../../modules/clientes/clientes.t
 import { __resetMemoryPedidosForTests, createPedido } from '../../modules/pedidos/pedidos.repository.js';
 import { __resetMemoryProdutosForTests, createProduto } from '../../modules/produtos/produtos.repository.js';
 import { __resetMemoryAiDirectorObservationsForTests, createObservation, listObservations } from '../../modules/ai-director-observations/ai-director-observations.repository.js';
-import { __resetSystemJobsForTests, __dumpSystemJobsForTests, __setSystemJobsSupabaseClientForTests, acquireSystemJobLock, ensureDefaultSystemJobs, getSystemJobDefaults, listDueSystemJobs, upsertSystemJob } from '../../modules/jobs/jobs.repository.js';
+import { __resetSystemJobsForTests, __dumpSystemJobsForTests, __setSystemJobsSupabaseClientForTests, acquireSystemJobLock, ensureDefaultSystemJobs, getSystemJobDefaults, listDueSystemJobs, recordSystemJobRun, updateSystemJobSchedule, upsertSystemJob } from '../../modules/jobs/jobs.repository.js';
 import { __resetJobsSchedulerForTests, dispatchDueJob, nextDaily0300, runJobsSchedulerTick, startJobsScheduler, stopJobsScheduler } from '../../modules/jobs/jobs.scheduler.js';
 
 function parse(res) {
@@ -306,6 +306,108 @@ export function getJobsTests() {
         assert.equal(typeof run.metadata.observations_skipped_duplicate, 'number');
         assert.equal(typeof run.metadata.accounts_processed, 'number');
         assert.equal(typeof run.metadata.clientes_analisados, 'number');
+      }
+    },
+    {
+      name: 'POST /jobs/:id/run executa o job correto pelo id',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryClientesForTests();
+        const app = createApiApp();
+        await createCliente({ nome: 'Cliente 1', documento: '12345678000190' }, { accountId: 'acc-manual' });
+        const job = await upsertSystemJob({ nome: 'gerente_comercial_observacao', lock_key: 'acc-manual:gerente_comercial_observacao', account_id: 'acc-manual', status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: 'acc-manual' });
+        const out = await call(app, { method: 'POST', url: `/jobs/${job.id}/run`, role: 'admin', accountId: 'acc-manual' });
+        assert.equal(out.res.statusCode, 202);
+        assert.equal(out.body.status, 'running');
+      }
+    },
+    {
+      name: 'execução manual não cria novo system_job',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryClientesForTests();
+        const app = createApiApp();
+        await createCliente({ nome: 'Cliente 1', documento: '12345678000190' }, { accountId: 'acc-manual' });
+        const job = await upsertSystemJob({ nome: 'gerente_comercial_observacao', lock_key: 'gerente_comercial_observacao', account_id: null, status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: null });
+        const before = __dumpSystemJobsForTests().jobs.filter((item) => item.lock_key === 'gerente_comercial_observacao').length;
+        const out = await call(app, { method: 'POST', url: `/jobs/${job.id}/run`, role: 'admin', accountId: 'acc-manual' });
+        assert.equal(out.res.statusCode, 202);
+        await wait(100);
+        const after = __dumpSystemJobsForTests().jobs.filter((item) => item.lock_key === 'gerente_comercial_observacao').length;
+        assert.equal(after, before);
+      }
+    },
+    {
+      name: 'recordSystemJobRun resolve job_id a partir do job global',
+      run: async () => {
+        __resetSystemJobsForTests();
+        const mock = createSystemJobsSupabaseMock({
+          jobs: [{
+            id: 'job-global',
+            account_id: null,
+            nome: 'radar_comercial_diario',
+            status: 'ativo',
+            lock_key: 'jobs:radar_comercial_diario',
+            locked_at: null,
+            locked_by: null,
+            last_run_at: null,
+            next_run_at: null,
+            last_success_at: null,
+            last_error: null,
+            metadata: {},
+            created_at: '2026-06-17T00:00:00.000Z',
+            updated_at: '2026-06-17T00:00:00.000Z'
+          }]
+        });
+        __setSystemJobsSupabaseClientForTests(mock, true);
+        try {
+          const run = await recordSystemJobRun({ nome: 'radar_comercial_diario', status: 'success', started_at: '2026-06-17T11:00:00.000Z' }, { accountId: null });
+          assert.equal(run.job_id, 'job-global');
+          assert.equal(mock.state.runs[0].job_id, 'job-global');
+        } finally {
+          __setSystemJobsSupabaseClientForTests(null, false);
+        }
+      }
+    },
+    {
+      name: 'updateSystemJobSchedule falha sem id ou jobKey',
+      run: async () => {
+        __resetSystemJobsForTests();
+        await assert.rejects(() => updateSystemJobSchedule({}, { next_run_at: '2026-06-17T12:00:00.000Z' }, { accountId: null }));
+      }
+    },
+    {
+      name: 'radar comercial roda em fan-out por tenant quando não há accountId global',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryClientesForTests();
+        await createCliente({ nome: 'Cliente A', documento: '12345678000190' }, { accountId: 'acc-a' });
+        await createCliente({ nome: 'Cliente B', documento: '22345678000190' }, { accountId: 'acc-b' });
+        const result = await dispatchDueJob({ id: 'job-global', nome: 'radar_comercial_diario', lock_key: 'jobs:radar_comercial_diario', account_id: null, next_run_at: '2026-06-17T11:00:00.000Z' }, { requestId: 'scheduler-test', workerId: 'scheduler:test' });
+        assert.equal(result.ok, true);
+        assert.equal(result.result.mode, 'tenant_fanout');
+        assert.equal(result.result.tenant_count >= 2, true);
+      }
+    },
+    {
+      name: 'job com erro reage com next_run_at futuro',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryClientesForTests();
+        const previousFetch = globalThis.fetch;
+        globalThis.fetch = async () => { throw new Error('falha simulada'); };
+        try {
+          const job = await upsertSystemJob({ nome: 'radar_comercial_diario', lock_key: 'acc-fail:jobs:radar_comercial_diario', account_id: 'acc-fail', status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: 'acc-fail' });
+          const out = await dispatchDueJob(job, { accountId: 'acc-fail', requestId: 'scheduler-test', workerId: 'scheduler:test' });
+          assert.equal(out.ok, true);
+          await wait(50);
+          const dump = __dumpSystemJobsForTests();
+          const stored = dump.jobs.find((item) => item.id === job.id);
+          assert.ok(stored);
+          assert.equal(new Date(stored.next_run_at).getTime() > Date.parse('2026-06-17T11:00:00.000Z'), true);
+        } finally {
+          globalThis.fetch = previousFetch;
+        }
       }
     },
     {
