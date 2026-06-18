@@ -458,6 +458,75 @@ export function getJobsTests() {
       }
     },
     {
+      name: 'diretor reunião executiva consolida títulos equivalentes sem contador',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryAiDirectorObservationsForTests();
+        __resetMemoryAiDirectorForTests();
+        const accountId = 'acc-director-merge';
+        await createObservation({ accountId }, {
+          manager_id: 'gerente_produtos',
+          manager_name: 'Gerente Produtos',
+          category: 'produtos',
+          title: 'Produtos sem imagem (32)',
+          description: 'Primeiro grupo de produtos sem imagem.',
+          severity: 'high',
+          impact_score: 80,
+          urgency_score: 90,
+          source_type: 'pedido',
+          source_id: 'produto-1',
+          status: 'open',
+          metadata: { theme: 'imagens ausentes' }
+        });
+        await createObservation({ accountId }, {
+          manager_id: 'gerente_produtos_ops',
+          manager_name: 'Gerente de Produtos',
+          category: 'produtos',
+          title: 'Produtos sem imagem 33',
+          description: 'Segundo grupo equivalente de produtos sem imagem.',
+          severity: 'high',
+          impact_score: 80,
+          urgency_score: 90,
+          source_type: 'pedido',
+          source_id: 'produto-2',
+          status: 'open',
+          metadata: { theme: 'imagens ausentes.' }
+        });
+        await createObservation({ accountId }, {
+          manager_id: 'gerente_produtos',
+          manager_name: 'Gerente Produtos',
+          category: 'produtos',
+          title: 'Produtos sem imagem',
+          description: 'Terceiro grupo equivalente.',
+          severity: 'high',
+          impact_score: 80,
+          urgency_score: 90,
+          source_type: 'pedido',
+          source_id: 'produto-3',
+          status: 'open',
+          metadata: { theme: 'imagens ausentes' }
+        });
+        const { runDiretorReuniaoExecutivaJob } = await import('../../modules/jobs/jobs.scheduler.js');
+        const job = await upsertSystemJob({ nome: 'diretor_reuniao_executiva', lock_key: 'diretor_reuniao_executiva', account_id: null, status: 'ativo', next_run_at: '2026-06-17T05:00:00.000Z' }, { accountId: null });
+        await runDiretorReuniaoExecutivaJob({ accountId, auth: { role: 'admin', accountId }, job });
+        const priorities = __dumpMemoryAiDirectorForTests().filter((item) => item.account_id === accountId && item.origem === 'diretor_reuniao_executiva' && item.tipo === 'prioridade_executiva');
+        assert.equal(priorities.length, 1);
+        assert.equal(priorities[0].titulo.includes('('), false);
+        assert.equal(priorities[0].metadata.rank, 1);
+        assert.equal(priorities[0].metadata.score > 0, true);
+        assert.equal(Array.isArray(priorities[0].metadata.observation_ids), true);
+        assert.equal(priorities[0].metadata.observation_ids.length, 3);
+        assert.equal(priorities[0].metadata.merged_groups_count, 3);
+        assert.equal(typeof priorities[0].metadata.normalized_title_key, 'string');
+        assert.equal(Array.isArray(priorities[0].metadata.merged_titles), true);
+        assert.equal(priorities[0].metadata.merged_titles.length, 3);
+        assert.match(priorities[0].descricao, /Consolida/i);
+        assert.match(priorities[0].descricao, /gerentes?/i);
+        assert.match(priorities[0].descricao, /categorias?/i);
+        assert.match(priorities[0].descricao, /plano de correção priorizado/i);
+      }
+    },
+    {
       name: 'diretor reunião executiva não falha sem observações e agenda próximo futuro',
       run: async () => {
         __resetSystemJobsForTests();

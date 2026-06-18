@@ -1,5 +1,8 @@
 import { ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
+import { randomUUID } from 'node:crypto';
+
+const memoryAuditLogs = [];
 
 function assertAccountId(accountId) {
   if (!accountId) throw new ForbiddenError('Contexto de tenant obrigatorio', { code: 'TENANT_REQUIRED', domain: 'system-audit' });
@@ -20,7 +23,10 @@ export async function listAuditLogs(filters = {}, options = {}) {
   assertAccountId(accountId);
   const { page, limit } = normalizePagination(filters);
   const supabase = getSupabaseClient();
-  if (!supabase) return { items: [], total: 0, page, limit, totalPages: 1 };
+  if (!supabase) {
+    const items = memoryAuditLogs.filter((row) => row.account_id === accountId);
+    return { items, total: items.length, page, limit, totalPages: Math.max(1, Math.ceil(items.length / limit)) };
+  }
   let query = supabase.from('system_audit_logs').select('*', { count: 'exact' }).eq('account_id', accountId).order('created_at', { ascending: false });
   if (filters.modulo) query = query.eq('modulo', filters.modulo);
   if (filters.entidade) query = query.eq('entidade', filters.entidade);
@@ -39,6 +45,32 @@ export async function listAuditLogs(filters = {}, options = {}) {
   const { data, error, count } = await query.range(from, to);
   if (error) throw error;
   return { items: data || [], total: count || 0, page, limit, totalPages: Math.max(1, Math.ceil((count || 0) / limit)) };
+}
+
+export function __seedAuditLogForTests(payload = {}, options = {}) {
+  const accountId = options.accountId || payload.account_id || null;
+  const row = {
+    id: randomUUID(),
+    account_id: accountId,
+    modulo: payload.modulo || 'system',
+    entidade: payload.entidade || 'geral',
+    entidade_id: payload.entidade_id || null,
+    acao: payload.acao || 'info',
+    descricao: payload.descricao || '',
+    status: payload.status || 'success',
+    user_id: payload.user_id || null,
+    user_email: payload.user_email || null,
+    user_nome: payload.user_nome || null,
+    erro_codigo: payload.erro_codigo || null,
+    erro_mensagem: payload.erro_mensagem || null,
+    created_at: payload.created_at || new Date().toISOString()
+  };
+  memoryAuditLogs.push(row);
+  return row;
+}
+
+export function __resetAuditLogsForTests() {
+  memoryAuditLogs.length = 0;
 }
 
 export async function getAuditLogById(id, options = {}) {

@@ -232,13 +232,67 @@ function buildExecutivePriorityTitle(category, managerId, theme, count) {
   const manager = String(managerId || '').trim().replace(/_/g, ' ');
   const themeLabel = String(theme || '').trim().replace(/_/g, ' ');
   const focus = manager || themeLabel || 'grupo consolidado';
-  return `${base}: ${focus}${count > 1 ? ` (${count})` : ''}`.slice(0, 120);
+  return `${base}: ${focus}`.slice(0, 120);
 }
 
 function buildExecutivePriorityDescription(observations = [], windowDays = 7) {
   const total = observations.length;
   const managers = [...new Set(observations.map((item) => item.manager_name || item.manager_id).filter(Boolean))];
-  return `Consolida ${total} observação(ões) na janela de ${windowDays} dia(s), envolvendo ${managers.join(', ') || 'gerentes não informados'}. Motivo: recorrência e criticidade do grupo. Recomenda-se acompanhamento executivo e resolução priorizada.`;
+  const categories = [...new Set(observations.map((item) => item.category).filter(Boolean))];
+  return `Consolida ${total} observação(ões) na janela de ${windowDays} dia(s), envolvendo ${managers.join(', ') || 'gerentes não informados'} e categorias ${categories.join(', ') || 'não informadas'}. Motivo: recorrência, volume e criticidade do grupo. Recomenda-se revisão operacional e plano de correção priorizado.`;
+}
+
+function normalizeExecutivePriorityTitle(title) {
+  return String(title || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+\(\d+\)\s*$/g, '')
+    .replace(/\s+\d+\s*$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function mergeExecutivePriorityGroups(items = []) {
+  const merged = new Map();
+  for (const item of Array.isArray(items) ? items : []) {
+    const titleKey = normalizeExecutivePriorityTitle(item?.titulo);
+    if (!titleKey) continue;
+    const observationIds = Array.isArray(item?.metadata?.observation_ids) ? item.metadata.observation_ids : [];
+    const managers = Array.isArray(item?.metadata?.managers) ? item.metadata.managers : [];
+    const categories = Array.isArray(item?.metadata?.categories) ? item.metadata.categories : [];
+    const score = Number(item?.metadata?.score || 0);
+    const current = merged.get(titleKey);
+    if (!current) {
+      merged.set(titleKey, {
+        ...item,
+        metadata: {
+          ...(item.metadata || {}),
+          normalized_title_key: titleKey,
+          observation_ids: [...observationIds],
+          managers: [...new Set(managers)],
+          categories: [...new Set(categories)],
+          score,
+          merged_groups_count: 1,
+          merged_titles: [String(item?.titulo || '').trim()].filter(Boolean)
+        }
+      });
+      continue;
+    }
+
+    current.metadata.score = Number(current.metadata.score || 0) + score;
+    current.metadata.observation_ids = [...new Set([...(current.metadata.observation_ids || []), ...observationIds])];
+    current.metadata.managers = [...new Set([...(current.metadata.managers || []), ...managers])];
+    current.metadata.categories = [...new Set([...(current.metadata.categories || []), ...categories])];
+    current.metadata.total_observations = Number(current.metadata.total_observations || 0) + Number(item?.metadata?.total_observations || observationIds.length || 0);
+    current.metadata.theme = current.metadata.theme || item?.metadata?.theme || null;
+    current.metadata.normalized_title_key = titleKey;
+    current.metadata.merged_groups_count = Number(current.metadata.merged_groups_count || 1) + 1;
+    current.metadata.merged_titles = [...new Set([...(current.metadata.merged_titles || []), String(item?.titulo || '').trim()].filter(Boolean))];
+    current.severidade = current.metadata.score >= 100 ? 'critica' : current.metadata.score >= 70 ? 'alta' : current.metadata.score >= 40 ? 'media' : 'baixa';
+  }
+  return [...merged.values()];
 }
 
 async function listTenantExecutiveAccounts() {
@@ -282,8 +336,9 @@ async function collectExecutivePriorities(accountId, windowDays = 7) {
       }
     };
   });
-  candidates.sort((a, b) => b.metadata.score - a.metadata.score || criticalCategoryRank(b.categoria) - criticalCategoryRank(a.categoria) || b.metadata.total_observations - a.metadata.total_observations || String(a.titulo).localeCompare(String(b.titulo)));
-  return candidates.slice(0, 5).map((item, index) => ({ ...item, metadata: { ...item.metadata, rank: index + 1 } }));
+  const consolidated = mergeExecutivePriorityGroups(candidates)
+    .sort((a, b) => Number(b.metadata.score || 0) - Number(a.metadata.score || 0) || criticalCategoryRank(b.categoria) - criticalCategoryRank(a.categoria) || Number(b.metadata.total_observations || 0) - Number(a.metadata.total_observations || 0) || String(a.titulo).localeCompare(String(b.titulo)));
+  return consolidated.slice(0, 5).map((item, index) => ({ ...item, metadata: { ...item.metadata, rank: index + 1 } }));
 }
 
 async function runObservationByTenant(job, context, accountId, analyzer) {
