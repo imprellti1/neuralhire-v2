@@ -8,7 +8,8 @@ import { gerarAlertasCliente } from '../clientes/clientes.alerts.service.js';
 import { recalcularSegmentacaoCliente } from '../clientes/clientes.segmentacao.service.js';
 import { registrarEventoTimeline } from '../clientes/clientes.timeline.service.js';
 import { calcularScoreComercialCliente } from '../clientes/clientes.repository.js';
-import { createObservationIfNotOpen } from '../ai-director-observations/ai-director-observations.repository.js';
+import { createObservationIfNotOpen, listObservations } from '../ai-director-observations/ai-director-observations.repository.js';
+import { listExecutiveMemories, upsertExecutiveMemory } from '../ai-director/ai-director.repository.js';
 import { acquireSystemJobLock, getSystemJobByLockKey, listDueSystemJobs, listSystemJobRuns, listSystemJobs, recordSystemJobRun, releaseSystemJobLock, updateSystemJobSchedule, upsertSystemJob } from './jobs.repository.js';
 import { resolveJobNotificationRecipient, sendJobNotificationEmail } from '../notifications/notifications.email.service.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
@@ -38,6 +39,14 @@ function nextInMinutes(now = new Date(), minutes = 30) {
   return new Date(now.getTime() + Math.max(1, Number(minutes) || 30) * 60000).toISOString();
 }
 
+function nextDaily0500(now = new Date()) {
+  const next = new Date(now);
+  next.setSeconds(0, 0);
+  next.setHours(5, 0, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  return next.toISOString();
+}
+
 function canonicalJobLockKey(nome) {
   return ({
     radar_comercial_diario: 'jobs:radar_comercial_diario',
@@ -47,7 +56,8 @@ function canonicalJobLockKey(nome) {
     gerente_comercial_observacao: 'gerente_comercial_observacao',
     gerente_produtos_observacao: 'gerente_produtos_observacao',
     gerente_auditoria_observacao: 'gerente_auditoria_observacao',
-    gerente_administrativo_observacao: 'gerente_administrativo_observacao'
+    gerente_administrativo_observacao: 'gerente_administrativo_observacao',
+    diretor_reuniao_executiva: 'diretor_reuniao_executiva'
   })[nome] || nome;
 }
 
@@ -76,10 +86,11 @@ const JOB_HANDLERS = {
   gerente_comercial_observacao: runGerenteComercialObservacaoJob,
   gerente_produtos_observacao: runGerenteProdutosObservacaoJob,
   gerente_auditoria_observacao: runGerenteAuditoriaObservacaoJob,
-  gerente_administrativo_observacao: runGerenteAdministrativoObservacaoJob
+  gerente_administrativo_observacao: runGerenteAdministrativoObservacaoJob,
+  diretor_reuniao_executiva: runDiretorReuniaoExecutivaJob
 };
 
-const TENANT_AWARE_JOB_NAMES = new Set(['clientes_enriquecimento_automatico', 'clientes_geolocalizacao_automatico', 'gerente_comercial_observacao', 'gerente_produtos_observacao', 'gerente_auditoria_observacao', 'gerente_administrativo_observacao']);
+const TENANT_AWARE_JOB_NAMES = new Set(['clientes_enriquecimento_automatico', 'clientes_geolocalizacao_automatico', 'gerente_comercial_observacao', 'gerente_produtos_observacao', 'gerente_auditoria_observacao', 'gerente_administrativo_observacao', 'diretor_reuniao_executiva']);
 
 let schedulerTimer = null;
 let schedulerRunning = false;
@@ -164,6 +175,84 @@ function observationContext(managerId, origin = managerId) {
   };
 }
 
+function criticalCategoryRank(category) {
+  return ({ auditoria: 4, comercial: 3, administrativo: 2, produtos: 1 })[String(category || '').toLowerCase()] || 0;
+}
+
+function prioritySeverity(severity) {
+  const text = String(severity || '').toLowerCase();
+  if (text === 'critical' || text === 'critica' || text === 'crítica') return 4;
+  if (text === 'high' || text === 'alta') return 3;
+  if (text === 'medium' || text === 'media' || text === 'média') return 2;
+  return 1;
+}
+
+function resolvePriorityCategory(observation) {
+  return String(observation?.category || observation?.manager_id || 'geral').trim().toLowerCase();
+}
+
+function executivePriorityScore(observations = []) {
+  const items = Array.isArray(observations) ? observations : [];
+  const strongest = items.reduce((max, item) => Math.max(max, prioritySeverity(item.severity) * 10 + Number(item.impact_score || 0) / 10 + Number(item.urgency_score || 0) / 10), 0);
+  return Math.round(strongest + Math.min(20, items.length * 3) + criticalCategoryRank(resolvePriorityCategory(items[0])) * 2);
+}
+
+function buildExecutivePriorityTitle(category, managerId, count) {
+  const labels = { auditoria: 'Auditoria', comercial: 'Comercial', administrativo: 'Administrativo', produtos: 'Produtos' };
+  const prefix = labels[String(category || '').toLowerCase()] || String(category || 'Geral').replace(/_/g, ' ');
+  const manager = String(managerId || '').trim().replace(/_/g, ' ');
+  return `${prefix} prioritário: ${manager}${count > 1 ? ` (${count})` : ''}`.slice(0, 120);
+}
+
+function buildExecutivePriorityDescription(observations = [], windowDays = 7) {
+  const total = observations.length;
+  const first = observations[0] || {};
+  return `Consolidação determinística de ${total} observação(ões) aberta(s) na janela de ${windowDays} dia(s). Destaque: ${String(first.title || 'sem título').slice(0, 120)}.`;
+}
+
+async function listTenantExecutiveAccounts() {
+  const accountIds = await listTenantAccountIds();
+  return accountIds;
+}
+
+async function collectExecutivePriorities(accountId, windowDays = 7) {
+  const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000).toISOString();
+  const observations = await listObservations({ accountId }, { status: 'open', limit: 500 });
+  const recent = (observations.items || []).filter((item) => String(item.created_at || '') >= since || String(item.updated_at || '') >= since);
+  const grouped = new Map();
+  for (const observation of recent) {
+    const key = [resolvePriorityCategory(observation), String(observation.origin || ''), String(observation.manager_id || '')].join('|');
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(observation);
+  }
+  const candidates = [...grouped.entries()].map(([key, items]) => {
+    const [category, origin, managerId] = key.split('|');
+    const score = executivePriorityScore(items);
+    return {
+      key,
+      account_id: accountId,
+      tipo: 'prioridade_executiva',
+      categoria: category || 'geral',
+      titulo: buildExecutivePriorityTitle(category, managerId, items.length),
+      descricao: buildExecutivePriorityDescription(items, windowDays),
+      severidade: score >= 40 ? 'critica' : score >= 30 ? 'alta' : score >= 20 ? 'media' : 'baixa',
+      origem: 'diretor_reuniao_executiva',
+      metadata: {
+        observation_ids: items.map((item) => item.id),
+        total_observations: items.length,
+        managers: [...new Set(items.map((item) => item.manager_id).filter(Boolean))],
+        score,
+        generated_by: 'diretor_reuniao_executiva',
+        window_days: windowDays,
+        origin,
+        manager_id: managerId
+      }
+    };
+  });
+  candidates.sort((a, b) => b.metadata.score - a.metadata.score || criticalCategoryRank(b.categoria) - criticalCategoryRank(a.categoria) || b.metadata.total_observations - a.metadata.total_observations);
+  return candidates.slice(0, 10).slice(0, Math.max(3, candidates.length));
+}
+
 async function runObservationByTenant(job, context, accountId, analyzer) {
   const startedAt = Date.now();
   let created = 0;
@@ -221,6 +310,74 @@ async function runObservationAcrossTenants(job, context, analyzer) {
     results.push(await runObservationByTenant(job, context, accountId, analyzer));
   }
   return { ok: true, accountIds, results };
+}
+
+async function runDirectorReuniaoExecutivaForAccount(job, context, accountId, windowDays = 7) {
+  const startedAt = Date.now();
+  let fatalError = null;
+  let created = 0;
+  let updated = 0;
+  let scanned = 0;
+  let metadata = { result: 'empty_queue', window_days: windowDays };
+
+  try {
+    const priorities = await collectExecutivePriorities(accountId, windowDays);
+    scanned = priorities.length;
+    for (const priority of priorities) {
+      const existing = (await listExecutiveMemories({ limit: 50, categoria: priority.categoria, tipo: 'prioridade_executiva' }, { accountId, context })).items || [];
+      const match = existing.find((item) =>
+        String(item.origem || '') === priority.origem &&
+        String(item.titulo || '').trim().toLowerCase() === String(priority.titulo || '').trim().toLowerCase() &&
+        String(item.categoria || '') === String(priority.categoria || '') &&
+        String(item.tipo || '') === 'prioridade_executiva'
+      );
+      const saved = await upsertExecutiveMemory({
+        ...priority,
+        metadata: {
+          ...(match?.metadata || {}),
+          ...(priority.metadata || {})
+        }
+      }, { accountId, context });
+      if (match) updated += 1;
+      else if (saved) created += 1;
+    }
+    metadata = { result: 'success', window_days: windowDays, generated: priorities.length, created, updated, scanned };
+  } catch (error) {
+    fatalError = error;
+    metadata = { result: 'error', window_days: windowDays, created, updated, scanned };
+    logJobError('runDiretorReuniaoExecutivaJob', error, { accountId, lockKey: job.lock_key, requestId: context.requestId || null });
+  }
+
+  const finishedAt = isoNow();
+  const nextRunAt = fatalError ? nextInMinutes(new Date(), 15) : nextDaily0500(new Date());
+  await recordSystemJobRun({
+    job_id: job.id,
+    account_id: accountId,
+    nome: job.nome,
+    status: fatalError ? 'error' : 'success',
+    started_at: new Date(startedAt).toISOString(),
+    finished_at: finishedAt,
+    duration_ms: Date.now() - startedAt,
+    processed_count: scanned,
+    success_count: created,
+    error_count: fatalError ? 1 : 0,
+    metadata,
+    error: fatalError?.message || null
+  }, { accountId }).catch(() => null);
+
+  await updateSystemJobSchedule({ id: job.id, jobKey: job.nome }, {
+    status: 'ativo',
+    last_run_at: finishedAt,
+    last_success_at: fatalError ? job.last_success_at : finishedAt,
+    last_error: fatalError?.message || null,
+    next_run_at: nextRunAt,
+    locked_at: null,
+    locked_by: null
+  }, { accountId: null }).catch((error) => {
+    logJobError('updateSystemJobSchedule', error, { accountId, lockKey: job.lock_key, requestId: context.requestId || null });
+  });
+
+  return { ok: true, created, updated, scanned, fatalError, next_run_at: nextRunAt };
 }
 
 async function runHandlerForTenant(job, handler, accountId, context = {}) {
@@ -848,6 +1005,29 @@ export async function runGerenteAdministrativoObservacaoJob(context = {}) {
   const accountId = getAccountIdFromContext(context);
   const job = context.job || await resolveGlobalSystemJob('gerente_administrativo_observacao') || await upsertSystemJob({ nome: 'gerente_administrativo_observacao', lock_key: canonicalJobLockKey('gerente_administrativo_observacao'), account_id: null, status: 'ativo', last_run_at: isoNow(), next_run_at: nextDaily0300(new Date()) }, { accountId: null });
   return accountId ? runObservationByTenant(job, context, accountId, analyzeAdministrativeTenant) : runObservationAcrossTenants(job, context, analyzeAdministrativeTenant);
+}
+
+export async function runDiretorReuniaoExecutivaJob(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const job = context.job || await resolveGlobalSystemJob('diretor_reuniao_executiva') || await upsertSystemJob({
+    nome: 'diretor_reuniao_executiva',
+    lock_key: canonicalJobLockKey('diretor_reuniao_executiva'),
+    account_id: null,
+    status: 'ativo',
+    last_run_at: isoNow(),
+    next_run_at: nextDaily0500(new Date())
+  }, { accountId: null });
+
+  if (!accountId) {
+    const accountIds = await listTenantExecutiveAccounts();
+    const results = [];
+    for (const tenantAccountId of accountIds) {
+      results.push(await runDirectorReuniaoExecutivaForAccount(job, context, tenantAccountId, 7));
+    }
+    return { ok: true, mode: 'tenant_fanout', accountIds, results };
+  }
+
+  return runDirectorReuniaoExecutivaForAccount(job, context, accountId, Number(context.query?.window_days || 7) || 7);
 }
 
 export async function listJobsOverview(context = {}) {

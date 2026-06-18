@@ -181,27 +181,31 @@ export function getJobsTests() {
           'gerente_comercial_observacao',
           'gerente_produtos_observacao',
           'gerente_auditoria_observacao',
-          'gerente_administrativo_observacao'
+          'gerente_administrativo_observacao',
+          'diretor_reuniao_executiva'
         ].includes(job.nome)), true);
       }
     },
     {
-      name: 'bootstrap padrão inclui gerente comercial observacao',
+      name: 'bootstrap padrão inclui diretor reunião executiva',
       run: async () => {
         const defaults = getSystemJobDefaults();
-        assert.equal(defaults.length, 8);
+        assert.equal(defaults.length, 9);
         assert.equal(defaults.some((job) => job.nome === 'gerente_comercial_observacao'), true);
+        assert.equal(defaults.some((job) => job.nome === 'diretor_reuniao_executiva'), true);
         __resetSystemJobsForTests();
         const logs = [];
         await ensureDefaultSystemJobs(null, { logger: { info: (...args) => logs.push(args) } });
         const dump = __dumpSystemJobsForTests();
-        assert.equal(dump.jobs.length, 8);
+        assert.equal(dump.jobs.length, 9);
         assert.equal(dump.jobs.some((job) => job.nome === 'gerente_comercial_observacao'), true);
+        assert.equal(dump.jobs.some((job) => job.nome === 'diretor_reuniao_executiva'), true);
+        assert.equal(dump.jobs.some((job) => job.lock_key === 'diretor_reuniao_executiva'), true);
         assert.equal(logs.some(([message]) => message === 'system_jobs_bootstrap_started'), true);
         assert.equal(logs.some(([message]) => message === 'system_jobs_bootstrap_finished'), true);
         await ensureDefaultSystemJobs(null, { logger: { info: () => null } });
         const secondDump = __dumpSystemJobsForTests();
-        assert.equal(secondDump.jobs.length, 8);
+        assert.equal(secondDump.jobs.length, 9);
       }
     },
     {
@@ -363,6 +367,155 @@ export function getJobsTests() {
         const out = await call(app, { method: 'POST', url: `/jobs/${job.id}/run`, role: 'admin', accountId: 'acc-manual' });
         assert.equal(out.res.statusCode, 202);
         assert.equal(out.body.status, 'running');
+      }
+    },
+    {
+      name: 'diretor reunião executiva consolida observações sem IA generativa',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryAiDirectorObservationsForTests();
+        await createObservation({ accountId: 'acc-director' }, {
+          manager_id: 'gerente_comercial',
+          manager_name: 'Gerente Comercial',
+          category: 'comercial',
+          title: 'Receita em queda',
+          description: 'Queda relevante de faturamento no período recente.',
+          severity: 'critical',
+          impact_score: 80,
+          urgency_score: 90,
+          source_type: 'pedido',
+          source_id: 'pedido-1',
+          status: 'open',
+          metadata: { manager_id: 'gerente_comercial' }
+        });
+        await createObservation({ accountId: 'acc-director' }, {
+          manager_id: 'gerente_auditoria',
+          manager_name: 'Gerente Auditoria',
+          category: 'auditoria',
+          title: 'Log crítico',
+          description: 'Falha operacional relevante.',
+          severity: 'critical',
+          impact_score: 95,
+          urgency_score: 95,
+          source_type: 'audit_log',
+          source_id: 'log-1',
+          status: 'open',
+          metadata: { manager_id: 'gerente_auditoria' }
+        });
+        const { runDiretorReuniaoExecutivaJob } = await import('../../modules/jobs/jobs.scheduler.js');
+        const job = await upsertSystemJob({ nome: 'diretor_reuniao_executiva', lock_key: 'diretor_reuniao_executiva', account_id: null, status: 'ativo', next_run_at: '2026-06-17T05:00:00.000Z' }, { accountId: null });
+        const result = await runDiretorReuniaoExecutivaJob({ accountId: 'acc-director', auth: { role: 'admin', accountId: 'acc-director' }, job });
+        assert.equal(result.ok, true);
+        assert.equal(typeof result.next_run_at, 'string');
+      }
+    },
+    {
+      name: 'diretor reunião executiva não duplica prioridade igual',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryAiDirectorObservationsForTests();
+        await createObservation({ accountId: 'acc-director-dup' }, {
+          manager_id: 'gerente_comercial',
+          manager_name: 'Gerente Comercial',
+          category: 'comercial',
+          title: 'Receita em queda',
+          description: 'Queda relevante de faturamento no período recente.',
+          severity: 'critical',
+          impact_score: 80,
+          urgency_score: 90,
+          source_type: 'pedido',
+          source_id: 'pedido-1',
+          status: 'open',
+          metadata: { manager_id: 'gerente_comercial' }
+        });
+        const { runDiretorReuniaoExecutivaJob } = await import('../../modules/jobs/jobs.scheduler.js');
+        const job = await upsertSystemJob({ nome: 'diretor_reuniao_executiva', lock_key: 'diretor_reuniao_executiva', account_id: null, status: 'ativo', next_run_at: '2026-06-17T05:00:00.000Z' }, { accountId: null });
+        await runDiretorReuniaoExecutivaJob({ accountId: 'acc-director-dup', auth: { role: 'admin', accountId: 'acc-director-dup' }, job });
+        await runDiretorReuniaoExecutivaJob({ accountId: 'acc-director-dup', auth: { role: 'admin', accountId: 'acc-director-dup' }, job });
+        const { listExecutiveMemories } = await import('../../modules/ai-director/ai-director.repository.js');
+        const priorities = await listExecutiveMemories({ limit: 20 }, { accountId: 'acc-director-dup' });
+        assert.equal(priorities.items.filter((item) => item.tipo === 'prioridade_executiva').length, 1);
+      }
+    },
+    {
+      name: 'diretor reunião executiva não falha sem observações e agenda próximo futuro',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryAiDirectorObservationsForTests();
+        const { runDiretorReuniaoExecutivaJob } = await import('../../modules/jobs/jobs.scheduler.js');
+        const job = await upsertSystemJob({ nome: 'diretor_reuniao_executiva', lock_key: 'diretor_reuniao_executiva', account_id: null, status: 'ativo', next_run_at: '2026-06-17T05:00:00.000Z' }, { accountId: null });
+        const result = await runDiretorReuniaoExecutivaJob({ accountId: 'acc-empty-director', auth: { role: 'admin', accountId: 'acc-empty-director' }, job });
+        assert.equal(result.ok, true);
+        assert.equal(typeof result.next_run_at, 'string');
+      }
+    },
+    {
+      name: 'diretor reunião executiva com falha agenda backoff futuro',
+      run: async () => {
+        __resetSystemJobsForTests();
+        const mock = createSystemJobsSupabaseMock({
+          jobs: [{
+            id: 'job-director',
+            account_id: null,
+            nome: 'diretor_reuniao_executiva',
+            status: 'ativo',
+            lock_key: 'diretor_reuniao_executiva',
+            locked_at: null,
+            locked_by: null,
+            last_run_at: null,
+            next_run_at: '2026-06-17T05:00:00.000Z',
+            last_success_at: null,
+            last_error: null,
+            metadata: {},
+            created_at: '2026-06-17T00:00:00.000Z',
+            updated_at: '2026-06-17T00:00:00.000Z'
+          }]
+        });
+        mock.from = (table) => ({
+          select() { return this; },
+          eq() { return this; },
+          order() { return this; },
+          range() { return this; },
+          limit() { return this; },
+          ilike() { return this; },
+          then(resolve) {
+            if (table === 'ai_director_observations') {
+              return resolve({ data: [{
+                id: 'obs-1',
+                account_id: 'acc-director-fail',
+                manager_id: 'gerente_comercial',
+                category: 'comercial',
+                title: 'Receita em queda',
+                description: 'Queda relevante',
+                severity: 'high',
+                impact_score: 80,
+                urgency_score: 90,
+                status: 'open',
+                origin: 'pedido',
+                created_at: '2026-06-16T00:00:00.000Z',
+                updated_at: '2026-06-16T00:00:00.000Z'
+              }], count: 1, error: null });
+            }
+            return resolve({ data: [], count: 0, error: null });
+          },
+          maybeSingle() {
+            if (table === 'system_jobs') return Promise.resolve({ data: mock.state.jobs[0], error: null });
+            if (table === 'ai_director_observations') return Promise.resolve({ data: null, error: null });
+            if (table === 'ai_director_executive_memories') return Promise.resolve({ data: null, error: null });
+            return Promise.resolve({ data: null, error: null });
+          },
+          insert() { return { select() { return { single: async () => ({ data: null, error: { message: 'falha simulada' } }) }; } }; },
+          update() { return { eq() { return { select() { return { single: async () => ({ data: mock.state.jobs[0], error: null }) }; } }; } }; }
+        });
+        __setSystemJobsSupabaseClientForTests(mock, true);
+        try {
+          const { runDiretorReuniaoExecutivaJob } = await import('../../modules/jobs/jobs.scheduler.js');
+          const result = await runDiretorReuniaoExecutivaJob({ accountId: 'acc-director-fail', auth: { accountId: 'acc-director-fail', role: 'admin' }, job });
+          assert.equal(result.ok, true);
+          assert.equal(typeof result.next_run_at, 'string');
+        } finally {
+          __setSystemJobsSupabaseClientForTests(null, false);
+        }
       }
     },
     {

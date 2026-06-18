@@ -18,7 +18,7 @@ import { buildStrategicRadar } from './ai-director.radar.js';
 
 const validTipos = new Set(['observacao', 'alerta', 'oportunidade', 'diagnostico', 'decisao', 'plano_acao']);
 const validPrioridades = new Set(['baixa', 'media', 'alta', 'critica']);
-const validExecutiveTipos = new Set(['trend', 'alert', 'opportunity', 'risk', 'performance', 'alerta', 'prioridade', 'acao', 'observacao']);
+const validExecutiveTipos = new Set(['trend', 'alert', 'opportunity', 'risk', 'performance', 'alerta', 'prioridade', 'prioridade_executiva', 'acao', 'observacao']);
 const validExecutiveCategorias = new Set(['comercial', 'produtos', 'auditoria', 'followup', 'administrativo', 'geral']);
 const validExecutiveSeveridades = new Set(['baixa', 'media', 'alta', 'critica']);
 const memoryStore = [];
@@ -403,6 +403,16 @@ function matchesExecutiveFilters(row, filters = {}) {
   return true;
 }
 
+function buildExecutiveMemoryLogicalKey(row = {}) {
+  return [
+    String(row.account_id || '').trim(),
+    String(row.tipo || '').trim(),
+    String(row.categoria || '').trim(),
+    String(row.titulo || '').trim().toLowerCase(),
+    String(row.origem || '').trim()
+  ].join('|');
+}
+
 export async function createExecutiveMemory(data = {}, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
@@ -422,6 +432,60 @@ export async function createExecutiveMemory(data = {}, options = {}) {
     return inserted;
   }
 
+  memoryStore.push({ ...row, executive: true });
+  return clone(row);
+}
+
+export async function upsertExecutiveMemory(data = {}, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  const payload = normalizeExecutiveMemoryPayload(data);
+  const row = {
+    id: randomUUID(),
+    account_id: accountId,
+    ...payload,
+    metadata: data.metadata && typeof data.metadata === 'object' && !Array.isArray(data.metadata) ? data.metadata : {},
+    criado_em: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+
+  if (mode() === 'supabase') {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data: current, error: selectError } = await supabase
+      .from('ai_director_executive_memories')
+      .select('*')
+      .eq('account_id', accountId)
+      .eq('tipo', row.tipo)
+      .eq('categoria', row.categoria)
+      .ilike('titulo', row.titulo)
+      .eq('origem', row.origem)
+      .maybeSingle();
+    if (selectError) throw new DatabaseError('Falha ao consultar memoria executiva do diretor', { details: selectError });
+    if (current) {
+      const next = {
+        ...current,
+        ...row,
+        id: current.id,
+        account_id: current.account_id,
+        created_at: current.created_at || current.criado_em || row.criado_em,
+        updated_at: new Date().toISOString(),
+        metadata: { ...(current.metadata || {}), ...(row.metadata || {}) }
+      };
+      const { data: updated, error: updateError } = await supabase.from('ai_director_executive_memories').update(next).eq('id', current.id).select('*').single();
+      if (updateError) throw new DatabaseError('Falha ao atualizar memoria executiva do diretor', { details: updateError });
+      return updated;
+    }
+    const { data: inserted, error } = await supabase.from('ai_director_executive_memories').insert(row).select('*').single();
+    if (error) throw new DatabaseError('Falha ao criar memoria executiva do diretor', { details: error });
+    return inserted;
+  }
+
+  const current = memoryStore.find((item) => item.executive && buildExecutiveMemoryLogicalKey(item) === buildExecutiveMemoryLogicalKey(row)) || null;
+  if (current) {
+    Object.assign(current, row, { id: current.id, criado_em: current.criado_em, updated_at: row.updated_at });
+    return clone(current);
+  }
   memoryStore.push({ ...row, executive: true });
   return clone(row);
 }
