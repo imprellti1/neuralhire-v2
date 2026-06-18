@@ -6,6 +6,11 @@ export function createAiDirectorState() {
     memories: [],
     executiveMemories: [],
     executiveMemoriesFilter: 'all',
+    actionPlans: [],
+    actionPlansFilter: {
+      status: 'all',
+      gerente_responsavel: 'all'
+    },
     observations: [],
     observationsFilter: 'all',
     managers: [],

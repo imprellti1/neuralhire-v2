@@ -1,6 +1,6 @@
 import { asyncHandler } from '../../core/async-handler.js';
 import { sendSuccess } from '../../core/response.js';
-import { askAiDirectorQuestionHandler, consultAiDirectorManagerHandler, createAiDirectorMemoryHandler, delegateAiDirectorQuestionHandler, getAiDirectorDashboardHandler, listAiDirectorExecutiveMemoriesHandler, listAiDirectorMemoriesHandler, listAiDirectorManagersHandler } from './ai-director.controller.js';
+import { askAiDirectorQuestionHandler, consultAiDirectorManagerHandler, createAiDirectorMemoryHandler, delegateAiDirectorQuestionHandler, getAiDirectorDashboardHandler, listAiDirectorActionPlansHandler, listAiDirectorExecutiveMemoriesHandler, listAiDirectorMemoriesHandler, listAiDirectorManagersHandler, patchAiDirectorActionPlanStatusHandler } from './ai-director.controller.js';
 
 export function registerAiDirectorRoutes(router) {
   router.registerRoute({
@@ -50,5 +50,17 @@ export function registerAiDirectorRoutes(router) {
     path: '/ai-director/ask',
     domain: 'ai-director',
     handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await askAiDirectorQuestionHandler(context)))
+  });
+  router.registerRoute({
+    method: 'GET',
+    path: '/ai-director/action-plans',
+    domain: 'ai-director',
+    handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await listAiDirectorActionPlansHandler(context)))
+  });
+  router.registerRoute({
+    method: 'PATCH',
+    path: '/ai-director/action-plans/:id/status',
+    domain: 'ai-director',
+    handler: asyncHandler(async (_req, res, context) => sendSuccess(res, await patchAiDirectorActionPlanStatusHandler(context)))
   });
 }

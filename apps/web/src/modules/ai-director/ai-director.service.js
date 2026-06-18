@@ -33,3 +33,11 @@ export async function askDirector(apiClient, payload) {
 export async function listObservations(apiClient, params = {}) {
   return apiClient.get('/ai-director/observations', params);
 }
+
+export async function listActionPlans(apiClient, params = {}) {
+  return apiClient.get('/ai-director/action-plans', params);
+}
+
+export async function updateActionPlanStatus(apiClient, id, payload) {
+  return apiClient.patch(`/ai-director/action-plans/${id}/status`, payload);
+}

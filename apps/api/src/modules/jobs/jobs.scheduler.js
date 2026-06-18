@@ -10,6 +10,7 @@ import { registrarEventoTimeline } from '../clientes/clientes.timeline.service.j
 import { calcularScoreComercialCliente } from '../clientes/clientes.repository.js';
 import { createObservationIfNotOpen, listObservations } from '../ai-director-observations/ai-director-observations.repository.js';
 import { listExecutiveMemories, upsertExecutiveMemory } from '../ai-director/ai-director.repository.js';
+import { buildExecutiveActionPlan, listActionPlans, upsertActionPlan } from '../ai-director/ai-director-action-plans.repository.js';
 import { acquireSystemJobLock, getSystemJobByLockKey, listDueSystemJobs, listSystemJobRuns, listSystemJobs, recordSystemJobRun, releaseSystemJobLock, updateSystemJobSchedule, upsertSystemJob } from './jobs.repository.js';
 import { resolveJobNotificationRecipient, sendJobNotificationEmail } from '../notifications/notifications.email.service.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
@@ -57,7 +58,8 @@ function canonicalJobLockKey(nome) {
     gerente_produtos_observacao: 'gerente_produtos_observacao',
     gerente_auditoria_observacao: 'gerente_auditoria_observacao',
     gerente_administrativo_observacao: 'gerente_administrativo_observacao',
-    diretor_reuniao_executiva: 'diretor_reuniao_executiva'
+    diretor_reuniao_executiva: 'diretor_reuniao_executiva',
+    diretor_plano_acao: 'diretor_plano_acao'
   })[nome] || nome;
 }
 
@@ -87,10 +89,11 @@ const JOB_HANDLERS = {
   gerente_produtos_observacao: runGerenteProdutosObservacaoJob,
   gerente_auditoria_observacao: runGerenteAuditoriaObservacaoJob,
   gerente_administrativo_observacao: runGerenteAdministrativoObservacaoJob,
-  diretor_reuniao_executiva: runDiretorReuniaoExecutivaJob
+  diretor_reuniao_executiva: runDiretorReuniaoExecutivaJob,
+  diretor_plano_acao: runDiretorPlanoAcaoJob
 };
 
-const TENANT_AWARE_JOB_NAMES = new Set(['clientes_enriquecimento_automatico', 'clientes_geolocalizacao_automatico', 'gerente_comercial_observacao', 'gerente_produtos_observacao', 'gerente_auditoria_observacao', 'gerente_administrativo_observacao', 'diretor_reuniao_executiva']);
+const TENANT_AWARE_JOB_NAMES = new Set(['clientes_enriquecimento_automatico', 'clientes_geolocalizacao_automatico', 'gerente_comercial_observacao', 'gerente_produtos_observacao', 'gerente_auditoria_observacao', 'gerente_administrativo_observacao', 'diretor_reuniao_executiva', 'diretor_plano_acao']);
 
 let schedulerTimer = null;
 let schedulerRunning = false;
@@ -468,6 +471,62 @@ async function runDirectorReuniaoExecutivaForAccount(job, context, accountId, wi
   });
 
   return { ok: true, created, updated, scanned, fatalError, next_run_at: nextRunAt };
+}
+
+async function runDiretorPlanoAcaoForAccount(job, context, accountId) {
+  const startedAt = Date.now();
+  let created = 0;
+  let scanned = 0;
+  let fatalError = null;
+  let metadata = { result: 'empty_queue' };
+
+  try {
+    const executiveMemories = await listExecutiveMemories({ limit: 100, tipo: 'prioridade_executiva' }, { accountId, context });
+    const existingPlans = await listActionPlans(accountId, { status: 'aberto' }, { limit: 200 });
+    const blocked = new Set((existingPlans.items || []).map((plan) => String(plan.executive_memory_id || '').trim()).filter(Boolean));
+    const candidates = (executiveMemories.items || []).filter((memory) => !blocked.has(String(memory.id || '').trim()));
+    scanned = candidates.length;
+    for (const memory of candidates) {
+      const plan = buildExecutiveActionPlan(memory);
+      await upsertActionPlan(plan, { accountId, context });
+      created += 1;
+    }
+    metadata = { result: 'success', generated: created, scanned };
+  } catch (error) {
+    fatalError = error;
+    metadata = { result: 'error', scanned, created };
+    logJobError('runDiretorPlanoAcaoJob', error, { accountId, lockKey: job.lock_key, requestId: context.requestId || null });
+  }
+
+  const finishedAt = isoNow();
+  await recordSystemJobRun({
+    job_id: job.id,
+    account_id: accountId,
+    nome: job.nome,
+    status: fatalError ? 'error' : 'success',
+    started_at: new Date(startedAt).toISOString(),
+    finished_at: finishedAt,
+    duration_ms: Date.now() - startedAt,
+    processed_count: scanned,
+    success_count: created,
+    error_count: fatalError ? 1 : 0,
+    metadata,
+    error: fatalError?.message || null
+  }, { accountId }).catch(() => null);
+
+  await updateSystemJobSchedule({ id: job.id, jobKey: job.nome }, {
+    status: 'ativo',
+    last_run_at: finishedAt,
+    last_success_at: fatalError ? job.last_success_at : finishedAt,
+    last_error: fatalError?.message || null,
+    next_run_at: fatalError ? nextInMinutes(new Date(), 15) : nextDaily0500(new Date()),
+    locked_at: null,
+    locked_by: null
+  }, { accountId: null }).catch((error) => {
+    logJobError('updateSystemJobSchedule', error, { accountId, lockKey: job.lock_key, requestId: context.requestId || null });
+  });
+
+  return { ok: true, created, scanned, fatalError };
 }
 
 async function runHandlerForTenant(job, handler, accountId, context = {}) {
@@ -1118,6 +1177,27 @@ export async function runDiretorReuniaoExecutivaJob(context = {}) {
   }
 
   return runDirectorReuniaoExecutivaForAccount(job, context, accountId, Number(context.query?.window_days || 7) || 7);
+}
+
+export async function runDiretorPlanoAcaoJob(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const job = context.job || await resolveGlobalSystemJob('diretor_plano_acao') || await upsertSystemJob({
+    nome: 'diretor_plano_acao',
+    lock_key: canonicalJobLockKey('diretor_plano_acao'),
+    account_id: null,
+    status: 'ativo',
+    last_run_at: isoNow(),
+    next_run_at: nextDaily0500(new Date())
+  }, { accountId: null });
+  if (!accountId) {
+    const accountIds = await listTenantExecutiveAccounts();
+    const results = [];
+    for (const tenantAccountId of accountIds) {
+      results.push(await runDiretorPlanoAcaoForAccount(job, context, tenantAccountId));
+    }
+    return { ok: true, mode: 'tenant_fanout', accountIds, results };
+  }
+  return runDiretorPlanoAcaoForAccount(job, context, accountId);
 }
 
 export async function listJobsOverview(context = {}) {

@@ -1,4 +1,4 @@
-import { askDirector, consultManager, createMemory, fetchAiDirectorDashboard, listExecutiveMemories, listManagers, listMemories, listObservations } from './ai-director.service.js';
+import { askDirector, consultManager, createMemory, fetchAiDirectorDashboard, listActionPlans, listExecutiveMemories, listManagers, listMemories, listObservations, updateActionPlanStatus } from './ai-director.service.js';
 import { createAiDirectorState } from './ai-director.state.js';
 
 function esc(value) {
@@ -444,6 +444,11 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
     const opportunities = dashboard.opportunities || [];
     const memories = state.memories || [];
     const executiveMemories = (state.executiveMemories || []).filter((memory) => executiveMemoryMatchesFilter(memory, state.executiveMemoriesFilter));
+    const actionPlans = (state.actionPlans || []).filter((plan) => {
+      if (state.actionPlansFilter.status !== 'all' && plan.status !== state.actionPlansFilter.status) return false;
+      if (state.actionPlansFilter.gerente_responsavel !== 'all' && plan.gerente_responsavel !== state.actionPlansFilter.gerente_responsavel) return false;
+      return true;
+    });
     const observations = (state.observations || []).filter((item) => observationCategoryMatchesFilter(item, state.observationsFilter));
     const managers = state.managers || [];
     const form = state.memoryForm || {};
@@ -808,6 +813,39 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
               `).join('')}
             </div>
           </section>
+          <section class="nh-card">
+            <div class="nh-between">
+              <div>
+                <h2 class="nh-section-title">Planos de Ação</h2>
+                <p class="nh-section-subtitle">Execução determinística a partir das memórias executivas.</p>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top: 14px;">
+              <select id="ai-director-action-plans-status" class="nh-select" style="max-width: 180px;">
+                ${['all', 'aberto', 'em_andamento', 'concluido', 'cancelado'].map((status) => `<option value="${status}"${state.actionPlansFilter.status === status ? ' selected' : ''}>${status === 'all' ? 'Todos os status' : status}</option>`).join('')}
+              </select>
+              <select id="ai-director-action-plans-gerente" class="nh-select" style="max-width: 220px;">
+                ${['all', 'gerente_produtos', 'gerente_comercial', 'gerente_auditoria', 'gerente_administrativo', 'diretor_ia'].map((gerente) => `<option value="${gerente}"${state.actionPlansFilter.gerente_responsavel === gerente ? ' selected' : ''}>${gerente === 'all' ? 'Todos os gerentes' : gerente.replace('gerente_', 'Gerente ').replace('_', ' ')}</option>`).join('')}
+              </select>
+            </div>
+            <div class="nh-list" style="margin-top: 14px;">
+              ${actionPlans.length ? actionPlans.map((item) => `
+                <div class="nh-list-item">
+                  <div class="nh-between">
+                    <strong>${esc(item.titulo)}</strong>
+                    <span class="nh-badge ${badgeClass(item.status)}">${esc(item.status)}</span>
+                  </div>
+                  <div class="nh-mini" style="margin-top: 6px;">${esc(item.gerente_responsavel)} · impacto ${esc(item.impacto)} · esforço ${esc(item.esforco)} · score ${esc(item.prioridade_score)} · prazo ${esc(item.prazo_dias || '—')} dias · ${esc(formatCompactDate(item.criado_em || item.created_at))}</div>
+                  <div style="margin-top: 8px;">${esc(item.descricao)}</div>
+                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top: 10px;">
+                    <button class="nh-button action-plan-status-button" data-plan-id="${esc(item.id)}" data-status="em_andamento" type="button">Em andamento</button>
+                    <button class="nh-button action-plan-status-button" data-plan-id="${esc(item.id)}" data-status="concluido" type="button">Concluído</button>
+                    <button class="nh-button action-plan-status-button" data-plan-id="${esc(item.id)}" data-status="cancelado" type="button">Cancelar</button>
+                  </div>
+                </div>
+              `).join('') : '<div class="nh-mini">Sem planos de ação gerados para o momento.</div>'}
+            </div>
+          </section>
         </article>
         <article class="nh-card">
           <div class="nh-between">
@@ -941,6 +979,26 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
       render();
     });
 
+    container.querySelector('#ai-director-action-plans-status')?.addEventListener('change', (event) => {
+      state.actionPlansFilter.status = event.target.value || 'all';
+      render();
+    });
+
+    container.querySelector('#ai-director-action-plans-gerente')?.addEventListener('change', (event) => {
+      state.actionPlansFilter.gerente_responsavel = event.target.value || 'all';
+      render();
+    });
+
+    container.querySelectorAll('.action-plan-status-button').forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (!apiClient) return;
+        const planId = button.getAttribute('data-plan-id');
+        const status = button.getAttribute('data-status');
+        await updateActionPlanStatus(apiClient, planId, { status }).catch(() => null);
+        await load();
+      });
+    });
+
     bindMemoryForm();
   };
 
@@ -950,13 +1008,14 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
     state.managersLoading = true;
     render();
     try {
-      const [dashboardResult, memoriesResult, executiveMemoriesResult, observationsResult, managersResult] = await Promise.all([
+      const [dashboardResult, memoriesResult, executiveMemoriesResult, actionPlansResult, observationsResult, managersResult] = await Promise.all([
         fetchAiDirectorDashboard(apiClient),
         listMemories(apiClient).catch(() => {
           state.memoryError = 'Não foi possível carregar as memórias.';
           return { items: [] };
         }),
         listExecutiveMemories(apiClient).catch(() => ({ items: [] })),
+        listActionPlans(apiClient).catch(() => ({ items: [] })),
         listObservations(apiClient, { status: 'open', limit: 20 }).catch(() => ({ items: [] })),
         listManagers(apiClient).catch(() => {
           return { managers: [] };
@@ -966,6 +1025,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
       state.dashboard = dashboardResult;
       state.memories = memoriesResult.items || [];
       state.executiveMemories = executiveMemoriesResult.items || [];
+      state.actionPlans = actionPlansResult.items || [];
       state.observations = observationsResult.items || [];
       state.managers = managersResult.managers || [];
     } catch (error) {

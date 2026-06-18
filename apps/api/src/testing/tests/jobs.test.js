@@ -9,10 +9,11 @@ import { __resetMemoryTimelineForTests } from '../../modules/clientes/clientes.t
 import { __resetMemoryPedidosForTests, createPedido } from '../../modules/pedidos/pedidos.repository.js';
 import { __resetMemoryProdutosForTests, createProduto } from '../../modules/produtos/produtos.repository.js';
 import { __resetMemoryAiDirectorObservationsForTests, createObservation, listObservations } from '../../modules/ai-director-observations/ai-director-observations.repository.js';
-import { __dumpMemoryAiDirectorForTests, __resetMemoryAiDirectorForTests } from '../../modules/ai-director/ai-director.repository.js';
+import { __dumpMemoryAiDirectorForTests, __resetMemoryAiDirectorForTests, createExecutiveMemory, listExecutiveMemories } from '../../modules/ai-director/ai-director.repository.js';
+import { __resetMemoryAiDirectorActionPlansForTests, buildExecutiveActionPlan, listActionPlans, upsertActionPlan } from '../../modules/ai-director/ai-director-action-plans.repository.js';
 import { __resetAuditLogsForTests, __seedAuditLogForTests } from '../../modules/audit-logs/audit-logs.repository.js';
 import { __resetSystemJobsForTests, __dumpSystemJobsForTests, __setSystemJobsSupabaseClientForTests, acquireSystemJobLock, ensureDefaultSystemJobs, getSystemJobDefaults, listDueSystemJobs, recordSystemJobRun, updateSystemJobSchedule, upsertSystemJob } from '../../modules/jobs/jobs.repository.js';
-import { __resetJobsSchedulerForTests, dispatchDueJob, nextDaily0300, runJobsSchedulerTick, startJobsScheduler, stopJobsScheduler } from '../../modules/jobs/jobs.scheduler.js';
+import { __resetJobsSchedulerForTests, dispatchDueJob, nextDaily0300, runDiretorPlanoAcaoJob, runJobsSchedulerTick, startJobsScheduler, stopJobsScheduler } from '../../modules/jobs/jobs.scheduler.js';
 
 function parse(res) {
   try { return JSON.parse(res.body || '{}'); } catch { return {}; }
@@ -1283,6 +1284,69 @@ export function getJobsTests() {
         const job = await upsertSystemJob({ nome: 'radar_comercial_diario', lock_key: 'jobs:radar_comercial_diario', account_id: null, status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: null });
         const out = await call(app, { method: 'POST', url: `/jobs/${job.id}/run`, role: 'sales', accountId: 'acc-jobs' });
         assertEqual(out.res.statusCode === 403 || out.res.statusCode === 404, true);
+      }
+    },
+    {
+      name: 'buildExecutiveActionPlan gera gerente_produtos e impacto alto',
+      run: async () => {
+        __resetMemoryAiDirectorActionPlansForTests();
+        const plan = buildExecutiveActionPlan({
+          id: 'mem-1',
+          account_id: 'acc-plan',
+          titulo: 'Pendências críticas de produtos',
+          descricao: 'Produtos críticos com falhas',
+          categoria: 'produtos',
+          severidade: 'critica',
+          metadata: { score: 160, categories: ['produtos'] }
+        });
+        assert.equal(plan.gerente_responsavel, 'gerente_produtos');
+        assert.equal(plan.impacto, 'alto');
+        assert.equal(plan.prioridade_score, 160);
+        assert.equal(plan.prazo_dias, 3);
+      }
+    },
+    {
+      name: 'diretor_plano_acao cria plano e nao duplica',
+      run: async () => {
+        __resetMemoryAiDirectorForTests();
+        __resetMemoryAiDirectorActionPlansForTests();
+        __resetSystemJobsForTests();
+        await createExecutiveMemory({
+          tipo: 'prioridade_executiva',
+          titulo: 'Pendências críticas de produtos',
+          descricao: 'Falhas de catálogo',
+          categoria: 'produtos',
+          severidade: 'critica',
+          metadata: { score: 160, categories: ['produtos'] }
+        }, { accountId: 'acc-plan' });
+        await createExecutiveMemory({
+          tipo: 'prioridade_executiva',
+          titulo: 'Pendências administrativas de cadastro',
+          descricao: 'Pendências de cadastro',
+          categoria: 'administrativo',
+          severidade: 'media',
+          metadata: { score: 60, categories: ['administrativo'] }
+        }, { accountId: 'acc-plan' });
+        const job = await upsertSystemJob({ nome: 'diretor_plano_acao', lock_key: 'diretor_plano_acao', account_id: null, status: 'ativo', next_run_at: '2026-06-17T05:00:00.000Z' }, { accountId: null });
+        await runDiretorPlanoAcaoJob({ accountId: 'acc-plan', job, auth: { accountId: 'acc-plan' } });
+        const first = await listActionPlans('acc-plan', {}, {});
+        assert.equal(first.items.length, 2);
+        await runDiretorPlanoAcaoJob({ accountId: 'acc-plan', job, auth: { accountId: 'acc-plan' } });
+        const second = await listActionPlans('acc-plan', {}, {});
+        assert.equal(second.items.length, 2);
+      }
+    },
+    {
+      name: 'status inválido de plano é rejeitado',
+      run: async () => {
+        __resetMemoryAiDirectorActionPlansForTests();
+        let failed = false;
+        try {
+          await upsertActionPlan({ account_id: 'acc-plan', executive_memory_id: 'mem-1', titulo: 'x', descricao: 'y', gerente_responsavel: 'diretor_ia', impacto: 'alto', esforco: 'medio', prioridade_score: 0, prazo_dias: 3, status: 'invalido', metadata: {} }, { accountId: 'acc-plan' });
+        } catch (error) {
+          failed = true;
+        }
+        assert.equal(failed, true);
       }
     }
   ];

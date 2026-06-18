@@ -1,5 +1,6 @@
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { createAiDirectorMemory, consultManager, getAiDirectorDashboard, listAiDirectorMemories, listExecutiveMemories, listManagers } from './ai-director.repository.js';
+import { listActionPlans, updateActionPlanStatus } from './ai-director-action-plans.repository.js';
 import { answerAiDirectorQuestion, delegateAiDirectorQuestion } from './ai-director.orchestrator.js';
 
 export async function getAiDirectorDashboardHandler() {
@@ -53,4 +54,18 @@ export async function askAiDirectorQuestionHandler(context = {}) {
   const body = { ...(context.body || {}) };
   const result = await answerAiDirectorQuestion(body, { accountId, context });
   return { ok: true, ...result };
+}
+
+export async function listAiDirectorActionPlansHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const status = context?.query?.status ? String(context.query.status).trim() : undefined;
+  const gerenteResponsavel = context?.query?.gerente_responsavel ? String(context.query.gerente_responsavel).trim() : undefined;
+  return { ok: true, ...(await listActionPlans(accountId, { status, gerente_responsavel: gerenteResponsavel })) };
+}
+
+export async function patchAiDirectorActionPlanStatusHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const id = context?.params?.id;
+  const status = String(context?.body?.status || '').trim();
+  return { ok: true, item: await updateActionPlanStatus(id, accountId, status) };
 }
