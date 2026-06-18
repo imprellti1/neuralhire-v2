@@ -434,6 +434,13 @@ function matchesExecutiveMemoryIdentity(row = {}, candidate = {}) {
 
 async function findExistingExecutiveMemoryByLogicalKey(supabase, row) {
   const normalizedTitle = normalizeExecutiveMemoryTitle(row.titulo);
+  const payload = {
+    p_account_id: row.account_id,
+    p_tipo: row.tipo,
+    p_categoria: row.categoria,
+    p_origem: row.origem,
+    p_titulo: row.titulo
+  };
   logger.info('ai_director_executive_memory_retry_params', {
     account_id: row.account_id,
     tipo: row.tipo,
@@ -442,13 +449,8 @@ async function findExistingExecutiveMemoryByLogicalKey(supabase, row) {
     titulo: row.titulo,
     titulo_normalizado: normalizedTitle
   });
-  const rpcResult = await supabase.rpc('find_ai_director_executive_memory_by_logical_key', {
-    p_account_id: row.account_id,
-    p_tipo: row.tipo,
-    p_categoria: row.categoria,
-    p_origem: row.origem,
-    p_titulo: row.titulo
-  });
+  logger.info('executive_memory_rpc_payload', payload);
+  const rpcResult = await supabase.rpc('find_ai_director_executive_memory_by_logical_key', payload);
   const { data, error } = rpcResult || {};
   if (error) throw new DatabaseError('Falha ao consultar memoria executiva do diretor', { details: error });
   logger.info('ai_director_executive_memory_retry_result', {
