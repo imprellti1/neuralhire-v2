@@ -16,7 +16,7 @@ test('admin jobs page renders empty state, data, actions and errors', async () =
       if (path === '/jobs/j1') return { item: { id: 'j1', nome: 'radar_comercial_diario', metadata: { cadence: 'daily' } }, runs: [{ id: 'r1', started_at: '2026-06-17T09:00:00.000Z' }] };
       throw new Error(`unexpected path ${path}`);
     },
-    post: async () => ({})
+    post: async (path) => { calls.push(path); return {}; }
   };
   await renderAdminJobsPage(document.body, { apiClient });
   await flush();
@@ -25,12 +25,14 @@ test('admin jobs page renders empty state, data, actions and errors', async () =
   document.querySelector('#admin-jobs-refresh')?.click();
   await flush(); await flush();
   assert.match(document.body.textContent, /Radar Comercial Diário/i);
+  assert.ok(!document.body.textContent.includes('Não foi possível carregar os jobs.'));
   assert.match(document.body.textContent, /Em execução \/ Bloqueados/i);
   assert.match(document.body.textContent, /Ativos/i);
   assert.match(document.body.textContent, /Últimas execuções/i);
   assert.match(document.body.textContent, /2026/i);
   document.querySelector('.admin-job-run')?.click();
   await flush(); await flush();
+  assert.ok(calls.includes('/jobs/j1/run'));
   mode = 'error';
   document.querySelector('#admin-jobs-refresh')?.click();
   await flush(); await flush();
@@ -59,7 +61,7 @@ test('admin jobs page triggers correct endpoint and success feedback', async () 
   await flush(); await flush();
   document.querySelector('.admin-job-run')?.click();
   await flush(); await flush();
-  assert.ok(calls.includes('POST /jobs/clientes-enriquecimento/run'));
+  assert.ok(calls.includes('POST /jobs/j1/run'));
   assert.match(document.body.textContent, /Job iniciado com sucesso/i);
   teardownFrontendDom(dom);
 });
