@@ -67,6 +67,35 @@ function isOpenEquivalent(row, accountId, payload) {
   );
 }
 
+async function cleanupDuplicateOpenObservations(supabase, accountId, payload) {
+  const origin = String(payload.origin || payload.source_type || 'manual').trim();
+  const { data, error } = await supabase
+    .from('ai_director_observations')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('manager_id', payload.manager_id)
+    .eq('category', payload.category)
+    .eq('title', payload.title)
+    .eq('status', 'open')
+    .eq('origin', origin)
+    .order('created_at', { ascending: false })
+    .limit(10);
+
+  if (error) throw new DatabaseError('Falha ao verificar observacoes duplicadas', { details: error });
+
+  const rows = Array.isArray(data) ? data : [];
+  if (rows.length <= 1) return rows[0] || null;
+
+  const [latest, ...duplicates] = rows;
+  const duplicateIds = duplicates.map((row) => row.id).filter(Boolean);
+  if (duplicateIds.length > 0) {
+    const { error: deleteError } = await supabase.from('ai_director_observations').delete().in('id', duplicateIds);
+    if (deleteError) throw new DatabaseError('Falha ao remover observacoes duplicadas', { details: deleteError });
+  }
+
+  return latest || null;
+}
+
 export async function listObservations(context = {}, filters = {}) {
   const accountId = context?.accountId || null;
   assertAccountId(accountId);
@@ -111,7 +140,33 @@ export async function createObservation(context = {}, payload = {}) {
   const normalized = normalizeCreateObservationPayload(payload);
   const errors = validateObservationPayload(normalized);
   if (errors.length) throw new BadRequestError('Dados invalidos', { details: errors, domain: 'ai-director-observations' });
-  const row = { id: randomUUID(), account_id: accountId, ...normalized, origin: payload.origin || payload.source_type || 'manual', metadata: normalized.metadata || {}, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+
+  // Supabase/PostgREST can lag behind migrations; keep observation-only fields
+  // in metadata so persistence still works even when schema cache is stale.
+  const metadata = {
+    ...(normalized.metadata || {}),
+    ...(normalized.impact ? { impact: normalized.impact } : {}),
+    ...(normalized.urgency ? { urgency: normalized.urgency } : {})
+  };
+  const row = {
+    id: randomUUID(),
+    account_id: accountId,
+    manager_id: normalized.manager_id,
+    manager_name: normalized.manager_name,
+    category: normalized.category,
+    title: normalized.title,
+    description: normalized.description,
+    severity: normalized.severity,
+    impact_score: normalized.impact_score,
+    urgency_score: normalized.urgency_score,
+    status: normalized.status,
+    source_type: normalized.source_type,
+    source_id: normalized.source_id,
+    metadata,
+    origin: payload.origin || payload.source_type || 'manual',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
   if (mode() === 'supabase') {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
@@ -142,16 +197,7 @@ export async function createObservationIfNotOpen(context = {}, payload = {}) {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const origin = String(payload.origin || payload.source_type || 'manual').trim();
-    const { data: current, error: currentError } = await supabase
-      .from('ai_director_observations')
-      .select('*')
-      .eq('account_id', accountId)
-      .eq('manager_id', normalized.manager_id)
-      .eq('category', normalized.category)
-      .eq('title', normalized.title)
-      .eq('status', 'open')
-      .maybeSingle();
-    if (currentError) throw new DatabaseError('Falha ao verificar observacao existente', { details: currentError });
+    const current = await cleanupDuplicateOpenObservations(supabase, accountId, { ...normalized, account_id: accountId, origin });
     if (current && isOpenEquivalent(current, accountId, { ...normalized, account_id: accountId, origin })) {
       return { created: false, reason: 'duplicate', observation: current };
     }
