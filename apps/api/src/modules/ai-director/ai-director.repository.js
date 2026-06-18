@@ -572,6 +572,10 @@ export function __resetMemoryAiDirectorForTests() {
   managerProviderOverrides.clear();
 }
 
+export function __dumpMemoryAiDirectorForTests() {
+  return clone(memoryStore);
+}
+
 export function __setAiDirectorManagerProviderOverrideForTests(managerId, provider) {
   if (!managerId) return;
   if (typeof provider !== 'function') {

@@ -191,23 +191,54 @@ function resolvePriorityCategory(observation) {
   return String(observation?.category || observation?.manager_id || 'geral').trim().toLowerCase();
 }
 
-function executivePriorityScore(observations = []) {
-  const items = Array.isArray(observations) ? observations : [];
-  const strongest = items.reduce((max, item) => Math.max(max, prioritySeverity(item.severity) * 10 + Number(item.impact_score || 0) / 10 + Number(item.urgency_score || 0) / 10), 0);
-  return Math.round(strongest + Math.min(20, items.length * 3) + criticalCategoryRank(resolvePriorityCategory(items[0])) * 2);
+function normalizeLogicalTheme(observation = {}) {
+  const metadata = observation?.metadata && typeof observation.metadata === 'object' && !Array.isArray(observation.metadata) ? observation.metadata : {};
+  const candidates = [
+    metadata.logical_theme,
+    metadata.theme,
+    metadata.tema,
+    observation.logical_theme,
+    observation.theme,
+    observation.title,
+    observation.description
+  ];
+  const raw = candidates.map((value) => String(value || '').trim()).find(Boolean) || 'geral';
+  return raw.toLowerCase().replace(/\s+/g, ' ').slice(0, 80);
 }
 
-function buildExecutivePriorityTitle(category, managerId, count) {
-  const labels = { auditoria: 'Auditoria', comercial: 'Comercial', administrativo: 'Administrativo', produtos: 'Produtos' };
-  const prefix = labels[String(category || '').toLowerCase()] || String(category || 'Geral').replace(/_/g, ' ');
+function executivePriorityScore(observations = []) {
+  const items = Array.isArray(observations) ? observations : [];
+  if (!items.length) return 0;
+  const strongest = items.reduce((max, item) => {
+    const urgencyValue = Number(item.urgency_score ?? item.urgency ?? 0);
+    const impactValue = Number(item.impact_score ?? item.impact ?? 0);
+    const urgency = urgencyValue >= 80 ? 50 : urgencyValue >= 50 ? 30 : urgencyValue > 0 ? 10 : ({ critical: 50, critica: 50, 'crítica': 50, high: 30, alta: 30, medium: 10, media: 10, 'média': 10, low: 10, baixa: 10 }[String(item.urgency || item.severity || '').toLowerCase()] ?? 10);
+    const impact = impactValue >= 80 ? 50 : impactValue >= 50 ? 30 : impactValue > 0 ? 10 : ({ critical: 50, critica: 50, 'crítica': 50, high: 30, alta: 30, medium: 10, media: 10, 'média': 10, low: 10, baixa: 10 }[String(item.impact || item.severity || '').toLowerCase()] ?? 10);
+    return Math.max(max, urgency + impact);
+  }, 0);
+  const category = resolvePriorityCategory(items[0]);
+  const categoryBonus = { auditoria: 30, comercial: 25, administrativo: 15, produtos: 10 }[category] || 0;
+  const recentBonus = items.some((item) => new Date(item.created_at || item.updated_at || 0).getTime() >= Date.now() - 24 * 60 * 60 * 1000) ? 10 : 0;
+  const entityBonus = items.some((item) => {
+    const metadata = item?.metadata && typeof item.metadata === 'object' && !Array.isArray(item.metadata) ? item.metadata : {};
+    return Boolean(metadata.entity_critical || metadata.critical_entity || metadata.critical || metadata.entidade_critica);
+  }) ? 10 : 0;
+  return Math.round(strongest + Math.min(50, items.length * 5) + categoryBonus + recentBonus + entityBonus);
+}
+
+function buildExecutivePriorityTitle(category, managerId, theme, count) {
+  const labels = { auditoria: 'Pendências críticas de auditoria', comercial: 'Clientes em risco comercial', administrativo: 'Pendências administrativas de cadastro', produtos: 'Pendências críticas de produtos' };
+  const base = labels[String(category || '').toLowerCase()] || 'Prioridade executiva';
   const manager = String(managerId || '').trim().replace(/_/g, ' ');
-  return `${prefix} prioritário: ${manager}${count > 1 ? ` (${count})` : ''}`.slice(0, 120);
+  const themeLabel = String(theme || '').trim().replace(/_/g, ' ');
+  const focus = manager || themeLabel || 'grupo consolidado';
+  return `${base}: ${focus}${count > 1 ? ` (${count})` : ''}`.slice(0, 120);
 }
 
 function buildExecutivePriorityDescription(observations = [], windowDays = 7) {
   const total = observations.length;
-  const first = observations[0] || {};
-  return `Consolidação determinística de ${total} observação(ões) aberta(s) na janela de ${windowDays} dia(s). Destaque: ${String(first.title || 'sem título').slice(0, 120)}.`;
+  const managers = [...new Set(observations.map((item) => item.manager_name || item.manager_id).filter(Boolean))];
+  return `Consolida ${total} observação(ões) na janela de ${windowDays} dia(s), envolvendo ${managers.join(', ') || 'gerentes não informados'}. Motivo: recorrência e criticidade do grupo. Recomenda-se acompanhamento executivo e resolução priorizada.`;
 }
 
 async function listTenantExecutiveAccounts() {
@@ -221,36 +252,38 @@ async function collectExecutivePriorities(accountId, windowDays = 7) {
   const recent = (observations.items || []).filter((item) => String(item.created_at || '') >= since || String(item.updated_at || '') >= since);
   const grouped = new Map();
   for (const observation of recent) {
-    const key = [resolvePriorityCategory(observation), String(observation.origin || ''), String(observation.manager_id || '')].join('|');
+    const key = [String(accountId || ''), resolvePriorityCategory(observation), String(observation.manager_id || observation.origin || ''), normalizeLogicalTheme(observation)].join('|');
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key).push(observation);
   }
   const candidates = [...grouped.entries()].map(([key, items]) => {
-    const [category, origin, managerId] = key.split('|');
+    const [, category, managerId, theme] = key.split('|');
     const score = executivePriorityScore(items);
     return {
       key,
       account_id: accountId,
       tipo: 'prioridade_executiva',
       categoria: category || 'geral',
-      titulo: buildExecutivePriorityTitle(category, managerId, items.length),
+      titulo: buildExecutivePriorityTitle(category, managerId, theme, items.length),
       descricao: buildExecutivePriorityDescription(items, windowDays),
-      severidade: score >= 40 ? 'critica' : score >= 30 ? 'alta' : score >= 20 ? 'media' : 'baixa',
+      severidade: score >= 100 ? 'critica' : score >= 70 ? 'alta' : score >= 40 ? 'media' : 'baixa',
       origem: 'diretor_reuniao_executiva',
       metadata: {
+        score,
+        rank: 0,
         observation_ids: items.map((item) => item.id),
         total_observations: items.length,
         managers: [...new Set(items.map((item) => item.manager_id).filter(Boolean))],
-        score,
+        categories: [...new Set(items.map((item) => item.category).filter(Boolean))],
         generated_by: 'diretor_reuniao_executiva',
         window_days: windowDays,
-        origin,
-        manager_id: managerId
+        criteria_version: 1,
+        theme
       }
     };
   });
-  candidates.sort((a, b) => b.metadata.score - a.metadata.score || criticalCategoryRank(b.categoria) - criticalCategoryRank(a.categoria) || b.metadata.total_observations - a.metadata.total_observations);
-  return candidates.slice(0, 10).slice(0, Math.max(3, candidates.length));
+  candidates.sort((a, b) => b.metadata.score - a.metadata.score || criticalCategoryRank(b.categoria) - criticalCategoryRank(a.categoria) || b.metadata.total_observations - a.metadata.total_observations || String(a.titulo).localeCompare(String(b.titulo)));
+  return candidates.slice(0, 5).map((item, index) => ({ ...item, metadata: { ...item.metadata, rank: index + 1 } }));
 }
 
 async function runObservationByTenant(job, context, accountId, analyzer) {

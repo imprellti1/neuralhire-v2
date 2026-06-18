@@ -9,6 +9,7 @@ import { __resetMemoryTimelineForTests } from '../../modules/clientes/clientes.t
 import { __resetMemoryPedidosForTests, createPedido } from '../../modules/pedidos/pedidos.repository.js';
 import { __resetMemoryProdutosForTests, createProduto } from '../../modules/produtos/produtos.repository.js';
 import { __resetMemoryAiDirectorObservationsForTests, createObservation, listObservations } from '../../modules/ai-director-observations/ai-director-observations.repository.js';
+import { __dumpMemoryAiDirectorForTests, __resetMemoryAiDirectorForTests } from '../../modules/ai-director/ai-director.repository.js';
 import { __resetAuditLogsForTests, __seedAuditLogForTests } from '../../modules/audit-logs/audit-logs.repository.js';
 import { __resetSystemJobsForTests, __dumpSystemJobsForTests, __setSystemJobsSupabaseClientForTests, acquireSystemJobLock, ensureDefaultSystemJobs, getSystemJobDefaults, listDueSystemJobs, recordSystemJobRun, updateSystemJobSchedule, upsertSystemJob } from '../../modules/jobs/jobs.repository.js';
 import { __resetJobsSchedulerForTests, dispatchDueJob, nextDaily0300, runJobsSchedulerTick, startJobsScheduler, stopJobsScheduler } from '../../modules/jobs/jobs.scheduler.js';
@@ -216,6 +217,7 @@ export function getJobsTests() {
         __resetMemoryPedidosForTests();
         __resetMemoryProdutosForTests();
         __resetMemoryAiDirectorObservationsForTests();
+        __resetMemoryAiDirectorForTests();
         const app = createApiApp();
         const produto = await createProduto({ nome: 'Produto A', preco: 600 }, { accountId: 'acc-manager' });
         const clienteRisco = await createCliente({ nome: 'Cliente Risco', documento: '12345678000190', ativo: true }, { accountId: 'acc-manager' });
@@ -260,6 +262,7 @@ export function getJobsTests() {
         __resetMemoryPedidosForTests();
         __resetMemoryProdutosForTests();
         __resetMemoryAiDirectorObservationsForTests();
+        __resetMemoryAiDirectorForTests();
         const app = createApiApp();
         const produto = await createProduto({ nome: 'Produto A', preco: 600 }, { accountId: 'acc-dup' });
         const cliente = await createCliente({ nome: 'Cliente Duplicado', documento: '52345678000190', ativo: true }, { accountId: 'acc-dup' });
@@ -296,6 +299,7 @@ export function getJobsTests() {
         __resetMemoryPedidosForTests();
         __resetMemoryProdutosForTests();
         __resetMemoryAiDirectorObservationsForTests();
+        __resetMemoryAiDirectorForTests();
         const app = createApiApp();
         const cliente = await createCliente({ nome: 'Cliente Métrica', documento: '62345678000190', ativo: true }, { accountId: 'acc-metrics' });
         const produto = await createProduto({ nome: 'Produto Métrica', preco: 100 }, { accountId: 'acc-metrics' });
@@ -323,6 +327,7 @@ export function getJobsTests() {
         __resetMemoryPedidosForTests();
         __resetMemoryProdutosForTests();
         __resetMemoryAiDirectorObservationsForTests();
+        __resetMemoryAiDirectorForTests();
         __resetAuditLogsForTests();
         const app = createApiApp();
         const produto = await createProduto({ nome: 'Produto Observado', preco: 10 }, { accountId: 'acc-new-jobs' });
@@ -370,61 +375,65 @@ export function getJobsTests() {
       }
     },
     {
-      name: 'diretor reunião executiva consolida observações sem IA generativa',
+      name: 'diretor reunião executiva prioriza no máximo 5 grupos com rank e severidade',
       run: async () => {
         __resetSystemJobsForTests();
         __resetMemoryAiDirectorObservationsForTests();
-        await createObservation({ accountId: 'acc-director' }, {
-          manager_id: 'gerente_comercial',
-          manager_name: 'Gerente Comercial',
-          category: 'comercial',
-          title: 'Receita em queda',
-          description: 'Queda relevante de faturamento no período recente.',
-          severity: 'critical',
-          impact_score: 80,
-          urgency_score: 90,
-          source_type: 'pedido',
-          source_id: 'pedido-1',
-          status: 'open',
-          metadata: { manager_id: 'gerente_comercial' }
-        });
-        await createObservation({ accountId: 'acc-director' }, {
-          manager_id: 'gerente_auditoria',
-          manager_name: 'Gerente Auditoria',
-          category: 'auditoria',
-          title: 'Log crítico',
-          description: 'Falha operacional relevante.',
-          severity: 'critical',
-          impact_score: 95,
-          urgency_score: 95,
-          source_type: 'audit_log',
-          source_id: 'log-1',
-          status: 'open',
-          metadata: { manager_id: 'gerente_auditoria' }
-        });
+        __resetMemoryAiDirectorForTests();
+        const accountId = 'acc-director';
+        const groups = [
+          { category: 'auditoria', manager_id: 'gerente_auditoria', manager_name: 'Gerente Auditoria', title: 'Log crítico', severity: 'critical', impact: 'critical', urgency: 'critical', metadata: { entity_critical: true, theme: 'logs críticos' } },
+          { category: 'comercial', manager_id: 'gerente_comercial', manager_name: 'Gerente Comercial', title: 'Receita em queda', severity: 'high', impact: 'high', urgency: 'high', metadata: { theme: 'queda de receita' } },
+          { category: 'administrativo', manager_id: 'gerente_administrativo', manager_name: 'Gerente Administrativo', title: 'Cadastro pendente', severity: 'medium', impact: 'medium', urgency: 'medium', metadata: { theme: 'pendências cadastrais' } },
+          { category: 'produtos', manager_id: 'gerente_produtos', manager_name: 'Gerente Produtos', title: 'Falha de catálogo', severity: 'medium', impact: 'low', urgency: 'medium', metadata: { theme: 'falhas de catálogo' } },
+          { category: 'comercial', manager_id: 'gerente_comercial', manager_name: 'Gerente Comercial', title: 'Follow-up atrasado', severity: 'low', impact: 'low', urgency: 'low', metadata: { theme: 'follow-up comercial' } },
+          { category: 'auditoria', manager_id: 'gerente_auditoria', manager_name: 'Gerente Auditoria', title: 'Outro log crítico', severity: 'critical', impact: 'critical', urgency: 'critical', metadata: { theme: 'logs fiscais' } }
+        ];
+        for (let i = 0; i < groups.length; i += 1) {
+          await createObservation({ accountId }, {
+            manager_id: groups[i].manager_id,
+            manager_name: groups[i].manager_name,
+            category: groups[i].category,
+            title: groups[i].title,
+            description: groups[i].title,
+            severity: groups[i].severity,
+            impact_score: 80,
+            urgency_score: 90,
+            source_type: 'pedido',
+            source_id: `source-${i}`,
+            status: 'open',
+            metadata: groups[i].metadata
+          });
+        }
         const { runDiretorReuniaoExecutivaJob } = await import('../../modules/jobs/jobs.scheduler.js');
         const job = await upsertSystemJob({ nome: 'diretor_reuniao_executiva', lock_key: 'diretor_reuniao_executiva', account_id: null, status: 'ativo', next_run_at: '2026-06-17T05:00:00.000Z' }, { accountId: null });
-        const result = await runDiretorReuniaoExecutivaJob({ accountId: 'acc-director', auth: { role: 'admin', accountId: 'acc-director' }, job });
+        const result = await runDiretorReuniaoExecutivaJob({ accountId, auth: { role: 'admin', accountId }, job });
         assert.equal(result.ok, true);
         assert.equal(typeof result.next_run_at, 'string');
-        const { listExecutiveMemories } = await import('../../modules/ai-director/ai-director.repository.js');
-        const memories = await listExecutiveMemories({ limit: 20 }, { accountId: 'acc-director' });
-        const memory = memories.items.find((item) => item.origem === 'diretor_reuniao_executiva' && item.tipo === 'prioridade_executiva');
-        assert.equal(Boolean(memory), true);
-        assert.equal(memory.metadata.generated_by, 'diretor_reuniao_executiva');
-        assert.equal(Array.isArray(memory.metadata.observation_ids), true);
-        assert.equal(typeof memory.metadata.total_observations, 'number');
-        assert.equal(Array.isArray(memory.metadata.managers), true);
-        assert.equal(typeof memory.metadata.score, 'number');
-        assert.equal(typeof memory.metadata.window_days, 'number');
+        const priorities = __dumpMemoryAiDirectorForTests().filter((item) => item.account_id === accountId && item.origem === 'diretor_reuniao_executiva' && item.tipo === 'prioridade_executiva');
+        assert.equal(priorities.length <= 5, true);
+        assert.equal(priorities.length, 5);
+        const scores = priorities.map((item) => Number(item.metadata.score || 0));
+        assert.deepEqual([...scores].sort((a, b) => b - a), scores);
+        assert.equal(priorities[0].metadata.rank, 1);
+        assert.equal(priorities[0].severidade, 'critica');
+        assert.equal(priorities.some((item) => item.severidade === 'alta' || item.severidade === 'media' || item.severidade === 'baixa'), true);
+        assert.equal(Array.isArray(priorities[0].metadata.observation_ids), true);
+        assert.equal(priorities[0].metadata.criteria_version, 1);
+        assert.equal(typeof priorities[0].metadata.score, 'number');
+        assert.equal(typeof priorities[0].metadata.rank, 'number');
+        assert.equal(Array.isArray(priorities[0].metadata.managers), true);
+        assert.equal(Array.isArray(priorities[0].metadata.categories), true);
       }
     },
     {
-      name: 'diretor reunião executiva não duplica prioridade igual',
+      name: 'diretor reunião executiva atualiza sem duplicar em execução repetida',
       run: async () => {
         __resetSystemJobsForTests();
         __resetMemoryAiDirectorObservationsForTests();
-        await createObservation({ accountId: 'acc-director-dup' }, {
+        __resetMemoryAiDirectorForTests();
+        const accountId = 'acc-director-dup';
+        await createObservation({ accountId }, {
           manager_id: 'gerente_comercial',
           manager_name: 'Gerente Comercial',
           category: 'comercial',
@@ -436,15 +445,16 @@ export function getJobsTests() {
           source_type: 'pedido',
           source_id: 'pedido-1',
           status: 'open',
-          metadata: { manager_id: 'gerente_comercial' }
+          metadata: { theme: 'queda de receita' }
         });
         const { runDiretorReuniaoExecutivaJob } = await import('../../modules/jobs/jobs.scheduler.js');
         const job = await upsertSystemJob({ nome: 'diretor_reuniao_executiva', lock_key: 'diretor_reuniao_executiva', account_id: null, status: 'ativo', next_run_at: '2026-06-17T05:00:00.000Z' }, { accountId: null });
-        await runDiretorReuniaoExecutivaJob({ accountId: 'acc-director-dup', auth: { role: 'admin', accountId: 'acc-director-dup' }, job });
-        await runDiretorReuniaoExecutivaJob({ accountId: 'acc-director-dup', auth: { role: 'admin', accountId: 'acc-director-dup' }, job });
-        const { listExecutiveMemories } = await import('../../modules/ai-director/ai-director.repository.js');
-        const priorities = await listExecutiveMemories({ limit: 20 }, { accountId: 'acc-director-dup' });
-        assert.equal(priorities.items.filter((item) => item.tipo === 'prioridade_executiva').length, 1);
+        await runDiretorReuniaoExecutivaJob({ accountId, auth: { role: 'admin', accountId }, job });
+        await runDiretorReuniaoExecutivaJob({ accountId, auth: { role: 'admin', accountId }, job });
+        const same = __dumpMemoryAiDirectorForTests().filter((item) => item.account_id === accountId && item.tipo === 'prioridade_executiva' && item.origem === 'diretor_reuniao_executiva');
+        assert.equal(same.length, 1);
+        assert.equal(same[0].metadata.generated_by, 'diretor_reuniao_executiva');
+        assert.equal(same[0].metadata.criteria_version, 1);
       }
     },
     {
@@ -452,11 +462,13 @@ export function getJobsTests() {
       run: async () => {
         __resetSystemJobsForTests();
         __resetMemoryAiDirectorObservationsForTests();
+        __resetMemoryAiDirectorForTests();
         const { runDiretorReuniaoExecutivaJob } = await import('../../modules/jobs/jobs.scheduler.js');
         const job = await upsertSystemJob({ nome: 'diretor_reuniao_executiva', lock_key: 'diretor_reuniao_executiva', account_id: null, status: 'ativo', next_run_at: '2026-06-17T05:00:00.000Z' }, { accountId: null });
         const result = await runDiretorReuniaoExecutivaJob({ accountId: 'acc-empty-director', auth: { role: 'admin', accountId: 'acc-empty-director' }, job });
         assert.equal(result.ok, true);
         assert.equal(typeof result.next_run_at, 'string');
+        assert.equal(new Date(result.next_run_at).getTime() > Date.now() - 1000, true);
       }
     },
     {
@@ -518,11 +530,13 @@ export function getJobsTests() {
           update() { return { eq() { return { select() { return { single: async () => ({ data: mock.state.jobs[0], error: null }) }; } }; } }; }
         });
         __setSystemJobsSupabaseClientForTests(mock, true);
+        const job = await upsertSystemJob({ nome: 'diretor_reuniao_executiva', lock_key: 'diretor_reuniao_executiva', account_id: null, status: 'ativo', next_run_at: '2026-06-17T05:00:00.000Z' }, { accountId: null });
         try {
           const { runDiretorReuniaoExecutivaJob } = await import('../../modules/jobs/jobs.scheduler.js');
           const result = await runDiretorReuniaoExecutivaJob({ accountId: 'acc-director-fail', auth: { accountId: 'acc-director-fail', role: 'admin' }, job });
           assert.equal(result.ok, true);
           assert.equal(typeof result.next_run_at, 'string');
+          assert.equal(new Date(result.next_run_at).getTime() > Date.now() - 1000, true);
         } finally {
           __setSystemJobsSupabaseClientForTests(null, false);
         }
