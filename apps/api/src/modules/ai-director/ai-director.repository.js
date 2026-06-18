@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestError, DatabaseError, ForbiddenError } from '../../core/errors.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
+import { logger } from '../../core/logger.js';
 import { listClientes } from '../clientes/clientes.repository.js';
 import { listPedidos } from '../pedidos/pedidos.repository.js';
 import { listProdutos } from '../produtos/produtos.repository.js';
@@ -431,20 +432,22 @@ function matchesExecutiveMemoryIdentity(row = {}, candidate = {}) {
     String(row.origem || '') === String(candidate.origem || '');
 }
 
-async function findExistingExecutiveMemory(supabase, row) {
+async function findExistingExecutiveMemoryByLogicalKey(supabase, row) {
+  const normalizedTitle = normalizeExecutiveMemoryTitle(row.titulo);
   const { data, error } = await supabase
     .from('ai_director_executive_memories')
     .select('*')
     .eq('account_id', row.account_id)
     .eq('tipo', row.tipo)
     .eq('categoria', row.categoria)
-    .eq('origem', row.origem);
+    .eq('origem', row.origem)
+    .ilike('titulo', row.titulo);
   if (error) throw new DatabaseError('Falha ao consultar memoria executiva do diretor', { details: error });
-  return (data || []).find((item) => matchesExecutiveMemoryIdentity(item, row)) || null;
+  return (data || []).find((item) => normalizeExecutiveMemoryTitle(item.titulo) === normalizedTitle) || null;
 }
 
 async function saveExecutiveMemoryRow(supabase, row) {
-  const current = await findExistingExecutiveMemory(supabase, row);
+  const current = await findExistingExecutiveMemoryByLogicalKey(supabase, row);
   if (current) {
     const next = {
       ...current,
@@ -464,7 +467,15 @@ async function saveExecutiveMemoryRow(supabase, row) {
   const { data: inserted, error } = await supabase.from('ai_director_executive_memories').insert(row).select('*').single();
   if (error) {
     if (isUniqueConstraintViolation(error)) {
-      const retryCurrent = await findExistingExecutiveMemory(supabase, row);
+      logger.warn('ai_director_executive_memory_23505_retry', {
+        account_id: row.account_id,
+        tipo: row.tipo,
+        categoria: row.categoria,
+        titulo: row.titulo,
+        titulo_normalizado: normalizeExecutiveMemoryTitle(row.titulo),
+        origem: row.origem
+      });
+      const retryCurrent = await findExistingExecutiveMemoryByLogicalKey(supabase, row);
       if (retryCurrent) {
         const next = {
           ...retryCurrent,
@@ -485,6 +496,7 @@ async function saveExecutiveMemoryRow(supabase, row) {
           account_id: row.account_id,
           tipo: row.tipo,
           categoria: row.categoria,
+          titulo_normalizado: normalizeExecutiveMemoryTitle(row.titulo),
           titulo: row.titulo,
           origem: row.origem
         }

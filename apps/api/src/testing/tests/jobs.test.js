@@ -1462,6 +1462,7 @@ export function getJobsTests() {
               _filters: {},
               select() { return this; },
               eq(column, value) { this._filters[column] = value; return this; },
+              ilike(column, value) { this._filters[column] = value; return this; },
               order() { return this; },
               limit() { return this; },
               async single() {
@@ -1470,6 +1471,7 @@ export function getJobsTests() {
                   String(row.tipo || '') === String(this._filters.tipo || '') &&
                   String(row.categoria || '') === String(this._filters.categoria || '') &&
                   String(row.origem || '') === String(this._filters.origem || '') &&
+                  String(row.titulo || '').toLowerCase() === String(this._filters.titulo || '').toLowerCase() &&
                   String(row.id || '') === String(this._filters.id || '')
                 ) || null;
                 return item ? { data: item, error: null } : { data: null, error: { code: 'PGRST116', message: 'No rows found' } };
