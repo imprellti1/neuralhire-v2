@@ -52,11 +52,20 @@ function isLockedJob(job) {
   return Boolean(job?.locked_at);
 }
 
-export async function renderAdminJobsPage(container, { apiClient } = {}) {
+export async function renderAdminJobsPage(container, { apiClient, isActiveRoute = () => true } = {}) {
   const state = createAdminJobsState();
   const runTargets = Object.keys(JOB_LABELS);
+  let destroyed = false;
+  let refreshTimer = null;
+  const canRender = () => !destroyed && isActiveRoute();
+  container.__adminJobsCleanup = () => {
+    destroyed = true;
+    if (refreshTimer) clearTimeout(refreshTimer);
+    refreshTimer = null;
+  };
 
   async function load() {
+    if (!canRender()) return;
     state.loading = true;
     state.error = null;
     render();
@@ -65,20 +74,22 @@ export async function renderAdminJobsPage(container, { apiClient } = {}) {
         fetchAdminJobs(apiClient),
         fetchAdminJobRuns(apiClient, state.runFilters)
       ]);
+      if (!canRender()) return;
       state.jobs = jobs.items || [];
       state.runs = runs.items || [];
       if (!state.selectedJobId && state.jobs[0]?.id) state.selectedJobId = state.jobs[0].id;
       if (state.selectedJobId) {
         const detail = await fetchAdminJob(apiClient, state.selectedJobId);
+        if (!canRender()) return;
         state.selectedJob = detail.item || null;
         state.runs = detail.runs || state.runs;
       }
     } catch (error) {
-      state.error = error;
+      if (canRender()) state.error = error;
     } finally {
       state.loading = false;
       state.refreshing = false;
-      render();
+      if (canRender()) render();
     }
   }
 
@@ -90,16 +101,18 @@ export async function renderAdminJobsPage(container, { apiClient } = {}) {
       state.successMessage = 'Job iniciado com sucesso';
       state.refreshing = true;
       render();
-      setTimeout(() => load(), 1200);
+      refreshTimer = setTimeout(() => {
+        if (canRender()) void load();
+      }, 1200);
     } catch (error) {
       state.error = error;
-      render();
+      if (canRender()) render();
     }
   }
 
   function openJob(jobId) {
     state.selectedJobId = jobId;
-    load();
+    void load();
   }
 
   function render() {
@@ -196,12 +209,12 @@ export async function renderAdminJobsPage(container, { apiClient } = {}) {
         ${state.selectedJob ? `<article class="admin-jobs-card admin-jobs-meta-panel"><h2 class="admin-jobs-detail-title">Detalhe / Metadata</h2><p><strong>${esc(JOB_LABELS[state.selectedJob.nome] || state.selectedJob.nome)}</strong></p><pre id="admin-jobs-detail" class="admin-jobs-pre">${esc(JSON.stringify(state.selectedJob.metadata || {}, null, 2))}</pre></article>` : ''}
       </section>`;
 
-    container.querySelector('#admin-jobs-refresh')?.addEventListener('click', load);
+    container.querySelector('#admin-jobs-refresh')?.addEventListener('click', () => { if (canRender()) void load(); });
     container.querySelectorAll('.admin-job-run').forEach((btn) => btn.addEventListener('click', () => triggerJob(btn.getAttribute('data-job'))));
     container.querySelectorAll('.admin-job-open').forEach((btn) => btn.addEventListener('click', () => openJob(btn.getAttribute('data-id'))));
-    container.querySelector('#admin-jobs-filter-name')?.addEventListener('change', (event) => { state.runFilters.nome = event.target.value; load(); });
-    container.querySelector('#admin-jobs-filter-status')?.addEventListener('change', (event) => { state.runFilters.status = event.target.value; load(); });
-    container.querySelector('#admin-jobs-filter-limit')?.addEventListener('change', (event) => { state.runFilters.limit = Number(event.target.value || 20); load(); });
+    container.querySelector('#admin-jobs-filter-name')?.addEventListener('change', (event) => { state.runFilters.nome = event.target.value; if (canRender()) void load(); });
+    container.querySelector('#admin-jobs-filter-status')?.addEventListener('change', (event) => { state.runFilters.status = event.target.value; if (canRender()) void load(); });
+    container.querySelector('#admin-jobs-filter-limit')?.addEventListener('change', (event) => { state.runFilters.limit = Number(event.target.value || 20); if (canRender()) void load(); });
     container.querySelectorAll('.admin-job-meta').forEach((btn) => btn.addEventListener('click', async () => {
       await navigator.clipboard?.writeText(btn.getAttribute('data-meta') || '{}').catch(() => {});
     }));

@@ -226,14 +226,28 @@ export function bootstrapWebApp() {
   const invalidateAuthState = () => {
     authState.promise = null;
   };
+  const cleanupActiveView = (container = document.getElementById('app-content')) => {
+    if (!container) return;
+    for (const key of ['__adminJobsCleanup', '__aiDirectorCleanup', '__pedidosAuditoriaCleanup']) {
+      if (typeof container[key] === 'function') {
+        console.info('module_cleanup_started', { key });
+        container[key]();
+        console.info('module_cleanup_finished', { key });
+        delete container[key];
+      }
+    }
+  };
 
   const renderPublic = () => {
+    cleanupActiveView();
     document.body.classList.remove('nh-shell-active');
     document.body.innerHTML = '';
     renderPublicLandingPage(document.body, { apiClient: api });
   };
 
   const renderRoute = async () => {
+    const requestedHash = String(window.location.hash || '#/').trim() || '#/';
+    console.info('route_changed', { hash: requestedHash });
     let route = window.location.hash || '#/';
     if (isAppSite && (route === '#/' || route === '#')) {
       const auth = await getAuthState();
@@ -241,6 +255,7 @@ export function bootstrapWebApp() {
       window.location.hash = route;
     }
     if (route === '#/logout') {
+      cleanupActiveView();
       clearAuthSession();
       invalidateAuthState();
       window.location.hash = '#/login';
@@ -251,6 +266,7 @@ export function bootstrapWebApp() {
       return;
     }
     if (!isAppSite && route === '#/login') {
+      cleanupActiveView();
       document.body.classList.remove('nh-shell-active');
       renderPublic();
       return;
@@ -258,6 +274,7 @@ export function bootstrapWebApp() {
 
     const auth = await getAuthState();
     if (route !== '#/login' && !auth.session) {
+      cleanupActiveView();
       window.location.hash = '#/login';
       const loginShell = ensureRootShell('login');
       const loginContent = document.getElementById('app-content');
@@ -266,6 +283,7 @@ export function bootstrapWebApp() {
     }
 
     if (route === '#/login') {
+      cleanupActiveView();
       document.body.classList.remove('nh-shell-active');
       const loginShell = ensureRootShell('login');
       const loginContent = document.getElementById('app-content');
@@ -281,6 +299,7 @@ export function bootstrapWebApp() {
       return;
     }
 
+    cleanupActiveView();
     let layout = document.querySelector('.nh-shell');
     if (!layout) {
       layout = createLayout();
@@ -303,6 +322,7 @@ export function bootstrapWebApp() {
       : route === '#/importacao-itens-pedido' ? '#/importacao-itens-pedido'
       : route;
     setActiveMenu(activeRoute);
+    console.info('page_render_started', { route, activeRoute });
 
     if (route === '#/clientes') return renderClientesPage(content, { apiClient: api });
     if (route === '#/clientes/radar') return renderClientesRadarPage(content, { apiClient: api });
@@ -351,11 +371,13 @@ export function bootstrapWebApp() {
     if (route === '#/portfolio-dashboard') return renderPortfolioDashboardPage(content, { apiClient: api });
     if (route === '#/legacy-import') return renderLegacyImportPage(content, { apiClient: api });
     if (route === '#/auditoria') return renderAuditoriaPage(content, { apiClient: api });
-    if (route === '#/admin/jobs') return renderAdminJobsPage(content, { apiClient: api });
-    if (route === '#/auditoria-pedidos') return renderPedidosAuditoriaPage(content, { apiClient: api });
+    if (route === '#/admin/jobs') return renderAdminJobsPage(content, { apiClient: api, isActiveRoute: () => window.location.hash === route });
+    if (route === '#/auditoria-pedidos') return renderPedidosAuditoriaPage(content, { apiClient: api, isActiveRoute: () => window.location.hash === route });
     if (route.startsWith('#/interest-leads/')) return renderInterestLeadDetailsPage(content, { apiClient: api, leadId: route.slice('#/interest-leads/'.length).split('?')[0] });
     if (route === '#/dashboard-operacional') return renderOperationalDashboardPage(content, { apiClient: api });
-    return renderAnalyticsDashboardPage(content, { apiClient: api });
+    const result = renderAnalyticsDashboardPage(content, { apiClient: api });
+    console.info('page_render_finished', { route, activeRoute });
+    return result;
   };
 
   window.addEventListener('hashchange', renderRoute);

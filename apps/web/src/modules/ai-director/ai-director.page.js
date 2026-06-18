@@ -188,12 +188,13 @@ function normalizeRadarSnapshot(radar = {}) {
   };
 }
 
-export async function renderAiDirectorPage(container, { apiClient } = {}) {
+export async function renderAiDirectorPage(container, { apiClient, isActiveRoute = () => true } = {}) {
   const state = createAiDirectorState();
   const AUTO_REFRESH_INTERVAL_MS = 30000;
   let autoRefreshTimer = null;
   let autoRefreshInFlight = false;
   let destroyed = false;
+  const canRender = () => !destroyed && isActiveRoute();
 
   const formatClockTime = (value) => {
     if (!value) return '—';
@@ -237,7 +238,7 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
   }
 
   async function refreshDashboard({ silent = false } = {}) {
-    if (!apiClient || destroyed) return false;
+    if (!apiClient || destroyed || !isActiveRoute()) return false;
     if (autoRefreshInFlight) return false;
     if (!silent) {
       state.autoRefreshError = null;
@@ -262,11 +263,12 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
     } finally {
       autoRefreshInFlight = false;
       state.autoRefreshLoading = false;
-      if (!destroyed) render();
+      if (canRender()) render();
     }
   }
 
   const render = () => {
+    if (!canRender()) return;
     if (state.loading) {
       container.innerHTML = '<section><h1>Diretor IA</h1><p>Carregando...</p></section>';
       return;
@@ -943,6 +945,7 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
   };
 
   const load = async () => {
+    if (!canRender()) return;
     state.loading = true;
     state.managersLoading = true;
     render();
@@ -959,17 +962,18 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
           return { managers: [] };
         })
       ]);
+      if (!canRender()) return;
       state.dashboard = dashboardResult;
       state.memories = memoriesResult.items || [];
       state.executiveMemories = executiveMemoriesResult.items || [];
       state.observations = observationsResult.items || [];
       state.managers = managersResult.managers || [];
     } catch (error) {
-      state.error = error;
+      if (canRender()) state.error = error;
     } finally {
       state.loading = false;
       state.managersLoading = false;
-      render();
+      if (canRender()) render();
     }
   };
 
@@ -986,7 +990,7 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
       };
       state.savingMemory = true;
       state.memoryError = null;
-      render();
+      if (canRender()) render();
       try {
         await createMemory(apiClient, payload);
         const result = await listMemories(apiClient);
@@ -996,7 +1000,7 @@ export async function renderAiDirectorPage(container, { apiClient } = {}) {
         state.memoryError = 'Não foi possível salvar a memória.';
       } finally {
         state.savingMemory = false;
-        render();
+        if (canRender()) render();
         bindMemoryForm();
       }
     });

@@ -127,23 +127,28 @@ function renderPedidoActionButton(action, label, ariaLabel, item) {
   return `<button class="nha2-btn nha2-small" data-action="${action}" data-id="${item.id}" aria-label="${ariaLabel}">${label}</button>`;
 }
 
-export function renderPedidosAuditoriaPage(root, { apiClient }) {
+export function renderPedidosAuditoriaPage(root, { apiClient, isActiveRoute = () => true } = {}) {
   injectStyles();
   const state = createPedidosAuditoriaState();
+  let destroyed = false;
+  root.__pedidosAuditoriaCleanup = () => { destroyed = true; };
+  const canRender = () => !destroyed && isActiveRoute();
 
   async function load(page = 1) {
+    if (!canRender()) return;
     state.loading = true;
     state.error = false;
     render();
     try {
       const data = await fetchPedidosAuditoria(apiClient, { page, limit: state.pagination.limit, ...state.filters });
+      if (!canRender()) return;
       state.items = data.items || [];
       state.pagination = data.pagination || state.pagination;
     } catch {
-      state.error = true;
+      if (canRender()) state.error = true;
     } finally {
       state.loading = false;
-      render();
+      if (canRender()) render();
     }
   }
 
