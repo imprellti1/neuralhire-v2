@@ -41,6 +41,17 @@ function mode() {
   return isSupabaseConfigured() ? 'supabase' : 'memory';
 }
 
+function normalizeActionPlanTitleKey(value = '') {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_');
+}
+
 export function buildExecutiveActionPlan(memory = {}) {
   const categories = new Set([
     String(memory?.categoria || '').toLowerCase(),
@@ -78,6 +89,7 @@ export function buildExecutiveActionPlan(memory = {}) {
     : lowerTitle.startsWith('pendências administrativas de cadastro')
       ? 'Regularizar pendências administrativas de cadastro'
       : `Executar plano de ação: ${sourceTitle}`;
+  const normalizedTitleKey = normalizeActionPlanTitleKey(titulo || sourceTitle);
 
   const descricao = `Plano de ação gerado pelo Diretor IA a partir da memória executiva '${sourceTitle}'. O gerente responsável deve atuar sobre as pendências consolidadas, priorizando os itens de maior impacto. Prazo recomendado: ${prazo_dias} dias. Impacto estimado: ${impacto}. Motivo: ${String(memory?.descricao || 'sem descrição adicional').trim()}. Recomendação objetiva: tratar as pendências de forma determinística e registrar a evolução no acompanhamento executivo.`;
 
@@ -96,6 +108,7 @@ export function buildExecutiveActionPlan(memory = {}) {
     metadata: {
       generated_by: 'diretor_plano_acao',
       executive_memory_id: memory.id,
+      normalized_title_key: normalizedTitleKey,
       source_memory_title: memory.titulo || null,
       source_memory_category: memory.categoria || null,
       source_memory_severity: memory.severidade || null,
@@ -142,12 +155,23 @@ export async function upsertActionPlan(payload = {}, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
   const normalized = normalizePayload(payload);
+  const normalizedTitleKey = String(normalized.metadata?.normalized_title_key || '').trim() || normalizeActionPlanTitleKey(normalized.titulo);
+  const normalizedExecutiveMemoryId = String(normalized.executive_memory_id || '').trim();
   const row = { id: randomUUID(), account_id: accountId, ...normalized, updated_at: new Date().toISOString(), criado_em: new Date().toISOString() };
+  row.metadata = { ...row.metadata, normalized_title_key: normalizedTitleKey };
   if (mode() === 'supabase') {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data: current, error: selectError } = await supabase.from('ai_director_action_plans').select('*').eq('account_id', accountId).eq('executive_memory_id', row.executive_memory_id).maybeSingle();
+    const { data: openPlans, error: selectError } = await supabase
+      .from('ai_director_action_plans')
+      .select('*')
+      .eq('account_id', accountId)
+      .eq('status', 'aberto');
     if (selectError) throw new DatabaseError('Falha ao consultar plano de acao', { details: selectError });
+    const current = (openPlans || []).find((item) =>
+      String(item.executive_memory_id || '').trim() === normalizedExecutiveMemoryId ||
+      String(item.metadata?.normalized_title_key || '').trim() === normalizedTitleKey
+    ) || null;
     if (current) {
       const { data, error } = await supabase.from('ai_director_action_plans').update({ ...row, id: current.id, account_id: current.account_id, criado_em: current.criado_em }).eq('id', current.id).select('*').single();
       if (error) throw new DatabaseError('Falha ao atualizar plano de acao', { details: error });
@@ -157,7 +181,10 @@ export async function upsertActionPlan(payload = {}, options = {}) {
     if (error) throw new DatabaseError('Falha ao criar plano de acao', { details: error });
     return data;
   }
-  const current = memoryStore.find((item) => item.account_id === accountId && item.executive_memory_id === row.executive_memory_id && item.status === 'aberto') || null;
+  const current = memoryStore.find((item) => item.account_id === accountId && item.status === 'aberto' && (
+    String(item.executive_memory_id || '').trim() === normalizedExecutiveMemoryId ||
+    String(item.metadata?.normalized_title_key || '').trim() === normalizedTitleKey
+  )) || null;
   if (current) {
     Object.assign(current, row, { id: current.id, criado_em: current.criado_em });
     return clone(current);

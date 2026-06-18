@@ -1307,6 +1307,23 @@ export function getJobsTests() {
         assert.equal(plan.impacto, 'alto');
         assert.equal(plan.prioridade_score, 160);
         assert.equal(plan.prazo_dias, 3);
+        assert.equal(plan.metadata.normalized_title_key, 'regularizar_pendencias_criticas_de_produtos');
+      }
+    },
+    {
+      name: 'buildExecutiveActionPlan normaliza titulo com acento e pontuacao',
+      run: async () => {
+        __resetMemoryAiDirectorActionPlansForTests();
+        const plan = buildExecutiveActionPlan({
+          id: 'mem-2',
+          account_id: 'acc-plan',
+          titulo: 'Pendências!  críticas, de   produtos??',
+          descricao: 'Falhas de catálogo',
+          categoria: 'produtos',
+          severidade: 'critica',
+          metadata: { score: 160, categories: ['produtos'] }
+        });
+        assert.equal(plan.metadata.normalized_title_key, 'regularizar_pendencias_criticas_de_produtos');
       }
     },
     {
@@ -1338,6 +1355,38 @@ export function getJobsTests() {
         await runDiretorPlanoAcaoJob({ accountId: 'acc-plan', job, auth: { accountId: 'acc-plan' } });
         const second = await listActionPlans('acc-plan', {}, {});
         assert.equal(second.items.length, 2);
+      }
+    },
+    {
+      name: 'diretor_plano_acao deduplica por normalized_title_key com memoria equivalente',
+      run: async () => {
+        __resetMemoryAiDirectorForTests();
+        __resetMemoryAiDirectorActionPlansForTests();
+        __resetSystemJobsForTests();
+        await createExecutiveMemory({
+          tipo: 'prioridade_executiva',
+          titulo: 'Pendências críticas de produtos',
+          descricao: 'Falhas de catálogo',
+          categoria: 'produtos',
+          severidade: 'critica',
+          metadata: { score: 160, categories: ['produtos'] }
+        }, { accountId: 'acc-plan' });
+        await createExecutiveMemory({
+          tipo: 'prioridade_executiva',
+          titulo: 'Pendências críticas de produtos',
+          descricao: 'Outra memória com mesmo tema',
+          categoria: 'produtos',
+          severidade: 'alta',
+          metadata: { score: 140, categories: ['produtos'] }
+        }, { accountId: 'acc-plan' });
+        const job = await upsertSystemJob({ nome: 'diretor_plano_acao', lock_key: 'diretor_plano_acao', account_id: null, status: 'ativo', next_run_at: '2026-06-17T05:00:00.000Z' }, { accountId: null });
+        await runDiretorPlanoAcaoJob({ accountId: 'acc-plan', job, auth: { accountId: 'acc-plan' } });
+        const plans = await listActionPlans('acc-plan', { status: 'aberto' }, {});
+        assert.equal(plans.items.length, 1);
+        assert.equal(plans.items[0].metadata.normalized_title_key, 'regularizar pendencias criticas de produtos');
+        await runDiretorPlanoAcaoJob({ accountId: 'acc-plan', job, auth: { accountId: 'acc-plan' } });
+        const afterSecondRun = await listActionPlans('acc-plan', { status: 'aberto' }, {});
+        assert.equal(afterSecondRun.items.length, 1);
       }
     },
     {
