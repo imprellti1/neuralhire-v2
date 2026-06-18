@@ -262,13 +262,10 @@ async function recalculateRadarClient(cliente, context, accountId) {
   }, { accountId, clienteId: cliente.id }).catch(() => null);
 }
 
-export async function runRadarComercialJob(context = {}) {
-  const accountId = getAccountIdFromContext(context);
+async function runRadarComercialForAccount(accountId, context = {}) {
   const lockKey = `${accountId}:jobs:radar_comercial_diario`;
   const acquired = await acquireSystemJobLock({ lockKey, nome: 'radar_comercial_diario', ttlMinutes: 120, accountId, workerId: context.requestId || 'local' });
-  if (!acquired.acquired) {
-    return { ok: true, skipped: true, job: acquired.job };
-  }
+  if (!acquired.acquired) return { ok: true, skipped: true, job: acquired.job };
 
   const startedAt = Date.now();
   const job = await upsertSystemJob({
@@ -307,6 +304,7 @@ export async function runRadarComercialJob(context = {}) {
   } finally {
     const finishedAt = isoNow();
     const status = fatalError || falhas ? 'error' : 'success';
+    const nextRunAt = fatalError || falhas ? nextInMinutes(new Date(), 15) : nextDaily0300(new Date());
     await recordSystemJobRun({
       job_id: job.id,
       account_id: accountId,
@@ -318,7 +316,7 @@ export async function runRadarComercialJob(context = {}) {
       processed_count: processados,
       success_count: sucessos,
       error_count: fatalError ? Math.max(1, falhas) : falhas,
-      metadata: { chunk_size: 25, fatal_error: fatalError ? { message: fatalError?.message || String(fatalError), code: fatalError?.code || null } : null },
+      metadata: { chunk_size: 25, fatal_error: fatalError ? { message: fatalError?.message || String(fatalError), code: fatalError?.code || null } : null, details_failures: detalhesFalhas.slice(0, 20) },
       error: fatalError?.message || (falhas ? 'Alguns clientes falharam' : null)
     }, { accountId }).catch((error) => {
       logJobError('recordSystemJobRun', error, { accountId, lockKey, requestId: context.requestId || null });
@@ -329,17 +327,16 @@ export async function runRadarComercialJob(context = {}) {
       logJobError('releaseSystemJobLock', error, { accountId, lockKey, requestId: context.requestId || null });
       return null;
     });
+
+    await upsertSystemJob({
+      ...job,
+      status: 'ativo',
+      last_success_at: fatalError || falhas ? job.last_success_at : isoNow(),
+      last_error: fatalError ? (fatalError?.message || 'Falha fatal no job') : (falhas ? 'Alguns clientes falharam' : null),
+      next_run_at: nextRunAt
+    }, { accountId });
   }
 
-  await upsertSystemJob({
-    ...job,
-    status: 'ativo',
-    last_success_at: fatalError || falhas ? job.last_success_at : isoNow(),
-    last_error: fatalError ? (fatalError?.message || 'Falha fatal no job') : (falhas ? 'Alguns clientes falharam' : null),
-    next_run_at: nextDaily0300(new Date())
-  }, { accountId });
-
-  const finishedAt = isoNow();
   return {
     ok: true,
     total_clientes: clientes.length,
@@ -348,10 +345,42 @@ export async function runRadarComercialJob(context = {}) {
     falhas: fatalError ? Math.max(1, falhas) : falhas,
     detalhes_falhas: detalhesFalhas,
     iniciado_em: new Date(startedAt).toISOString(),
-    finalizado_em: finishedAt,
+    finalizado_em: isoNow(),
     duracao_ms: Date.now() - startedAt,
     job
   };
+}
+
+export async function runRadarComercialJob(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  if (!accountId && !context?.schedulerManaged) {
+    const tenantAccountIds = await listTenantAccountIds();
+    const results = [];
+    for (const tenantAccountId of tenantAccountIds) {
+      try {
+        results.push(await runRadarComercialForAccount(tenantAccountId, { ...context, schedulerManaged: true }));
+      } catch (error) {
+        results.push({ ok: false, accountId: tenantAccountId, error: error?.message || String(error) });
+      }
+    }
+    const failures = results.filter((item) => item?.ok === false || item?.falhas > 0).length;
+    await recordSystemJobRun({
+      job_id: null,
+      account_id: null,
+      nome: 'radar_comercial_diario',
+      status: failures ? 'error' : 'success',
+      started_at: isoNow(),
+      finished_at: isoNow(),
+      duration_ms: 0,
+      processed_count: results.length,
+      success_count: results.filter((item) => item?.ok && !item?.falhas).length,
+      error_count: failures,
+      metadata: { mode: 'tenant_fanout', tenant_count: tenantAccountIds.length, results: results.map((item) => ({ accountId: item.accountId || item?.job?.account_id || null, ok: Boolean(item?.ok), falhas: item?.falhas || 0, error: item?.error || null })) },
+      error: failures ? 'Falha ao executar radar comercial em um ou mais tenants' : null
+    }, { accountId: null }).catch(() => null);
+    return { ok: true, mode: 'tenant_fanout', tenant_count: tenantAccountIds.length, results };
+  }
+  return runRadarComercialForAccount(accountId, context);
 }
 
 async function runClienteAutomacaoJob({ context = {}, lockKey, nome, ttlMinutes, nextRunIfProcessedMinutes, nextRunIfEmptyMinutes, action, selectNextCliente, executeCliente, metadataAction, schedulerManaged = false }) {
@@ -418,7 +447,7 @@ async function runClienteAutomacaoJob({ context = {}, lockKey, nome, ttlMinutes,
         last_run_at: finishedAt,
         last_success_at: fatalError ? job.last_success_at : finishedAt,
         last_error: fatalError?.message || null,
-        next_run_at: nextRunAt,
+        next_run_at: fatalError ? nextInMinutes(new Date(), 15) : nextRunAt,
         locked_at: null,
         locked_by: null,
         status: 'ativo'
@@ -746,7 +775,7 @@ export async function runGerenteComercialObservacaoJob(context = {}) {
       logJobError('releaseSystemJobLock', error, { accountId, lockKey, requestId: context.requestId || null });
       return null;
     });
-    await upsertSystemJob({ ...job, status: 'ativo', last_success_at: fatalError ? job.last_success_at : isoNow(), last_error: fatalError?.message || null, next_run_at: nextDaily0300(new Date()) }, { accountId });
+    await upsertSystemJob({ ...job, status: 'ativo', last_success_at: fatalError ? job.last_success_at : isoNow(), last_error: fatalError?.message || null, next_run_at: fatalError ? nextInMinutes(new Date(), 15) : nextDaily0300(new Date()) }, { accountId });
   }
 
   return { ok: true, job, observations_created: observationsCreated, observations_skipped_duplicate: observationsSkippedDuplicate, clientes_analisados: clientesAnalisados };

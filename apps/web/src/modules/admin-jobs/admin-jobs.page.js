@@ -67,7 +67,8 @@ export async function renderAdminJobsPage(container, { apiClient, isActiveRoute 
   async function load() {
     if (!canRender()) return;
     state.loading = true;
-    state.error = null;
+    state.jobsError = null;
+    state.runsError = null;
     render();
     try {
       const [jobs, runs] = await Promise.all([
@@ -77,6 +78,8 @@ export async function renderAdminJobsPage(container, { apiClient, isActiveRoute 
       if (!canRender()) return;
       state.jobs = jobs.items || [];
       state.runs = runs.items || [];
+      state.jobsError = null;
+      state.runsError = null;
       if (!state.selectedJobId && state.jobs[0]?.id) state.selectedJobId = state.jobs[0].id;
       if (state.selectedJobId) {
         const detail = await fetchAdminJob(apiClient, state.selectedJobId);
@@ -85,7 +88,10 @@ export async function renderAdminJobsPage(container, { apiClient, isActiveRoute 
         state.runs = detail.runs || state.runs;
       }
     } catch (error) {
-      if (canRender()) state.error = error;
+      if (canRender()) {
+        if (String(error?.message || '').toLowerCase().includes('/jobs/runs')) state.runsError = error;
+        else state.jobsError = error;
+      }
     } finally {
       state.loading = false;
       state.refreshing = false;
@@ -97,7 +103,10 @@ export async function renderAdminJobsPage(container, { apiClient, isActiveRoute 
     state.successMessage = '';
     render();
     try {
+      console.info('job_manual_run_clicked', { job_id: jobName });
+      console.info('job_manual_run_requested', { job_id: jobName });
       await runAdminJob(apiClient, jobName);
+      console.info('job_manual_run_finished', { job_id: jobName });
       state.successMessage = 'Job iniciado com sucesso';
       state.refreshing = true;
       render();
@@ -182,7 +191,8 @@ export async function renderAdminJobsPage(container, { apiClient, isActiveRoute 
           </div>
         </header>
         ${state.successMessage ? `<div id="admin-jobs-success" class="admin-jobs-feedback success">${esc(state.successMessage)}</div>` : ''}
-        ${state.error ? `<div id="admin-jobs-error" class="admin-jobs-feedback error">Não foi possível carregar os jobs.</div>` : ''}
+        ${state.jobsError ? `<div id="admin-jobs-error" class="admin-jobs-feedback error">Não foi possível carregar os jobs.</div>` : ''}
+        ${state.runsError ? `<div id="admin-jobs-runs-error" class="admin-jobs-feedback error">Não foi possível carregar as execuções.</div>` : ''}
         <div class="admin-jobs-grid">
           ${[
             ['Total Jobs', total, 'total'],
@@ -193,7 +203,7 @@ export async function renderAdminJobsPage(container, { apiClient, isActiveRoute 
         </div>
         <article class="admin-jobs-card">
           <h2 class="admin-jobs-section-title">Jobs</h2>
-          ${state.loading ? '<p class="admin-jobs-muted">Carregando...</p>' : !state.jobs.length ? '<p class="admin-jobs-empty">Nenhum job encontrado.</p>' : `<div class="admin-jobs-table-wrap"><table class="admin-jobs-table"><thead><tr><th>Nome</th><th>Status</th><th>Última execução</th><th>Último sucesso</th><th>Próxima execução</th><th>Duração</th><th>Erro</th><th>Ações</th></tr></thead><tbody>${state.jobs.map((job) => `<tr><td>${esc(JOB_LABELS[job.nome] || job.nome)}</td><td><span class="admin-jobs-status ${statusClass(job.status)}">${esc(job.status || '-')}</span></td><td>${esc(fmtDate(job.last_run_at))}</td><td>${esc(fmtDate(job.last_success_at))}</td><td>${esc(fmtDate(job.next_run_at))}</td><td>${esc(fmtDuration(job.last_duration_ms))}</td><td>${esc(job.last_error || '-')}</td><td class="admin-jobs-actions-cell"><button type="button" class="admin-job-run admin-jobs-btn admin-jobs-btn-primary" data-job="${esc(job.nome)}">Executar agora</button> <button type="button" class="admin-job-open admin-jobs-btn admin-jobs-btn-secondary" data-id="${esc(job.id)}">Ver execuções</button></td></tr>`).join('')}</tbody></table></div>`}
+          ${state.loading ? '<p class="admin-jobs-muted">Carregando...</p>' : !state.jobs.length ? '<p class="admin-jobs-empty">Nenhum job encontrado.</p>' : `<div class="admin-jobs-table-wrap"><table class="admin-jobs-table"><thead><tr><th>Nome</th><th>Status</th><th>Última execução</th><th>Último sucesso</th><th>Próxima execução</th><th>Duração</th><th>Erro</th><th>Ações</th></tr></thead><tbody>${state.jobs.map((job) => `<tr><td>${esc(JOB_LABELS[job.nome] || job.nome)}</td><td><span class="admin-jobs-status ${statusClass(job.status)}">${esc(job.status || '-')}</span></td><td>${esc(fmtDate(job.last_run_at))}</td><td>${esc(fmtDate(job.last_success_at))}</td><td>${esc(fmtDate(job.next_run_at))}</td><td>${esc(fmtDuration(job.last_duration_ms))}</td><td>${esc(job.last_error || '-')}</td><td class="admin-jobs-actions-cell"><button type="button" class="admin-job-run admin-jobs-btn admin-jobs-btn-primary" data-id="${esc(job.id)}" data-job="${esc(job.nome)}">Executar agora</button> <button type="button" class="admin-job-open admin-jobs-btn admin-jobs-btn-secondary" data-id="${esc(job.id)}">Ver execuções</button></td></tr>`).join('')}</tbody></table></div>`}
         </article>
         <article class="admin-jobs-card">
           <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
@@ -210,7 +220,7 @@ export async function renderAdminJobsPage(container, { apiClient, isActiveRoute 
       </section>`;
 
     container.querySelector('#admin-jobs-refresh')?.addEventListener('click', () => { if (canRender()) void load(); });
-    container.querySelectorAll('.admin-job-run').forEach((btn) => btn.addEventListener('click', () => triggerJob(btn.getAttribute('data-job'))));
+    container.querySelectorAll('.admin-job-run').forEach((btn) => btn.addEventListener('click', () => triggerJob(btn.getAttribute('data-id') || btn.getAttribute('data-job'))));
     container.querySelectorAll('.admin-job-open').forEach((btn) => btn.addEventListener('click', () => openJob(btn.getAttribute('data-id'))));
     container.querySelector('#admin-jobs-filter-name')?.addEventListener('change', (event) => { state.runFilters.nome = event.target.value; if (canRender()) void load(); });
     container.querySelector('#admin-jobs-filter-status')?.addEventListener('change', (event) => { state.runFilters.status = event.target.value; if (canRender()) void load(); });

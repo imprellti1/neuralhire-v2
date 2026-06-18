@@ -1,7 +1,8 @@
 export function createAdminJobsState() {
   return {
     loading: true,
-    error: null,
+    jobsError: null,
+    runsError: null,
     jobs: [],
     runs: [],
     selectedJobId: '',

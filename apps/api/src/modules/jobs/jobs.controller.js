@@ -2,7 +2,7 @@ import { ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { logger } from '../../core/logger.js';
 import { listJobsOverview, runClientesEnriquecimentoJob, runClientesGeolocalizacaoJob, runGerenteComercialObservacaoJob, runNotificacoesResumoSemanalJob, runRadarComercialJob } from './jobs.scheduler.js';
-import { getSystemJobById, listSystemJobRuns, listSystemJobRunsForJob, listSystemJobs } from './jobs.repository.js';
+import { getSystemJobById, getSystemJobByLockKey, listSystemJobRuns, listSystemJobRunsForJob, listSystemJobs } from './jobs.repository.js';
 
 function assertJobAdmin(context) {
   const role = String(context?.auth?.role || '').toLowerCase();
@@ -50,106 +50,54 @@ export async function getJobDetailAdmin(context = {}) {
   return { ok: true, item, runs: await listSystemJobRunsForJob(item.id, accountId, { limit: 10 }) };
 }
 
-export async function runRadarComercialAdmin(context = {}) {
-  assertJobAdmin(context);
+async function resolveAdminJobForManualRun(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const id = String(context.params?.id || '').trim();
+  const jobs = await listSystemJobs(null);
+  let item = jobs.find((job) => String(job.id) === String(id) && (job.account_id === accountId || job.account_id === null || !accountId)) || null;
+  if (!item) item = jobs.find((job) => String(job.nome) === id || String(job.lock_key) === id) || null;
+  if (!item) item = await getSystemJobByLockKey(id).catch(() => null);
+  if (!item) {
+    item = await getSystemJobById(id, accountId);
+  }
+  if (!item) {
+    throw new NotFoundError('Job nao encontrado', { code: 'JOB_NOT_FOUND', domain: 'system-jobs' });
+  }
+  return item;
+}
+
+function enqueueManualJobRun(job, context, runner) {
   const accountId = getAccountIdFromContext(context);
   const workerId = context?.requestId || 'local';
   const requestId = context?.requestId || null;
 
   void Promise.resolve()
-    .then(() => runRadarComercialJob({ ...context, accountId, workerId, requestId }))
+    .then(() => runner({ ...context, accountId, workerId, requestId }))
     .catch((error) => {
       logger.error({
-        message: 'Falha na execução assíncrona do Radar Comercial',
+        message: 'Falha na execução assíncrona do job manual',
         error: error?.message || String(error),
         requestId,
-        account_id: accountId
+        account_id: accountId,
+        job_id: job?.id || null,
+        job_key: job?.nome || null
       });
     });
 
-  return {
-    success: true,
-    message: 'Radar Comercial iniciado',
-    status: 'running'
+  return { success: true, message: 'Job iniciado', status: 'running', job_id: job.id, job_key: job.nome };
+}
+
+export async function runJobManualAdmin(context = {}) {
+  assertJobAdmin(context);
+  const job = await resolveAdminJobForManualRun(context);
+  const runners = {
+    radar_comercial_diario: runRadarComercialJob,
+    clientes_enriquecimento_automatico: runClientesEnriquecimentoJob,
+    clientes_geolocalizacao_automatico: runClientesGeolocalizacaoJob,
+    notificacoes_resumo_semanal: runNotificacoesResumoSemanalJob,
+    gerente_comercial_observacao: runGerenteComercialObservacaoJob
   };
-}
-
-export async function runClientesEnriquecimentoAdmin(context = {}) {
-  assertJobAdmin(context);
-  const accountId = getAccountIdFromContext(context);
-  const workerId = context?.requestId || 'local';
-  const requestId = context?.requestId || null;
-
-  void Promise.resolve()
-    .then(() => runClientesEnriquecimentoJob({ ...context, accountId, workerId, requestId }))
-    .catch((error) => {
-      logger.error({
-        message: 'Falha na execução assíncrona do job de enriquecimento automático',
-        error: error?.message || String(error),
-        requestId,
-        account_id: accountId
-      });
-    });
-
-  return { success: true, message: 'Job iniciado', status: 'running' };
-}
-
-export async function runClientesGeolocalizacaoAdmin(context = {}) {
-  assertJobAdmin(context);
-  const accountId = getAccountIdFromContext(context);
-  const workerId = context?.requestId || 'local';
-  const requestId = context?.requestId || null;
-
-  void Promise.resolve()
-    .then(() => runClientesGeolocalizacaoJob({ ...context, accountId, workerId, requestId }))
-    .catch((error) => {
-      logger.error({
-        message: 'Falha na execução assíncrona do job de geolocalização automático',
-        error: error?.message || String(error),
-        requestId,
-        account_id: accountId
-      });
-    });
-
-  return { success: true, message: 'Job iniciado', status: 'running' };
-}
-
-export async function runNotificacoesResumoSemanalAdmin(context = {}) {
-  assertJobAdmin(context);
-  const accountId = getAccountIdFromContext(context);
-  const workerId = context?.requestId || 'local';
-  const requestId = context?.requestId || null;
-
-  void Promise.resolve()
-    .then(() => runNotificacoesResumoSemanalJob({ ...context, accountId, workerId, requestId }))
-    .catch((error) => {
-      logger.error({
-        message: 'Falha na execução assíncrona do job de notificações resumo semanal',
-        error: error?.message || String(error),
-        requestId,
-        account_id: accountId
-      });
-    });
-
-  return { success: true, message: 'Job iniciado', status: 'running' };
-}
-
-export async function runGerenteComercialObservacaoAdmin(context = {}) {
-  assertJobAdmin(context);
-  const accountId = getAccountIdFromContext(context);
-  const workerId = context?.requestId || 'local';
-  const requestId = context?.requestId || null;
-
-  void Promise.resolve()
-    .then(() => runGerenteComercialObservacaoJob({ ...context, accountId, workerId, requestId }))
-    .catch((error) => {
-      logger.error({
-        message: 'Falha na execução assíncrona do job gerente comercial observacao',
-        error: error?.message || String(error),
-        requestId,
-        account_id: accountId
-      });
-    });
-
-  return { success: true, message: 'Job iniciado', status: 'running' };
+  const runner = runners[job.nome];
+  if (!runner) throw new NotFoundError('Job sem handler', { code: 'JOB_HANDLER_NOT_FOUND', domain: 'system-jobs' });
+  return enqueueManualJobRun(job, context, runner);
 }
