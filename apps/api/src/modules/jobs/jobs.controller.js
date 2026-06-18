@@ -1,7 +1,7 @@
 import { ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { logger } from '../../core/logger.js';
-import { listJobsOverview, runClientesEnriquecimentoJob, runClientesGeolocalizacaoJob, runDiretorReuniaoExecutivaJob, runGerenteAdministrativoObservacaoJob, runGerenteAuditoriaObservacaoJob, runGerenteComercialObservacaoJob, runGerenteProdutosObservacaoJob, runNotificacoesResumoSemanalJob, runRadarComercialJob } from './jobs.scheduler.js';
+import { listJobsOverview, runClientesEnriquecimentoJob, runClientesGeolocalizacaoJob, runDiretorPlanoAcaoJob, runDiretorReuniaoExecutivaJob, runGerenteAdministrativoObservacaoJob, runGerenteAuditoriaObservacaoJob, runGerenteComercialObservacaoJob, runGerenteProdutosObservacaoJob, runNotificacoesResumoSemanalJob, runRadarComercialJob } from './jobs.scheduler.js';
 import { getSystemJobById, listSystemJobRuns, listSystemJobRunsForJob, listSystemJobs } from './jobs.repository.js';
 
 function assertJobAdmin(context) {
@@ -63,7 +63,8 @@ async function resolveAdminJobForManualRun(context = {}) {
     'gerente-produtos-observacao': 'gerente_produtos_observacao',
     'gerente-auditoria-observacao': 'gerente_auditoria_observacao',
     'gerente-administrativo-observacao': 'gerente_administrativo_observacao',
-    'diretor-reuniao-executiva': 'diretor_reuniao_executiva'
+    'diretor-reuniao-executiva': 'diretor_reuniao_executiva',
+    'diretor-plano-acao': 'diretor_plano_acao'
   };
   const canonicalId = aliases[id] || normalizedId;
   const jobs = await listSystemJobs(null);
@@ -109,7 +110,8 @@ export async function runJobManualAdmin(context = {}) {
     gerente_produtos_observacao: runGerenteProdutosObservacaoJob,
     gerente_auditoria_observacao: runGerenteAuditoriaObservacaoJob,
     gerente_administrativo_observacao: runGerenteAdministrativoObservacaoJob,
-    diretor_reuniao_executiva: runDiretorReuniaoExecutivaJob
+    diretor_reuniao_executiva: runDiretorReuniaoExecutivaJob,
+    diretor_plano_acao: runDiretorPlanoAcaoJob
   };
   const runner = runners[job.nome];
   if (!runner) throw new NotFoundError('Job sem handler', { code: 'JOB_HANDLER_NOT_FOUND', domain: 'system-jobs' });

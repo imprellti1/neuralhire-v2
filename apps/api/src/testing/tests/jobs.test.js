@@ -184,7 +184,8 @@ export function getJobsTests() {
           'gerente_produtos_observacao',
           'gerente_auditoria_observacao',
           'gerente_administrativo_observacao',
-          'diretor_reuniao_executiva'
+          'diretor_reuniao_executiva',
+          'diretor_plano_acao'
         ].includes(job.nome)), true);
       }
     },
@@ -192,22 +193,25 @@ export function getJobsTests() {
       name: 'bootstrap padrão inclui diretor reunião executiva',
       run: async () => {
         const defaults = getSystemJobDefaults();
-        assert.equal(defaults.length, 9);
+        assert.equal(defaults.length, 10);
         assert.equal(defaults.some((job) => job.nome === 'gerente_comercial_observacao'), true);
         assert.equal(defaults.some((job) => job.nome === 'diretor_reuniao_executiva'), true);
+        assert.equal(defaults.some((job) => job.nome === 'diretor_plano_acao'), true);
         __resetSystemJobsForTests();
         const logs = [];
         await ensureDefaultSystemJobs(null, { logger: { info: (...args) => logs.push(args) } });
         const dump = __dumpSystemJobsForTests();
-        assert.equal(dump.jobs.length, 9);
+        assert.equal(dump.jobs.length, 10);
         assert.equal(dump.jobs.some((job) => job.nome === 'gerente_comercial_observacao'), true);
         assert.equal(dump.jobs.some((job) => job.nome === 'diretor_reuniao_executiva'), true);
+        assert.equal(dump.jobs.some((job) => job.nome === 'diretor_plano_acao'), true);
         assert.equal(dump.jobs.some((job) => job.lock_key === 'diretor_reuniao_executiva'), true);
+        assert.equal(dump.jobs.some((job) => job.lock_key === 'diretor_plano_acao'), true);
         assert.equal(logs.some(([message]) => message === 'system_jobs_bootstrap_started'), true);
         assert.equal(logs.some(([message]) => message === 'system_jobs_bootstrap_finished'), true);
         await ensureDefaultSystemJobs(null, { logger: { info: () => null } });
         const secondDump = __dumpSystemJobsForTests();
-        assert.equal(secondDump.jobs.length, 9);
+        assert.equal(secondDump.jobs.length, 10);
       }
     },
     {
