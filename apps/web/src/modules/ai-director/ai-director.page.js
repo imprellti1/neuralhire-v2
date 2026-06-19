@@ -878,60 +878,61 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
               `).join('')}
             </div>
           </section>
-          <section class="nh-card">
-            <div class="nh-between">
-              <div>
-                <h2 class="nh-section-title">Planos de Ação</h2>
-                <p class="nh-section-subtitle">Execução determinística a partir das memórias executivas.</p>
-              </div>
+        </article>
+        <article class="nh-card" data-ai-director-panel="action-plans" style="${tabPanelStyle('action-plans')}">
+          <div class="nh-between">
+            <div>
+              <h2 class="nh-section-title">Planos de Ação</h2>
+              <p class="nh-section-subtitle">Execução determinística a partir das memórias executivas.</p>
             </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top: 14px;">
-              <select id="ai-director-action-plans-status" class="nh-select" style="max-width: 180px;">
-                ${['all', 'aberto', 'em_andamento', 'concluido', 'cancelado'].map((status) => `<option value="${status}"${state.actionPlansFilter.status === status ? ' selected' : ''}>${status === 'all' ? 'Todos os status' : status}</option>`).join('')}
-              </select>
-              <select id="ai-director-action-plans-gerente" class="nh-select" style="max-width: 220px;">
-                ${['all', 'gerente_produtos', 'gerente_comercial', 'gerente_auditoria', 'gerente_administrativo', 'diretor_ia'].map((gerente) => `<option value="${gerente}"${state.actionPlansFilter.gerente_responsavel === gerente ? ' selected' : ''}>${gerente === 'all' ? 'Todos os gerentes' : gerente.replace('gerente_', 'Gerente ').replace('_', ' ')}</option>`).join('')}
-              </select>
-            </div>
-            <div class="nh-list" style="margin-top: 14px;">
-              ${actionPlans.length ? actionPlans.map((item) => `
-                <div class="nh-list-item">
-                  <div class="nh-between">
-                    <strong>${esc(item.titulo)}</strong>
-                    <span class="nh-badge ${badgeClass(item.status)}">${esc(item.status)}</span>
-                  </div>
-                  <div class="nh-mini" style="margin-top: 6px;">${esc(item.gerente_responsavel)} · impacto ${esc(item.impacto)} · esforço ${esc(item.esforco)} · score ${esc(item.prioridade_score)} · prazo ${esc(item.prazo_dias || '—')} dias · ${esc(formatCompactDate(item.criado_em || item.created_at))}</div>
-                  <div style="margin-top: 8px;">${esc(item.descricao)}</div>
-                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top: 10px;">
-                    <button class="nh-button action-plan-status-button" data-plan-id="${esc(item.id)}" data-status="em_andamento" type="button">Em andamento</button>
-                    <button class="nh-button action-plan-status-button" data-plan-id="${esc(item.id)}" data-status="concluido" type="button">Concluído</button>
-                    <button class="nh-button action-plan-status-button" data-plan-id="${esc(item.id)}" data-status="cancelado" type="button">Cancelar</button>
-                  </div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top: 14px;">
+            <select id="ai-director-action-plans-status" class="nh-select" style="max-width: 180px;">
+              ${['all', 'aberto', 'em_andamento', 'concluido', 'cancelado'].map((status) => `<option value="${status}"${state.actionPlansFilter.status === status ? ' selected' : ''}>${status === 'all' ? 'Todos os status' : status}</option>`).join('')}
+            </select>
+            <select id="ai-director-action-plans-gerente" class="nh-select" style="max-width: 220px;">
+              ${['all', 'gerente_produtos', 'gerente_comercial', 'gerente_auditoria', 'gerente_administrativo', 'diretor_ia'].map((gerente) => `<option value="${gerente}"${state.actionPlansFilter.gerente_responsavel === gerente ? ' selected' : ''}>${gerente === 'all' ? 'Todos os gerentes' : gerente.replace('gerente_', 'Gerente ').replace('_', ' ')}</option>`).join('')}
+            </select>
+          </div>
+          <div class="nh-list" style="margin-top: 14px;">
+            ${actionPlans.length ? actionPlans.map((item) => `
+              <div class="nh-list-item">
+                <div class="nh-between">
+                  <strong>${esc(item.titulo)}</strong>
+                  <span class="nh-badge ${badgeClass(item.status)}">${esc(item.status)}</span>
                 </div>
-              `).join('') : '<div class="nh-mini">Sem planos de ação gerados para o momento.</div>'}
-            </div>
-          </section>
-          <section class="nh-card">
-            <div class="nh-between">
-              <div>
-                <h2 class="nh-section-title">Central de Tarefas</h2>
-                <p class="nh-section-subtitle">Observação → Prioridade Executiva → Plano de Ação → Delegação → Tarefa.</p>
+                <div class="nh-mini" style="margin-top: 6px;">${esc(item.gerente_responsavel)} · impacto ${esc(item.impacto)} · esforço ${esc(item.esforco)} · score ${esc(item.prioridade_score)} · prazo ${esc(item.prazo_dias || '—')} dias · ${esc(formatCompactDate(item.criado_em || item.created_at))}</div>
+                <div style="margin-top: 8px;">${esc(item.descricao)}</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top: 10px;">
+                  <button class="nh-button action-plan-status-button" data-plan-id="${esc(item.id)}" data-status="em_andamento" type="button">Em andamento</button>
+                  <button class="nh-button action-plan-status-button" data-plan-id="${esc(item.id)}" data-status="concluido" type="button">Concluído</button>
+                  <button class="nh-button action-plan-status-button" data-plan-id="${esc(item.id)}" data-status="cancelado" type="button">Cancelar</button>
+                </div>
               </div>
-              <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                <select id="ai-director-tasks-status" class="nh-select" style="max-width: 180px;">
-                  ${['all', 'open', 'in_progress', 'done', 'dismissed'].map((status) => `<option value="${status}"${state.tasksFilter.status === status ? ' selected' : ''}>${status === 'all' ? 'Todos os status' : normalizeTaskStatusLabel(status)}</option>`).join('')}
-                </select>
-                <select id="ai-director-tasks-priority" class="nh-select" style="max-width: 180px;">
-                  ${['all', 'high', 'medium', 'low'].map((priority) => `<option value="${priority}"${state.tasksFilter.priority === priority ? ' selected' : ''}>${priority === 'all' ? 'Todas as prioridades' : priority}</option>`).join('')}
-                </select>
-                <select id="ai-director-tasks-manager" class="nh-select" style="max-width: 220px;">
-                  ${['all', ...new Set(tasks.map((task) => task.manager_id || task.manager_name || task.gerente).filter(Boolean))].map((manager) => `<option value="${manager}"${state.tasksFilter.manager === manager ? ' selected' : ''}>${manager === 'all' ? 'Todos os gerentes' : formatManagerLabel(manager)}</option>`).join('')}
-                </select>
-                <select id="ai-director-tasks-category" class="nh-select" style="max-width: 180px;">
-                  ${['all', ...new Set(tasks.map((task) => task.category).filter(Boolean))].map((category) => `<option value="${category}"${state.tasksFilter.category === category ? ' selected' : ''}>${category === 'all' ? 'Todas as categorias' : category}</option>`).join('')}
-                </select>
-              </div>
+            `).join('') : '<div class="nh-mini">Sem planos de ação gerados para o momento.</div>'}
+          </div>
+        </article>
+        <article class="nh-card" data-ai-director-panel="tasks" style="${tabPanelStyle('tasks')}">
+          <div class="nh-between">
+            <div>
+              <h2 class="nh-section-title">Central de Tarefas</h2>
+              <p class="nh-section-subtitle">Observação → Prioridade Executiva → Plano de Ação → Delegação → Tarefa.</p>
             </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <select id="ai-director-tasks-status" class="nh-select" style="max-width: 180px;">
+                ${['all', 'open', 'in_progress', 'done', 'dismissed'].map((status) => `<option value="${status}"${state.tasksFilter.status === status ? ' selected' : ''}>${status === 'all' ? 'Todos os status' : normalizeTaskStatusLabel(status)}</option>`).join('')}
+              </select>
+              <select id="ai-director-tasks-priority" class="nh-select" style="max-width: 180px;">
+                ${['all', 'high', 'medium', 'low'].map((priority) => `<option value="${priority}"${state.tasksFilter.priority === priority ? ' selected' : ''}>${priority === 'all' ? 'Todas as prioridades' : priority}</option>`).join('')}
+              </select>
+              <select id="ai-director-tasks-manager" class="nh-select" style="max-width: 220px;">
+                ${['all', ...new Set(tasks.map((task) => task.manager_id || task.manager_name || task.gerente).filter(Boolean))].map((manager) => `<option value="${manager}"${state.tasksFilter.manager === manager ? ' selected' : ''}>${manager === 'all' ? 'Todos os gerentes' : formatManagerLabel(manager)}</option>`).join('')}
+              </select>
+              <select id="ai-director-tasks-category" class="nh-select" style="max-width: 180px;">
+                ${['all', ...new Set(tasks.map((task) => task.category).filter(Boolean))].map((category) => `<option value="${category}"${state.tasksFilter.category === category ? ' selected' : ''}>${category === 'all' ? 'Todas as categorias' : category}</option>`).join('')}
+              </select>
+            </div>
+          </div>
           <div class="nh-grid-4" style="margin-top: 14px;">
             <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Abertas</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.open))}</div></div>
             <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Em andamento</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.in_progress))}</div></div>
@@ -941,24 +942,23 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
           ${taskActionMessage ? `<p class="nh-mini" style="color:#4ce38a; margin-top: 10px;">${esc(taskActionMessage)}</p>` : ''}
           ${taskActionError ? `<p class="nh-mini" style="color:#ff8d8d; margin-top: 10px;">${esc(taskActionError)}</p>` : ''}
           <div class="nh-list" style="margin-top: 14px;">
-              ${tasks.length ? tasks.map((item) => `
-                <div class="nh-list-item">
-                  <div class="nh-between">
-                    <strong>${esc(item.title || item.titulo)}</strong>
-                    <span class="nh-badge ${badgeClass(item.status)}">${esc(item.status)}</span>
-                  </div>
-                  <div class="nh-mini" style="margin-top: 6px;">Gerente: ${esc(item.manager_name || item.gerente || '—')} · categoria ${esc(item.category || '—')} · prioridade ${esc(item.priority || item.prioridade || '—')}</div>
-                  <div class="nh-mini" style="margin-top: 6px;">Plano de ação: ${esc(item.action_plan_id || '—')} · vencimento ${esc(formatTaskDue(item))}</div>
-                  <div style="margin-top: 8px;">${esc(item.description || item.descricao || '—')}</div>
-                  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top: 10px;">
-                    ${String(item.status || '').toLowerCase() !== 'done' ? `<button class="nh-button task-complete-button" data-task-id="${esc(item.id)}" type="button"${state.taskActionLoadingId === item.id ? ' disabled' : ''}>${state.taskActionLoadingId === item.id ? 'Concluindo...' : 'Concluir tarefa'}</button>` : ''}
-                    <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="in_progress" type="button"${state.taskActionLoadingId === item.id ? ' disabled' : ''}>Em andamento</button>
-                    <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="dismissed" type="button"${state.taskActionLoadingId === item.id ? ' disabled' : ''}>Dispensar</button>
-                  </div>
+            ${tasks.length ? tasks.map((item) => `
+              <div class="nh-list-item">
+                <div class="nh-between">
+                  <strong>${esc(item.title || item.titulo)}</strong>
+                  <span class="nh-badge ${badgeClass(item.status)}">${esc(item.status)}</span>
                 </div>
-              `).join('') : '<div class="nh-mini">Sem delegações no momento.</div>'}
-            </div>
-          </section>
+                <div class="nh-mini" style="margin-top: 6px;">Gerente: ${esc(item.manager_name || item.gerente || '—')} · categoria ${esc(item.category || '—')} · prioridade ${esc(item.priority || item.prioridade || '—')}</div>
+                <div class="nh-mini" style="margin-top: 6px;">Plano de ação: ${esc(item.action_plan_id || '—')} · vencimento ${esc(formatTaskDue(item))}</div>
+                <div style="margin-top: 8px;">${esc(item.description || item.descricao || '—')}</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top: 10px;">
+                  ${String(item.status || '').toLowerCase() !== 'done' ? `<button class="nh-button task-complete-button" data-task-id="${esc(item.id)}" type="button"${state.taskActionLoadingId === item.id ? ' disabled' : ''}>${state.taskActionLoadingId === item.id ? 'Concluindo...' : 'Concluir tarefa'}</button>` : ''}
+                  <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="in_progress" type="button"${state.taskActionLoadingId === item.id ? ' disabled' : ''}>Em andamento</button>
+                  <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="dismissed" type="button"${state.taskActionLoadingId === item.id ? ' disabled' : ''}>Dispensar</button>
+                </div>
+              </div>
+            `).join('') : '<div class="nh-mini">Sem delegações no momento.</div>'}
+          </div>
         </article>
         <article class="nh-card" data-ai-director-panel="observations" style="${tabPanelStyle('observations')}">
           <div class="nh-between">

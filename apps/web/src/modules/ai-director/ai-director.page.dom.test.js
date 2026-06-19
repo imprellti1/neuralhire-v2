@@ -260,6 +260,16 @@ test('ai director page dom with radar and auto refresh', async () => {
   assert.match(document.body.textContent, /Central de Tarefas/);
   assert.match(document.body.textContent, /Contato carteira/);
 
+  document.querySelector('[data-ai-director-tab="action-plans"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+  await flush();
+  assert.match(document.body.textContent, /Planos de Ação/);
+  assert.match(document.body.textContent, /Recuperar carteira em risco/);
+
+  document.querySelector('[data-ai-director-tab="tasks"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+  await flush();
+  assert.match(document.body.textContent, /Central de Tarefas/);
+  assert.match(document.body.textContent, /Contato carteira/);
+
   const questionInput = document.querySelector('#ai-director-question');
   questionInput.value = 'Pergunta em andamento';
   questionInput.dispatchEvent(new window.Event('input', { bubbles: true }));
