@@ -49,8 +49,29 @@ test('ai sales repository computes overview and portfolio from existing data', a
   assert.equal(tasks.items.every((task) => String(task.vendedor_id || '') === 'v1'), true);
   assert.equal(tasks.items.some((task) => task.cliente_id === 'c1' && task.delegation_level === 'vendedor'), true);
 
+  const normalizedTask = await getAiSalesTasks('acc-test', { vendedor_id: 'v1' });
+  assert.equal(Object.prototype.hasOwnProperty.call(normalizedTask.items[0] || {}, 'financial_amount'), true);
+
   const performance = await getAiSalesPerformance('acc-test', {});
   assert.equal(typeof performance.clientes_ativos, 'number');
+});
+
+test('ai sales repository normalizes financial amount from legacy fields', async () => {
+  __resetMemoryClientesForTests();
+  __resetMemoryPedidosForTests();
+  __resetMemoryAlertasForTests();
+  __resetMemoryAiDirectorTasksForTests();
+
+  __loadMemoryClientes([
+    { id: 'c1', account_id: 'acc-test', nome: 'Cliente 1', vendedor_id: 'v1', cliente_score: 72, ativo: true }
+  ]);
+
+  await upsertDirectorTask({ account_id: 'acc-test', action_plan_id: 'plan-1', manager_id: 'v1', manager_name: 'Vendedor 1', category: 'comercial', title: 'Task 1', description: 'Desc', priority: 'medium', status: 'open', value: '1250.5', metadata: {} });
+  await upsertDirectorTask({ account_id: 'acc-test', action_plan_id: 'plan-2', manager_id: 'v1', manager_name: 'Vendedor 1', category: 'comercial', title: 'Task 2', description: 'Desc', priority: 'medium', status: 'open', impacto_estimado: '900', metadata: {} });
+
+  const tasks = await getAiSalesTasks('acc-test', { vendedor_id: 'v1' });
+  assert.equal(tasks.items[0].financial_amount, 1250.5);
+  assert.equal(tasks.items[1].financial_amount, 900);
 });
 
 export function getAiSalesRepositoryTests() {

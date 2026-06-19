@@ -2,7 +2,7 @@ const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL
 const num = new Intl.NumberFormat('pt-BR');
 
 function brl(value) {
-  return money.format(Number(value || 0));
+  return money.format(Number(value ?? 0));
 }
 
 function esc(value) {
@@ -63,6 +63,13 @@ function slaText(task) {
   return `Vence ${new Date(task.due_at).toLocaleDateString('pt-BR')}`;
 }
 
+function getTaskFinancialValue(task = {}) {
+  const raw = task.financial_amount ?? task.valor ?? task.amount ?? task.value ?? task.impacto_estimado ?? task.impactoFinanceiro ?? task.monetary_value ?? null;
+  if (raw === null || raw === undefined || raw === '') return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
 function renderPortfolio(items = []) {
   if (!items.length) return '<div class="nhi-empty">Nenhum cliente na carteira.</div>';
   return `<div class="nhi-panel"><table class="nhi-table"><thead><tr><th>Cliente</th><th>Cidade</th><th>Score</th><th>Último Pedido</th><th>Dias sem Comprar</th><th>Risco</th></tr></thead><tbody>${items.map((item) => `<tr><td>${esc(item.nome)}</td><td>${esc(item.cidade || '-')}</td><td>${num.format(item.score || 0)}<div class="nhi-badge">${esc(item.classificacao || '-')}</div></td><td>${item.ultimo_pedido ? new Date(item.ultimo_pedido).toLocaleDateString('pt-BR') : '-'}</td><td>${item.dias_sem_comprar ?? '-'}</td><td><span class="nhi-badge">${esc(item.status_risco || '-')}</span></td></tr>`).join('')}</tbody></table></div>`;
@@ -75,11 +82,13 @@ function renderCards(items = [], emptyLabel = 'Sem itens.') {
 
 function renderTasks(tasks = [], onComplete, loadingTaskId) {
   if (!tasks.length) return '<div class="nhi-empty">Nenhuma tarefa vinculada ao vendedor.</div>';
-  return `<div class="nhi-panel"><table class="nhi-table"><thead><tr><th>Tarefa</th><th>Cliente</th><th>Prioridade</th><th>SLA</th><th>Status</th><th>Origem</th><th>Ações</th></tr></thead><tbody>${tasks.map((task) => {
+  const showValue = tasks.some((task) => getTaskFinancialValue(task) !== null);
+  return `<div class="nhi-panel"><table class="nhi-table"><thead><tr><th>Tarefa</th><th>Cliente</th><th>Prioridade</th>${showValue ? '<th>Valor</th>' : ''}<th>SLA</th><th>Status</th><th>Origem</th><th>Ações</th></tr></thead><tbody>${tasks.map((task) => {
     const cliente = task.cliente?.nome || task.cliente_nome || task.cliente_razao_social || task.cliente_id || '-';
     const origin = task.delegation_level || (task.vendedor_id ? 'vendedor' : 'gerente');
+    const value = getTaskFinancialValue(task);
     const canComplete = String(task.status || '').toLowerCase() !== 'done' && typeof onComplete === 'function';
-    return `<tr><td><strong>${esc(task.title || task.titulo || 'Tarefa')}</strong><div style="color:#91a4c4;margin-top:4px">${esc(task.description || task.descricao || '')}</div></td><td>${esc(cliente)}</td><td>${priorityBadge(task)}</td><td>${esc(slaText(task))}</td><td><span class="nhi-badge">${esc(task.status || '-')}</span></td><td><span class="nhi-badge">${esc(origin)}</span>${task.delegation_reason ? `<div style="color:#91a4c4;margin-top:4px">${esc(task.delegation_reason)}</div>` : ''}</td><td><div class="nhi-task-actions">${canComplete ? `<button class="nhi-button" data-complete-task="${esc(task.id)}" ${loadingTaskId === task.id ? 'disabled' : ''}>${loadingTaskId === task.id ? 'Concluindo...' : 'Concluir'}</button>` : ''}</div></td></tr>`;
+    return `<tr><td><strong>${esc(task.title || task.titulo || 'Tarefa')}</strong><div style="color:#91a4c4;margin-top:4px">${esc(task.description || task.descricao || '')}</div></td><td>${esc(cliente)}</td><td>${priorityBadge(task)}</td>${showValue ? `<td>${value === null ? '-' : brl(value)}</td>` : ''}<td>${esc(slaText(task))}</td><td><span class="nhi-badge">${esc(task.status || '-')}</span></td><td><span class="nhi-badge">${esc(origin)}</span>${task.delegation_reason ? `<div style="color:#91a4c4;margin-top:4px">${esc(task.delegation_reason)}</div>` : ''}</td><td><div class="nhi-task-actions">${canComplete ? `<button class="nhi-button" data-complete-task="${esc(task.id)}" ${loadingTaskId === task.id ? 'disabled' : ''}>${loadingTaskId === task.id ? 'Concluindo...' : 'Concluir'}</button>` : ''}</div></td></tr>`;
   }).join('')}</tbody></table></div>`;
 }
 

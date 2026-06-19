@@ -45,6 +45,13 @@ function sumPedidos(pedidos = []) {
   return (Array.isArray(pedidos) ? pedidos : []).reduce((sum, pedido) => sum + Number(pedido.total ?? 0), 0);
 }
 
+function normalizeFinancialAmount(task = {}) {
+  const raw = task.financial_amount ?? task.valor ?? task.amount ?? task.value ?? task.impacto_estimado ?? null;
+  if (raw === null || raw === undefined || raw === '') return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
 function buildPortfolioItem(cliente, pedidos = [], alertas = []) {
   const pedidosOrdenados = [...pedidos]
     .filter((pedido) => String(pedido.cliente_id || '') === String(cliente.id))
@@ -155,7 +162,11 @@ export async function getAiSalesTasks(accountId, options = {}) {
     vendedor_id: options.vendedor_id || options.manager_id || undefined,
     limit: options.limit || 200
   });
-  return { items: Array.isArray(items) ? items : (items.items || []) };
+  const normalizedItems = (Array.isArray(items) ? items : (items.items || [])).map((task) => {
+    const financial_amount = normalizeFinancialAmount(task);
+    return financial_amount === null ? { ...task } : { ...task, financial_amount };
+  });
+  return { items: normalizedItems };
 }
 
 export async function getAiSalesPerformance(accountId, options = {}) {
