@@ -3,6 +3,7 @@ import { BadRequestError, DatabaseError, ForbiddenError, NotFoundError } from '.
 import { logger } from '../../core/logger.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { normalizeCreateObservationPayload, normalizeUpdateObservationPayload, validateObservationPayload } from './ai-director-observations.schemas.js';
+import { createAiDirectorEvent } from '../ai-director/ai-director-events.repository.js';
 
 const store = [];
 
@@ -303,9 +304,29 @@ export async function createObservation(context = {}, payload = {}) {
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data, error } = await supabase.from('ai_director_observations').insert(row).select('*').single();
     if (error) throw new DatabaseError('Falha ao criar observacao', { details: error });
+    await createAiDirectorEvent({
+      event_type: 'observation_created',
+      entity_type: 'observacao',
+      entity_id: data.id,
+      status: 'aberto',
+      title: data.title,
+      description: data.description,
+      recurrence_count: Number(data.metadata?.recurrence_count ?? 0) || 0,
+      metadata: { observation_id: data.id, manager_id: data.manager_id, category: data.category }
+    }, { accountId });
     return data;
   }
   store.push(row);
+  void createAiDirectorEvent({
+    event_type: 'observation_created',
+    entity_type: 'observacao',
+    entity_id: row.id,
+    status: 'aberto',
+    title: row.title,
+    description: row.description,
+    recurrence_count: Number(row.metadata?.recurrence_count ?? 0) || 0,
+    metadata: { observation_id: row.id, manager_id: row.manager_id, category: row.category }
+  }, { accountId }).catch(() => {});
   return shape(row);
 }
 
@@ -362,6 +383,16 @@ export async function createObservationIfNotOpen(context = {}, payload = {}) {
       recurrence_count: metadata.recurrence_count,
       previous_resolved_at: metadata.previous_resolved_at || null
     });
+    void createAiDirectorEvent({
+      event_type: 'observation_reopened',
+      entity_type: 'observacao',
+      entity_id: resolvedEquivalent.id,
+      status: 'reaberto',
+      title: resolvedEquivalent.title,
+      description: resolvedEquivalent.description,
+      recurrence_count: metadata.recurrence_count,
+      metadata: { observation_id: resolvedEquivalent.id, previous_resolved_at: metadata.previous_resolved_at || null }
+    }, { accountId }).catch(() => {});
     return { created: false, reason: 'reopened', observation: shape(resolvedEquivalent) };
   }
 
@@ -389,6 +420,18 @@ export async function updateObservationStatus(context = {}, id, payload = {}) {
     };
     const { data, error } = await supabase.from('ai_director_observations').update(updatePayload).eq('account_id', accountId).eq('id', observationId).select('*').single();
     if (error) throw new NotFoundError('Observacao nao encontrada', { domain: 'ai-director-observations', code: 'AI_DIRECTOR_OBSERVATION_NOT_FOUND' });
+    if (String(normalized.status || '').trim() === 'resolved') {
+      await createAiDirectorEvent({
+        event_type: 'observation_resolved',
+        entity_type: 'observacao',
+        entity_id: data.id,
+        status: 'resolvido',
+        title: data.title,
+        description: data.description,
+        recurrence_count: Number(data.metadata?.recurrence_count ?? 0) || 0,
+        metadata: { observation_id: data.id, resolved_at: data.updated_at || new Date().toISOString() }
+      }, { accountId });
+    }
     return data;
   }
   const item = store.find((row) => row.account_id === accountId && row.id === observationId);
@@ -398,6 +441,18 @@ export async function updateObservationStatus(context = {}, id, payload = {}) {
     metadata: normalized.metadata !== undefined ? { ...(item.metadata || {}), ...(normalized.metadata || {}) } : item.metadata,
     updated_at: new Date().toISOString()
   });
+  if (String(normalized.status || '').trim() === 'resolved') {
+    void createAiDirectorEvent({
+      event_type: 'observation_resolved',
+      entity_type: 'observacao',
+      entity_id: item.id,
+      status: 'resolvido',
+      title: item.title,
+      description: item.description,
+      recurrence_count: Number(item.metadata?.recurrence_count ?? 0) || 0,
+      metadata: { observation_id: item.id, resolved_at: item.updated_at }
+    }, { accountId }).catch(() => {});
+  }
   return shape(item);
 }
 

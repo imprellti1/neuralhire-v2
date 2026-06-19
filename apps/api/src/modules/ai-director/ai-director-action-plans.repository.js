@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestError, DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { listExecutiveMemories } from './ai-director.repository.js';
+import { createAiDirectorEvent } from './ai-director-events.repository.js';
 
 const validStatus = new Set(['aberto', 'em_andamento', 'concluido', 'cancelado']);
 const memoryStore = [];
@@ -175,10 +176,30 @@ export async function upsertActionPlan(payload = {}, options = {}) {
     if (current) {
       const { data, error } = await supabase.from('ai_director_action_plans').update({ ...row, id: current.id, account_id: current.account_id, criado_em: current.criado_em }).eq('id', current.id).select('*').single();
       if (error) throw new DatabaseError('Falha ao atualizar plano de acao', { details: error });
+      await createAiDirectorEvent({
+        event_type: 'action_plan_created',
+        entity_type: 'plano_acao',
+        entity_id: data.id,
+        status: 'aberto',
+        title: data.titulo,
+        description: data.descricao,
+        recurrence_count: 0,
+        metadata: { action_plan_id: data.id, executive_memory_id: data.executive_memory_id, gerente_responsavel: data.gerente_responsavel }
+      }, { accountId });
       return data;
     }
     const { data, error } = await supabase.from('ai_director_action_plans').insert(row).select('*').single();
     if (error) throw new DatabaseError('Falha ao criar plano de acao', { details: error });
+    await createAiDirectorEvent({
+      event_type: 'action_plan_created',
+      entity_type: 'plano_acao',
+      entity_id: data.id,
+      status: 'aberto',
+      title: data.titulo,
+      description: data.descricao,
+      recurrence_count: 0,
+      metadata: { action_plan_id: data.id, executive_memory_id: data.executive_memory_id, gerente_responsavel: data.gerente_responsavel }
+    }, { accountId });
     return data;
   }
   const current = memoryStore.find((item) => item.account_id === accountId && item.status === 'aberto' && (
@@ -187,9 +208,29 @@ export async function upsertActionPlan(payload = {}, options = {}) {
   )) || null;
   if (current) {
     Object.assign(current, row, { id: current.id, criado_em: current.criado_em });
+    void createAiDirectorEvent({
+      event_type: 'action_plan_created',
+      entity_type: 'plano_acao',
+      entity_id: current.id,
+      status: 'aberto',
+      title: current.titulo,
+      description: current.descricao,
+      recurrence_count: 0,
+      metadata: { action_plan_id: current.id, executive_memory_id: current.executive_memory_id, gerente_responsavel: current.gerente_responsavel }
+    }, { accountId }).catch(() => {});
     return clone(current);
   }
   memoryStore.push(row);
+  void createAiDirectorEvent({
+    event_type: 'action_plan_created',
+    entity_type: 'plano_acao',
+    entity_id: row.id,
+    status: 'aberto',
+    title: row.titulo,
+    description: row.descricao,
+    recurrence_count: 0,
+    metadata: { action_plan_id: row.id, executive_memory_id: row.executive_memory_id, gerente_responsavel: row.gerente_responsavel }
+  }, { accountId }).catch(() => {});
   return clone(row);
 }
 
@@ -222,12 +263,36 @@ export async function updateActionPlanStatus(id, accountId, status) {
     if (!current) throw new NotFoundError('Plano de acao nao encontrado', { domain: 'ai-director-action-plans' });
     const { data: updated, error: updateError } = await supabase.from('ai_director_action_plans').update({ status, updated_at: new Date().toISOString() }).eq('id', id).eq('account_id', accountId).select('*').single();
     if (updateError) throw new DatabaseError('Falha ao atualizar plano de acao', { details: updateError });
+    if (status === 'concluido') {
+      await createAiDirectorEvent({
+        event_type: 'action_plan_completed',
+        entity_type: 'plano_acao',
+        entity_id: updated.id,
+        status: 'resolvido',
+        title: updated.titulo,
+        description: updated.descricao,
+        recurrence_count: 0,
+        metadata: { action_plan_id: updated.id, executive_memory_id: updated.executive_memory_id }
+      }, { accountId });
+    }
     return updated;
   }
   const current = memoryStore.find((item) => item.id === id && item.account_id === accountId) || null;
   if (!current) throw new NotFoundError('Plano de acao nao encontrado', { domain: 'ai-director-action-plans' });
   current.status = status;
   current.updated_at = new Date().toISOString();
+  if (status === 'concluido') {
+    void createAiDirectorEvent({
+      event_type: 'action_plan_completed',
+      entity_type: 'plano_acao',
+      entity_id: current.id,
+      status: 'resolvido',
+      title: current.titulo,
+      description: current.descricao,
+      recurrence_count: 0,
+      metadata: { action_plan_id: current.id, executive_memory_id: current.executive_memory_id }
+    }, { accountId }).catch(() => {});
+  }
   return clone(current);
 }
 

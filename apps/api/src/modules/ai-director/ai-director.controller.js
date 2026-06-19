@@ -1,4 +1,5 @@
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
+import { listAiDirectorEvents } from './ai-director-events.repository.js';
 import { createAiDirectorMemory, consultManager, getAiDirectorDashboard, listAiDirectorMemories, listExecutiveMemories, listManagers } from './ai-director.repository.js';
 import { listActionPlans, updateActionPlanStatus } from './ai-director-action-plans.repository.js';
 import { completeDirectorTask, listDirectorTasks, updateDirectorTaskStatus } from './ai-director-tasks.repository.js';
@@ -100,4 +101,22 @@ export async function completeAiDirectorTaskHandler(context = {}) {
   const body = { ...(context.body || {}) };
   const result = await completeDirectorTask(accountId, id, body);
   return { ok: true, ...result };
+}
+
+export async function listAiDirectorEventsHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const query = context.query || {};
+  const result = await listAiDirectorEvents(accountId, {
+    status: query.status ? String(query.status).trim() : undefined,
+    limit: query.limit
+  });
+  const items = result.items || [];
+  const closedCycles = items.filter((item) => item.event_type === 'cycle_closed').length;
+  const reopenedCycles = items.filter((item) => item.event_type === 'cycle_reopened' || item.event_type === 'observation_reopened').length;
+  const resolved = items.filter((item) => item.status === 'resolvido' || item.event_type === 'observation_resolved' || item.event_type === 'task_completed' || item.event_type === 'action_plan_completed');
+  const avgResolutionHours = resolved.length
+    ? resolved.reduce((sum, item) => sum + Math.max(0, (new Date(item.updated_at || item.created_at).getTime() - new Date(item.created_at).getTime()) / 36e5), 0) / resolved.length
+    : 0;
+  const recurring = [...items].sort((a, b) => Number(b.recurrence_count || 0) - Number(a.recurrence_count || 0)).slice(0, 10);
+  return { ok: true, items, total: result.total, kpis: { closedCycles, reopenedCycles, avgResolutionHours, recurring } };
 }

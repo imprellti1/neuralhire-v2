@@ -1,4 +1,4 @@
-import { askDirector, completeTask, consultManager, createMemory, fetchAiDirectorDashboard, listActionPlans, listExecutiveMemories, listManagers, listMemories, listObservations, listTasks, updateActionPlanStatus, updateTaskStatus } from './ai-director.service.js';
+import { askDirector, completeTask, consultManager, createMemory, fetchAiDirectorDashboard, listActionPlans, listEvents, listExecutiveMemories, listManagers, listMemories, listObservations, listTasks, updateActionPlanStatus, updateTaskStatus } from './ai-director.service.js';
 import { createAiDirectorState } from './ai-director.state.js';
 
 function esc(value) {
@@ -305,6 +305,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
     { id: 'executive', label: 'Reunião Executiva' },
     { id: 'action-plans', label: 'Planos de Ação' },
     { id: 'tasks', label: 'Tarefas' },
+    { id: 'timeline', label: 'Timeline' },
     { id: 'memories', label: 'Memórias' },
     { id: 'jobs', label: 'Jobs' }
   ];
@@ -499,6 +500,18 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
       if (state.tasksFilter.category !== 'all' && String(task.category || '').toLowerCase() !== state.tasksFilter.category) return false;
       return true;
     });
+    const timelineEvents = (state.events || []).filter((item) => state.eventsFilter === 'all' || String(item.status || '').toLowerCase() === state.eventsFilter);
+    const eventsHtml = timelineEvents.map((item) => `
+      <div class="nh-list-item">
+        <div class="nh-between">
+          <strong>${esc(item.title || item.event_type)}</strong>
+          <span class="nh-badge ${badgeClass(item.status)}">${esc(item.status || '—')}</span>
+        </div>
+        <div class="nh-mini" style="margin-top: 6px;">${esc(item.event_type || 'evento')} · recorrência ${esc(formatCount(item.recurrence_count || 0))}</div>
+        <div style="margin-top: 8px;">${esc(item.description || '—')}</div>
+        <div class="nh-mini" style="margin-top: 8px;">${esc(formatCompactDate(item.created_at))}</div>
+      </div>
+    `).join('');
     const taskActionMessage = state.taskActionMessage;
     const taskActionError = state.taskActionError;
     const taskKpis = {
@@ -508,7 +521,9 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
       overdue: tasks.filter((task) => isTaskOverdue(task)).length
     };
     const observations = (state.observations || []).filter((item) => observationCategoryMatchesFilter(item, state.observationsFilter));
+    const eventKpis = state.eventKpis || { closedCycles: 0, reopenedCycles: 0, avgResolutionHours: 0, recurring: [] };
     const managers = state.managers || [];
+    const recurringEvents = Array.isArray(eventKpis.recurring) ? eventKpis.recurring : [];
     const form = state.memoryForm || {};
     const delegation = state.delegationResult || {};
     const askResult = state.askResult || {};
@@ -983,6 +998,37 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
             `).join('') : '<div class="nh-mini">Sem observações abertas no momento.</div>'}
           </div>
         </article>
+        <article class="nh-card" data-ai-director-panel="timeline" style="${tabPanelStyle('timeline')}">
+          <div class="nh-between">
+            <div>
+              <h2 class="nh-section-title">Timeline</h2>
+              <p class="nh-section-subtitle">Auditoria cronológica dos eventos do Diretor IA.</p>
+            </div>
+            <select id="ai-director-events-filter" class="nh-select" style="max-width: 180px;">
+              ${['all', 'aberto', 'resolvido', 'reaberto'].map((status) => `<option value="${status}"${state.eventsFilter === status ? ' selected' : ''}>${status === 'all' ? 'Todos' : status}</option>`).join('')}
+            </select>
+          </div>
+          <div class="nh-grid-4" style="margin-top: 14px;">
+            <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Ciclos encerrados</div><div class="nh-kpi-value">${esc(formatCount(eventKpis.closedCycles))}</div></div>
+            <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Ciclos reabertos</div><div class="nh-kpi-value">${esc(formatCount(eventKpis.reopenedCycles))}</div></div>
+            <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Tempo médio de resolução</div><div class="nh-kpi-value">${esc(Number.isFinite(Number(eventKpis.avgResolutionHours)) ? `${Number(eventKpis.avgResolutionHours).toFixed(1)}h` : '0h')}</div></div>
+            <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Observações recorrentes</div><div class="nh-kpi-value">${esc(formatCount(recurringEvents.length))}</div></div>
+          </div>
+          <div class="nh-grid-2" style="margin-top: 14px;">
+            <div class="nh-card">
+              <h3 class="nh-section-title">Ranking de recorrência</h3>
+              <div class="nh-list" style="margin-top: 12px;">
+                ${recurringEvents.length ? recurringEvents.map((item) => `<div class="nh-list-item"><div class="nh-between"><strong>${esc(item.title || item.event_type)}</strong><span class="nh-badge muted">${esc(formatCount(item.recurrence_count || 0))}</span></div><div class="nh-mini" style="margin-top: 6px;">${esc(item.entity_type || '—')} · ${esc(item.status || '—')}</div></div>`).join('') : '<div class="nh-mini">Sem recorrência registrada.</div>'}
+              </div>
+            </div>
+            <div class="nh-card">
+              <h3 class="nh-section-title">Eventos recentes</h3>
+              <div class="nh-list nh-scroll" style="margin-top: 12px; max-height: 420px;">
+                ${eventsHtml || '<div class="nh-mini">Sem eventos para o filtro atual.</div>'}
+              </div>
+            </div>
+          </div>
+        </article>
         <article class="nh-card" data-ai-director-panel="memories" style="${tabPanelStyle('memories')}">
           <div class="nh-between">
             <div>
@@ -1098,6 +1144,10 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
       state.observationsFilter = event.target.value || 'all';
       render();
     });
+    container.querySelector('#ai-director-events-filter')?.addEventListener('change', async (event) => {
+      state.eventsFilter = event.target.value || 'all';
+      render();
+    });
 
     container.querySelector('#ai-director-action-plans-status')?.addEventListener('change', (event) => {
       state.actionPlansFilter.status = event.target.value || 'all';
@@ -1184,7 +1234,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
     state.managersLoading = true;
     render();
     try {
-      const [dashboardResult, memoriesResult, executiveMemoriesResult, actionPlansResult, tasksResult, observationsResult, managersResult] = await Promise.all([
+      const [dashboardResult, memoriesResult, executiveMemoriesResult, actionPlansResult, tasksResult, observationsResult, eventsResult, managersResult] = await Promise.all([
         fetchAiDirectorDashboard(apiClient),
         listMemories(apiClient).catch(() => {
           state.memoryError = 'Não foi possível carregar as memórias.';
@@ -1199,6 +1249,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
           category: state.tasksFilter.category === 'all' ? undefined : state.tasksFilter.category
         }).catch(() => ({ items: [] })),
         listObservations(apiClient, { status: 'open', limit: 20 }).catch(() => ({ items: [] })),
+        listEvents(apiClient, { status: state.eventsFilter === 'all' ? undefined : state.eventsFilter, limit: 100 }).catch(() => ({ items: [] })),
         listManagers(apiClient).catch(() => {
           return { managers: [] };
         })
@@ -1210,6 +1261,8 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
       state.actionPlans = actionPlansResult.items || [];
       state.tasks = tasksResult.items || [];
       state.observations = observationsResult.items || [];
+      state.events = eventsResult.items || [];
+      state.eventKpis = eventsResult.kpis || { closedCycles: 0, reopenedCycles: 0, avgResolutionHours: 0, recurring: [] };
       state.managers = managersResult.managers || [];
     } catch (error) {
       if (canRender()) state.error = error;

@@ -22,6 +22,7 @@ test('ai director route smoke', async () => {
     }),
     'GET /ai-director/memories': () => ({ items: [] }),
     'GET /ai-director/tasks': () => ({ items: [] }),
+    'GET /ai-director/events': () => ({ items: [], kpis: { closedCycles: 0, reopenedCycles: 0, avgResolutionHours: 0, recurring: [] } }),
     'GET /ai-director/managers': () => ({ managers: [] })
   });
   bootstrapWebApp();

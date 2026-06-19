@@ -53,3 +53,7 @@ export async function updateTaskStatus(apiClient, id, payload) {
 export async function completeTask(apiClient, id, payload = {}) {
   return apiClient.patch(`/ai-director/tasks/${id}/complete`, payload);
 }
+
+export async function listEvents(apiClient, params = {}) {
+  return apiClient.get('/ai-director/events', params);
+}

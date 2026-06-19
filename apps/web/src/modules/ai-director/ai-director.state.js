@@ -21,6 +21,8 @@ export function createAiDirectorState() {
     },
     observations: [],
     observationsFilter: 'all',
+    events: [],
+    eventsFilter: 'all',
     managers: [],
     managersLoading: false,
     managerConsultations: {},

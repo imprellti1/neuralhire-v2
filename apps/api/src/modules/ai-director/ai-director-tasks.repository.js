@@ -5,6 +5,7 @@ import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase
 import { listActionPlans, listActionPlansByExecutiveMemoryId, updateActionPlanStatus } from './ai-director-action-plans.repository.js';
 import { listObservations, updateObservationStatus } from '../ai-director-observations/ai-director-observations.repository.js';
 import { getManagerById } from './ai-director.repository.js';
+import { createAiDirectorEvent } from './ai-director-events.repository.js';
 
 const validStatus = new Set(['open', 'in_progress', 'done', 'dismissed']);
 const validLegacyStatus = new Map([
@@ -243,6 +244,18 @@ async function closeTaskCycle(accountId, task, conclusionNotes = null, result = 
     observation_id: updatedObservation?.id || null,
     cycleClosed
   });
+  if (cycleClosed) {
+    void createAiDirectorEvent({
+      event_type: 'cycle_closed',
+      entity_type: 'ciclo',
+      entity_id: updatedObservation?.id || updatedActionPlan?.id || taskUpdate.id,
+      status: 'resolvido',
+      title: updatedObservation?.title || updatedActionPlan?.titulo || taskUpdate.titulo,
+      description: 'Ciclo encerrado automaticamente pelo Diretor IA.',
+      recurrence_count: 0,
+      metadata: { task_id: taskUpdate.id, action_plan_id: updatedActionPlan?.id || null, observation_id: updatedObservation?.id || null }
+    }, { accountId }).catch(() => {});
+  }
 
   return {
     task: taskUpdate,
@@ -345,10 +358,32 @@ export async function upsertDirectorTask(payload = {}) {
     if (current) {
       const { data, error } = await supabase.from('ai_director_tasks').update({ ...dbRow, id: current.id, criado_em: current.criado_em }).eq('id', current.id).select('*').single();
       if (error) throw new DatabaseError('Falha ao atualizar tarefa', { details: error });
+      await createAiDirectorEvent({
+        event_type: 'task_created',
+        entity_type: 'tarefa',
+        entity_id: data.id,
+        status: 'aberto',
+        title: data.titulo,
+        description: data.descricao || '',
+        recurrence_count: 0,
+        metadata: { task_id: data.id, action_plan_id: data.action_plan_id, manager_id: data.manager_id }
+      }, { accountId });
       return { task: data, created: false, skipped: true, reason: 'already_exists' };
     }
     const { data, error } = await supabase.from('ai_director_tasks').insert(dbRow).select('*').single();
-    if (!error && data) return { task: data, created: true, skipped: false };
+    if (!error && data) {
+      await createAiDirectorEvent({
+        event_type: 'task_created',
+        entity_type: 'tarefa',
+        entity_id: data.id,
+        status: 'aberto',
+        title: data.titulo,
+        description: data.descricao || '',
+        recurrence_count: 0,
+        metadata: { task_id: data.id, action_plan_id: data.action_plan_id, manager_id: data.manager_id }
+      }, { accountId });
+      return { task: data, created: true, skipped: false };
+    }
     if (error?.code === '23505') {
       const { data: duplicateRows, error: duplicateError } = await supabase
         .from('ai_director_tasks')
@@ -367,9 +402,29 @@ export async function upsertDirectorTask(payload = {}) {
   const current = memoryTasks.find((task) => taskDelegacaoExistingMatch(task, row)) || null;
   if (current) {
     Object.assign(current, row, { id: current.id, criado_em: current.criado_em });
+    void createAiDirectorEvent({
+      event_type: 'task_created',
+      entity_type: 'tarefa',
+      entity_id: current.id,
+      status: 'aberto',
+      title: current.titulo,
+      description: current.descricao || '',
+      recurrence_count: 0,
+      metadata: { task_id: current.id, action_plan_id: current.action_plan_id, manager_id: current.manager_id }
+    }, { accountId }).catch(() => {});
     return { task: clone(current), created: false, skipped: true, reason: 'already_exists' };
   }
   memoryTasks.push(row);
+  void createAiDirectorEvent({
+    event_type: 'task_created',
+    entity_type: 'tarefa',
+    entity_id: row.id,
+    status: 'aberto',
+    title: row.titulo,
+    description: row.descricao || '',
+    recurrence_count: 0,
+    metadata: { task_id: row.id, action_plan_id: row.action_plan_id, manager_id: row.manager_id }
+  }, { accountId }).catch(() => {});
   return { task: clone(row), created: true, skipped: false };
 }
 
@@ -409,6 +464,18 @@ export async function updateDirectorTaskStatus(id, accountId, status) {
     const percentual = normalizedStatus === 'done' ? 100 : current.percentual_conclusao;
     const { data, error: updateError } = await supabase.from('ai_director_tasks').update({ status: normalizedStatus, percentual_conclusao: percentual, updated_at: nowIso() }).eq('id', id).eq('account_id', accountId).select('*').single();
     if (updateError) throw new DatabaseError('Falha ao atualizar tarefa', { details: updateError });
+    if (normalizedStatus === 'done') {
+      await createAiDirectorEvent({
+        event_type: 'task_completed',
+        entity_type: 'tarefa',
+        entity_id: data.id,
+        status: 'resolvido',
+        title: data.titulo,
+        description: data.descricao || '',
+        recurrence_count: 0,
+        metadata: { task_id: data.id, action_plan_id: data.action_plan_id, manager_id: data.manager_id }
+      }, { accountId });
+    }
     return data;
   }
   const current = memoryTasks.find((task) => String(task.id) === String(id) && task.account_id === accountId) || null;
@@ -417,6 +484,18 @@ export async function updateDirectorTaskStatus(id, accountId, status) {
   current.percentual_conclusao = current.status === 'done' ? 100 : current.percentual_conclusao;
   current.updated_at = nowIso();
   current.updated_at = current.updated_at || nowIso();
+  if (normalizedStatus === 'done') {
+    void createAiDirectorEvent({
+      event_type: 'task_completed',
+      entity_type: 'tarefa',
+      entity_id: current.id,
+      status: 'resolvido',
+      title: current.titulo,
+      description: current.descricao || '',
+      recurrence_count: 0,
+      metadata: { task_id: current.id, action_plan_id: current.action_plan_id, manager_id: current.manager_id }
+    }, { accountId }).catch(() => {});
+  }
   return clone(current);
 }
 

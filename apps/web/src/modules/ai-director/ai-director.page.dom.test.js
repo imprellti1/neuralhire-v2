@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { renderAiDirectorPage } from './ai-director.page.js';
 import { flush, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 
-function createApiClient({ dashboards = [], askResult = {}, managers = [], memories = [], executiveMemories = [], observations = [], tasks = [], consultResult = {}, updateTaskResult = {}, completeTaskResult = {} } = {}) {
+function createApiClient({ dashboards = [], askResult = {}, managers = [], memories = [], executiveMemories = [], observations = [], tasks = [], events = [], consultResult = {}, updateTaskResult = {}, completeTaskResult = {} } = {}) {
   const calls = [];
   let dashboardCall = 0;
   return {
@@ -19,6 +19,7 @@ function createApiClient({ dashboards = [], askResult = {}, managers = [], memor
         if (url === '/ai-director/memories') return { items: memories };
         if (url === '/ai-director/executive-memories') return { items: executiveMemories };
         if (url === '/ai-director/observations') return { items: observations };
+        if (url === '/ai-director/events') return { items: events, kpis: { closedCycles: 1, reopenedCycles: 1, avgResolutionHours: 2.5, recurring: events.slice(0, 1) } };
         if (url === '/ai-director/tasks') return { items: tasks };
         if (url === '/ai-director/managers') return { managers };
         return {};
@@ -209,6 +210,9 @@ test('ai director page dom with radar and auto refresh', async () => {
     observations: [
       { id: 'o1', manager_id: 'comercial', manager_name: 'Gerente Comercial', category: 'comercial', title: 'Queda de pipeline', description: 'Pipeline caiu.', severity: 'high', status: 'open', created_at: '2026-06-12T12:00:00.000Z' }
     ],
+    events: [
+      { id: 'e1', event_type: 'observation_created', entity_type: 'observacao', entity_id: 'o1', status: 'aberto', title: 'Queda de pipeline', description: 'Pipeline caiu.', recurrence_count: 2, created_at: '2026-06-12T12:00:00.000Z' }
+    ],
     tasks: [
       { id: 't1', [['account', 'id'].join('_')]: 'acc-a', action_plan_id: 'plan-1', manager_id: 'comercial', manager_name: 'Gerente Comercial', category: 'comercial', title: 'Contato carteira', description: 'Ligar para clientes em risco', priority: 'high', status: 'open', due_at: '2026-06-11T12:00:00.000Z', created_at: '2026-06-10T12:00:00.000Z', updated_at: '2026-06-10T12:00:00.000Z' },
       { id: 't2', [['account', 'id'].join('_')]: 'acc-a', action_plan_id: 'plan-2', manager_id: 'produtos', manager_name: 'Gerente de Produtos', category: 'produtos', title: 'Revisar promoções', description: 'Ajustar campanhas', priority: 'medium', status: 'done', due_at: '2026-06-20T12:00:00.000Z', created_at: '2026-06-10T12:00:00.000Z', updated_at: '2026-06-10T12:00:00.000Z' }
@@ -233,6 +237,7 @@ test('ai director page dom with radar and auto refresh', async () => {
   assert.match(document.body.textContent, /Reunião Executiva/);
   assert.match(document.body.textContent, /Planos de Ação/);
   assert.match(document.body.textContent, /Tarefas/);
+  assert.match(document.body.textContent, /Timeline/);
   assert.match(document.body.textContent, /Memórias/);
   assert.match(document.body.textContent, /Jobs/);
   assert.match(document.body.textContent, /Atualização automática ativa/);
@@ -259,6 +264,11 @@ test('ai director page dom with radar and auto refresh', async () => {
   await flush();
   assert.match(document.body.textContent, /Central de Tarefas/);
   assert.match(document.body.textContent, /Contato carteira/);
+
+  document.querySelector('[data-ai-director-tab="timeline"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+  await flush();
+  assert.match(document.body.textContent, /Ciclos encerrados/);
+  assert.match(document.body.textContent, /Queda de pipeline/);
 
   document.querySelector('[data-ai-director-tab="action-plans"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
   await flush();

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { getAiDirectorDashboard } from './ai-director.repository.js';
 import { __resetMemoryAiDirectorForTests, __setAiDirectorSupabaseClientForTests, createExecutiveMemory, listAiDirectorMemories, listExecutiveMemories } from './ai-director.repository.js';
+import { __resetMemoryAiDirectorEventsForTests, createAiDirectorEvent, listAiDirectorEvents } from './ai-director-events.repository.js';
 
 test('ai director repository returns executive dashboard mock', async () => {
   __resetMemoryAiDirectorForTests();
@@ -113,6 +114,15 @@ test('ai director executive memories keep criado_em contract and expose created_
   assert.equal(result.items.length, 1);
   assert.equal(result.items[0].criado_em, result.items[0].created_at);
   assert.ok(result.items[0].criado_em);
+});
+
+test('ai director events repository stores and filters timeline entries', async () => {
+  __resetMemoryAiDirectorEventsForTests();
+  await createAiDirectorEvent({ event_type: 'observation_created', entity_type: 'observacao', entity_id: 'o-1', status: 'aberto', title: 'Obs', description: 'Desc', recurrence_count: 2 }, { accountId: 'acc-test' });
+  const result = await listAiDirectorEvents('acc-test', { status: 'aberto', limit: 10 });
+  assert.equal(result.total, 1);
+  assert.equal(result.items[0].recurrence_count, 2);
+  assert.equal(result.items[0].event_type, 'observation_created');
 });
 
 export function getAiDirectorRepositoryTests() {
