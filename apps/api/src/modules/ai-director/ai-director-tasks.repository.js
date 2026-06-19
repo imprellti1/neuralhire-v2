@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestError, DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { logger } from '../../core/logger.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
+import { getClienteById } from '../clientes/clientes.repository.js';
 import { listActionPlans, listActionPlansByExecutiveMemoryId, updateActionPlanStatus } from './ai-director-action-plans.repository.js';
 import { listObservations, updateObservationStatus } from '../ai-director-observations/ai-director-observations.repository.js';
 import { getManagerById } from './ai-director.repository.js';
@@ -94,6 +95,60 @@ function dedupeKeyFromRow(row = {}) {
 function buildLegacyGerenteValue(row = {}) {
   return normalizeManagerName(row.manager_name) || String(row.manager_id || '').trim() || 'gerente_comercial';
 }
+function normalizeDelegationReason(value) {
+  const reason = String(value || '').trim();
+  return reason || null;
+}
+function buildTaskContextFromCliente(cliente = {}, fallback = {}) {
+  return {
+    vendedor_id: String(cliente.vendedor_id || fallback.vendedor_id || '').trim() || null,
+    vendedor_name: normalizeManagerName(cliente.vendedor_nome || fallback.vendedor_name) || null
+  };
+}
+async function resolveTaskDelegation(payload = {}, options = {}) {
+  const cliente_id = String(payload.cliente_id || '').trim() || null;
+  const fallbackVendedorId = String(payload.vendedor_id || payload.manager_id || '').trim() || null;
+  const fallbackVendedorName = normalizeManagerName(payload.vendedor_name || payload.manager_name);
+  if (!cliente_id) {
+    return {
+      cliente_id: null,
+      vendedor_id: fallbackVendedorId,
+      vendedor_name: fallbackVendedorName,
+      delegation_level: String(payload.delegation_level || (fallbackVendedorId ? 'vendedor' : 'gerente')).trim() || 'gerente',
+      delegation_reason: normalizeDelegationReason(payload.delegation_reason),
+      delegationEvent: null
+    };
+  }
+  const cliente = await getClienteById(cliente_id, { accountId: payload.account_id || options.accountId, context: options.context }).catch(() => null);
+  const resolved = cliente ? buildTaskContextFromCliente(cliente, { vendedor_id: fallbackVendedorId, vendedor_name: fallbackVendedorName }) : { vendedor_id: fallbackVendedorId, vendedor_name: fallbackVendedorName };
+  if (resolved.vendedor_id && resolved.vendedor_id !== fallbackVendedorId) {
+    return {
+      cliente_id,
+      vendedor_id: resolved.vendedor_id,
+      vendedor_name: resolved.vendedor_name || fallbackVendedorName || normalizeManagerName(resolved.vendedor_id),
+      delegation_level: 'vendedor',
+      delegation_reason: null,
+      delegationEvent: {
+        event_type: 'sales_task_delegated',
+        entity_type: 'tarefa',
+        entity_id: payload.id || randomUUID(),
+        status: 'aberto',
+        title: String(payload.title || payload.titulo || 'Tarefa comercial').trim() || 'Tarefa comercial',
+        description: String(payload.description || payload.descricao || 'Tarefa comercial delegada ao vendedor responsável.').trim() || 'Tarefa comercial delegada ao vendedor responsável.',
+        recurrence_count: 0,
+        metadata: { task_id: payload.id || null, vendedor_id: resolved.vendedor_id, cliente_id, origin: 'gerente_comercial_ia' }
+      }
+    };
+  }
+  return {
+    cliente_id,
+    vendedor_id: null,
+    vendedor_name: null,
+    delegation_level: String(payload.delegation_level || 'gerente').trim() || 'gerente',
+    delegation_reason: normalizeDelegationReason(payload.delegation_reason) || 'cliente_sem_vendedor',
+    delegationEvent: null
+  };
+}
 function buildTaskPayload(actionPlan = {}) {
   const manager = resolveManager(actionPlan);
   const category = normalizeCategory(actionPlan);
@@ -117,6 +172,11 @@ function buildTaskPayload(actionPlan = {}) {
     manager_id: manager.manager_id,
     manager_name: manager.manager_name,
     gerente: buildLegacyGerenteValue(manager),
+    cliente_id: null,
+    vendedor_id: null,
+    vendedor_name: null,
+    delegation_level: 'gerente',
+    delegation_reason: null,
     category,
     title,
     titulo: title || 'Tarefa do Diretor IA',
@@ -137,12 +197,22 @@ function rowFromPayload(payload = {}) {
   const status = normalizeStatus(payload.status);
   const manager_id = String(payload.manager_id || '').trim() || null;
   const manager_name = normalizeManagerName(payload.manager_name);
+  const vendedor_id = String(payload.vendedor_id || '').trim() || null;
+  const vendedor_name = normalizeManagerName(payload.vendedor_name);
+  const cliente_id = String(payload.cliente_id || '').trim() || null;
+  const delegation_level = String(payload.delegation_level || (vendedor_id ? 'vendedor' : 'gerente')).trim() || 'gerente';
+  const delegation_reason = normalizeDelegationReason(payload.delegation_reason);
   const row = {
     id: payload.id || randomUUID(),
     account_id: payload.account_id || null,
     action_plan_id: payload.action_plan_id || null,
     manager_id,
     manager_name,
+    cliente_id,
+    vendedor_id,
+    vendedor_name,
+    delegation_level,
+    delegation_reason,
     category: String(payload.category || payload.categoria || 'geral').trim() || 'geral',
     title: String(payload.title || payload.titulo || '').trim(),
     titulo: String(payload.titulo || payload.title || '').trim() || null,
@@ -154,7 +224,15 @@ function rowFromPayload(payload = {}) {
     due_at: payload.due_at ?? resolveTaskDueDate(payload.priority || payload.prioridade || 'medium'),
     completed_at: payload.completed_at ?? null,
     percentual_conclusao: Math.max(0, Math.min(100, Number(payload.percentual_conclusao ?? 0) || 0)),
-    metadata: { ...(payload.metadata || {}), normalized_dedupe_key: payload?.metadata?.normalized_dedupe_key || dedupeKeyFromRow({ account_id: payload.account_id, action_plan_id: payload.action_plan_id, manager_id, manager_name, status }) },
+    metadata: {
+      ...(payload.metadata || {}),
+      cliente_id,
+      vendedor_id,
+      vendedor_name,
+      delegation_level,
+      delegation_reason,
+      normalized_dedupe_key: payload?.metadata?.normalized_dedupe_key || dedupeKeyFromRow({ account_id: payload.account_id, action_plan_id: payload.action_plan_id, manager_id, manager_name, status })
+    },
     criado_em: payload.criado_em || nowIso(),
     created_at: payload.created_at || payload.criado_em || nowIso(),
     updated_at: nowIso()
@@ -167,6 +245,8 @@ function matchesTaskFilter(task, filters = {}) {
   if (filters.priority && String(task.priority || task.prioridade || '').toLowerCase() !== String(filters.priority).toLowerCase()) return false;
   if (filters.manager_id && String(task.manager_id || '') !== String(filters.manager_id || '')) return false;
   if (filters.manager_name && normalizeManagerName(task.manager_name) !== normalizeManagerName(filters.manager_name)) return false;
+  if (filters.vendedor_id && String(task.vendedor_id || task.manager_id || '') !== String(filters.vendedor_id || '')) return false;
+  if (filters.cliente_id && String(task.cliente_id || '') !== String(filters.cliente_id || '')) return false;
   if (filters.category && String(task.category || '').toLowerCase() !== String(filters.category).toLowerCase()) return false;
   if (filters.action_plan_id && String(task.action_plan_id || '') !== String(filters.action_plan_id || '')) return false;
   return true;
@@ -189,11 +269,17 @@ function taskEquivalentManagerMatch(task, row) {
   return String(taskManagerKey).toLowerCase() === String(rowManagerKey).toLowerCase();
 }
 
+function taskEquivalentVendedorMatch(task, row) {
+  return String(task.vendedor_id || '') === String(row.vendedor_id || '') &&
+    String(task.cliente_id || '') === String(row.cliente_id || '') &&
+    normalizeStatus(task.status) === normalizeStatus(row.status);
+}
+
 function taskDelegacaoExistingMatch(task, row) {
   return String(task.account_id || '') === String(row.account_id || '') &&
     String(task.action_plan_id || '') === String(row.action_plan_id || '') &&
     isOpenOrInProgress(task) &&
-    taskEquivalentManagerMatch(task, row);
+    (taskEquivalentManagerMatch(task, row) || taskEquivalentVendedorMatch(task, row));
 }
 
 function taskIsTerminal(task) {
@@ -303,6 +389,8 @@ async function listTasksSupabase(accountId, filters = {}) {
   if (filters.priority) query = query.eq('priority', String(filters.priority).toLowerCase());
   if (filters.manager_id) query = query.eq('manager_id', filters.manager_id);
   if (filters.manager_name) query = query.eq('manager_name', filters.manager_name);
+  if (filters.vendedor_id) query = query.eq('vendedor_id', filters.vendedor_id);
+  if (filters.cliente_id) query = query.eq('cliente_id', filters.cliente_id);
   if (filters.category) query = query.eq('category', filters.category);
   if (filters.action_plan_id) query = query.eq('action_plan_id', filters.action_plan_id);
   const { data, error } = await query;
@@ -361,7 +449,8 @@ export async function generateDirectorTasksFromOpenActionPlans(accountId) {
 export async function upsertDirectorTask(payload = {}) {
   const accountId = payload.account_id || null;
   assertAccountId(accountId);
-  const row = rowFromPayload(payload);
+  const delegation = await resolveTaskDelegation(payload, { accountId });
+  const row = rowFromPayload({ ...payload, ...delegation });
   row.metadata = { ...(row.metadata || {}), normalized_dedupe_key: row.metadata?.normalized_dedupe_key || dedupeKeyFromRow(row) };
 
   if (resolveSupabaseConfigured()) {
@@ -391,6 +480,9 @@ export async function upsertDirectorTask(payload = {}) {
         recurrence_count: 0,
         metadata: { task_id: data.id, action_plan_id: data.action_plan_id, manager_id: data.manager_id }
       }, { accountId });
+      if (delegation.delegationEvent && delegation.vendedor_id) {
+        await createAiDirectorEvent(delegation.delegationEvent, { accountId }).catch(() => {});
+      }
       return { task: data, created: false, skipped: true, reason: 'already_exists' };
     }
     const { data, error } = await supabase.from('ai_director_tasks').insert(dbRow).select('*').single();
@@ -405,6 +497,9 @@ export async function upsertDirectorTask(payload = {}) {
         recurrence_count: 0,
         metadata: { task_id: data.id, action_plan_id: data.action_plan_id, manager_id: data.manager_id }
       }, { accountId });
+      if (delegation.delegationEvent && delegation.vendedor_id) {
+        await createAiDirectorEvent(delegation.delegationEvent, { accountId }).catch(() => {});
+      }
       return { task: data, created: true, skipped: false };
     }
     if (error?.code === '23505') {
@@ -445,9 +540,12 @@ export async function upsertDirectorTask(payload = {}) {
     status: 'aberto',
     title: row.titulo,
     description: row.descricao || '',
-    recurrence_count: 0,
-    metadata: { task_id: row.id, action_plan_id: row.action_plan_id, manager_id: row.manager_id }
-  }, { accountId }).catch(() => {});
+      recurrence_count: 0,
+      metadata: { task_id: row.id, action_plan_id: row.action_plan_id, manager_id: row.manager_id }
+    }, { accountId }).catch(() => {});
+  if (delegation.delegationEvent && delegation.vendedor_id) {
+    void createAiDirectorEvent(delegation.delegationEvent, { accountId }).catch(() => {});
+  }
   return { task: clone(row), created: true, skipped: false };
 }
 
@@ -459,6 +557,8 @@ export async function listDirectorTasks(accountId, filters = {}) {
   if (normalizedFilters.status) normalizedFilters.status = normalizeStatus(normalizedFilters.status);
   if (normalizedFilters.priority) normalizedFilters.priority = String(normalizedFilters.priority).trim().toLowerCase();
   if (normalizedFilters.category) normalizedFilters.category = String(normalizedFilters.category).trim().toLowerCase();
+  if (normalizedFilters.vendedor_id) normalizedFilters.vendedor_id = String(normalizedFilters.vendedor_id).trim();
+  if (normalizedFilters.cliente_id) normalizedFilters.cliente_id = String(normalizedFilters.cliente_id).trim();
   if (resolveSupabaseConfigured()) return listTasksSupabase(accountId, normalizedFilters);
   const items = memoryTasks
     .filter((task) => task.account_id === accountId)

@@ -6,6 +6,10 @@ create table if not exists public.ai_director_tasks (
   action_plan_id uuid not null references public.ai_director_action_plans(id) on delete cascade,
   manager_id text,
   manager_name text,
+  cliente_id uuid null,
+  vendedor_id uuid null,
+  delegation_level text null,
+  delegation_reason text null,
   category text not null default 'geral',
   title text not null,
   description text,
@@ -26,6 +30,18 @@ alter table if exists public.ai_director_tasks
 
 alter table if exists public.ai_director_tasks
   add column if not exists manager_name text;
+
+alter table if exists public.ai_director_tasks
+  add column if not exists cliente_id uuid;
+
+alter table if exists public.ai_director_tasks
+  add column if not exists vendedor_id uuid;
+
+alter table if exists public.ai_director_tasks
+  add column if not exists delegation_level text;
+
+alter table if exists public.ai_director_tasks
+  add column if not exists delegation_reason text;
 
 alter table if exists public.ai_director_tasks
   add column if not exists category text;

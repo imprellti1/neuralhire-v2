@@ -14,6 +14,7 @@ const validEventTypes = new Set([
   'action_plan_completed',
   'task_created',
   'task_completed',
+  'sales_task_delegated',
   'cycle_closed',
   'cycle_reopened'
 ]);

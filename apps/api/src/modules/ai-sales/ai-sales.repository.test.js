@@ -14,7 +14,7 @@ test('ai sales repository computes overview and portfolio from existing data', a
 
   __loadMemoryClientes([
     { id: 'c1', account_id: 'acc-test', nome: 'Cliente 1', documento: '123', cidade: 'São Paulo', estado: 'SP', vendedor_id: 'v1', cliente_score: 72, ativo: true },
-    { id: 'c2', account_id: 'acc-test', nome: 'Cliente 2', documento: '456', cidade: 'Santos', estado: 'SP', vendedor_id: 'v1', cliente_score: 24, ativo: true }
+    { id: 'c2', account_id: 'acc-test', nome: 'Cliente 2', documento: '456', cidade: 'Santos', estado: 'SP', cliente_score: 24, ativo: true }
   ]);
   __loadMemoryPedidos({
     pedidos: [
@@ -24,6 +24,8 @@ test('ai sales repository computes overview and portfolio from existing data', a
   });
 
   await upsertDirectorTask({ account_id: 'acc-test', action_plan_id: 'plan-1', manager_id: 'v1', manager_name: 'Vendedor 1', category: 'comercial', title: 'Task 1', description: 'Desc', priority: 'medium', status: 'open', metadata: {} });
+  await upsertDirectorTask({ account_id: 'acc-test', action_plan_id: 'plan-2', manager_id: 'gerente_comercial', manager_name: 'Gerente Comercial', cliente_id: 'c1', category: 'comercial', title: 'Task 2', description: 'Delegada', priority: 'high', status: 'open', metadata: {} });
+  await upsertDirectorTask({ account_id: 'acc-test', action_plan_id: 'plan-3', manager_id: 'gerente_comercial', manager_name: 'Gerente Comercial', cliente_id: 'c2', category: 'comercial', title: 'Task 3', description: 'Sem vendedor', priority: 'high', status: 'open', metadata: {} });
 
   const overview = await getAiSalesOverview('acc-test', {});
   assert.equal(overview.total_clientes, 2);
@@ -43,6 +45,9 @@ test('ai sales repository computes overview and portfolio from existing data', a
 
   const tasks = await getAiSalesTasks('acc-test', { vendedor_id: 'v1' });
   assert.ok(Array.isArray(tasks.items));
+  assert.equal(tasks.items.length, 2);
+  assert.equal(tasks.items.every((task) => String(task.vendedor_id || '') === 'v1'), true);
+  assert.equal(tasks.items.some((task) => task.cliente_id === 'c1' && task.delegation_level === 'vendedor'), true);
 
   const performance = await getAiSalesPerformance('acc-test', {});
   assert.equal(typeof performance.clientes_ativos, 'number');

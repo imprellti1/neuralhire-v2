@@ -152,7 +152,7 @@ export async function getAiSalesTasks(accountId, options = {}) {
   assertAccountId(accountId);
   const items = await listDirectorTasks(accountId, {
     status: options.status || undefined,
-    manager_id: options.vendedor_id || options.manager_id || undefined,
+    vendedor_id: options.vendedor_id || options.manager_id || undefined,
     limit: options.limit || 200
   });
   return { items: Array.isArray(items) ? items : (items.items || []) };

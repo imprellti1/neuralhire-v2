@@ -11,7 +11,7 @@ test('vendedor ia page renderiza abas e dados principais', async () => {
       if (path === '/ai-sales/portfolio') return { items: [{ cliente_id: 'c1', nome: 'Cliente 1', cidade: 'São Paulo', score: 72, classificacao: 'saudável', ultimo_pedido: '2026-06-01T00:00:00.000Z', dias_sem_comprar: 18, status_risco: 'low' }] };
       if (path === '/ai-sales/alerts') return { items: [{ nome: 'Cliente 1', motivo: 'alerta comercial ativo', impacto_estimado: 1200 }] };
       if (path === '/ai-sales/opportunities') return { items: [{ cliente: 'Cliente 2', motivo: 'cliente inativo com histórico relevante', impacto_estimado: 2200 }] };
-      if (path === '/ai-sales/tasks') return { items: [{ title: 'Delegação futura', description: 'Preparar contrato de delegação', priority: 'medium' }] };
+      if (path === '/ai-sales/tasks') return { items: [{ id: 't1', title: 'Delegação futura', description: 'Preparar contrato de delegação', priority: 'medium', status: 'open', due_at: '2026-06-30T00:00:00.000Z', cliente_id: 'c1', cliente_nome: 'Cliente 1', vendedor_id: 'v1', delegation_level: 'vendedor' }] };
       if (path === '/ai-sales/performance') return { faturamento_carteira: 15000, clientes_ativos: 2, clientes_recuperados: 1, oportunidades_geradas: 2 };
       return {};
     }
@@ -28,6 +28,10 @@ test('vendedor ia page renderiza abas e dados principais', async () => {
   document.querySelector('[data-tab="performance"]').click();
   await flush();
   assert.match(document.body.textContent, /Clientes recuperados/i);
+  document.querySelector('[data-tab="tasks"]').click();
+  await flush();
+  assert.match(document.body.textContent, /Cliente 1/i);
+  assert.match(document.body.textContent, /Concluir/i);
   teardownFrontendDom(dom);
 });
 

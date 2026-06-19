@@ -4,6 +4,7 @@ import { getAiDirectorDashboard } from './ai-director.repository.js';
 import { __resetMemoryAiDirectorForTests, __setAiDirectorSupabaseClientForTests, createExecutiveMemory, listAiDirectorMemories, listExecutiveMemories } from './ai-director.repository.js';
 import { __resetMemoryAiDirectorEventsForTests, createAiDirectorEvent, listAiDirectorEvents } from './ai-director-events.repository.js';
 import { __resetMemoryAiDirectorTasksForTests, getDirectorTaskRemainingDays, isDirectorTaskOverdue, completeDirectorTask, upsertDirectorTask } from './ai-director-tasks.repository.js';
+import { __loadMemoryClientes, __resetMemoryClientesForTests } from '../clientes/clientes.repository.js';
 
 test('ai director repository returns executive dashboard mock', async () => {
   __resetMemoryAiDirectorForTests();
@@ -150,6 +151,49 @@ test('ai director tasks calculate SLA fields and completion timestamp', async ()
   const completed = await completeDirectorTask(accountId, created.task.id, {});
   assert.equal(completed.task.status, 'done');
   assert.equal(typeof completed.task.completed_at, 'string');
+});
+
+test('ai director tasks delegate to vendedor when cliente has vendedor_id and keep manager fallback otherwise', async () => {
+  __resetMemoryAiDirectorTasksForTests();
+  __resetMemoryClientesForTests();
+  __loadMemoryClientes([
+    { id: 'cliente-v', account_id: 'acc-test', nome: 'Cliente V', vendedor_id: 'v-1', ativo: true },
+    { id: 'cliente-sem-v', account_id: 'acc-test', nome: 'Cliente S', ativo: true }
+  ]);
+
+  const delegated = await upsertDirectorTask({
+    account_id: 'acc-test',
+    action_plan_id: 'plan-v',
+    manager_id: 'gerente_comercial',
+    manager_name: 'Gerente Comercial',
+    cliente_id: 'cliente-v',
+    category: 'comercial',
+    title: 'Tarefa delegada',
+    description: 'Delegar ao vendedor',
+    priority: 'medium',
+    status: 'open',
+    metadata: {}
+  });
+  assert.equal(delegated.task.vendedor_id, 'v-1');
+  assert.equal(delegated.task.delegation_level, 'vendedor');
+  assert.equal(delegated.task.delegation_reason, null);
+
+  const fallback = await upsertDirectorTask({
+    account_id: 'acc-test',
+    action_plan_id: 'plan-sem-v',
+    manager_id: 'gerente_comercial',
+    manager_name: 'Gerente Comercial',
+    cliente_id: 'cliente-sem-v',
+    category: 'comercial',
+    title: 'Tarefa gerente',
+    description: 'Sem vendedor',
+    priority: 'medium',
+    status: 'open',
+    metadata: {}
+  });
+  assert.equal(fallback.task.vendedor_id, null);
+  assert.equal(fallback.task.delegation_level, 'gerente');
+  assert.equal(fallback.task.delegation_reason, 'cliente_sem_vendedor');
 });
 
 export function getAiDirectorRepositoryTests() {
