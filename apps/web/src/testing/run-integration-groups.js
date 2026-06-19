@@ -19,7 +19,9 @@ const groups = [
     'src/modules/launch-templates/launch-templates.routes.smoke.test.js',
     'src/modules/launch-templates/launch-templates.page.dom.test.js',
     'src/modules/ai-director/ai-director.routes.smoke.test.js',
-    'src/modules/ai-director/ai-director.page.dom.test.js'
+    'src/modules/ai-director/ai-director.page.dom.test.js',
+    'src/modules/vendedor-ia/vendedor-ia.routes.smoke.test.js',
+    'src/modules/vendedor-ia/vendedor-ia.page.dom.test.js'
   ],
   [
     'node',

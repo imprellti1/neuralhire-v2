@@ -81,6 +81,8 @@ import { registerPromocoesRoutes } from './promocoes/promocoes.routes.js';
 import { promocoesModule } from './promocoes/promocoes.module.js';
 import { registerAiDirectorRoutes } from './ai-director/ai-director.routes.js';
 import { aiDirectorModule } from './ai-director/ai-director.module.js';
+import { registerAiSalesRoutes } from './ai-sales/ai-sales.routes.js';
+import { aiSalesModule } from './ai-sales/ai-sales.module.js';
 import { registerAiDirectorObservationsRoutes } from './ai-director-observations/ai-director-observations.routes.js';
 import { registerGruposComerciaisRoutes } from './grupos-comerciais/grupos-comerciais.routes.js';
 import { gruposComerciaisModule } from './grupos-comerciais/grupos-comerciais.module.js';
@@ -95,7 +97,7 @@ export const registeredModules = [
   whatsappConversationsModule, messageDraftsModule, messageApprovalsModule, approvalIntelligenceModule, whatsappDeliveryModule, commercialAgentModule, fabricantesModule, vendedoresModule,
   priceTableImportModule, clientesImportModule
   ,pedidosImportModule, pedidosItensModule, productAuditModule, productEditorModule, produtoImagensModule, auditLogsModule
-  ,promocoesModule, aiDirectorModule, gruposComerciaisModule, jobsModule
+  ,promocoesModule, aiDirectorModule, aiSalesModule, gruposComerciaisModule, jobsModule
 ];
 
 export function registerModules(router, options = {}) {
@@ -124,6 +126,7 @@ export function registerModules(router, options = {}) {
   registerAuditLogsRoutes(router);
   registerPromocoesRoutes(router);
   registerAiDirectorRoutes(router);
+  registerAiSalesRoutes(router);
   registerAiDirectorObservationsRoutes(router);
   registerGruposComerciaisRoutes(router);
 }

@@ -47,6 +47,7 @@ import { renderAiDirectorPage } from './modules/ai-director/ai-director.page.js'
 import { renderIaMemoriasPage } from './modules/ia-memorias/ia-memorias.page.js';
 import { renderFabricantesPage } from './modules/fabricantes/fabricantes.page.js';
 import { renderVendedoresPage } from './modules/vendedores/vendedores.page.js';
+import { renderVendedorIaPage } from './modules/vendedor-ia/vendedor-ia.page.js';
 import { renderProductAuditPage } from './modules/product-audit/product-audit.page.js';
 import { renderProductEditorPage } from './modules/product-editor/product-editor.page.js';
 import { renderGruposComerciaisPage } from './modules/grupos-comerciais/grupos-comerciais.page.js';
@@ -112,6 +113,7 @@ const menuSections = [
     title: 'Equipe & Operação',
     items: [
       ['#/vendedores', 'Vendedores'],
+      ['#/vendedor-ia', 'Vendedor IA'],
       ['#/whatsapp-conversations', 'WhatsApp / Evolution'],
       ['#/importacoes', 'Importações gerais'],
       ['#/legacy-import', 'Importação Legado'],
@@ -364,6 +366,7 @@ export function bootstrapWebApp() {
     if (route === '#/fabricantes' || route === '#/fabricas') return renderFabricantesPage(content, { apiClient: api });
     if (route.startsWith('#/fabricantes/')) return renderFabricantesPage(content, { apiClient: api, fabricanteId: route.slice('#/fabricantes/'.length).split('?')[0] });
     if (route === '#/vendedores') return renderVendedoresPage(content, { apiClient: api });
+    if (route === '#/vendedor-ia') return renderVendedorIaPage(content, { apiClient: api });
     if (route === '#/product-audit') return renderProductAuditPage(content, { apiClient: api });
     if (route === '#/executive-dashboard') return renderExecutiveDashboardPage(content, { apiClient: api });
     if (route === '#/executive-portfolio-analytics') return renderExecutivePortfolioAnalyticsPage(content, { apiClient: api });
