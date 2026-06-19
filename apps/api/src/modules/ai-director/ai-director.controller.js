@@ -1,7 +1,7 @@
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { createAiDirectorMemory, consultManager, getAiDirectorDashboard, listAiDirectorMemories, listExecutiveMemories, listManagers } from './ai-director.repository.js';
 import { listActionPlans, updateActionPlanStatus } from './ai-director-action-plans.repository.js';
-import { listDirectorTasks, updateDirectorTaskStatus } from './ai-director-tasks.repository.js';
+import { completeDirectorTask, listDirectorTasks, updateDirectorTaskStatus } from './ai-director-tasks.repository.js';
 import { answerAiDirectorQuestion, delegateAiDirectorQuestion } from './ai-director.orchestrator.js';
 
 export async function getAiDirectorDashboardHandler() {
@@ -92,4 +92,12 @@ export async function patchAiDirectorTaskStatusHandler(context = {}) {
   const id = context?.params?.id;
   const status = String(context?.body?.status || '').trim();
   return { ok: true, item: await updateDirectorTaskStatus(id, accountId, status) };
+}
+
+export async function completeAiDirectorTaskHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const id = context?.params?.id;
+  const body = { ...(context.body || {}) };
+  const result = await completeDirectorTask(accountId, id, body);
+  return { ok: true, ...result };
 }

@@ -231,10 +231,23 @@ export async function updateActionPlanStatus(id, accountId, status) {
   return clone(current);
 }
 
+export async function listActionPlansByExecutiveMemoryId(accountId, executiveMemoryId) {
+  assertAccountId(accountId);
+  const normalizedExecutiveMemoryId = String(executiveMemoryId || '').trim();
+  if (!normalizedExecutiveMemoryId) return { items: [], total: 0 };
+  const plans = await listActionPlans(accountId, {}, { limit: 200 });
+  const items = (plans.items || []).filter((item) => String(item.executive_memory_id || '').trim() === normalizedExecutiveMemoryId);
+  return { items, total: items.length };
+}
+
 export function __resetMemoryAiDirectorActionPlansForTests() {
   memoryStore.length = 0;
 }
 
 export function __dumpMemoryAiDirectorActionPlansForTests() {
   return memoryStore.map(clone);
+}
+
+export function __seedMemoryAiDirectorActionPlansForTests(rows = []) {
+  for (const row of rows) memoryStore.push(clone(row));
 }

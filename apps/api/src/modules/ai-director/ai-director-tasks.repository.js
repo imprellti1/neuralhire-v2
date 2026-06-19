@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestError, DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
+import { logger } from '../../core/logger.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
-import { listActionPlans } from './ai-director-action-plans.repository.js';
+import { listActionPlans, listActionPlansByExecutiveMemoryId, updateActionPlanStatus } from './ai-director-action-plans.repository.js';
+import { listObservations, updateObservationStatus } from '../ai-director-observations/ai-director-observations.repository.js';
 import { getManagerById } from './ai-director.repository.js';
 
 const validStatus = new Set(['open', 'in_progress', 'done', 'dismissed']);
@@ -170,6 +172,86 @@ function taskDelegacaoExistingMatch(task, row) {
     taskEquivalentManagerMatch(task, row);
 }
 
+function taskIsTerminal(task) {
+  return ['done', 'dismissed'].includes(normalizeStatus(task.status));
+}
+
+function actionPlanIsTerminal(actionPlan) {
+  return ['concluido', 'cancelado'].includes(String(actionPlan?.status || '').trim().toLowerCase());
+}
+
+function observationMatchesActionPlan(observation = {}, actionPlan = {}) {
+  const observationMetadata = observation.metadata && typeof observation.metadata === 'object' ? observation.metadata : {};
+  const actionPlanMetadata = actionPlan.metadata && typeof actionPlan.metadata === 'object' ? actionPlan.metadata : {};
+  const executiveMemoryId = String(actionPlan.executive_memory_id || actionPlanMetadata.executive_memory_id || '').trim();
+  const observationExecutiveMemoryId = String(
+    observationMetadata.executive_memory_id ||
+    observationMetadata.source_executive_memory_id ||
+    observation.source_id ||
+    observation.source_id ||
+    ''
+  ).trim();
+  return Boolean(executiveMemoryId) && executiveMemoryId === observationExecutiveMemoryId;
+}
+
+async function resolveLinkedObservation(accountId, actionPlan) {
+  const observations = await listObservations({ accountId }, { status: 'open', limit: 200 }).catch(() => ({ items: [] }));
+  return (observations.items || []).find((observation) => observationMatchesActionPlan(observation, actionPlan)) || null;
+}
+
+async function closeTaskCycle(accountId, task, conclusionNotes = null, result = null) {
+  const actionPlanId = String(task.action_plan_id || '').trim();
+  const actionPlanResult = await listActionPlans(accountId, {}, { limit: 200 });
+  const actionPlan = (actionPlanResult.items || []).find((plan) => String(plan.id || '').trim() === actionPlanId) || null;
+  const taskUpdate = await updateDirectorTaskStatus(task.id, accountId, 'done');
+  const relatedTasks = await listDirectorTasks(accountId, { action_plan_id: actionPlanId, limit: 200 });
+  const openTasks = (relatedTasks || []).filter((item) => !taskIsTerminal(item));
+  let updatedActionPlan = actionPlan;
+  let updatedObservation = null;
+  let cycleClosed = false;
+
+  if (actionPlan && openTasks.length === 0 && !actionPlanIsTerminal(actionPlan)) {
+    updatedActionPlan = await updateActionPlanStatus(actionPlan.id, accountId, 'concluido');
+  }
+
+  if (updatedActionPlan) {
+    updatedObservation = await resolveLinkedObservation(accountId, updatedActionPlan);
+    if (updatedObservation) {
+      const observationPlans = await listActionPlansByExecutiveMemoryId(accountId, updatedActionPlan.executive_memory_id);
+      const openPlans = (observationPlans.items || []).filter((plan) => String(plan.status || '').trim() !== 'concluido' && String(plan.status || '').trim() !== 'cancelado');
+      if (openPlans.length === 0 && String(updatedObservation.status || '').trim() !== 'resolved') {
+        updatedObservation = await updateObservationStatus({ accountId }, updatedObservation.id, {
+          status: 'resolved',
+          metadata: {
+            ...(updatedObservation.metadata || {}),
+            cycle_closed_at: new Date().toISOString(),
+            conclusion_notes: conclusionNotes || null,
+            result: result || null,
+            task_id: taskUpdate.id,
+            action_plan_id: updatedActionPlan.id
+          }
+        });
+        cycleClosed = true;
+      }
+    }
+  }
+
+  logger.info('ai_director_cycle_closed', {
+    account_id: accountId,
+    task_id: taskUpdate.id,
+    action_plan_id: updatedActionPlan?.id || null,
+    observation_id: updatedObservation?.id || null,
+    cycleClosed
+  });
+
+  return {
+    task: taskUpdate,
+    actionPlan: updatedActionPlan,
+    observation: updatedObservation,
+    cycleClosed
+  };
+}
+
 function resolveSupabaseConfigured() { return isSupabaseConfigured(); }
 function resolveSupabaseClient() { return getSupabaseClient(); }
 
@@ -336,6 +418,14 @@ export async function updateDirectorTaskStatus(id, accountId, status) {
   current.updated_at = nowIso();
   current.updated_at = current.updated_at || nowIso();
   return clone(current);
+}
+
+export async function completeDirectorTask(accountId, id, payload = {}) {
+  assertAccountId(accountId);
+  const tasks = await listDirectorTasks(accountId, { limit: 200 });
+  const current = (tasks || []).find((task) => String(task.id) === String(id) && task.account_id === accountId) || null;
+  if (!current) throw new NotFoundError('Tarefa nao encontrada', { domain: 'ai-director-tasks' });
+  return closeTaskCycle(accountId, current, payload.conclusion_notes || null, payload.result || null);
 }
 
 export function __resetMemoryAiDirectorTasksForTests() {

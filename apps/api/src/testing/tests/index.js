@@ -117,6 +117,7 @@ const suiteSpecs = [
   ['Ai Director', './ai-director.test.js', 'getAiDirectorTests'],
   ['Ai Director Repository', '../../modules/ai-director/ai-director.repository.test.js', 'getAiDirectorRepositoryTests'],
   ['Ai Director Controller', '../../modules/ai-director/ai-director.controller.test.js', 'getAiDirectorControllerTests'],
+  ['Ai Director Task Completion', '../../modules/ai-director/ai-director.tasks-complete.test.js', 'getAiDirectorTaskCompletionTests'],
   ['Vendedores', './vendedores.test.js', 'getVendedoresTests'],
   ['Clientes Vendedor Scope', './clientes-vendedor-scope.test.js', 'getClientesVendedorScopeTests'],
   ['Audit Logs', './audit-logs.test.js', 'getAuditLogsTests'],
