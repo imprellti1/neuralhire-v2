@@ -1,4 +1,4 @@
-import { askDirector, consultManager, createMemory, fetchAiDirectorDashboard, listActionPlans, listExecutiveMemories, listManagers, listMemories, listObservations, listTasks, updateActionPlanStatus, updateTaskStatus } from './ai-director.service.js';
+import { askDirector, completeTask, consultManager, createMemory, fetchAiDirectorDashboard, listActionPlans, listExecutiveMemories, listManagers, listMemories, listObservations, listTasks, updateActionPlanStatus, updateTaskStatus } from './ai-director.service.js';
 import { createAiDirectorState } from './ai-director.state.js';
 
 function esc(value) {
@@ -489,6 +489,8 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
       if (state.tasksFilter.category !== 'all' && String(task.category || '').toLowerCase() !== state.tasksFilter.category) return false;
       return true;
     });
+    const taskActionMessage = state.taskActionMessage;
+    const taskActionError = state.taskActionError;
     const taskKpis = {
       open: tasks.filter((task) => String(task.status || '').toLowerCase() === 'open').length,
       in_progress: tasks.filter((task) => String(task.status || '').toLowerCase() === 'in_progress').length,
@@ -913,13 +915,15 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
                 </select>
               </div>
             </div>
-            <div class="nh-grid-4" style="margin-top: 14px;">
-              <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Abertas</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.open))}</div></div>
-              <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Em andamento</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.in_progress))}</div></div>
-              <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Concluídas</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.done))}</div></div>
-              <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Atrasadas</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.overdue))}</div></div>
-            </div>
-            <div class="nh-list" style="margin-top: 14px;">
+          <div class="nh-grid-4" style="margin-top: 14px;">
+            <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Abertas</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.open))}</div></div>
+            <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Em andamento</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.in_progress))}</div></div>
+            <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Concluídas</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.done))}</div></div>
+            <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Atrasadas</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.overdue))}</div></div>
+          </div>
+          ${taskActionMessage ? `<p class="nh-mini" style="color:#4ce38a; margin-top: 10px;">${esc(taskActionMessage)}</p>` : ''}
+          ${taskActionError ? `<p class="nh-mini" style="color:#ff8d8d; margin-top: 10px;">${esc(taskActionError)}</p>` : ''}
+          <div class="nh-list" style="margin-top: 14px;">
               ${tasks.length ? tasks.map((item) => `
                 <div class="nh-list-item">
                   <div class="nh-between">
@@ -930,9 +934,9 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
                   <div class="nh-mini" style="margin-top: 6px;">Plano de ação: ${esc(item.action_plan_id || '—')} · vencimento ${esc(formatTaskDue(item))}</div>
                   <div style="margin-top: 8px;">${esc(item.description || item.descricao || '—')}</div>
                   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top: 10px;">
-                    <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="in_progress" type="button">Em andamento</button>
-                    <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="done" type="button">Concluída</button>
-                    <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="dismissed" type="button">Dispensar</button>
+                    ${String(item.status || '').toLowerCase() !== 'done' ? `<button class="nh-button task-complete-button" data-task-id="${esc(item.id)}" type="button"${state.taskActionLoadingId === item.id ? ' disabled' : ''}>${state.taskActionLoadingId === item.id ? 'Concluindo...' : 'Concluir tarefa'}</button>` : ''}
+                    <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="in_progress" type="button"${state.taskActionLoadingId === item.id ? ' disabled' : ''}>Em andamento</button>
+                    <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="dismissed" type="button"${state.taskActionLoadingId === item.id ? ' disabled' : ''}>Dispensar</button>
                   </div>
                 </div>
               `).join('') : '<div class="nh-mini">Sem delegações no momento.</div>'}
@@ -1114,6 +1118,36 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
         const status = button.getAttribute('data-status');
         await updateTaskStatus(apiClient, taskId, { status }).catch(() => null);
         await load();
+      });
+    });
+
+    container.querySelectorAll('.task-complete-button').forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (!apiClient) return;
+        const taskId = button.getAttribute('data-task-id');
+        const task = (state.tasks || []).find((item) => String(item.id) === String(taskId));
+        const payload = {};
+        const conclusionNotes = task?.conclusion_notes || task?.conclusionNotes;
+        const result = task?.result || task?.resultado;
+        if (conclusionNotes) payload.conclusion_notes = conclusionNotes;
+        if (result) payload.result = result;
+        state.taskActionLoadingId = taskId;
+        state.taskActionError = null;
+        state.taskActionMessage = null;
+        render();
+        try {
+          const response = await completeTask(apiClient, taskId, payload);
+          const cycleClosed = Boolean(response?.cycleClosed ?? response?.item?.cycleClosed);
+          state.taskActionMessage = cycleClosed
+            ? 'Tarefa concluída e ciclo encerrado automaticamente.'
+            : 'Tarefa concluída.';
+        } catch (error) {
+          state.taskActionError = 'Não foi possível concluir a tarefa.';
+        } finally {
+          state.taskActionLoadingId = null;
+          await load();
+          if (canRender()) render();
+        }
       });
     });
 

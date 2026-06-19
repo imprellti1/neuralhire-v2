@@ -49,3 +49,7 @@ export async function listTasks(apiClient, params = {}) {
 export async function updateTaskStatus(apiClient, id, payload) {
   return apiClient.patch(`/ai-director/tasks/${id}/status`, payload);
 }
+
+export async function completeTask(apiClient, id, payload = {}) {
+  return apiClient.patch(`/ai-director/tasks/${id}/complete`, payload);
+}

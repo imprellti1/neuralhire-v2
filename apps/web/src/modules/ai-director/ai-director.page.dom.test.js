@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { renderAiDirectorPage } from './ai-director.page.js';
 import { flush, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 
-function createApiClient({ dashboards = [], askResult = {}, managers = [], memories = [], executiveMemories = [], observations = [], tasks = [], consultResult = {}, updateTaskResult = {} } = {}) {
+function createApiClient({ dashboards = [], askResult = {}, managers = [], memories = [], executiveMemories = [], observations = [], tasks = [], consultResult = {}, updateTaskResult = {}, completeTaskResult = {} } = {}) {
   const calls = [];
   let dashboardCall = 0;
   return {
@@ -31,6 +31,7 @@ function createApiClient({ dashboards = [], askResult = {}, managers = [], memor
       },
       patch: async (url, payload) => {
         calls.push({ url, payload });
+        if (url.endsWith('/complete')) return completeTaskResult || { item: { id: url.split('/')[3], status: 'done', cycleClosed: true } };
         if (url.startsWith('/ai-director/tasks/')) return updateTaskResult || { item: { id: url.split('/')[3], status: payload.status } };
         return {};
       }
@@ -62,6 +63,14 @@ function installIntervalHarness() {
       global.clearInterval = originalClearInterval;
     }
   };
+}
+
+async function waitForText(pattern, attempts = 10) {
+  for (let index = 0; index < attempts; index += 1) {
+    if (pattern.test(document.body.textContent)) return true;
+    await flush();
+  }
+  return pattern.test(document.body.textContent);
 }
 
 test('ai director page dom with radar and auto refresh', async () => {
@@ -212,7 +221,8 @@ test('ai director page dom with radar and auto refresh', async () => {
       facts: { health: { receita_mes: 124550, pedidos_mes: 358 } },
       status: 'answered'
     },
-    consultResult: { manager: { id: 'comercial', nome: 'Gerente Comercial' }, question: 'Quais clientes estão em risco?', summary: 'Consulta recebida pelo Gerente Comercial.', status: 'mocked', sources: ['Clientes'] }
+    consultResult: { manager: { id: 'comercial', nome: 'Gerente Comercial' }, question: 'Quais clientes estão em risco?', summary: 'Consulta recebida pelo Gerente Comercial.', status: 'mocked', sources: ['Clientes'] },
+    completeTaskResult: { cycleClosed: true, item: { id: 't1', status: 'done', cycleClosed: true } }
   });
 
   await renderAiDirectorPage(document.body, { apiClient });
@@ -260,9 +270,11 @@ test('ai director page dom with radar and auto refresh', async () => {
   document.querySelector('#ai-director-tasks-status').dispatchEvent(new window.Event('change', { bubbles: true }));
   await flush();
   assert.match(document.body.textContent, /Contato carteira/);
-  document.querySelector('[data-task-id="t1"][data-status="done"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
-  await flush();
-  assert.ok(calls.some((call) => call.url === '/ai-director/tasks/t1/status' && call.payload.status === 'done'));
+  const completeButton = document.querySelector('[data-task-id="t1"].task-complete-button');
+  completeButton.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+  assert.ok(calls.some((call) => call.url === '/ai-director/tasks/t1/complete'));
+  assert.ok(await waitForText(/Tarefa concluída e ciclo encerrado automaticamente\./));
+  assert.equal(document.querySelector('[data-task-id="t2"] .task-complete-button'), null);
 
   intervalHarness.restore();
   document.body.__aiDirectorCleanup?.();
