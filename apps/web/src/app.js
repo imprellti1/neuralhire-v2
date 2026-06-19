@@ -172,6 +172,56 @@ function parseHashRoute(hash) {
   return { path, query, raw };
 }
 
+function isKnownRoute(path) {
+  return [
+    '#/clientes',
+    '#/clientes/radar',
+    '#/clientes/novo',
+    '#/produtos',
+    '#/grupos-comerciais',
+    '#/promocoes',
+    '#/produtos/importacao',
+    '#/produtos/importacao-tabela-preco',
+    '#/importacoes',
+    '#/importacao-pedidos',
+    '#/importacao-itens-pedido',
+    '#/produto-categorias',
+    '#/product-editor',
+    '#/produtos/novo',
+    '#/interest-leads',
+    '#/interest-leads/dashboard',
+    '#/interest-leads/launch',
+    '#/launch/templates',
+    '#/onboarding',
+    '#/activation',
+    '#/billing',
+    '#/implementation',
+    '#/customer-success',
+    '#/customer-success-automation',
+    '#/customer-success-timeline',
+    '#/customer-retention',
+    '#/ia-memorias',
+    '#/whatsapp-conversations',
+    '#/message-approvals',
+    '#/approval-intelligence',
+    '#/diretor-ia',
+    '#/fabricantes',
+    '#/fabricas',
+    '#/vendedores',
+    '#/vendedor-ia',
+    '#/product-audit',
+    '#/executive-dashboard',
+    '#/executive-portfolio-analytics',
+    '#/revenue-intelligence',
+    '#/portfolio-dashboard',
+    '#/legacy-import',
+    '#/auditoria',
+    '#/admin/jobs',
+    '#/auditoria-pedidos',
+    '#/dashboard-operacional'
+  ].some((route) => route === path || (route.endsWith('/') && path.startsWith(route)) || (route === '#/clientes' && path.startsWith('#/clientes/')) || (route === '#/produtos' && path.startsWith('#/produtos/')) || (route === '#/fabricantes' && path.startsWith('#/fabricantes/')) || (route === '#/interest-leads' && path.startsWith('#/interest-leads/')) || (route === '#/customer-memory/cliente-demo' && path.startsWith('#/customer-memory/')));
+}
+
 function getRuntimeConfig() {
   const runtime = typeof window !== 'undefined' ? window.__NEURALHIRE_CONFIG__ || {} : {};
   const env = typeof import.meta !== 'undefined' ? import.meta.env || {} : {};
@@ -312,72 +362,78 @@ export function bootstrapWebApp() {
 
     const content = document.getElementById('app-content');
     const { path, query } = parseHashRoute(route);
-    const activeRoute = path.startsWith('#/pedidos/') ? '#/pedidos'
-      : route === '#/clientes/radar' ? '#/clientes/radar'
-      : route.startsWith('#/clientes/') ? '#/clientes'
-      : route.startsWith('#/fabricantes/') ? '#/fabricantes'
-      : route === '#/fabricas' ? '#/fabricantes'
-      : route.startsWith('#/product-audit/') ? '#/product-audit'
-      : route.startsWith('#/interest-leads/') ? '#/interest-leads'
-      : route.startsWith('#/customer-memory/') ? '#/customer-memory/cliente-demo'
-      : route === '#/importacao-pedidos' ? '#/importacao-pedidos'
-      : route === '#/importacao-itens-pedido' ? '#/importacao-itens-pedido'
-      : route;
+    const routePath = path;
+    const activeRoute = routePath.startsWith('#/pedidos/') ? '#/pedidos'
+      : routePath === '#/clientes/radar' ? '#/clientes/radar'
+      : routePath.startsWith('#/clientes/') ? '#/clientes'
+      : routePath.startsWith('#/fabricantes/') ? '#/fabricantes'
+      : routePath === '#/fabricas' ? '#/fabricantes'
+      : routePath.startsWith('#/product-audit/') ? '#/product-audit'
+      : routePath.startsWith('#/interest-leads/') ? '#/interest-leads'
+      : routePath.startsWith('#/customer-memory/') ? '#/customer-memory/cliente-demo'
+      : routePath === '#/importacao-pedidos' ? '#/importacao-pedidos'
+      : routePath === '#/importacao-itens-pedido' ? '#/importacao-itens-pedido'
+      : routePath;
     setActiveMenu(activeRoute);
     console.info('page_render_started', { route, activeRoute });
 
-    if (route === '#/clientes') return renderClientesPage(content, { apiClient: api });
-    if (route === '#/clientes/radar') return renderClientesRadarPage(content, { apiClient: api });
-    if (route === '#/clientes/novo') return renderClienteCreatePage(content, { apiClient: api });
-    if (route.startsWith('#/clientes/')) return renderClienteDetailsPage(content, { apiClient: api, clienteId: route.slice('#/clientes/'.length).split('?')[0] });
-    if (route === '#/produtos') return renderProdutosPage(content, { apiClient: api });
-    if (route === '#/grupos-comerciais') return renderGruposComerciaisPage(content, { apiClient: api });
-    if (route === '#/promocoes') return renderPromocoesPage(content, { apiClient: api });
-    if (route === '#/produtos/importacao') return renderProdutosImportPage(content, { apiClient: api });
-    if (route === '#/produtos/importacao-tabela-preco') return renderPriceTableImportPage(content, { apiClient: api });
-    if (route === '#/importacoes') return renderClientesImportPage(content, { apiClient: api });
-    if (route === '#/importacao-pedidos') return renderPedidosImportPage(content, { apiClient: api });
-    if (route === '#/importacao-itens-pedido') return renderPedidosItensImportPage(content, { apiClient: api });
-    if (route === '#/produto-categorias') return renderProdutoCategoriasPage(content, { apiClient: api });
-    if (route === '#/product-editor') return renderProductEditorPage(content, { apiClient: api });
-    if (route === '#/produtos/novo') return renderProdutoCreatePage(content, { apiClient: api });
-    if (route.startsWith('#/produtos/')) return renderProdutoDetailsPage(content, { apiClient: api, produtoId: route.slice('#/produtos/'.length).split('?')[0] });
+    if (routePath === '#/clientes') return renderClientesPage(content, { apiClient: api });
+    if (routePath === '#/clientes/radar') return renderClientesRadarPage(content, { apiClient: api });
+    if (routePath === '#/clientes/novo') return renderClienteCreatePage(content, { apiClient: api });
+    if (routePath.startsWith('#/clientes/')) return renderClienteDetailsPage(content, { apiClient: api, clienteId: routePath.slice('#/clientes/'.length).split('?')[0] });
+    if (routePath === '#/produtos') return renderProdutosPage(content, { apiClient: api });
+    if (routePath === '#/grupos-comerciais') return renderGruposComerciaisPage(content, { apiClient: api });
+    if (routePath === '#/promocoes') return renderPromocoesPage(content, { apiClient: api });
+    if (routePath === '#/produtos/importacao') return renderProdutosImportPage(content, { apiClient: api });
+    if (routePath === '#/produtos/importacao-tabela-preco') return renderPriceTableImportPage(content, { apiClient: api });
+    if (routePath === '#/importacoes') return renderClientesImportPage(content, { apiClient: api });
+    if (routePath === '#/importacao-pedidos') return renderPedidosImportPage(content, { apiClient: api });
+    if (routePath === '#/importacao-itens-pedido') return renderPedidosItensImportPage(content, { apiClient: api });
+    if (routePath === '#/produto-categorias') return renderProdutoCategoriasPage(content, { apiClient: api });
+    if (routePath === '#/product-editor') return renderProductEditorPage(content, { apiClient: api });
+    if (routePath === '#/produtos/novo') return renderProdutoCreatePage(content, { apiClient: api });
+    if (routePath.startsWith('#/produtos/')) return renderProdutoDetailsPage(content, { apiClient: api, produtoId: routePath.slice('#/produtos/'.length).split('?')[0] });
     if (path === '#/pedidos') return renderPedidosPage(content, { apiClient: api });
     if (path === '#/pedidos/novo') return renderPedidoCreatePage(content, { apiClient: api });
     if (path.startsWith('#/pedidos/')) return renderPedidoDetailsPage(content, { apiClient: api, pedidoId: path.slice('#/pedidos/'.length), routeQuery: query });
-    if (route === '#/interest-leads') return renderInterestLeadsPage(content, { apiClient: api });
-    if (route === '#/interest-leads/dashboard') return renderInterestLeadsDashboardPage(content, { apiClient: api });
-    if (route === '#/interest-leads/launch') return renderInterestLeadsLaunchPage(content, { apiClient: api });
-    if (route === '#/launch/templates') return renderLaunchTemplatesPage(content, { apiClient: api });
-    if (route === '#/onboarding') return renderOnboardingPage(content, { apiClient: api });
-    if (route === '#/activation') return renderActivationPage(content, { apiClient: api });
-    if (route === '#/billing') return renderBillingPage(content, { apiClient: api });
-    if (route === '#/implementation') return renderImplementationPage(content, { apiClient: api });
-    if (route === '#/customer-success') return renderCustomerSuccessPage(content, { apiClient: api });
-    if (route === '#/customer-success-automation') return renderAutomationPage(content, { apiClient: api });
-    if (route === '#/customer-success-timeline') return renderTimelinePage(content, { apiClient: api });
-    if (route === '#/customer-retention') return renderRetentionPage(content, { apiClient: api });
-    if (route.startsWith('#/customer-memory/')) return renderCustomerMemoryPage(content, { apiClient: api, clienteId: route.slice('#/customer-memory/'.length).split('?')[0] });
-    if (route === '#/ia-memorias') return renderIaMemoriasPage(content, { apiClient: api });
-    if (route === '#/whatsapp-conversations') return renderWhatsappConversationsPage(content, { apiClient: api });
-    if (route === '#/message-approvals') return renderMessageApprovalsPage(content, { apiClient: api });
-    if (route === '#/approval-intelligence') return renderApprovalIntelligencePage(content, { apiClient: api });
-    if (route === '#/diretor-ia') return renderAiDirectorPage(content, { apiClient: api });
-    if (route === '#/fabricantes' || route === '#/fabricas') return renderFabricantesPage(content, { apiClient: api });
-    if (route.startsWith('#/fabricantes/')) return renderFabricantesPage(content, { apiClient: api, fabricanteId: route.slice('#/fabricantes/'.length).split('?')[0] });
-    if (route === '#/vendedores') return renderVendedoresPage(content, { apiClient: api });
-    if (route === '#/vendedor-ia') return renderVendedorIaPage(content, { apiClient: api });
-    if (route === '#/product-audit') return renderProductAuditPage(content, { apiClient: api });
-    if (route === '#/executive-dashboard') return renderExecutiveDashboardPage(content, { apiClient: api });
-    if (route === '#/executive-portfolio-analytics') return renderExecutivePortfolioAnalyticsPage(content, { apiClient: api });
-    if (route === '#/revenue-intelligence') return renderRevenuePage(content, { apiClient: api });
-    if (route === '#/portfolio-dashboard') return renderPortfolioDashboardPage(content, { apiClient: api });
-    if (route === '#/legacy-import') return renderLegacyImportPage(content, { apiClient: api });
-    if (route === '#/auditoria') return renderAuditoriaPage(content, { apiClient: api });
-    if (route === '#/admin/jobs') return renderAdminJobsPage(content, { apiClient: api, isActiveRoute: () => window.location.hash === route });
-    if (route === '#/auditoria-pedidos') return renderPedidosAuditoriaPage(content, { apiClient: api, isActiveRoute: () => window.location.hash === route });
-    if (route.startsWith('#/interest-leads/')) return renderInterestLeadDetailsPage(content, { apiClient: api, leadId: route.slice('#/interest-leads/'.length).split('?')[0] });
-    if (route === '#/dashboard-operacional') return renderOperationalDashboardPage(content, { apiClient: api });
+    if (routePath === '#/interest-leads') return renderInterestLeadsPage(content, { apiClient: api });
+    if (routePath === '#/interest-leads/dashboard') return renderInterestLeadsDashboardPage(content, { apiClient: api });
+    if (routePath === '#/interest-leads/launch') return renderInterestLeadsLaunchPage(content, { apiClient: api });
+    if (routePath === '#/launch/templates') return renderLaunchTemplatesPage(content, { apiClient: api });
+    if (routePath === '#/onboarding') return renderOnboardingPage(content, { apiClient: api });
+    if (routePath === '#/activation') return renderActivationPage(content, { apiClient: api });
+    if (routePath === '#/billing') return renderBillingPage(content, { apiClient: api });
+    if (routePath === '#/implementation') return renderImplementationPage(content, { apiClient: api });
+    if (routePath === '#/customer-success') return renderCustomerSuccessPage(content, { apiClient: api });
+    if (routePath === '#/customer-success-automation') return renderAutomationPage(content, { apiClient: api });
+    if (routePath === '#/customer-success-timeline') return renderTimelinePage(content, { apiClient: api });
+    if (routePath === '#/customer-retention') return renderRetentionPage(content, { apiClient: api });
+    if (routePath.startsWith('#/customer-memory/')) return renderCustomerMemoryPage(content, { apiClient: api, clienteId: routePath.slice('#/customer-memory/'.length).split('?')[0] });
+    if (routePath === '#/ia-memorias') return renderIaMemoriasPage(content, { apiClient: api });
+    if (routePath === '#/whatsapp-conversations') return renderWhatsappConversationsPage(content, { apiClient: api });
+    if (routePath === '#/message-approvals') return renderMessageApprovalsPage(content, { apiClient: api });
+    if (routePath === '#/approval-intelligence') return renderApprovalIntelligencePage(content, { apiClient: api });
+    if (routePath === '#/diretor-ia') return renderAiDirectorPage(content, { apiClient: api });
+    if (routePath === '#/fabricantes' || routePath === '#/fabricas') return renderFabricantesPage(content, { apiClient: api });
+    if (routePath.startsWith('#/fabricantes/')) return renderFabricantesPage(content, { apiClient: api, fabricanteId: routePath.slice('#/fabricantes/'.length).split('?')[0] });
+    if (routePath === '#/vendedores') return renderVendedoresPage(content, { apiClient: api });
+    if (routePath === '#/vendedor-ia') return renderVendedorIaPage(content, { apiClient: api });
+    if (routePath === '#/product-audit') return renderProductAuditPage(content, { apiClient: api });
+    if (routePath === '#/executive-dashboard') return renderExecutiveDashboardPage(content, { apiClient: api });
+    if (routePath === '#/executive-portfolio-analytics') return renderExecutivePortfolioAnalyticsPage(content, { apiClient: api });
+    if (routePath === '#/revenue-intelligence') return renderRevenuePage(content, { apiClient: api });
+    if (routePath === '#/portfolio-dashboard') return renderPortfolioDashboardPage(content, { apiClient: api });
+    if (routePath === '#/legacy-import') return renderLegacyImportPage(content, { apiClient: api });
+    if (routePath === '#/auditoria') return renderAuditoriaPage(content, { apiClient: api });
+    if (routePath === '#/admin/jobs') return renderAdminJobsPage(content, { apiClient: api, isActiveRoute: () => window.location.hash === route });
+    if (routePath === '#/auditoria-pedidos') return renderPedidosAuditoriaPage(content, { apiClient: api, isActiveRoute: () => window.location.hash === route });
+    if (routePath.startsWith('#/interest-leads/')) return renderInterestLeadDetailsPage(content, { apiClient: api, leadId: routePath.slice('#/interest-leads/'.length).split('?')[0] });
+    if (routePath === '#/dashboard-operacional') return renderOperationalDashboardPage(content, { apiClient: api });
+    if (!isKnownRoute(routePath)) {
+      const result = renderAnalyticsDashboardPage(content, { apiClient: api });
+      console.info('page_render_finished', { route, activeRoute });
+      return result;
+    }
     const result = renderAnalyticsDashboardPage(content, { apiClient: api });
     console.info('page_render_finished', { route, activeRoute });
     return result;
