@@ -299,6 +299,16 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
     }
   }
 
+  const tabs = [
+    { id: 'overview', label: 'Visão Geral' },
+    { id: 'observations', label: 'Observações' },
+    { id: 'executive', label: 'Reunião Executiva' },
+    { id: 'action-plans', label: 'Planos de Ação' },
+    { id: 'tasks', label: 'Tarefas' },
+    { id: 'memories', label: 'Memórias' },
+    { id: 'jobs', label: 'Jobs' }
+  ];
+
   const render = () => {
     if (!canRender()) return;
     if (state.loading) {
@@ -512,6 +522,10 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
           ? 'Atualização automática ativa'
           : 'Atualização automática pausada';
 
+    const activeTab = state.activeTab || 'overview';
+    const tabButtonHtml = tabs.map((tab) => `<button type="button" class="nh-button ai-director-tab-button${activeTab === tab.id ? ' is-active' : ''}" data-ai-director-tab="${tab.id}" style="padding: 10px 14px; border-radius: 999px; background: ${activeTab === tab.id ? 'linear-gradient(135deg, var(--nh-accent), #3f7cff)' : 'rgba(255,255,255,.05)'}; box-shadow: none;">${esc(tab.label)}</button>`).join('');
+    const tabPanelStyle = (tabId) => activeTab === tabId ? '' : 'display:none;';
+
     container.innerHTML = `
       <section style="--nh-bg:#071129;--nh-panel:rgba(10,18,43,.82);--nh-panel-strong:rgba(8,15,35,.94);--nh-border:rgba(122,146,255,.18);--nh-text:#eaf1ff;--nh-muted:#9cb0db;--nh-accent:#7c5cff;--nh-good:#4ce38a;--nh-warn:#ffb347;--nh-bad:#ff6b6b;display:grid;gap:18px;padding:10px;color:var(--nh-text);background:radial-gradient(circle at top right, rgba(124,92,255,.24), transparent 30%), radial-gradient(circle at left center, rgba(0,212,255,.12), transparent 26%), linear-gradient(180deg, rgba(5,10,24,.98), rgba(8,14,33,.98));border:1px solid var(--nh-border);border-radius:28px;box-shadow:0 30px 80px rgba(0,0,0,.35);">
         <style>
@@ -531,6 +545,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
           .nh-pill { display:inline-flex; align-items:center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: rgba(255,255,255,.04); border:1px solid var(--nh-border); color: var(--nh-muted); font-size: .84rem; }
           .nh-input, .nh-select, .nh-textarea { width:100%; box-sizing:border-box; border-radius: 16px; border: 1px solid rgba(124, 92, 255, .3); background: rgba(4, 10, 24, .85); color: var(--nh-text); padding: 14px 16px; outline: none; }
           .nh-button { border: 0; border-radius: 16px; padding: 14px 18px; color: white; background: linear-gradient(135deg, var(--nh-accent), #3f7cff); box-shadow: 0 18px 30px rgba(71, 102, 255, .24); cursor: pointer; }
+          .ai-director-tab-button.is-active { outline: 1px solid rgba(255,255,255,.18); }
           .nh-button:disabled { opacity: .65; cursor: wait; }
           .nh-section-title { margin: 0; font-size: 1.15rem; }
           .nh-section-subtitle { margin: 4px 0 0; color: var(--nh-muted); font-size: .92rem; }
@@ -553,6 +568,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
           @media (max-width: 760px) { .nh-grid-4, .nh-manager-grid { grid-template-columns: 1fr; } .nh-between, .nh-flex { flex-direction: column; } }
         </style>
         <header class="nh-card nh-between">
+        
           <div>
             <div class="nh-pill">Diretor IA <span aria-hidden="true">✦</span></div>
             <h1 class="nh-title">Diretor IA</h1>
@@ -569,7 +585,8 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
             <div class="nh-mini" style="margin-top: 4px;">Última atualização automática: ${esc(formatClockTime(state.lastAutoRefreshAt))}</div>
           </div>
         </header>
-        <article class="nh-card">
+        <nav class="nh-card" aria-label="Abas do Diretor IA" style="display:flex;flex-wrap:wrap;gap:10px;padding:14px;">${tabButtonHtml}</nav>
+        <article class="nh-card" data-ai-director-panel="overview" style="${tabPanelStyle('overview')}">
           <div class="nh-between">
             <div>
               <h2 class="nh-section-title">Radar Executivo</h2>
@@ -610,13 +627,13 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
             </div>
           </div>
         </article>
-        <article class="nh-grid-4">
+        <article class="nh-grid-4" data-ai-director-panel="overview" style="${tabPanelStyle('overview')}">
           <div class="nh-card"><div class="nh-kpi-label">Receita do mês</div><div class="nh-kpi-value">${esc(formatMoney(health.receita_mes ?? 0))}</div><div class="nh-kpi-delta">Saúde do Negócio</div></div>
           <div class="nh-card"><div class="nh-kpi-label">Pedidos do mês</div><div class="nh-kpi-value">${esc(formatCount(health.pedidos_mes ?? 0))}</div><div class="nh-kpi-delta">Fluxo operacional</div></div>
           <div class="nh-card"><div class="nh-kpi-label">Clientes ativos</div><div class="nh-kpi-value">${esc(formatCount(health.clientes_ativos ?? 0))}</div><div class="nh-kpi-delta">Base engajada</div></div>
           <div class="nh-card"><div class="nh-kpi-label">Clientes em risco</div><div class="nh-kpi-value">${esc(formatCount(health.clientes_risco ?? 0))}</div><div class="nh-kpi-delta" style="color:#ff9d7d">Monitoramento prioritário</div></div>
         </article>
-        <article class="nh-card">
+        <article class="nh-card" data-ai-director-panel="overview" style="${tabPanelStyle('overview')}">
           <div class="nh-between">
             <div>
               <h2 class="nh-section-title">Pergunte ao Diretor IA</h2>
@@ -652,7 +669,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
             <div class="nh-mini">Resposta dos gerentes: ${(delegation.managerResponses || []).map((item) => `${esc(item.manager?.nome || '')} · ${esc(item.status || '')}`).join(' | ') || '—'}</div>
           ` : `<p id="ai-director-answer" class="nh-mini" style="margin-top: 12px;">${esc(state.answer)}</p>`}
         </article>
-        <article class="nh-grid-2">
+        <article class="nh-grid-2" data-ai-director-panel="overview" style="${tabPanelStyle('overview')}">
           <section class="nh-card">
             <div class="nh-between">
               <div>
@@ -678,7 +695,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
             </div>
           </section>
         </article>
-        <article class="nh-card">
+        <article class="nh-card" data-ai-director-panel="overview" style="${tabPanelStyle('overview')}">
           <div class="nh-between">
             <div>
               <h2 class="nh-section-title">Auditoria do Radar</h2>
@@ -688,7 +705,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
           ${auditoriaHtml}
           <div class="nh-mini" style="margin-top: 10px;">Fontes: ${esc(Array.isArray(auditoriaRadar?.fontesUtilizadas) && auditoriaRadar.fontesUtilizadas.length ? auditoriaRadar.fontesUtilizadas.join(', ') : '—')}</div>
         </article>
-        <article class="nh-card">
+        <article class="nh-card" data-ai-director-panel="overview" style="${tabPanelStyle('overview')}">
           <div class="nh-between">
             <div>
               <h2 class="nh-section-title">Pilares Executivos</h2>
@@ -697,7 +714,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
           </div>
           <div class="nh-grid-4" style="margin-top: 14px;">${pillarsHtml}</div>
         </article>
-        <article class="nh-card">
+        <article class="nh-card" data-ai-director-panel="executive" style="${tabPanelStyle('executive')}">
           <div class="nh-between">
             <div>
               <h2 class="nh-section-title">Prioridades Executivas</h2>
@@ -706,7 +723,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
           </div>
           <div class="nh-list" style="margin-top: 14px;">${prioritiesHtml || '<div class="nh-mini">Sem prioridades executivas no momento.</div>'}</div>
         </article>
-        <article class="nh-card">
+        <article class="nh-card" data-ai-director-panel="observations" style="${tabPanelStyle('observations')}">
           <div class="nh-between">
             <div>
               <h2 class="nh-section-title">Observação por Módulo</h2>
@@ -719,7 +736,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
           </div>
           <div class="nh-grid-2" style="margin-top: 14px;">${modulesHtml}</div>
         </article>
-        <article class="nh-card">
+        <article class="nh-card" data-ai-director-panel="executive" style="${tabPanelStyle('executive')}">
           <div class="nh-between">
             <div>
               <h2 class="nh-section-title">Penalidades do Score</h2>
@@ -728,7 +745,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
           </div>
           <div class="nh-list" style="margin-top: 14px;">${penalidadesHtml}</div>
         </article>
-        <article class="nh-card">
+        <article class="nh-card" data-ai-director-panel="executive" style="${tabPanelStyle('executive')}">
           <div class="nh-between">
             <div>
               <h2 class="nh-section-title">Alterações Relevantes</h2>
@@ -741,7 +758,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
           </div>
           <div class="nh-list" style="margin-top: 14px;">${alteracoesHtml}</div>
         </article>
-        <article class="nh-card">
+        <article class="nh-card" data-ai-director-panel="executive" style="${tabPanelStyle('executive')}">
           <div class="nh-between">
             <div>
               <h2 class="nh-section-title">Ações Sugeridas</h2>
@@ -750,7 +767,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
           </div>
           <div class="nh-list" style="margin-top: 14px;">${actionsHtml}</div>
         </article>
-        <article class="nh-card">
+        <article class="nh-card" data-ai-director-panel="executive" style="${tabPanelStyle('executive')}">
           <div class="nh-between">
             <div>
               <h2 class="nh-section-title">Orquestração dos Gerentes</h2>
@@ -759,7 +776,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
           </div>
           ${orquestracaoHtml}
         </article>
-        <article class="nh-card">
+        <article class="nh-card" data-ai-director-panel="memories" style="${tabPanelStyle('memories')}">
           <div class="nh-between">
             <div>
               <h2 class="nh-section-title">Persistência Inteligente</h2>
@@ -768,7 +785,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
           </div>
           <div style="margin-top: 14px;">${persistenciaHtml}</div>
         </article>
-        <article class="nh-card">
+        <article class="nh-card" data-ai-director-panel="jobs" style="${tabPanelStyle('jobs')}">
           <div class="nh-between">
             <div>
               <h2 class="nh-section-title">Gerentes Especializados</h2>
@@ -809,7 +826,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
             }).join('')}
           </div>
         </article>
-        <article class="nh-grid-2">
+        <article class="nh-grid-2" data-ai-director-panel="memories" style="${tabPanelStyle('memories')}">
           <section class="nh-card">
             <div class="nh-between">
               <div>
@@ -943,7 +960,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
             </div>
           </section>
         </article>
-        <article class="nh-card">
+        <article class="nh-card" data-ai-director-panel="observations" style="${tabPanelStyle('observations')}">
           <div class="nh-between">
             <div>
               <h2 class="nh-section-title">Observações dos Gerentes</h2>
@@ -966,7 +983,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
             `).join('') : '<div class="nh-mini">Sem observações abertas no momento.</div>'}
           </div>
         </article>
-        <article class="nh-card">
+        <article class="nh-card" data-ai-director-panel="memories" style="${tabPanelStyle('memories')}">
           <div class="nh-between">
             <div>
               <h2 class="nh-section-title">Registrar memória</h2>
@@ -991,7 +1008,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
             <button id="ai-director-memory-submit" class="nh-button" type="submit" ${state.savingMemory ? 'disabled' : ''}>Registrar observação</button>
           </form>
         </article>
-        <article class="nh-card nh-between">
+        <article class="nh-card nh-between" data-ai-director-panel="jobs" style="${tabPanelStyle('jobs')}">
           <div class="nh-mini">Diretor IA aprende continuamente com os dados do seu negócio para gerar insights cada vez melhores.</div>
           <div class="nh-pill">NeuralHire IA</div>
         </article>
@@ -1068,6 +1085,13 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
     container.querySelector('#ai-director-executive-filter')?.addEventListener('change', async (event) => {
       state.executiveMemoriesFilter = event.target.value || 'all';
       render();
+    });
+
+    container.querySelectorAll('[data-ai-director-tab]').forEach((button) => {
+      button.addEventListener('click', () => {
+        state.activeTab = button.getAttribute('data-ai-director-tab') || 'overview';
+        render();
+      });
     });
 
     container.querySelector('#ai-director-observations-filter')?.addEventListener('change', async (event) => {

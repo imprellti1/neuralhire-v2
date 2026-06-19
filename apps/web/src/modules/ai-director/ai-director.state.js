@@ -3,6 +3,7 @@ export function createAiDirectorState() {
     loading: false,
     error: null,
     dashboard: null,
+    activeTab: 'overview',
     memories: [],
     executiveMemories: [],
     executiveMemoriesFilter: 'all',

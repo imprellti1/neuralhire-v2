@@ -228,6 +228,13 @@ test('ai director page dom with radar and auto refresh', async () => {
   await renderAiDirectorPage(document.body, { apiClient });
   await flush();
 
+  assert.match(document.body.textContent, /Visão Geral/);
+  assert.match(document.body.textContent, /Observações/);
+  assert.match(document.body.textContent, /Reunião Executiva/);
+  assert.match(document.body.textContent, /Planos de Ação/);
+  assert.match(document.body.textContent, /Tarefas/);
+  assert.match(document.body.textContent, /Memórias/);
+  assert.match(document.body.textContent, /Jobs/);
   assert.match(document.body.textContent, /Atualização automática ativa/);
   assert.match(document.body.textContent, /Última atualização automática:/);
   assert.match(document.body.textContent, /Radar Executivo/);
@@ -247,6 +254,11 @@ test('ai director page dom with radar and auto refresh', async () => {
   assert.match(document.body.textContent, /Gerente Comercial/);
   assert.match(document.body.textContent, /Revisar segmentação dos clientes importados/);
   assert.match(document.body.textContent, /Pode alterar carteira, risco comercial e oportunidades de follow-up\./);
+
+  document.querySelector('[data-ai-director-tab="tasks"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+  await flush();
+  assert.match(document.body.textContent, /Central de Tarefas/);
+  assert.match(document.body.textContent, /Contato carteira/);
 
   const questionInput = document.querySelector('#ai-director-question');
   questionInput.value = 'Pergunta em andamento';
@@ -275,6 +287,11 @@ test('ai director page dom with radar and auto refresh', async () => {
   assert.ok(calls.some((call) => call.url === '/ai-director/tasks/t1/complete'));
   assert.ok(await waitForText(/Tarefa concluída e ciclo encerrado automaticamente\./));
   assert.equal(document.querySelector('[data-task-id="t2"] .task-complete-button'), null);
+
+  document.querySelector('[data-ai-director-tab="memories"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+  await flush();
+  assert.match(document.body.textContent, /Memória Estratégica/);
+  assert.match(document.body.textContent, /Memória Executiva/);
 
   intervalHarness.restore();
   document.body.__aiDirectorCleanup?.();
