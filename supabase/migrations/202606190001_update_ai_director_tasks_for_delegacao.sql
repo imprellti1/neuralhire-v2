@@ -78,9 +78,7 @@ begin
       and table_name = 'ai_director_tasks'
       and column_name = 'titulo'
   ) then
-    execute $$update public.ai_director_tasks
-      set titulo = coalesce(titulo, title, 'Tarefa do Diretor IA')
-      where titulo is null$$;
+    execute 'update public.ai_director_tasks set titulo = coalesce(titulo, title, ''Tarefa do Diretor IA'') where titulo is null';
     execute 'alter table public.ai_director_tasks alter column titulo drop not null';
   end if;
 end $$;
@@ -94,9 +92,7 @@ begin
       and table_name = 'ai_director_tasks'
       and column_name = 'descricao'
   ) then
-    execute $$update public.ai_director_tasks
-      set descricao = coalesce(descricao, description, '')
-      where descricao is null$$;
+    execute 'update public.ai_director_tasks set descricao = coalesce(descricao, description, '''') where descricao is null';
     execute 'alter table public.ai_director_tasks alter column descricao drop not null';
   end if;
 end $$;
@@ -110,9 +106,7 @@ begin
       and table_name = 'ai_director_tasks'
       and column_name = 'prioridade'
   ) then
-    execute $$update public.ai_director_tasks
-      set prioridade = coalesce(prioridade, priority, 'medium')
-      where prioridade is null$$;
+    execute 'update public.ai_director_tasks set prioridade = coalesce(prioridade, priority, ''medium'') where prioridade is null';
     execute 'alter table public.ai_director_tasks alter column prioridade drop not null';
   end if;
 end $$;
@@ -126,11 +120,7 @@ begin
       and table_name = 'ai_director_tasks'
       and column_name = 'gerente'
   ) then
-    execute $sql$
-      update public.ai_director_tasks
-      set gerente = coalesce(gerente, manager_name, manager_id, 'gerente_comercial')
-      where gerente is null
-    $sql$;
+    execute 'update public.ai_director_tasks set gerente = coalesce(gerente, manager_name, manager_id, ''gerente_comercial'') where gerente is null';
     execute 'alter table public.ai_director_tasks alter column gerente drop not null';
   end if;
 end $$;

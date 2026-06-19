@@ -154,6 +154,20 @@ function taskExistingMatch(task, row) {
     isOpenOrInProgress(task);
 }
 
+function taskEquivalentManagerMatch(task, row) {
+  const taskManagerKey = normalizeManagerName(task.manager_name) || String(task.manager_id || '').trim() || null;
+  const rowManagerKey = normalizeManagerName(row.manager_name) || String(row.manager_id || '').trim() || null;
+  if (!taskManagerKey || !rowManagerKey) return false;
+  return String(taskManagerKey).toLowerCase() === String(rowManagerKey).toLowerCase();
+}
+
+function taskDelegacaoExistingMatch(task, row) {
+  return String(task.account_id || '') === String(row.account_id || '') &&
+    String(task.action_plan_id || '') === String(row.action_plan_id || '') &&
+    isOpenOrInProgress(task) &&
+    taskEquivalentManagerMatch(task, row);
+}
+
 function resolveSupabaseConfigured() { return isSupabaseConfigured(); }
 function resolveSupabaseClient() { return getSupabaseClient(); }
 
@@ -206,12 +220,10 @@ export async function generateDirectorTasksFromOpenActionPlans(accountId) {
   const items = [];
   for (const actionPlan of actionPlans) {
     const row = buildTaskPayload(actionPlan);
-    const existing = await listDirectorTasks(accountId, { action_plan_id: actionPlan.id });
-    const existedBefore = existing.some(isOpenOrInProgress);
     const result = await upsertDirectorTask(row);
-    items.push(result);
-    if (existedBefore) skipped += 1;
-    else created += 1;
+    items.push(result.task);
+    if (result.skipped) skipped += 1;
+    if (result.created) created += 1;
   }
   return { items, created, skipped, total: actionPlans.length };
 }
@@ -235,24 +247,36 @@ export async function upsertDirectorTask(payload = {}) {
       .in('status', ['open', 'in_progress'])
       .order('updated_at', { ascending: false });
     if (currentError) throw new DatabaseError('Falha ao consultar tarefa', { details: currentError });
-    const current = (currentRows || []).find((task) => taskExistingMatch(task, row)) || null;
+    const current = (currentRows || []).find((task) => taskDelegacaoExistingMatch(task, row)) || null;
     if (current) {
       const { data, error } = await supabase.from('ai_director_tasks').update({ ...dbRow, id: current.id, criado_em: current.criado_em }).eq('id', current.id).select('*').single();
       if (error) throw new DatabaseError('Falha ao atualizar tarefa', { details: error });
-      return data;
+      return { task: data, created: false, skipped: true, reason: 'already_exists' };
     }
     const { data, error } = await supabase.from('ai_director_tasks').insert(dbRow).select('*').single();
-    if (error) throw new DatabaseError('Falha ao criar tarefa', { details: error });
-    return data;
+    if (!error && data) return { task: data, created: true, skipped: false };
+    if (error?.code === '23505') {
+      const { data: duplicateRows, error: duplicateError } = await supabase
+        .from('ai_director_tasks')
+        .select('*')
+        .eq('account_id', accountId)
+        .eq('action_plan_id', row.action_plan_id)
+        .in('status', ['open', 'in_progress'])
+        .order('updated_at', { ascending: false });
+      if (duplicateError) throw new DatabaseError('Falha ao consultar tarefa existente', { details: duplicateError });
+      const duplicate = (duplicateRows || []).find((task) => taskDelegacaoExistingMatch(task, row)) || null;
+      if (duplicate) return { task: duplicate, created: false, skipped: true, reason: 'already_exists' };
+    }
+    throw new DatabaseError('Falha ao criar tarefa', { details: error });
   }
 
-  const current = memoryTasks.find((task) => taskExistingMatch(task, row)) || null;
+  const current = memoryTasks.find((task) => taskDelegacaoExistingMatch(task, row)) || null;
   if (current) {
     Object.assign(current, row, { id: current.id, criado_em: current.criado_em });
-    return clone(current);
+    return { task: clone(current), created: false, skipped: true, reason: 'already_exists' };
   }
   memoryTasks.push(row);
-  return clone(row);
+  return { task: clone(row), created: true, skipped: false };
 }
 
 export async function listDirectorTasks(accountId, filters = {}) {

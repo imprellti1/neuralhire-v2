@@ -542,22 +542,22 @@ async function runDiretorPlanoAcaoForAccount(job, context, accountId) {
 
 async function runDiretorDelegacaoForAccount(job, context, accountId) {
   const startedAt = Date.now();
-  let created = 0;
-  let skipped = 0;
-  let scanned = 0;
+  let tasksCreated = 0;
+  let tasksSkipped = 0;
+  let tasksTotal = 0;
   let fatalError = null;
   let metadata = { result: 'empty_queue' };
 
   try {
     const plans = await listOpenActionPlansForDelegation(accountId);
-    scanned = plans.length;
     const result = await generateDirectorTasksFromOpenActionPlans(accountId);
-    created = Number(result.created || 0);
-    skipped = Number(result.skipped || 0);
-    metadata = { result: 'success', generated: created, skipped, scanned, total_plans: result.total || scanned };
+    tasksCreated = Number(result.created || 0);
+    tasksSkipped = Number(result.skipped || 0);
+    tasksTotal = Number(result.total || plans.length || 0);
+    metadata = { result: 'success', tasks_created: tasksCreated, tasks_skipped: tasksSkipped, tasks_total: tasksTotal, total_plans: tasksTotal };
   } catch (error) {
     fatalError = error;
-    metadata = { result: 'error', scanned, created, skipped };
+    metadata = { result: 'error', tasks_total: tasksTotal, tasks_created: tasksCreated, tasks_skipped: tasksSkipped };
     logJobError('runDiretorDelegacaoJob', error, { accountId, lockKey: job.lock_key, requestId: context.requestId || null });
   }
 
@@ -570,8 +570,8 @@ async function runDiretorDelegacaoForAccount(job, context, accountId) {
     started_at: new Date(startedAt).toISOString(),
     finished_at: finishedAt,
     duration_ms: Date.now() - startedAt,
-    processed_count: scanned,
-    success_count: created,
+    processed_count: tasksTotal,
+    success_count: tasksCreated,
     error_count: fatalError ? 1 : 0,
     metadata,
     error: fatalError?.message || null
@@ -589,7 +589,7 @@ async function runDiretorDelegacaoForAccount(job, context, accountId) {
     logJobError('updateSystemJobSchedule', error, { accountId, lockKey: job.lock_key, requestId: context.requestId || null });
   });
 
-  return { ok: true, created, scanned, fatalError };
+  return { ok: true, tasksCreated, tasksSkipped, tasksTotal, fatalError };
 }
 
 async function runHandlerForTenant(job, handler, accountId, context = {}) {

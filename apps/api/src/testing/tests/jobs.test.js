@@ -1763,9 +1763,16 @@ export function getJobsTests() {
         const job = await upsertSystemJob({ nome: 'diretor_delegacao', lock_key: 'diretor_delegacao', account_id: null, status: 'ativo', next_run_at: '2026-06-17T04:30:00.000Z' }, { accountId: null });
         const first = await runDiretorDelegacaoJob({ accountId: 'acc-task', job, auth: { accountId: 'acc-task' } });
         assert.equal(first.ok, true);
+        assert.equal(first.tasksCreated, 1);
+        assert.equal(first.tasksSkipped, 0);
+        assert.equal(first.tasksTotal, 1);
         let tasks = await listDirectorTasks('acc-task', {});
         assert.equal(tasks.length, 1);
-        await runDiretorDelegacaoJob({ accountId: 'acc-task', job, auth: { accountId: 'acc-task' } });
+        const second = await runDiretorDelegacaoJob({ accountId: 'acc-task', job, auth: { accountId: 'acc-task' } });
+        assert.equal(second.ok, true);
+        assert.equal(second.tasksCreated, 0);
+        assert.equal(second.tasksSkipped, 1);
+        assert.equal(second.tasksTotal, 1);
         tasks = await listDirectorTasks('acc-task', {});
         assert.equal(tasks.length, 1);
       }
