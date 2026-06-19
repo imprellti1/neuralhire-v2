@@ -50,6 +50,42 @@ alter table if exists public.ai_director_tasks
 alter table if exists public.ai_director_tasks
   alter column status set default 'open';
 
+alter table if exists public.ai_director_tasks
+  drop constraint if exists ai_director_tasks_status_check;
+
+alter table if exists public.ai_director_tasks
+  drop constraint if exists ai_director_tasks_percentual_check;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'ai_director_tasks'
+      and column_name = 'gerente'
+  ) then
+    execute 'alter table public.ai_director_tasks alter column gerente drop not null';
+  end if;
+end $$;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'ai_director_tasks'
+      and column_name = 'gerente'
+  ) then
+    execute $sql$
+      update public.ai_director_tasks
+      set gerente = coalesce(manager_name, manager_id, 'gerente_comercial')
+      where gerente is null
+    $sql$;
+  end if;
+end $$;
+
 update public.ai_director_tasks
   set
     manager_id = coalesce(manager_id, gerente),
@@ -97,10 +133,25 @@ update public.ai_director_tasks
 where status is null;
 
 alter table if exists public.ai_director_tasks
-  drop constraint if exists ai_director_tasks_status_check;
+  add constraint ai_director_tasks_status_check check (status in ('open', 'in_progress', 'done', 'blocked', 'cancelled'));
 
 alter table if exists public.ai_director_tasks
-  add constraint ai_director_tasks_status_check check (status in ('open', 'in_progress', 'done', 'blocked', 'cancelled'));
+  add constraint ai_director_tasks_percentual_check check (percentual_conclusao between 0 and 100);
+
+with ranked_tasks as (
+  select
+    id,
+    row_number() over (
+      partition by account_id, action_plan_id, coalesce(manager_id, manager_name), status
+      order by updated_at desc, criado_em desc, id desc
+    ) as rn
+  from public.ai_director_tasks
+  where status in ('open', 'in_progress')
+)
+delete from public.ai_director_tasks t
+using ranked_tasks r
+where t.id = r.id
+  and r.rn > 1;
 
 create index if not exists ai_director_tasks_account_id_idx on public.ai_director_tasks (account_id);
 create index if not exists ai_director_tasks_action_plan_id_idx on public.ai_director_tasks (action_plan_id);
@@ -117,4 +168,3 @@ create unique index if not exists ai_director_tasks_delegacao_unique_idx
     status
   )
   where status in ('open', 'in_progress');
-

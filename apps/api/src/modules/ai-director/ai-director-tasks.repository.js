@@ -14,6 +14,7 @@ const validLegacyStatus = new Map([
 ]);
 const validImpactToPriority = { alto: 'high', high: 'high', media: 'medium', medio: 'medium', baixa: 'low', low: 'low' };
 const memoryTasks = [];
+const legacyGerenteColumnCache = { checked: false, supported: false };
 
 function assertAccountId(accountId) {
   if (!accountId) throw new ForbiddenError('Contexto de tenant obrigatorio', { code: 'TENANT_REQUIRED', domain: 'ai-director-tasks' });
@@ -69,6 +70,9 @@ function taskIdentityKey(row = {}) {
 function dedupeKeyFromRow(row = {}) {
   return [String(row.account_id || ''), String(row.action_plan_id || ''), String(row.manager_id || row.manager_name || ''), String(row.status || '')].join('|');
 }
+function buildLegacyGerenteValue(row = {}) {
+  return normalizeManagerName(row.manager_name) || String(row.manager_id || '').trim() || 'gerente_comercial';
+}
 function buildTaskPayload(actionPlan = {}) {
   const manager = resolveManager(actionPlan);
   const category = normalizeCategory(actionPlan);
@@ -91,6 +95,7 @@ function buildTaskPayload(actionPlan = {}) {
     action_plan_id: actionPlan.id,
     manager_id: manager.manager_id,
     manager_name: manager.manager_name,
+    gerente: buildLegacyGerenteValue(manager),
     category,
     title,
     description,
@@ -159,6 +164,16 @@ async function listTasksSupabase(accountId, filters = {}) {
   return data || [];
 }
 
+async function supportsLegacyGerenteColumn() {
+  if (legacyGerenteColumnCache.checked) return legacyGerenteColumnCache.supported;
+  const supabase = resolveSupabaseClient();
+  if (!supabase) return false;
+  const { error } = await supabase.from('ai_director_tasks').select('gerente').limit(1);
+  legacyGerenteColumnCache.checked = true;
+  legacyGerenteColumnCache.supported = !error;
+  return legacyGerenteColumnCache.supported;
+}
+
 export async function listOpenActionPlansWithoutTasks(accountId) {
   assertAccountId(accountId);
   const plansResult = await listActionPlans(accountId, { status: 'aberto' }, { limit: 200 });
@@ -204,6 +219,8 @@ export async function upsertDirectorTask(payload = {}) {
   if (resolveSupabaseConfigured()) {
     const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const legacyGerenteSupported = await supportsLegacyGerenteColumn();
+    const dbRow = legacyGerenteSupported ? { ...row, gerente: buildLegacyGerenteValue(row) } : row;
     const { data: currentRows, error: currentError } = await supabase
       .from('ai_director_tasks')
       .select('*')
@@ -214,11 +231,11 @@ export async function upsertDirectorTask(payload = {}) {
     if (currentError) throw new DatabaseError('Falha ao consultar tarefa', { details: currentError });
     const current = (currentRows || []).find((task) => taskExistingMatch(task, row)) || null;
     if (current) {
-      const { data, error } = await supabase.from('ai_director_tasks').update({ ...row, id: current.id, criado_em: current.criado_em }).eq('id', current.id).select('*').single();
+      const { data, error } = await supabase.from('ai_director_tasks').update({ ...dbRow, id: current.id, criado_em: current.criado_em }).eq('id', current.id).select('*').single();
       if (error) throw new DatabaseError('Falha ao atualizar tarefa', { details: error });
       return data;
     }
-    const { data, error } = await supabase.from('ai_director_tasks').insert(row).select('*').single();
+    const { data, error } = await supabase.from('ai_director_tasks').insert(dbRow).select('*').single();
     if (error) throw new DatabaseError('Falha ao criar tarefa', { details: error });
     return data;
   }
