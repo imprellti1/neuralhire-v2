@@ -76,13 +76,62 @@ begin
     from information_schema.columns
     where table_schema = 'public'
       and table_name = 'ai_director_tasks'
+      and column_name = 'titulo'
+  ) then
+    execute $$update public.ai_director_tasks
+      set titulo = coalesce(titulo, title, 'Tarefa do Diretor IA')
+      where titulo is null$$;
+    execute 'alter table public.ai_director_tasks alter column titulo drop not null';
+  end if;
+end $$;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'ai_director_tasks'
+      and column_name = 'descricao'
+  ) then
+    execute $$update public.ai_director_tasks
+      set descricao = coalesce(descricao, description, '')
+      where descricao is null$$;
+    execute 'alter table public.ai_director_tasks alter column descricao drop not null';
+  end if;
+end $$;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'ai_director_tasks'
+      and column_name = 'prioridade'
+  ) then
+    execute $$update public.ai_director_tasks
+      set prioridade = coalesce(prioridade, priority, 'medium')
+      where prioridade is null$$;
+    execute 'alter table public.ai_director_tasks alter column prioridade drop not null';
+  end if;
+end $$;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'ai_director_tasks'
       and column_name = 'gerente'
   ) then
     execute $sql$
       update public.ai_director_tasks
-      set gerente = coalesce(manager_name, manager_id, 'gerente_comercial')
+      set gerente = coalesce(gerente, manager_name, manager_id, 'gerente_comercial')
       where gerente is null
     $sql$;
+    execute 'alter table public.ai_director_tasks alter column gerente drop not null';
   end if;
 end $$;
 
@@ -91,14 +140,11 @@ update public.ai_director_tasks
     manager_id = coalesce(manager_id, gerente),
     manager_name = coalesce(manager_name, initcap(replace(coalesce(manager_id, gerente, ''), '_', ' '))),
     category = coalesce(category, 'geral'),
-    title = coalesce(title, titulo),
-    description = coalesce(description, descricao),
-    priority = coalesce(priority, case
-      when prioridade in ('alta', 'high') then 'high'
-      when prioridade in ('media', 'medio', 'medium') then 'medium'
-      when prioridade in ('baixa', 'low') then 'low'
-      else 'medium'
-    end),
+    title = coalesce(title, titulo, 'Tarefa do Diretor IA'),
+    descricao = coalesce(descricao, description, ''),
+    description = coalesce(description, descricao, ''),
+    prioridade = coalesce(prioridade, priority, 'medium'),
+    priority = coalesce(priority, prioridade, 'medium'),
     status = case
       when status in ('aberto', 'open') then 'open'
       when status in ('em_andamento', 'in_progress') then 'in_progress'
@@ -121,12 +167,45 @@ update public.ai_director_tasks
 where title is null;
 
 update public.ai_director_tasks
+  set titulo = coalesce(titulo, title, 'Tarefa do Diretor IA')
+where exists (
+  select 1
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'ai_director_tasks'
+    and column_name = 'titulo'
+)
+  and titulo is null;
+
+update public.ai_director_tasks
   set category = coalesce(category, 'geral')
 where category is null;
 
 update public.ai_director_tasks
   set priority = coalesce(priority, 'medium')
 where priority is null;
+
+update public.ai_director_tasks
+  set prioridade = coalesce(prioridade, priority, 'medium')
+where exists (
+  select 1
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'ai_director_tasks'
+    and column_name = 'prioridade'
+)
+  and prioridade is null;
+
+update public.ai_director_tasks
+  set descricao = coalesce(descricao, description, '')
+where exists (
+  select 1
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name = 'ai_director_tasks'
+    and column_name = 'descricao'
+)
+  and descricao is null;
 
 update public.ai_director_tasks
   set status = coalesce(status, 'open')

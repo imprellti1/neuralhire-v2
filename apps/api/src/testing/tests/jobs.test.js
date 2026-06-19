@@ -1702,6 +1702,10 @@ export function getJobsTests() {
         assert.equal(tasks.length, 1);
         assert.equal(tasks[0].manager_id, 'gerente_produtos');
         assert.equal(tasks[0].priority, 'high');
+        assert.equal(tasks[0].title, 'Pendências de produtos');
+        assert.equal(tasks[0].titulo, 'Pendências de produtos');
+        assert.equal(tasks[0].descricao, 'Catálogo com inconsistências');
+        assert.equal(tasks[0].prioridade, 'high');
       }
     },
     {
