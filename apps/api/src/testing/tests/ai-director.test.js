@@ -5,6 +5,7 @@ import { answerAiDirectorQuestion, delegateAiDirectorQuestion } from '../../modu
 import { buildAiDirectorContext } from '../../modules/ai-director/ai-director.context-builder.js';
 import { askAiDirectorLlm } from '../../modules/ai-director/ai-director.llm.js';
 import { buildStrategicRadar } from '../../modules/ai-director/ai-director.radar.js';
+import { __resetMemoryAiDirectorTasksForTests, listDirectorTasks, updateDirectorTaskStatus, upsertDirectorTask } from '../../modules/ai-director/ai-director-tasks.repository.js';
 import { __resetMemoryClientesForTests, createCliente } from '../../modules/clientes/clientes.repository.js';
 import { __resetMemoryPedidosForTests, createPedido } from '../../modules/pedidos/pedidos.repository.js';
 import { __resetMemoryProdutosForTests, createProduto } from '../../modules/produtos/produtos.repository.js';
@@ -26,6 +27,7 @@ function resetState() {
   __resetMemoryWhatsappConversationsForTests();
   __resetMemoryMessageApprovalsForTests();
   __resetMemoryAiDirectorObservationsForTests();
+  __resetMemoryAiDirectorTasksForTests();
 }
 
 export function getAiDirectorTests() {
@@ -333,6 +335,39 @@ export function getAiDirectorTests() {
         const item = await createObservation({ accountId: 'acc-a' }, { manager_id: 'auditoria', manager_name: 'Gerente Auditoria', category: 'auditoria', title: 'Log inconsistente', description: 'Encontrado erro', severity: 'medium', impact_score: 10, urgency_score: 10, metadata: {} });
         const updated = await updateObservationStatus({ accountId: 'acc-a' }, item.id, { status: 'resolved' });
         assert.equal(updated.status, 'resolved');
+      }
+    },
+    {
+      name: 'GET /ai-director/tasks lista, filtra e respeita account_id',
+      run: async () => {
+        resetState();
+        await upsertDirectorTask({ account_id: 'acc-a', action_plan_id: 'plan-a', manager_id: 'comercial', manager_name: 'Gerente Comercial', category: 'comercial', title: 'Tarefa A', description: 'Descricao A', priority: 'high', status: 'open', due_at: '2026-06-18T10:00:00.000Z', metadata: {} });
+        await upsertDirectorTask({ account_id: 'acc-a', action_plan_id: 'plan-b', manager_id: 'produtos', manager_name: 'Gerente de Produtos', category: 'produtos', title: 'Tarefa B', description: 'Descricao B', priority: 'medium', status: 'done', due_at: '2026-06-18T10:00:00.000Z', metadata: {} });
+        await upsertDirectorTask({ account_id: 'acc-b', action_plan_id: 'plan-c', manager_id: 'comercial', manager_name: 'Gerente Comercial', category: 'comercial', title: 'Tarefa C', description: 'Descricao C', priority: 'high', status: 'open', due_at: '2026-06-18T10:00:00.000Z', metadata: {} });
+        const all = await listDirectorTasks('acc-a', { limit: 20, page: 1 });
+        assert.equal(all.length, 2);
+        const byStatus = await listDirectorTasks('acc-a', { status: 'done' });
+        assert.equal(byStatus.length, 1);
+        const byPriority = await listDirectorTasks('acc-a', { priority: 'high' });
+        assert.equal(byPriority.length, 1);
+        const byManager = await listDirectorTasks('acc-a', { manager_id: 'produtos' });
+        assert.equal(byManager.length, 1);
+        const byCategory = await listDirectorTasks('acc-a', { category: 'comercial' });
+        assert.equal(byCategory.length, 1);
+        const crossTenant = await listDirectorTasks('acc-b', {});
+        assert.equal(crossTenant.length, 1);
+      }
+    },
+    {
+      name: 'PATCH /ai-director/tasks/:id/status atualiza status e rejeita invalido',
+      run: async () => {
+        resetState();
+        const repo = await import('../../modules/ai-director/ai-director-tasks.repository.js');
+        const created = await repo.upsertDirectorTask({ account_id: 'acc-a', action_plan_id: 'plan-a', manager_id: 'comercial', manager_name: 'Gerente Comercial', category: 'comercial', title: 'Tarefa A', description: 'Descricao A', priority: 'high', status: 'open', due_at: null, metadata: {} });
+        const updated = await updateDirectorTaskStatus(created.task.id, 'acc-a', 'done');
+        assert.equal(updated.status, 'done');
+        assert.equal(updated.percentual_conclusao, 100);
+        await assert.rejects(() => updateDirectorTaskStatus(created.task.id, 'acc-a', 'invalid'));
       }
     },
     {

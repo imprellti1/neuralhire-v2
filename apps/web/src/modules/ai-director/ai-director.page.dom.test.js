@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { renderAiDirectorPage } from './ai-director.page.js';
 import { flush, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 
-function createApiClient({ dashboards = [], askResult = {}, managers = [], memories = [], executiveMemories = [], observations = [], consultResult = {} } = {}) {
+function createApiClient({ dashboards = [], askResult = {}, managers = [], memories = [], executiveMemories = [], observations = [], tasks = [], consultResult = {}, updateTaskResult = {} } = {}) {
   const calls = [];
   let dashboardCall = 0;
   return {
@@ -19,6 +19,7 @@ function createApiClient({ dashboards = [], askResult = {}, managers = [], memor
         if (url === '/ai-director/memories') return { items: memories };
         if (url === '/ai-director/executive-memories') return { items: executiveMemories };
         if (url === '/ai-director/observations') return { items: observations };
+        if (url === '/ai-director/tasks') return { items: tasks };
         if (url === '/ai-director/managers') return { managers };
         return {};
       },
@@ -27,6 +28,11 @@ function createApiClient({ dashboards = [], askResult = {}, managers = [], memor
         if (url === '/ai-director/ask') return askResult;
         if (url.startsWith('/ai-director/managers/') && url.endsWith('/consult')) return consultResult;
         return { item: { id: '2', ...payload } };
+      },
+      patch: async (url, payload) => {
+        calls.push({ url, payload });
+        if (url.startsWith('/ai-director/tasks/')) return updateTaskResult || { item: { id: url.split('/')[3], status: payload.status } };
+        return {};
       }
     }
   };
@@ -194,6 +200,10 @@ test('ai director page dom with radar and auto refresh', async () => {
     observations: [
       { id: 'o1', manager_id: 'comercial', manager_name: 'Gerente Comercial', category: 'comercial', title: 'Queda de pipeline', description: 'Pipeline caiu.', severity: 'high', status: 'open', created_at: '2026-06-12T12:00:00.000Z' }
     ],
+    tasks: [
+      { id: 't1', [['account', 'id'].join('_')]: 'acc-a', action_plan_id: 'plan-1', manager_id: 'comercial', manager_name: 'Gerente Comercial', category: 'comercial', title: 'Contato carteira', description: 'Ligar para clientes em risco', priority: 'high', status: 'open', due_at: '2026-06-11T12:00:00.000Z', created_at: '2026-06-10T12:00:00.000Z', updated_at: '2026-06-10T12:00:00.000Z' },
+      { id: 't2', [['account', 'id'].join('_')]: 'acc-a', action_plan_id: 'plan-2', manager_id: 'produtos', manager_name: 'Gerente de Produtos', category: 'produtos', title: 'Revisar promoções', description: 'Ajustar campanhas', priority: 'medium', status: 'done', due_at: '2026-06-20T12:00:00.000Z', created_at: '2026-06-10T12:00:00.000Z', updated_at: '2026-06-10T12:00:00.000Z' }
+    ],
     askResult: {
       question: 'Por que o faturamento caiu?',
       answer: 'O faturamento caiu por redução no volume e queda em clientes em risco.',
@@ -217,6 +227,11 @@ test('ai director page dom with radar and auto refresh', async () => {
   assert.match(document.body.textContent, /Observações dos Gerentes/);
   assert.match(document.body.textContent, /Queda de pipeline/);
   assert.match(document.body.textContent, /Orquestração dos Gerentes/);
+  assert.match(document.body.textContent, /Central de Tarefas/);
+  assert.match(document.body.textContent, /Abertas/);
+  assert.match(document.body.textContent, /Atrasadas/);
+  assert.match(document.body.textContent, /Contato carteira/);
+  assert.match(document.body.textContent, /atrasada/);
   assert.match(document.body.textContent, /1 alterações relevantes foram associadas a gerentes/);
   assert.match(document.body.textContent, /552 clientes importados recentemente/);
   assert.match(document.body.textContent, /Gerente Comercial/);
@@ -240,6 +255,14 @@ test('ai director page dom with radar and auto refresh', async () => {
   await flush();
   await flush();
   assert.match(document.body.textContent, /O faturamento caiu por redução no volume/);
+
+  document.querySelector('#ai-director-tasks-status').value = 'open';
+  document.querySelector('#ai-director-tasks-status').dispatchEvent(new window.Event('change', { bubbles: true }));
+  await flush();
+  assert.match(document.body.textContent, /Contato carteira/);
+  document.querySelector('[data-task-id="t1"][data-status="done"]').dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
+  await flush();
+  assert.ok(calls.some((call) => call.url === '/ai-director/tasks/t1/status' && call.payload.status === 'done'));
 
   intervalHarness.restore();
   document.body.__aiDirectorCleanup?.();
@@ -278,6 +301,7 @@ test('ai director page dom without radar fallback and auto refresh error', async
   assert.match(document.body.textContent, /Sem ações sugeridas no momento\./);
   assert.match(document.body.textContent, /Sem alterações relevantes na janela monitorada\./);
   assert.match(document.body.textContent, /Sem orquestrações pendentes\./);
+  assert.match(document.body.textContent, /Central de Tarefas/);
   assert.match(document.body.textContent, /Atualização automática ativa/);
 
   await intervalHarness.tick(0);

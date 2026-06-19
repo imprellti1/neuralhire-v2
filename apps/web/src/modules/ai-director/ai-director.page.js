@@ -60,7 +60,29 @@ function badgeClass(value) {
   if (['high', 'alta', 'critica', 'crítica', 'critico', 'crítico'].includes(normalized)) return 'danger';
   if (['medium', 'media', 'média', 'atencao', 'atenção', 'bom'].includes(normalized)) return 'warning';
   if (['low', 'baixa', 'excelente'].includes(normalized)) return 'success';
+  if (['dismissed', 'cancelado', 'cancelled'].includes(normalized)) return 'muted';
   return 'muted';
+}
+
+function normalizeTaskStatusLabel(value) {
+  const normalized = String(value || '').toLowerCase();
+  if (normalized === 'open') return 'Aberta';
+  if (normalized === 'in_progress') return 'Em andamento';
+  if (normalized === 'done') return 'Concluída';
+  if (normalized === 'dismissed') return 'Dispensada';
+  return value || '—';
+}
+
+function isTaskOverdue(task) {
+  if (!task?.due_at) return false;
+  const due = new Date(task.due_at);
+  if (Number.isNaN(due.getTime())) return false;
+  return due.getTime() < Date.now() && !['done', 'dismissed'].includes(String(task.status || '').toLowerCase());
+}
+
+function formatTaskDue(task) {
+  if (!task?.due_at) return 'Sem vencimento';
+  return `${formatCompactDate(task.due_at)}${isTaskOverdue(task) ? ' · atrasada' : ''}`;
 }
 
 function formatManagerLabel(value) {
@@ -460,10 +482,19 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
       return true;
     });
     const tasks = (state.tasks || []).filter((task) => {
-      if (state.tasksFilter.status !== 'all' && task.status !== state.tasksFilter.status) return false;
-      if (state.tasksFilter.gerente !== 'all' && task.gerente !== state.tasksFilter.gerente) return false;
+      if (state.tasksFilter.status !== 'all' && String(task.status || '').toLowerCase() !== state.tasksFilter.status) return false;
+      if (state.tasksFilter.priority !== 'all' && String(task.priority || task.prioridade || '').toLowerCase() !== state.tasksFilter.priority) return false;
+      const managerKey = String(task.manager_id || task.gerente || task.manager_name || '').toLowerCase();
+      if (state.tasksFilter.manager !== 'all' && managerKey !== state.tasksFilter.manager) return false;
+      if (state.tasksFilter.category !== 'all' && String(task.category || '').toLowerCase() !== state.tasksFilter.category) return false;
       return true;
     });
+    const taskKpis = {
+      open: tasks.filter((task) => String(task.status || '').toLowerCase() === 'open').length,
+      in_progress: tasks.filter((task) => String(task.status || '').toLowerCase() === 'in_progress').length,
+      done: tasks.filter((task) => String(task.status || '').toLowerCase() === 'done').length,
+      overdue: tasks.filter((task) => isTaskOverdue(task)).length
+    };
     const observations = (state.observations || []).filter((item) => observationCategoryMatchesFilter(item, state.observationsFilter));
     const managers = state.managers || [];
     const form = state.memoryForm || {};
@@ -864,33 +895,44 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
           <section class="nh-card">
             <div class="nh-between">
               <div>
-                <h2 class="nh-section-title">Delegações</h2>
-                <p class="nh-section-subtitle">Plano de ação convertido em tarefas operacionais.</p>
+                <h2 class="nh-section-title">Central de Tarefas</h2>
+                <p class="nh-section-subtitle">Observação → Prioridade Executiva → Plano de Ação → Delegação → Tarefa.</p>
               </div>
               <div style="display:flex;gap:10px;flex-wrap:wrap;">
                 <select id="ai-director-tasks-status" class="nh-select" style="max-width: 180px;">
-                  ${['all', 'aberto', 'em_andamento', 'concluido', 'bloqueado', 'cancelado'].map((status) => `<option value="${status}"${state.tasksFilter.status === status ? ' selected' : ''}>${status === 'all' ? 'Todos os status' : status}</option>`).join('')}
+                  ${['all', 'open', 'in_progress', 'done', 'dismissed'].map((status) => `<option value="${status}"${state.tasksFilter.status === status ? ' selected' : ''}>${status === 'all' ? 'Todos os status' : normalizeTaskStatusLabel(status)}</option>`).join('')}
                 </select>
-                <select id="ai-director-tasks-gerente" class="nh-select" style="max-width: 220px;">
-                  ${['all', 'gerente_produtos', 'gerente_comercial', 'gerente_auditoria', 'gerente_administrativo', 'diretor_ia'].map((gerente) => `<option value="${gerente}"${state.tasksFilter.gerente === gerente ? ' selected' : ''}>${gerente === 'all' ? 'Todos os gerentes' : formatManagerLabel(gerente)}</option>`).join('')}
+                <select id="ai-director-tasks-priority" class="nh-select" style="max-width: 180px;">
+                  ${['all', 'high', 'medium', 'low'].map((priority) => `<option value="${priority}"${state.tasksFilter.priority === priority ? ' selected' : ''}>${priority === 'all' ? 'Todas as prioridades' : priority}</option>`).join('')}
+                </select>
+                <select id="ai-director-tasks-manager" class="nh-select" style="max-width: 220px;">
+                  ${['all', ...new Set(tasks.map((task) => task.manager_id || task.manager_name || task.gerente).filter(Boolean))].map((manager) => `<option value="${manager}"${state.tasksFilter.manager === manager ? ' selected' : ''}>${manager === 'all' ? 'Todos os gerentes' : formatManagerLabel(manager)}</option>`).join('')}
+                </select>
+                <select id="ai-director-tasks-category" class="nh-select" style="max-width: 180px;">
+                  ${['all', ...new Set(tasks.map((task) => task.category).filter(Boolean))].map((category) => `<option value="${category}"${state.tasksFilter.category === category ? ' selected' : ''}>${category === 'all' ? 'Todas as categorias' : category}</option>`).join('')}
                 </select>
               </div>
+            </div>
+            <div class="nh-grid-4" style="margin-top: 14px;">
+              <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Abertas</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.open))}</div></div>
+              <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Em andamento</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.in_progress))}</div></div>
+              <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Concluídas</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.done))}</div></div>
+              <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Atrasadas</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.overdue))}</div></div>
             </div>
             <div class="nh-list" style="margin-top: 14px;">
               ${tasks.length ? tasks.map((item) => `
                 <div class="nh-list-item">
                   <div class="nh-between">
-                    <strong>${esc(item.titulo)}</strong>
+                    <strong>${esc(item.title || item.titulo)}</strong>
                     <span class="nh-badge ${badgeClass(item.status)}">${esc(item.status)}</span>
                   </div>
-                  <div class="nh-mini" style="margin-top: 6px;">${esc(formatManagerLabel(item.gerente))} · prioridade ${esc(item.prioridade)} · ${esc(item.percentual_conclusao)}%</div>
-                  <div class="nh-mini" style="margin-top: 6px;">Plano de origem: ${esc(item.action_plan_id || '—')} · ${esc(formatCompactDate(item.criado_em))}</div>
-                  <div style="margin-top: 8px;">${esc(item.descricao || '—')}</div>
+                  <div class="nh-mini" style="margin-top: 6px;">Gerente: ${esc(item.manager_name || item.gerente || '—')} · categoria ${esc(item.category || '—')} · prioridade ${esc(item.priority || item.prioridade || '—')}</div>
+                  <div class="nh-mini" style="margin-top: 6px;">Plano de ação: ${esc(item.action_plan_id || '—')} · vencimento ${esc(formatTaskDue(item))}</div>
+                  <div style="margin-top: 8px;">${esc(item.description || item.descricao || '—')}</div>
                   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top: 10px;">
-                    <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="em_andamento" type="button">Em andamento</button>
-                    <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="concluido" type="button">Concluído</button>
-                    <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="bloqueado" type="button">Bloqueado</button>
-                    <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="cancelado" type="button">Cancelar</button>
+                    <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="in_progress" type="button">Em andamento</button>
+                    <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="done" type="button">Concluída</button>
+                    <button class="nh-button task-status-button" data-task-id="${esc(item.id)}" data-status="dismissed" type="button">Dispensar</button>
                   </div>
                 </div>
               `).join('') : '<div class="nh-mini">Sem delegações no momento.</div>'}
@@ -1042,8 +1084,16 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
       state.tasksFilter.status = event.target.value || 'all';
       render();
     });
-    container.querySelector('#ai-director-tasks-gerente')?.addEventListener('change', (event) => {
-      state.tasksFilter.gerente = event.target.value || 'all';
+    container.querySelector('#ai-director-tasks-priority')?.addEventListener('change', (event) => {
+      state.tasksFilter.priority = event.target.value || 'all';
+      render();
+    });
+    container.querySelector('#ai-director-tasks-manager')?.addEventListener('change', (event) => {
+      state.tasksFilter.manager = event.target.value || 'all';
+      render();
+    });
+    container.querySelector('#ai-director-tasks-category')?.addEventListener('change', (event) => {
+      state.tasksFilter.category = event.target.value || 'all';
       render();
     });
 
@@ -1084,7 +1134,12 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
         }),
         listExecutiveMemories(apiClient).catch(() => ({ items: [] })),
         listActionPlans(apiClient).catch(() => ({ items: [] })),
-        listTasks(apiClient).catch(() => ({ items: [] })),
+        listTasks(apiClient, {
+          status: state.tasksFilter.status === 'all' ? undefined : state.tasksFilter.status,
+          priority: state.tasksFilter.priority === 'all' ? undefined : state.tasksFilter.priority,
+          manager_id: state.tasksFilter.manager === 'all' ? undefined : state.tasksFilter.manager,
+          category: state.tasksFilter.category === 'all' ? undefined : state.tasksFilter.category
+        }).catch(() => ({ items: [] })),
         listObservations(apiClient, { status: 'open', limit: 20 }).catch(() => ({ items: [] })),
         listManagers(apiClient).catch(() => {
           return { managers: [] };

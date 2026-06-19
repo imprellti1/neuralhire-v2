@@ -74,15 +74,17 @@ export async function patchAiDirectorActionPlanStatusHandler(context = {}) {
 export async function listAiDirectorTasksHandler(context = {}) {
   const accountId = getAccountIdFromContext(context);
   const query = context.query || {};
-  return {
-    ok: true,
-    items: await listDirectorTasks(accountId, {
-      status: query.status ? String(query.status).trim() : undefined,
-      manager_id: query.manager_id ? String(query.manager_id).trim() : query.gerente ? String(query.gerente).trim() : undefined,
-      manager_name: query.manager_name ? String(query.manager_name).trim() : undefined,
-      action_plan_id: query.action_plan_id ? String(query.action_plan_id).trim() : undefined
-    })
-  };
+  const items = await listDirectorTasks(accountId, {
+    status: query.status ? String(query.status).trim() : undefined,
+    priority: query.priority ? String(query.priority).trim() : undefined,
+    manager_id: query.manager_id ? String(query.manager_id).trim() : query.gerente ? String(query.gerente).trim() : undefined,
+    manager_name: query.manager_name ? String(query.manager_name).trim() : undefined,
+    category: query.category ? String(query.category).trim() : undefined,
+    action_plan_id: query.action_plan_id ? String(query.action_plan_id).trim() : undefined,
+    limit: query.limit,
+    page: query.page
+  });
+  return { ok: true, items, page: items.page, limit: items.limit, total: items.total };
 }
 
 export async function patchAiDirectorTaskStatusHandler(context = {}) {

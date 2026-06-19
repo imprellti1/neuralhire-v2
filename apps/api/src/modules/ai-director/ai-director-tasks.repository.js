@@ -4,13 +4,14 @@ import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase
 import { listActionPlans } from './ai-director-action-plans.repository.js';
 import { getManagerById } from './ai-director.repository.js';
 
-const validStatus = new Set(['open', 'in_progress', 'done', 'blocked', 'cancelled']);
+const validStatus = new Set(['open', 'in_progress', 'done', 'dismissed']);
 const validLegacyStatus = new Map([
   ['aberto', 'open'],
   ['em_andamento', 'in_progress'],
   ['concluido', 'done'],
-  ['bloqueado', 'blocked'],
-  ['cancelado', 'cancelled']
+  ['bloqueado', 'dismissed'],
+  ['cancelado', 'dismissed'],
+  ['ignorado', 'dismissed']
 ]);
 const validImpactToPriority = { alto: 'high', high: 'high', media: 'medium', medio: 'medium', baixa: 'low', low: 'low' };
 const memoryTasks = [];
@@ -43,10 +44,6 @@ function normalizeManagerName(value = '') {
 function normalizeStatus(status) {
   const raw = String(status || '').trim().toLowerCase();
   return validStatus.has(raw) ? raw : (validLegacyStatus.get(raw) || 'open');
-}
-function normalizeStatusList(status) {
-  const normalized = normalizeStatus(status);
-  return normalized;
 }
 function normalizePriority(impacto, prioridadeScore = 0) {
   const mapped = validImpactToPriority[String(impacto || '').toLowerCase()];
@@ -106,7 +103,9 @@ function buildTaskPayload(actionPlan = {}) {
     status: 'open',
     due_at: dueAt,
     percentual_conclusao: 0,
-    metadata
+    metadata,
+    created_at: nowIso(),
+    updated_at: nowIso()
   };
 }
 function rowFromPayload(payload = {}) {
@@ -131,6 +130,7 @@ function rowFromPayload(payload = {}) {
     percentual_conclusao: Math.max(0, Math.min(100, Number(payload.percentual_conclusao ?? 0) || 0)),
     metadata: { ...(payload.metadata || {}), normalized_dedupe_key: payload?.metadata?.normalized_dedupe_key || dedupeKeyFromRow({ account_id: payload.account_id, action_plan_id: payload.action_plan_id, manager_id, manager_name, status }) },
     criado_em: payload.criado_em || nowIso(),
+    created_at: payload.created_at || payload.criado_em || nowIso(),
     updated_at: nowIso()
   };
   if (!row.title) throw new BadRequestError('title obrigatorio');
@@ -138,8 +138,10 @@ function rowFromPayload(payload = {}) {
 }
 function matchesTaskFilter(task, filters = {}) {
   if (filters.status && normalizeStatus(task.status) !== normalizeStatus(filters.status)) return false;
+  if (filters.priority && String(task.priority || task.prioridade || '').toLowerCase() !== String(filters.priority).toLowerCase()) return false;
   if (filters.manager_id && String(task.manager_id || '') !== String(filters.manager_id || '')) return false;
   if (filters.manager_name && normalizeManagerName(task.manager_name) !== normalizeManagerName(filters.manager_name)) return false;
+  if (filters.category && String(task.category || '').toLowerCase() !== String(filters.category).toLowerCase()) return false;
   if (filters.action_plan_id && String(task.action_plan_id || '') !== String(filters.action_plan_id || '')) return false;
   return true;
 }
@@ -174,14 +176,24 @@ function resolveSupabaseClient() { return getSupabaseClient(); }
 async function listTasksSupabase(accountId, filters = {}) {
   const supabase = resolveSupabaseClient();
   if (!supabase) throw new DatabaseError('Supabase indisponivel');
-  let query = supabase.from('ai_director_tasks').select('*').eq('account_id', accountId).order('updated_at', { ascending: false });
+  const limit = Number(filters.limit) > 0 ? Number(filters.limit) : 25;
+  const page = Number(filters.page) > 0 ? Number(filters.page) : 1;
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+  let query = supabase.from('ai_director_tasks').select('*', { count: 'exact' }).eq('account_id', accountId).order('updated_at', { ascending: false }).range(from, to);
   if (filters.status) query = query.eq('status', normalizeStatus(filters.status));
+  if (filters.priority) query = query.eq('priority', String(filters.priority).toLowerCase());
   if (filters.manager_id) query = query.eq('manager_id', filters.manager_id);
   if (filters.manager_name) query = query.eq('manager_name', filters.manager_name);
+  if (filters.category) query = query.eq('category', filters.category);
   if (filters.action_plan_id) query = query.eq('action_plan_id', filters.action_plan_id);
   const { data, error } = await query;
   if (error) throw new DatabaseError('Falha ao listar tarefas', { details: error });
-  return data || [];
+  const items = data || [];
+  items.page = page;
+  items.limit = limit;
+  items.total = data?.length || 0;
+  return items;
 }
 
 async function supportsLegacyGerenteColumn() {
@@ -281,18 +293,31 @@ export async function upsertDirectorTask(payload = {}) {
 
 export async function listDirectorTasks(accountId, filters = {}) {
   assertAccountId(accountId);
-  if (resolveSupabaseConfigured()) return listTasksSupabase(accountId, filters);
-  return memoryTasks
+  const limit = Number(filters.limit) > 0 ? Number(filters.limit) : 25;
+  const page = Number(filters.page) > 0 ? Number(filters.page) : 1;
+  const normalizedFilters = { ...filters };
+  if (normalizedFilters.status) normalizedFilters.status = normalizeStatus(normalizedFilters.status);
+  if (normalizedFilters.priority) normalizedFilters.priority = String(normalizedFilters.priority).trim().toLowerCase();
+  if (normalizedFilters.category) normalizedFilters.category = String(normalizedFilters.category).trim().toLowerCase();
+  if (resolveSupabaseConfigured()) return listTasksSupabase(accountId, normalizedFilters);
+  const items = memoryTasks
     .filter((task) => task.account_id === accountId)
-    .filter((task) => matchesTaskFilter(task, filters))
+    .filter((task) => matchesTaskFilter(task, normalizedFilters))
     .map(clone)
-    .sort((a, b) => new Date(b.criado_em || 0).getTime() - new Date(a.criado_em || 0).getTime());
+    .sort((a, b) => new Date(b.updated_at || b.criado_em || 0).getTime() - new Date(a.updated_at || a.criado_em || 0).getTime());
+  const start = (page - 1) * limit;
+  const pageItems = items.slice(start, start + limit);
+  pageItems.page = page;
+  pageItems.limit = limit;
+  pageItems.total = items.length;
+  return pageItems;
 }
 
 export async function updateDirectorTaskStatus(id, accountId, status) {
   assertAccountId(accountId);
-  const normalizedStatus = normalizeStatus(status);
-  if (!validStatus.has(normalizedStatus)) throw new BadRequestError('status invalido');
+  const rawStatus = String(status || '').trim().toLowerCase();
+  if (!validStatus.has(rawStatus)) throw new BadRequestError('status invalido');
+  const normalizedStatus = rawStatus;
   if (resolveSupabaseConfigured()) {
     const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
@@ -309,6 +334,7 @@ export async function updateDirectorTaskStatus(id, accountId, status) {
   current.status = normalizedStatus;
   current.percentual_conclusao = current.status === 'done' ? 100 : current.percentual_conclusao;
   current.updated_at = nowIso();
+  current.updated_at = current.updated_at || nowIso();
   return clone(current);
 }
 
