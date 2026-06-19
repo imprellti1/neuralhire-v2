@@ -112,6 +112,17 @@ function normalizeExecutiveMemoryPayload(data = {}) {
   return { tipo, titulo, descricao, categoria, severidade, metadata };
 }
 
+function shapeExecutiveMemoryRow(row = {}) {
+  if (!row) return row;
+  const criadoEm = row.criado_em || row.created_at || null;
+  return {
+    ...row,
+    criado_em: criadoEm,
+    created_at: criadoEm,
+    updated_at: row.updated_at || null
+  };
+}
+
 export async function getAiDirectorDashboard(context = {}) {
   const radar = await buildStrategicRadar(context).catch(() => ({
     observacoesPorModulo: [],
@@ -386,7 +397,7 @@ export async function listAiDirectorMemories(filters = {}, options = {}) {
       .from('ai_director_memories')
       .select('*')
       .eq('account_id', accountId)
-      .order('created_at', { ascending: false })
+    .order('criado_em', { ascending: false })
       .limit(safeLimit);
     if (error) throw new DatabaseError('Falha ao listar memorias do diretor', { details: error });
     return { items: data || [], total: (data || []).length };
@@ -394,9 +405,9 @@ export async function listAiDirectorMemories(filters = {}, options = {}) {
 
   const items = memoryStore
     .filter((row) => row.account_id === accountId)
-    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+    .sort((a, b) => String(b.criado_em || b.created_at || '').localeCompare(String(a.criado_em || a.created_at || '')))
     .slice(0, safeLimit)
-    .map(clone);
+    .map((item) => shapeExecutiveMemoryRow(clone(item)));
   return { items, total: items.length };
 }
 
@@ -472,19 +483,19 @@ async function saveExecutiveMemoryRow(supabase, row) {
   };
   const current = await findExistingExecutiveMemoryByLogicalKey(supabase, normalizedRow);
   if (current) {
+    const { created_at: _currentCreatedAt, ...currentWithoutCreatedAt } = current;
     const next = {
-      ...current,
+      ...currentWithoutCreatedAt,
       ...normalizedRow,
       id: current.id,
       account_id: current.account_id,
-      created_at: current.created_at || current.criado_em || normalizedRow.criado_em,
       criado_em: current.criado_em || current.created_at || normalizedRow.criado_em,
       updated_at: new Date().toISOString(),
       metadata: { ...(current.metadata || {}), ...(normalizedRow.metadata || {}) }
     };
     const { data: updated, error: updateError } = await supabase.from('ai_director_executive_memories').update(next).eq('id', current.id).select('*').single();
     if (updateError) throw new DatabaseError('Falha ao atualizar memoria executiva do diretor', { details: updateError });
-    return updated;
+    return shapeExecutiveMemoryRow(updated);
   }
 
   logger.info('ai_director_executive_memory_before_insert', {
@@ -500,18 +511,18 @@ async function saveExecutiveMemoryRow(supabase, row) {
     if (isUniqueConstraintViolation(error)) {
       const retryCurrent = await findExistingExecutiveMemoryByLogicalKey(supabase, normalizedRow);
       if (retryCurrent) {
+        const { created_at: _retryCurrentCreatedAt, ...retryCurrentWithoutCreatedAt } = retryCurrent;
         const next = {
-          ...retryCurrent,
+          ...retryCurrentWithoutCreatedAt,
           ...normalizedRow,
           id: retryCurrent.id,
           account_id: retryCurrent.account_id,
-          created_at: retryCurrent.created_at || retryCurrent.criado_em || normalizedRow.criado_em,
           criado_em: retryCurrent.criado_em || retryCurrent.created_at || normalizedRow.criado_em,
           updated_at: new Date().toISOString(),
           metadata: { ...(retryCurrent.metadata || {}), ...(normalizedRow.metadata || {}) }
         };
         const { data: updated, error: retryUpdateError } = await supabase.from('ai_director_executive_memories').update(next).eq('id', retryCurrent.id).select('*').single();
-        if (!retryUpdateError) return updated;
+        if (!retryUpdateError) return shapeExecutiveMemoryRow(updated);
       }
       throw new DatabaseError('Falha ao criar memoria executiva do diretor apos 23505 sem registro correspondente', {
         details: error,
@@ -527,7 +538,7 @@ async function saveExecutiveMemoryRow(supabase, row) {
     }
     throw new DatabaseError('Falha ao criar memoria executiva do diretor', { details: error });
   }
-  return inserted;
+  return shapeExecutiveMemoryRow(inserted);
 }
 
 function resolveAiDirectorSupabaseClient() {
@@ -582,10 +593,10 @@ export async function upsertExecutiveMemory(data = {}, options = {}) {
   const current = memoryStore.find((item) => item.executive && buildExecutiveMemoryLogicalKey(item) === buildExecutiveMemoryLogicalKey(row)) || null;
   if (current) {
     Object.assign(current, row, { id: current.id, criado_em: current.criado_em, updated_at: row.updated_at });
-    return clone(current);
+    return shapeExecutiveMemoryRow(clone(current));
   }
   memoryStore.push({ ...row, executive: true });
-  return clone(row);
+  return shapeExecutiveMemoryRow(clone(row));
 }
 
 export async function listExecutiveMemories(filters = {}, options = {}) {
@@ -607,7 +618,7 @@ export async function listExecutiveMemories(filters = {}, options = {}) {
     if (filters?.tipo) query = query.eq('tipo', filters.tipo);
     const { data, error } = await query;
     if (error) throw new DatabaseError('Falha ao listar memorias executivas do diretor', { details: error });
-    return { items: data || [], total: (data || []).length };
+    return { items: (data || []).map((item) => shapeExecutiveMemoryRow(item)), total: (data || []).length };
   }
 
   const items = memoryStore

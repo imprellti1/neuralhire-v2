@@ -1527,6 +1527,7 @@ export function getJobsTests() {
             return {
               select() { return query; },
               update(payload) {
+                assert.equal(Object.prototype.hasOwnProperty.call(payload, 'created_at'), false);
                 return {
                   select() {
                     return this;
@@ -1545,6 +1546,7 @@ export function getJobsTests() {
                 };
               },
               insert(payload) {
+                assert.equal(Object.prototype.hasOwnProperty.call(payload, 'created_at'), false);
                 return {
                   select() {
                     return {
@@ -1585,6 +1587,7 @@ export function getJobsTests() {
           assert.equal(second.ok, true);
           assert.equal(insertCount, 1);
           assert.equal(records.filter((item) => item.account_id === accountId && item.tipo === 'prioridade_executiva' && item.origem === 'diretor_reuniao_executiva').length, 1);
+          assert.equal(Object.prototype.hasOwnProperty.call(records[0], 'created_at'), false);
           assert.equal(result.fatalError, null);
           assert.equal(second.fatalError, null);
         } finally {
