@@ -12,6 +12,7 @@ test('vendedor ia page renderiza abas e dados principais', async () => {
       if (path === '/ai-sales/alerts') return { items: [{ nome: 'Cliente 1', motivo: 'alerta comercial ativo', impacto_estimado: 1200 }] };
       if (path === '/ai-sales/opportunities') return { items: [{ cliente: 'Cliente 2', motivo: 'cliente inativo com histórico relevante', impacto_estimado: 2200 }] };
       if (path === '/ai-sales/tasks') return { items: [{ id: 't1', title: 'Delegação futura', description: 'Preparar contrato de delegação', priority: 'medium', status: 'open', due_at: '2026-06-30T00:00:00.000Z', cliente_id: 'c1', cliente_nome: 'Cliente 1', vendedor_id: 'v1', delegation_level: 'vendedor' }] };
+      if (path === '/ai-sales/insights') return { riskClients: [{ cliente_id: 'c1', nome: 'Cliente 1', reason: 'cliente_em_risco', score: 24, dias_sem_comprar: 120 }], inactiveClients: [{ cliente_id: 'c2', nome: 'Cliente 2', reason: 'cliente_inativo', score: 40, dias_sem_comprar: 90 }], opportunities: [{ cliente_id: 'c3', nome: 'Cliente 3', reason: 'oportunidade_comercial', score: 70, dias_sem_comprar: 45 }], generatedTasks: [{ id: 'it1', title: 'Entrar em contato com cliente em risco', description: 'Tarefa automática', priority: 'high', status: 'open', due_at: '2026-06-30T00:00:00.000Z', cliente_id: 'c1', cliente_nome: 'Cliente 1', vendedor_id: 'v1', delegation_level: 'vendedor', origin: 'vendedor_ia' }] };
       if (path === '/ai-sales/performance') return { faturamento_carteira: 15000, clientes_ativos: 2, clientes_recuperados: 1, oportunidades_geradas: 2 };
       return {};
     }
@@ -44,6 +45,7 @@ test('vendedor ia tasks nao renderiza R$ NaN sem valor e mostra valor quando exi
       if (path === '/ai-sales/alerts') return { items: [] };
       if (path === '/ai-sales/opportunities') return { items: [] };
       if (path === '/ai-sales/performance') return { faturamento_carteira: 0, clientes_ativos: 0, clientes_recuperados: 0, oportunidades_geradas: 0 };
+      if (path === '/ai-sales/insights') return { riskClients: [], inactiveClients: [], opportunities: [], generatedTasks: [] };
       if (path === '/ai-sales/tasks') {
         return { items: [
           { id: 'no-value', title: 'Sem valor', description: 'Tarefa legada', priority: 'low', status: 'open', due_at: '2026-06-30T00:00:00.000Z', cliente_id: 'c1', cliente_nome: 'Cliente 1', vendedor_id: 'v1', delegation_level: 'gerente' },
@@ -71,6 +73,7 @@ test('vendedor ia tasks usa fallback seguro para campo monetary legacy', async (
       if (path === '/ai-sales/alerts') return { items: [] };
       if (path === '/ai-sales/opportunities') return { items: [] };
       if (path === '/ai-sales/performance') return { faturamento_carteira: 0, clientes_ativos: 0, clientes_recuperados: 0, oportunidades_geradas: 0 };
+      if (path === '/ai-sales/insights') return { riskClients: [], inactiveClients: [], opportunities: [], generatedTasks: [] };
       if (path === '/ai-sales/tasks') return { items: [{ id: 'legacy', title: 'Tarefa legada', description: 'Fallback monetario', priority: 'medium', status: 'open', due_at: '2026-06-30T00:00:00.000Z', cliente_id: 'c3', cliente_nome: 'Cliente 3', vendedor_id: 'v1', delegation_level: 'gerente', monetary_value: null }] };
       return {};
     }
@@ -93,6 +96,7 @@ test('vendedor ia tasks prefere financial_amount sobre campos legados', async ()
       if (path === '/ai-sales/alerts') return { items: [] };
       if (path === '/ai-sales/opportunities') return { items: [] };
       if (path === '/ai-sales/performance') return { faturamento_carteira: 0, clientes_ativos: 0, clientes_recuperados: 0, oportunidades_geradas: 0 };
+      if (path === '/ai-sales/insights') return { riskClients: [], inactiveClients: [], opportunities: [], generatedTasks: [] };
       if (path === '/ai-sales/tasks') return { items: [{ id: 'prefer', title: 'Preferencia', description: 'Usa financial_amount', priority: 'medium', status: 'open', due_at: '2026-06-30T00:00:00.000Z', cliente_id: 'c4', cliente_nome: 'Cliente 4', vendedor_id: 'v1', delegation_level: 'gerente', financial_amount: 4321, valor: 1111, amount: 2222 }] };
       return {};
     }

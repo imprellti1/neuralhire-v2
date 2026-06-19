@@ -80,6 +80,11 @@ function renderCards(items = [], emptyLabel = 'Sem itens.') {
   return `<div class="nhi-list">${items.map((item) => `<article class="nhi-card"><h4>${esc(item.cliente || item.nome || 'Cliente')}</h4><p>${esc(item.motivo || item.descricao || '')}</p><p style="margin-top:8px">${brl(item.impacto_estimado || 0)}</p></article>`).join('')}</div>`;
 }
 
+function renderInsightClients(items = [], emptyLabel = 'Sem insights.') {
+  if (!items.length) return `<div class="nhi-empty">${emptyLabel}</div>`;
+  return `<div class="nhi-list">${items.map((item) => `<article class="nhi-card"><h4>${esc(item.nome || 'Cliente')}</h4><p>${esc(item.reason || item.motivo || item.type || '')}</p><p style="margin-top:8px">Score ${esc(item.score ?? '-')} · ${esc(item.dias_sem_comprar ?? '-')} dias sem compra</p></article>`).join('')}</div>`;
+}
+
 function renderTasks(tasks = [], onComplete, loadingTaskId) {
   if (!tasks.length) return '<div class="nhi-empty">Nenhuma tarefa vinculada ao vendedor.</div>';
   const showValue = tasks.some((task) => getTaskFinancialValue(task) !== null);
@@ -94,19 +99,20 @@ function renderTasks(tasks = [], onComplete, loadingTaskId) {
 
 export async function renderVendedorIaPage(root, { apiClient }) {
   injectStyles();
-  const state = { activeTab: 'overview', loading: true, overview: null, portfolio: [], alerts: [], opportunities: [], tasks: [], performance: null, error: null, loadingTaskId: null };
+  const state = { activeTab: 'overview', loading: true, overview: null, portfolio: [], alerts: [], opportunities: [], tasks: [], insights: null, performance: null, error: null, loadingTaskId: null };
 
   async function load() {
     state.loading = true;
     state.error = null;
     render();
     try {
-      const [overview, portfolio, alerts, opportunities, tasks, performance] = await Promise.all([
+      const [overview, portfolio, alerts, opportunities, tasks, insights, performance] = await Promise.all([
         apiClient.get('/ai-sales/overview'),
         apiClient.get('/ai-sales/portfolio'),
         apiClient.get('/ai-sales/alerts'),
         apiClient.get('/ai-sales/opportunities'),
         apiClient.get('/ai-sales/tasks'),
+        apiClient.get('/ai-sales/insights'),
         apiClient.get('/ai-sales/performance')
       ]);
       state.overview = overview;
@@ -114,6 +120,7 @@ export async function renderVendedorIaPage(root, { apiClient }) {
       state.alerts = alerts.items || [];
       state.opportunities = opportunities.items || [];
       state.tasks = tasks.items || [];
+      state.insights = insights;
       state.performance = performance;
     } catch {
       state.error = true;
@@ -137,7 +144,7 @@ export async function renderVendedorIaPage(root, { apiClient }) {
   }
 
   function render() {
-    root.innerHTML = `<section class="nhi-wrap"><div class="nhi-head"><div><div class="nhi-title">Vendedor IA</div><div class="nhi-sub">Camada operacional da carteira comercial por vendedor_id, com delegação automática do Diretor/Gerente Comercial.</div></div><div class="nhi-tabs">${tabButton('overview', state.activeTab, 'Visão Geral')}${tabButton('portfolio', state.activeTab, 'Carteira')}${tabButton('alerts', state.activeTab, 'Alertas')}${tabButton('opportunities', state.activeTab, 'Oportunidades')}${tabButton('tasks', state.activeTab, 'Tarefas')}${tabButton('performance', state.activeTab, 'Performance')}</div></div>${state.error ? '<div class="nhi-error">Falha ao carregar a carteira do vendedor.</div>' : ''}${state.loading ? '<div class="nhi-panel">Carregando...</div>' : ''}${!state.loading && !state.error && state.overview ? `<section class="nhi-kpis"><article class="nhi-kpi"><small>Clientes</small><b>${num.format(state.overview.total_clientes || 0)}</b></article><article class="nhi-kpi"><small>Em risco</small><b>${num.format(state.overview.clientes_em_risco || 0)}</b></article><article class="nhi-kpi"><small>Inativos</small><b>${num.format(state.overview.clientes_inativos || 0)}</b></article><article class="nhi-kpi"><small>Oportunidades</small><b>${num.format(state.overview.oportunidades || 0)}</b></article><article class="nhi-kpi"><small>Faturamento</small><b>${brl(state.overview.faturamento_carteira || 0)}</b></article><article class="nhi-kpi"><small>Ticket médio</small><b>${brl(state.overview.ticket_medio || 0)}</b></article></section>` : ''}${!state.loading && !state.error ? renderTab() : ''}</section>`;
+    root.innerHTML = `<section class="nhi-wrap"><div class="nhi-head"><div><div class="nhi-title">Vendedor IA</div><div class="nhi-sub">Camada operacional da carteira comercial por vendedor_id, com delegação automática do Diretor/Gerente Comercial.</div></div><div class="nhi-tabs">${tabButton('overview', state.activeTab, 'Visão Geral')}${tabButton('portfolio', state.activeTab, 'Carteira')}${tabButton('alerts', state.activeTab, 'Alertas')}${tabButton('opportunities', state.activeTab, 'Oportunidades')}${tabButton('tasks', state.activeTab, 'Tarefas')}${tabButton('insights', state.activeTab, 'Insights')}${tabButton('performance', state.activeTab, 'Performance')}</div></div>${state.error ? '<div class="nhi-error">Falha ao carregar a carteira do vendedor.</div>' : ''}${state.loading ? '<div class="nhi-panel">Carregando...</div>' : ''}${!state.loading && !state.error && state.overview ? `<section class="nhi-kpis"><article class="nhi-kpi"><small>Clientes</small><b>${num.format(state.overview.total_clientes || 0)}</b></article><article class="nhi-kpi"><small>Em risco</small><b>${num.format(state.overview.clientes_em_risco || 0)}</b></article><article class="nhi-kpi"><small>Inativos</small><b>${num.format(state.overview.clientes_inativos || 0)}</b></article><article class="nhi-kpi"><small>Oportunidades</small><b>${num.format(state.overview.oportunidades || 0)}</b></article><article class="nhi-kpi"><small>Faturamento</small><b>${brl(state.overview.faturamento_carteira || 0)}</b></article><article class="nhi-kpi"><small>Ticket médio</small><b>${brl(state.overview.ticket_medio || 0)}</b></article></section>` : ''}${!state.loading && !state.error ? renderTab() : ''}</section>`;
     root.querySelectorAll('[data-tab]').forEach((btn) => btn.addEventListener('click', () => { state.activeTab = btn.getAttribute('data-tab'); render(); }));
     root.querySelectorAll('[data-complete-task]').forEach((btn) => btn.addEventListener('click', () => completeTask(btn.getAttribute('data-complete-task'))));
   }
@@ -148,6 +155,7 @@ export async function renderVendedorIaPage(root, { apiClient }) {
     if (state.activeTab === 'alerts') return `<div class="nhi-panel">${renderCards(state.alerts, 'Nenhum alerta comercial ativo.')}</div>`;
     if (state.activeTab === 'opportunities') return `<div class="nhi-panel">${renderCards(state.opportunities, 'Nenhuma oportunidade detectada.')}</div>`;
     if (state.activeTab === 'tasks') return renderTasks(state.tasks, completeTask, state.loadingTaskId);
+    if (state.activeTab === 'insights') return `<div class="nhi-panel"><div class="nhi-kpis" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:16px"><article class="nhi-kpi"><small>Em risco</small><b>${num.format(state.insights?.riskClients?.length || 0)}</b></article><article class="nhi-kpi"><small>Inativos</small><b>${num.format(state.insights?.inactiveClients?.length || 0)}</b></article><article class="nhi-kpi"><small>Oportunidades</small><b>${num.format(state.insights?.opportunities?.length || 0)}</b></article><article class="nhi-kpi"><small>Tarefas geradas</small><b>${num.format(state.insights?.generatedTasks?.length || 0)}</b></article></div><h4>Clientes em risco</h4>${renderInsightClients(state.insights?.riskClients || [], 'Nenhum cliente em risco.') }<h4 style="margin-top:16px">Clientes inativos</h4>${renderInsightClients(state.insights?.inactiveClients || [], 'Nenhum cliente inativo.') }<h4 style="margin-top:16px">Oportunidades detectadas</h4>${renderInsightClients(state.insights?.opportunities || [], 'Nenhuma oportunidade detectada.') }<h4 style="margin-top:16px">Tarefas geradas automaticamente</h4>${renderTasks(state.insights?.generatedTasks || [], completeTask, state.loadingTaskId)}</div>`;
     if (state.activeTab === 'performance') return `<section class="nhi-kpis"><article class="nhi-kpi"><small>Faturamento da carteira</small><b>${brl(state.performance?.faturamento_carteira || 0)}</b></article><article class="nhi-kpi"><small>Clientes ativos</small><b>${num.format(state.performance?.clientes_ativos || 0)}</b></article><article class="nhi-kpi"><small>Clientes recuperados</small><b>${num.format(state.performance?.clientes_recuperados || 0)}</b></article><article class="nhi-kpi"><small>Oportunidades geradas</small><b>${num.format(state.performance?.oportunidades_geradas || 0)}</b></article></section>`;
     return '';
   }

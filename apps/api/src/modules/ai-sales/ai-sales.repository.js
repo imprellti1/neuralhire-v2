@@ -1,7 +1,7 @@
 import { ForbiddenError } from '../../core/errors.js';
 import { getClientesRepositoryMode, listClientes, listClientePedidos } from '../clientes/clientes.repository.js';
 import { listAlertasCliente } from '../clientes/clientes.alerts.service.js';
-import { listDirectorTasks } from '../ai-director/ai-director-tasks.repository.js';
+import { listDirectorTasks, listSellerInsightTasks, upsertSellerInsightTask } from '../ai-director/ai-director-tasks.repository.js';
 
 function assertAccountId(accountId) {
   if (!accountId) throw new ForbiddenError('Contexto de tenant obrigatorio', { code: 'TENANT_REQUIRED', domain: 'ai-sales' });
@@ -50,6 +50,43 @@ function normalizeFinancialAmount(task = {}) {
   if (raw === null || raw === undefined || raw === '') return null;
   const value = Number(raw);
   return Number.isFinite(value) ? value : null;
+}
+
+function getClienteScore(cliente = {}) {
+  return Number(cliente.cliente_score ?? cliente.score ?? 0) || 0;
+}
+
+function getLastPurchaseDate(pedidos = []) {
+  const dates = (Array.isArray(pedidos) ? pedidos : [])
+    .map((pedido) => toDate(pedido.data_faturamento) || toDate(pedido.data_emissao) || toDate(pedido.created_at))
+    .filter(Boolean)
+    .sort((a, b) => b.getTime() - a.getTime());
+  return dates[0] || null;
+}
+
+function avgTicket(pedidos = []) {
+  const valid = (Array.isArray(pedidos) ? pedidos : []).map((pedido) => Number(pedido.total || 0)).filter((value) => Number.isFinite(value) && value > 0);
+  if (!valid.length) return 0;
+  return valid.reduce((sum, value) => sum + value, 0) / valid.length;
+}
+
+function recentRevenue(pedidos = [], days = 30) {
+  const threshold = Date.now() - days * 86400000;
+  return (Array.isArray(pedidos) ? pedidos : []).filter((pedido) => {
+    const date = toDate(pedido.data_faturamento) || toDate(pedido.data_emissao) || toDate(pedido.created_at);
+    return date ? date.getTime() >= threshold : false;
+  }).reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
+}
+
+function previousRevenue(pedidos = [], startDays = 30, endDays = 60) {
+  const now = Date.now();
+  const start = now - endDays * 86400000;
+  const end = now - startDays * 86400000;
+  return (Array.isArray(pedidos) ? pedidos : []).filter((pedido) => {
+    const date = toDate(pedido.data_faturamento) || toDate(pedido.data_emissao) || toDate(pedido.created_at);
+    const time = date ? date.getTime() : 0;
+    return time >= start && time < end;
+  }).reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
 }
 
 function buildPortfolioItem(cliente, pedidos = [], alertas = []) {
@@ -178,6 +215,104 @@ export async function getAiSalesPerformance(accountId, options = {}) {
     clientes_ativos: active.length,
     clientes_recuperados: recovered.length,
     oportunidades_geradas: items.filter((item) => item.status_risco !== 'low').length
+  };
+}
+
+function mapInsightsItem(cliente, pedidos = [], alertas = []) {
+  const ultimoPedido = getLastPurchaseDate(pedidos);
+  const diasSemComprar = daysSince(ultimoPedido);
+  const faturamento30 = recentRevenue(pedidos, 30);
+  const faturamento60 = previousRevenue(pedidos, 30, 60);
+  const score = getClienteScore(cliente);
+  const faturamentoTotal = sumPedidos(pedidos);
+  const alertaAtivo = matchAlertaAtivo(alertas);
+  const ticketMedio = avgTicket(pedidos);
+  const ticketCrescente = faturamento30 > faturamento60;
+  const faturamentoElevado = faturamentoTotal >= 50000 || ticketMedio >= 5000;
+  const clienteAtivo = String(cliente.ativo ?? '').toLowerCase() !== 'false';
+  const risk = score <= 45 || alertaAtivo || (Number.isFinite(diasSemComprar) && diasSemComprar > 45 && faturamento30 < faturamento60 * 0.8);
+  const inactive = Number.isFinite(diasSemComprar) && diasSemComprar >= 90;
+  const strategic = (String(cliente.cliente_score_classificacao || '').trim().toUpperCase() === 'A' || faturamentoElevado) && Number.isFinite(diasSemComprar) && diasSemComprar >= 30;
+  const opportunity = clienteAtivo && ticketCrescente && Number.isFinite(diasSemComprar) && diasSemComprar >= 30;
+  return {
+    account_id: cliente.account_id || null,
+    cliente_id: cliente.id,
+    nome: cliente.nome || cliente.razao_social || '-',
+    vendedor_id: cliente.vendedor_id || cliente.owner_user_id || null,
+    score,
+    dias_sem_comprar: diasSemComprar,
+    faturamento_total: faturamentoTotal,
+    ticket_medio: ticketMedio,
+    alerta_ativo: alertaAtivo,
+    risk,
+    inactive,
+    strategic,
+    opportunity
+  };
+}
+
+function buildGeneratedTaskPayload(cliente, reason, priority, title) {
+  return {
+    account_id: cliente.account_id,
+    cliente_id: cliente.cliente_id,
+    vendedor_id: cliente.vendedor_id,
+    priority,
+    title,
+    description: `Tarefa automática do Vendedor IA para ${cliente.nome}.`,
+    status: 'open',
+    delegation_level: 'vendedor',
+    delegation_reason: reason,
+    origin: 'vendedor_ia',
+    metadata: {
+      origin: 'vendedor_ia',
+      reason,
+      generated_by: 'vendedor_ia',
+      cliente_score: cliente.score,
+      dias_sem_comprar: cliente.dias_sem_comprar,
+      ticket_medio: cliente.ticket_medio
+    }
+  };
+}
+
+export async function getAiSalesInsights(accountId, options = {}) {
+  assertAccountId(accountId);
+  const { items } = await loadAiSalesPortfolio(accountId, options.filters || {}, options);
+  const insights = [];
+  const generatedTasks = [];
+  for (const cliente of items) {
+    const pedidos = await listClientePedidos(accountId, cliente.cliente_id);
+    const alertas = await listAlertasCliente(cliente.cliente_id, { accountId, context: options.context }).catch(() => []);
+    const insight = mapInsightsItem(cliente, pedidos, alertas);
+    if (insight.risk) {
+      insights.push({ type: 'risk', ...insight });
+      const result = await upsertSellerInsightTask(buildGeneratedTaskPayload(insight, 'cliente_em_risco', 'high', 'Entrar em contato com cliente em risco'));
+      if (result?.task) generatedTasks.push(result.task);
+    }
+    if (insight.inactive) {
+      insights.push({ type: 'inactive', ...insight });
+      const result = await upsertSellerInsightTask(buildGeneratedTaskPayload(insight, 'cliente_inativo', 'high', 'Reativar cliente'));
+      if (result?.task) generatedTasks.push(result.task);
+    }
+    if (insight.strategic) {
+      insights.push({ type: 'strategic', ...insight });
+      const result = await upsertSellerInsightTask(buildGeneratedTaskPayload(insight, 'cliente_estrategico_sem_compra', 'medium', 'Executar follow-up comercial'));
+      if (result?.task) generatedTasks.push(result.task);
+    }
+    if (insight.opportunity) {
+      insights.push({ type: 'opportunity', ...insight });
+      const result = await upsertSellerInsightTask(buildGeneratedTaskPayload(insight, 'oportunidade_comercial', 'medium', 'Identificar nova oportunidade de venda'));
+      if (result?.task) generatedTasks.push(result.task);
+    }
+  }
+
+  const dedupedTasks = [...new Map(generatedTasks.map((task) => [String(task.id), task])).values()];
+  const openSellerTasks = await listSellerInsightTasks(accountId, { limit: 200 }).catch(() => []);
+  return {
+    riskClients: insights.filter((item) => item.type === 'risk'),
+    inactiveClients: insights.filter((item) => item.type === 'inactive'),
+    opportunities: insights.filter((item) => item.type === 'opportunity' || item.type === 'strategic'),
+    generatedTasks: [...new Map([...(Array.isArray(openSellerTasks) ? openSellerTasks : []), ...dedupedTasks].map((task) => [String(task.id), task])).values()],
+    allInsights: insights
   };
 }
 

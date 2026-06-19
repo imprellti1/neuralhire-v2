@@ -15,6 +15,7 @@ test('vendedor ia: smoke da rota', async () => {
     'GET /ai-sales/alerts': () => ({ items: [] }),
     'GET /ai-sales/opportunities': () => ({ items: [] }),
     'GET /ai-sales/tasks': () => ({ items: [] }),
+    'GET /ai-sales/insights': () => ({ riskClients: [], inactiveClients: [], opportunities: [], generatedTasks: [] }),
     'GET /ai-sales/performance': () => ({ faturamento_carteira: 0, clientes_ativos: 0, clientes_recuperados: 0, oportunidades_geradas: 0 })
   });
   bootstrapWebApp();

@@ -1,5 +1,5 @@
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
-import { getAiSalesAlerts, getAiSalesOpportunities, getAiSalesOverview, getAiSalesPerformance, getAiSalesPortfolioData, getAiSalesTasks } from './ai-sales.repository.js';
+import { getAiSalesAlerts, getAiSalesInsights, getAiSalesOpportunities, getAiSalesOverview, getAiSalesPerformance, getAiSalesPortfolioData, getAiSalesTasks } from './ai-sales.repository.js';
 
 function parseVendedorId(context = {}) {
   return context?.query?.vendedor_id ? String(context.query.vendedor_id).trim() : undefined;
@@ -33,5 +33,10 @@ export async function getAiSalesOpportunitiesHandler(context = {}) {
 export async function getAiSalesPerformanceHandler(context = {}) {
   const accountId = getAccountIdFromContext(context);
   return { ok: true, ...(await getAiSalesPerformance(accountId, { context, filters: { vendedor_id: parseVendedorId(context) } })) };
+}
+
+export async function getAiSalesInsightsHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  return { ok: true, ...(await getAiSalesInsights(accountId, { context, filters: { vendedor_id: parseVendedorId(context) } })) };
 }
 

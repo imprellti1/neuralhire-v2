@@ -3,10 +3,10 @@ import { createApiApp } from '../../app.js';
 import { createTestRequest } from '../create-test-request.js';
 import { createTestResponse } from '../create-test-response.js';
 import { assertEqual } from '../assert.js';
-import { __resetMemoryClientesForTests, createCliente, __dumpMemoryClientes } from '../../modules/clientes/clientes.repository.js';
+import { __loadMemoryClientes, __resetMemoryClientesForTests, createCliente, __dumpMemoryClientes } from '../../modules/clientes/clientes.repository.js';
 import { __resetMemoryAlertasForTests } from '../../modules/clientes/clientes.alerts.service.js';
 import { __resetMemoryTimelineForTests } from '../../modules/clientes/clientes.timeline.service.js';
-import { __resetMemoryPedidosForTests, createPedido } from '../../modules/pedidos/pedidos.repository.js';
+import { __loadMemoryPedidos, __resetMemoryPedidosForTests, createPedido } from '../../modules/pedidos/pedidos.repository.js';
 import { __resetMemoryProdutosForTests, createProduto } from '../../modules/produtos/produtos.repository.js';
 import { __resetMemoryAiDirectorObservationsForTests, createObservation, listObservations } from '../../modules/ai-director-observations/ai-director-observations.repository.js';
 import { __dumpMemoryAiDirectorForTests, __resetMemoryAiDirectorForTests, __setAiDirectorSupabaseClientForTests, createExecutiveMemory, listExecutiveMemories } from '../../modules/ai-director/ai-director.repository.js';
@@ -14,7 +14,7 @@ import { __resetMemoryAiDirectorActionPlansForTests, buildExecutiveActionPlan, l
 import { __resetMemoryAiDirectorTasksForTests, generateDirectorTasksFromOpenActionPlans, listDirectorTasks, normalizeDirectorTaskKey } from '../../modules/ai-director/ai-director-tasks.repository.js';
 import { __resetAuditLogsForTests, __seedAuditLogForTests } from '../../modules/audit-logs/audit-logs.repository.js';
 import { __resetSystemJobsForTests, __dumpSystemJobsForTests, __setSystemJobsSupabaseClientForTests, acquireSystemJobLock, ensureDefaultSystemJobs, getSystemJobDefaults, listDueSystemJobs, recordSystemJobRun, updateSystemJobSchedule, upsertSystemJob } from '../../modules/jobs/jobs.repository.js';
-import { __resetJobsSchedulerForTests, dispatchDueJob, nextDaily0300, runDiretorDelegacaoJob, runDiretorPlanoAcaoJob, runDiretorReuniaoExecutivaJob, runJobsSchedulerTick, startJobsScheduler, stopJobsScheduler } from '../../modules/jobs/jobs.scheduler.js';
+import { __resetJobsSchedulerForTests, dispatchDueJob, nextDaily0300, runDiretorDelegacaoJob, runDiretorPlanoAcaoJob, runDiretorReuniaoExecutivaJob, runJobsSchedulerTick, runVendedorIaObservacaoJob, startJobsScheduler, stopJobsScheduler } from '../../modules/jobs/jobs.scheduler.js';
 
 function parse(res) {
   try { return JSON.parse(res.body || '{}'); } catch { return {}; }
@@ -1778,6 +1778,35 @@ export function getJobsTests() {
         assert.equal(second.tasksTotal, 1);
         tasks = await listDirectorTasks('acc-task', {});
         assert.equal(tasks.length, 1);
+      }
+    },
+    {
+      name: 'vendedor_ia_observacao gera insights e respeita dedupe',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        __resetMemoryPedidosForTests();
+        __resetMemoryAlertasForTests();
+        __resetMemoryAiDirectorTasksForTests();
+        __resetMemoryAiDirectorObservationsForTests();
+        __resetSystemJobsForTests();
+        const app = createApiApp();
+        __loadMemoryClientes([
+          { id: 'c-risk', account_id: 'acc-vendedor', nome: 'Cliente Risco', vendedor_id: 'v1', cliente_score: 20, ativo: true }
+        ]);
+        __loadMemoryPedidos({
+          pedidos: [
+            { id: 'p1', account_id: 'acc-vendedor', cliente_id: 'c-risk', total: 1200, data_emissao: '2026-01-01T00:00:00.000Z', status: 'faturado' }
+          ]
+        });
+        const job = await upsertSystemJob({ nome: 'vendedor_ia_observacao', lock_key: 'vendedor_ia_observacao', account_id: null, status: 'ativo', next_run_at: '2026-06-17T06:00:00.000Z' }, { accountId: null });
+        const first = await runVendedorIaObservacaoJob({ accountId: 'acc-vendedor', job, auth: { accountId: 'acc-vendedor' } });
+        assert.equal(first.ok, true);
+        let tasks = await listDirectorTasks('acc-vendedor', { vendedor_id: 'v1', cliente_id: 'c-risk' });
+        assert.equal(tasks.length >= 1, true);
+        const second = await runVendedorIaObservacaoJob({ accountId: 'acc-vendedor', job, auth: { accountId: 'acc-vendedor' } });
+        assert.equal(second.ok, true);
+        tasks = await listDirectorTasks('acc-vendedor', { vendedor_id: 'v1', cliente_id: 'c-risk' });
+        assert.equal(tasks.length >= 1, true);
       }
     }
   ];

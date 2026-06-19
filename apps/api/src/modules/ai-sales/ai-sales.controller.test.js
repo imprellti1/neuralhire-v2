@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getAiSalesAlertsHandler, getAiSalesOpportunitiesHandler, getAiSalesOverviewHandler, getAiSalesPerformanceHandler, getAiSalesPortfolioHandler, getAiSalesTasksHandler } from './ai-sales.controller.js';
+import { getAiSalesAlertsHandler, getAiSalesInsightsHandler, getAiSalesOpportunitiesHandler, getAiSalesOverviewHandler, getAiSalesPerformanceHandler, getAiSalesPortfolioHandler, getAiSalesTasksHandler } from './ai-sales.controller.js';
 import { __loadMemoryClientes, __resetMemoryClientesForTests } from '../clientes/clientes.repository.js';
 import { __resetMemoryPedidosForTests, __loadMemoryPedidos } from '../pedidos/pedidos.repository.js';
 import { __resetMemoryAlertasForTests } from '../clientes/clientes.alerts.service.js';
@@ -25,6 +25,8 @@ test('ai sales controller returns overview and portfolio contracts', async () =>
   assert.equal(opportunities.ok, true);
   const tasks = await getAiSalesTasksHandler(context);
   assert.equal(tasks.ok, true);
+  const insights = await getAiSalesInsightsHandler(context);
+  assert.equal(insights.ok, true);
   const performance = await getAiSalesPerformanceHandler(context);
   assert.equal(performance.ok, true);
 });

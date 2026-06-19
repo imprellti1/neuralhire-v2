@@ -99,6 +99,10 @@ function normalizeDelegationReason(value) {
   const reason = String(value || '').trim();
   return reason || null;
 }
+function normalizeSellerTaskReason(value) {
+  const reason = String(value || '').trim();
+  return reason || null;
+}
 function buildTaskContextFromCliente(cliente = {}, fallback = {}) {
   return {
     vendedor_id: String(cliente.vendedor_id || fallback.vendedor_id || '').trim() || null,
@@ -202,6 +206,7 @@ function rowFromPayload(payload = {}) {
   const cliente_id = String(payload.cliente_id || '').trim() || null;
   const delegation_level = String(payload.delegation_level || (vendedor_id ? 'vendedor' : 'gerente')).trim() || 'gerente';
   const delegation_reason = normalizeDelegationReason(payload.delegation_reason);
+  const origin = String(payload.origin || payload.metadata?.origin || '').trim() || null;
   const row = {
     id: payload.id || randomUUID(),
     account_id: payload.account_id || null,
@@ -221,9 +226,16 @@ function rowFromPayload(payload = {}) {
     priority: normalizeTaskPriority(payload.priority || payload.prioridade || 'medium'),
     prioridade: normalizeTaskPriority(payload.prioridade || payload.priority || 'medium'),
     status,
+    financial_amount: payload.financial_amount ?? null,
+    valor: payload.valor ?? null,
+    amount: payload.amount ?? null,
+    value: payload.value ?? null,
+    impacto_estimado: payload.impacto_estimado ?? null,
+    monetary_value: payload.monetary_value ?? null,
     due_at: payload.due_at ?? resolveTaskDueDate(payload.priority || payload.prioridade || 'medium'),
     completed_at: payload.completed_at ?? null,
     percentual_conclusao: Math.max(0, Math.min(100, Number(payload.percentual_conclusao ?? 0) || 0)),
+    origin,
     metadata: {
       ...(payload.metadata || {}),
       cliente_id,
@@ -231,6 +243,7 @@ function rowFromPayload(payload = {}) {
       vendedor_name,
       delegation_level,
       delegation_reason,
+      origin,
       normalized_dedupe_key: payload?.metadata?.normalized_dedupe_key || dedupeKeyFromRow({ account_id: payload.account_id, action_plan_id: payload.action_plan_id, manager_id, manager_name, status })
     },
     criado_em: payload.criado_em || nowIso(),
@@ -280,6 +293,14 @@ function taskDelegacaoExistingMatch(task, row) {
     String(task.action_plan_id || '') === String(row.action_plan_id || '') &&
     isOpenOrInProgress(task) &&
     (taskEquivalentManagerMatch(task, row) || taskEquivalentVendedorMatch(task, row));
+}
+
+function sellerTaskExistingMatch(task, row) {
+  return String(task.account_id || '') === String(row.account_id || '') &&
+    String(task.cliente_id || '') === String(row.cliente_id || '') &&
+    String(task.vendedor_id || '') === String(row.vendedor_id || '') &&
+    normalizeSellerTaskReason(task.delegation_reason || task.metadata?.reason) === normalizeSellerTaskReason(row.delegation_reason || row.metadata?.reason) &&
+    String(task.status || '').trim().toLowerCase() === 'open';
 }
 
 function taskIsTerminal(task) {
@@ -547,6 +568,86 @@ export async function upsertDirectorTask(payload = {}) {
     void createAiDirectorEvent(delegation.delegationEvent, { accountId }).catch(() => {});
   }
   return { task: clone(row), created: true, skipped: false };
+}
+
+export async function upsertSellerInsightTask(payload = {}) {
+  const accountId = payload.account_id || null;
+  assertAccountId(accountId);
+  const reason = normalizeSellerTaskReason(payload.reason || payload.delegation_reason || payload.metadata?.reason);
+  if (!reason) throw new BadRequestError('reason obrigatorio');
+  const row = rowFromPayload({
+    ...payload,
+    manager_id: payload.manager_id || payload.vendedor_id || null,
+    manager_name: payload.manager_name || payload.vendedor_name || null,
+    vendedor_id: payload.vendedor_id || null,
+    cliente_id: payload.cliente_id || null,
+    delegation_level: 'vendedor',
+    delegation_reason: reason,
+    origin: payload.origin || 'vendedor_ia',
+    metadata: {
+      ...(payload.metadata || {}),
+      origin: payload.origin || 'vendedor_ia',
+      reason,
+      generated_by: 'vendedor_ia'
+    }
+  });
+  row.origin = payload.origin || 'vendedor_ia';
+  row.metadata = { ...(row.metadata || {}), origin: row.origin, reason, generated_by: 'vendedor_ia' };
+
+  if (resolveSupabaseConfigured()) {
+    const supabase = resolveSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data: currentRows, error: currentError } = await supabase
+      .from('ai_director_tasks')
+      .select('*')
+      .eq('account_id', accountId)
+      .eq('cliente_id', row.cliente_id)
+      .eq('vendedor_id', row.vendedor_id)
+      .eq('status', 'open')
+      .order('updated_at', { ascending: false });
+    if (currentError) throw new DatabaseError('Falha ao consultar tarefa comercial', { details: currentError });
+    const current = (currentRows || []).find((task) => sellerTaskExistingMatch(task, row)) || null;
+    if (current) return { task: current, created: false, skipped: true, reason: 'already_exists' };
+    const { data, error } = await supabase.from('ai_director_tasks').insert(row).select('*').single();
+    if (error) throw new DatabaseError('Falha ao criar tarefa comercial', { details: error });
+    await createAiDirectorEvent({
+      event_type: 'sales_task_generated',
+      entity_type: 'tarefa',
+      entity_id: data.id,
+      status: 'aberto',
+      title: data.titulo,
+      description: data.descricao || '',
+      recurrence_count: 0,
+      metadata: { task_id: data.id, cliente_id: data.cliente_id, vendedor_id: data.vendedor_id, reason }
+    }, { accountId });
+    return { task: data, created: true, skipped: false };
+  }
+
+  const current = memoryTasks.find((task) => sellerTaskExistingMatch(task, row)) || null;
+  if (current) return { task: clone(current), created: false, skipped: true, reason: 'already_exists' };
+  memoryTasks.push(row);
+  void createAiDirectorEvent({
+    event_type: 'sales_task_generated',
+    entity_type: 'tarefa',
+    entity_id: row.id,
+    status: 'aberto',
+    title: row.titulo,
+    description: row.descricao || '',
+    recurrence_count: 0,
+    metadata: { task_id: row.id, cliente_id: row.cliente_id, vendedor_id: row.vendedor_id, reason }
+  }, { accountId }).catch(() => {});
+  return { task: clone(row), created: true, skipped: false };
+}
+
+export async function listSellerInsightTasks(accountId, filters = {}) {
+  assertAccountId(accountId);
+  const tasks = await listDirectorTasks(accountId, {
+    vendedor_id: filters.vendedor_id || undefined,
+    cliente_id: filters.cliente_id || undefined,
+    status: filters.status || 'open',
+    limit: filters.limit || 200
+  });
+  return (Array.isArray(tasks) ? tasks : []).filter((task) => String(task.origin || task.metadata?.origin || task.metadata?.generated_by || '') === 'vendedor_ia' || String(task.delegation_reason || task.metadata?.reason || ''));
 }
 
 export async function listDirectorTasks(accountId, filters = {}) {

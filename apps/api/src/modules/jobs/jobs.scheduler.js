@@ -18,6 +18,7 @@ import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase
 import { listProdutos } from '../produtos/produtos.repository.js';
 import { listPromocoes } from '../promocoes/promocoes.repository.js';
 import { listBatches } from '../legacy-import/legacy-import-staging.repository.js';
+import { getAiSalesInsights } from '../ai-sales/ai-sales.repository.js';
 
 function isoNow() {
   return new Date().toISOString();
@@ -57,6 +58,10 @@ function nextDaily0430(now = new Date()) {
   return next.toISOString();
 }
 
+function nextEvery6Hours(now = new Date()) {
+  return new Date(now.getTime() + 6 * 60 * 60 * 1000).toISOString();
+}
+
 function canonicalJobLockKey(nome) {
   return ({
     radar_comercial_diario: 'jobs:radar_comercial_diario',
@@ -67,6 +72,7 @@ function canonicalJobLockKey(nome) {
     gerente_produtos_observacao: 'gerente_produtos_observacao',
     gerente_auditoria_observacao: 'gerente_auditoria_observacao',
     gerente_administrativo_observacao: 'gerente_administrativo_observacao',
+    vendedor_ia_observacao: 'vendedor_ia_observacao',
     diretor_reuniao_executiva: 'diretor_reuniao_executiva',
     diretor_plano_acao: 'diretor_plano_acao',
     diretor_delegacao: 'diretor_delegacao'
@@ -99,12 +105,13 @@ const JOB_HANDLERS = {
   gerente_produtos_observacao: runGerenteProdutosObservacaoJob,
   gerente_auditoria_observacao: runGerenteAuditoriaObservacaoJob,
   gerente_administrativo_observacao: runGerenteAdministrativoObservacaoJob,
+  vendedor_ia_observacao: runVendedorIaObservacaoJob,
   diretor_reuniao_executiva: runDiretorReuniaoExecutivaJob,
   diretor_plano_acao: runDiretorPlanoAcaoJob,
   diretor_delegacao: runDiretorDelegacaoJob
 };
 
-const TENANT_AWARE_JOB_NAMES = new Set(['clientes_enriquecimento_automatico', 'clientes_geolocalizacao_automatico', 'gerente_comercial_observacao', 'gerente_produtos_observacao', 'gerente_auditoria_observacao', 'gerente_administrativo_observacao', 'diretor_reuniao_executiva', 'diretor_plano_acao']);
+const TENANT_AWARE_JOB_NAMES = new Set(['clientes_enriquecimento_automatico', 'clientes_geolocalizacao_automatico', 'gerente_comercial_observacao', 'gerente_produtos_observacao', 'gerente_auditoria_observacao', 'gerente_administrativo_observacao', 'vendedor_ia_observacao', 'diretor_reuniao_executiva', 'diretor_plano_acao']);
 
 let schedulerTimer = null;
 let schedulerRunning = false;
@@ -1216,6 +1223,65 @@ export async function runGerenteAdministrativoObservacaoJob(context = {}) {
   const accountId = getAccountIdFromContext(context);
   const job = context.job || await resolveGlobalSystemJob('gerente_administrativo_observacao') || await upsertSystemJob({ nome: 'gerente_administrativo_observacao', lock_key: canonicalJobLockKey('gerente_administrativo_observacao'), account_id: null, status: 'ativo', last_run_at: isoNow(), next_run_at: nextDaily0300(new Date()) }, { accountId: null });
   return accountId ? runObservationByTenant(job, context, accountId, analyzeAdministrativeTenant) : runObservationAcrossTenants(job, context, analyzeAdministrativeTenant);
+}
+
+async function runVendedorIaObservacaoForTenant(job, context, accountId) {
+  const startedAt = Date.now();
+  const insights = await getAiSalesInsights(accountId, { context, filters: { vendedor_id: context?.query?.vendedor_id || undefined } });
+  const generatedTasks = Array.isArray(insights.generatedTasks) ? insights.generatedTasks : [];
+
+  await recordSystemJobRun({
+    job_id: job.id,
+    account_id: accountId,
+    nome: job.nome,
+    status: 'success',
+    started_at: new Date(startedAt).toISOString(),
+    finished_at: isoNow(),
+    duration_ms: Date.now() - startedAt,
+    processed_count: (insights.riskClients || []).length + (insights.inactiveClients || []).length + (insights.opportunities || []).length,
+    success_count: generatedTasks.length,
+    error_count: 0,
+    metadata: {
+      risk_clients: (insights.riskClients || []).length,
+      inactive_clients: (insights.inactiveClients || []).length,
+      opportunities: (insights.opportunities || []).length,
+      generated_task_ids: generatedTasks.map((task) => task.id)
+    },
+    error: null
+  }, { accountId }).catch(() => null);
+
+  await updateSystemJobSchedule({ id: job.id, jobKey: job.nome }, {
+    status: 'ativo',
+    last_run_at: isoNow(),
+    last_success_at: isoNow(),
+    last_error: null,
+    next_run_at: nextEvery6Hours(new Date()),
+    locked_at: null,
+    locked_by: null
+  }, { accountId: null }).catch(() => null);
+
+  return { ok: true, accountId, generatedTasks: generatedTasks.length };
+}
+
+export async function runVendedorIaObservacaoJob(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const job = context.job || await resolveGlobalSystemJob('vendedor_ia_observacao') || await upsertSystemJob({
+    nome: 'vendedor_ia_observacao',
+    lock_key: canonicalJobLockKey('vendedor_ia_observacao'),
+    account_id: null,
+    status: 'ativo',
+    last_run_at: isoNow(),
+    next_run_at: nextEvery6Hours(new Date())
+  }, { accountId: null });
+  if (!accountId) {
+    const accountIds = await listTenantExecutiveAccounts();
+    const results = [];
+    for (const tenantAccountId of accountIds) {
+      results.push(await runVendedorIaObservacaoForTenant(job, context, tenantAccountId));
+    }
+    return { ok: true, mode: 'tenant_fanout', accountIds, results };
+  }
+  return runVendedorIaObservacaoForTenant(job, context, accountId);
 }
 
 export async function runDiretorReuniaoExecutivaJob(context = {}) {

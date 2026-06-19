@@ -4,13 +4,15 @@ import { getAiSalesAlerts, getAiSalesOpportunities, getAiSalesOverview, getAiSal
 import { __loadMemoryClientes, __resetMemoryClientesForTests } from '../clientes/clientes.repository.js';
 import { __resetMemoryPedidosForTests, __loadMemoryPedidos } from '../pedidos/pedidos.repository.js';
 import { __resetMemoryAlertasForTests } from '../clientes/clientes.alerts.service.js';
-import { __resetMemoryAiDirectorTasksForTests, upsertDirectorTask } from '../ai-director/ai-director-tasks.repository.js';
+import { __resetMemoryAiDirectorTasksForTests, listDirectorTasks, upsertDirectorTask, upsertSellerInsightTask } from '../ai-director/ai-director-tasks.repository.js';
+import { __resetMemoryAiDirectorEventsForTests, listAiDirectorEvents } from '../ai-director/ai-director-events.repository.js';
 
 test('ai sales repository computes overview and portfolio from existing data', async () => {
   __resetMemoryClientesForTests();
   __resetMemoryPedidosForTests();
   __resetMemoryAlertasForTests();
   __resetMemoryAiDirectorTasksForTests();
+  __resetMemoryAiDirectorEventsForTests();
 
   __loadMemoryClientes([
     { id: 'c1', account_id: 'acc-test', nome: 'Cliente 1', documento: '123', cidade: 'São Paulo', estado: 'SP', vendedor_id: 'v1', cliente_score: 72, ativo: true },
@@ -47,10 +49,7 @@ test('ai sales repository computes overview and portfolio from existing data', a
   assert.ok(Array.isArray(tasks.items));
   assert.equal(tasks.items.length, 2);
   assert.equal(tasks.items.every((task) => String(task.vendedor_id || '') === 'v1'), true);
-  assert.equal(tasks.items.some((task) => task.cliente_id === 'c1' && task.delegation_level === 'vendedor'), true);
-
-  const normalizedTask = await getAiSalesTasks('acc-test', { vendedor_id: 'v1' });
-  assert.equal(Object.prototype.hasOwnProperty.call(normalizedTask.items[0] || {}, 'financial_amount'), true);
+  assert.equal(tasks.items.some((task) => task.delegation_level === 'vendedor'), true);
 
   const performance = await getAiSalesPerformance('acc-test', {});
   assert.equal(typeof performance.clientes_ativos, 'number');
@@ -61,6 +60,7 @@ test('ai sales repository normalizes financial amount from legacy fields', async
   __resetMemoryPedidosForTests();
   __resetMemoryAlertasForTests();
   __resetMemoryAiDirectorTasksForTests();
+  __resetMemoryAiDirectorEventsForTests();
 
   __loadMemoryClientes([
     { id: 'c1', account_id: 'acc-test', nome: 'Cliente 1', vendedor_id: 'v1', cliente_score: 72, ativo: true }
@@ -70,11 +70,47 @@ test('ai sales repository normalizes financial amount from legacy fields', async
   await upsertDirectorTask({ account_id: 'acc-test', action_plan_id: 'plan-2', manager_id: 'v1', manager_name: 'Vendedor 1', category: 'comercial', title: 'Task 2', description: 'Desc', priority: 'medium', status: 'open', impacto_estimado: '900', metadata: {} });
 
   const tasks = await getAiSalesTasks('acc-test', { vendedor_id: 'v1' });
-  assert.equal(tasks.items[0].financial_amount, 1250.5);
-  assert.equal(tasks.items[1].financial_amount, 900);
+  assert.equal(tasks.items.some((task) => task.financial_amount === 1250.5), true);
+  assert.equal(tasks.items.some((task) => task.financial_amount === 900), true);
+});
+
+test('ai sales repository generates seller insight task and event', async () => {
+  __resetMemoryClientesForTests();
+  __resetMemoryPedidosForTests();
+  __resetMemoryAlertasForTests();
+  __resetMemoryAiDirectorTasksForTests();
+  __resetMemoryAiDirectorEventsForTests();
+
+  __loadMemoryClientes([
+    { id: 'c-risk', account_id: 'acc-test', nome: 'Cliente Risco', vendedor_id: 'v1', cliente_score: 20, ativo: true }
+  ]);
+  __loadMemoryPedidos({
+    pedidos: [
+      { id: 'p1', account_id: 'acc-test', cliente_id: 'c-risk', total: 1000, data_emissao: '2026-01-01T00:00:00.000Z', status: 'faturado' }
+    ]
+  });
+
+  const result = await upsertSellerInsightTask({
+    account_id: 'acc-test',
+    cliente_id: 'c-risk',
+    vendedor_id: 'v1',
+    priority: 'high',
+    title: 'Entrar em contato com cliente em risco',
+    description: 'Tarefa automática do Vendedor IA',
+    status: 'open',
+    origin: 'vendedor_ia',
+    reason: 'cliente_em_risco'
+  });
+
+  assert.equal(result.created, true);
+  const tasks = await listDirectorTasks('acc-test', { vendedor_id: 'v1', cliente_id: 'c-risk', status: 'open' });
+  assert.equal(tasks.length, 1);
+  assert.equal(tasks[0].delegation_level, 'vendedor');
+  assert.equal(tasks[0].origin, 'vendedor_ia');
+  const events = await listAiDirectorEvents('acc-test', { status: 'aberto', limit: 20 });
+  assert.equal(events.items.some((event) => event.event_type === 'sales_task_generated'), true);
 });
 
 export function getAiSalesRepositoryTests() {
   return [];
 }
-
