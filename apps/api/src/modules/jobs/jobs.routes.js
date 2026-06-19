@@ -1,9 +1,9 @@
 import { asyncHandler } from '../../core/async-handler.js';
 import { sendJson, sendSuccess } from '../../core/response.js';
-import { getJobDetailAdmin, getJobsListAdmin, getJobsRunsAdmin, runJobManualAdmin } from './jobs.controller.js';
+import { getJobDetailAdmin, getJobsAdmin, getJobsRunsAdmin, runJobManualAdmin } from './jobs.controller.js';
 
 export function registerJobsRoutes(router) {
-  router.registerRoute({ method: 'GET', path: '/jobs', domain: 'system-jobs', handler: asyncHandler(async (req, res, context) => sendSuccess(res, await getJobsListAdmin(context))) });
+  router.registerRoute({ method: 'GET', path: '/jobs', domain: 'system-jobs', handler: asyncHandler(async (req, res, context) => sendSuccess(res, await getJobsAdmin(context))) });
   router.registerRoute({ method: 'GET', path: '/jobs/runs', domain: 'system-jobs', handler: asyncHandler(async (req, res, context) => sendSuccess(res, await getJobsRunsAdmin(context))) });
   router.registerRoute({
     method: 'POST',

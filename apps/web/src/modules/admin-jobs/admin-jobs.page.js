@@ -52,6 +52,15 @@ function isLockedJob(job) {
   return Boolean(job?.locked_at);
 }
 
+function getExecutionStatus(job) {
+  return String(job?.execution_status || job?.latest_run?.status || '').toLowerCase() || '-';
+}
+
+function getExecutionError(job) {
+  if (getExecutionStatus(job) === 'success') return '';
+  return String(job?.execution_error ?? job?.latest_run?.error ?? '').trim();
+}
+
 export async function renderAdminJobsPage(container, { apiClient, isActiveRoute = () => true } = {}) {
   const state = createAdminJobsState();
   const runTargets = Object.keys(JOB_LABELS);
@@ -127,7 +136,7 @@ export async function renderAdminJobsPage(container, { apiClient, isActiveRoute 
   function render() {
     const total = state.jobs.length;
     const active = state.jobs.filter((job) => isActiveJob(job)).length;
-    const errored = state.jobs.filter((job) => job.last_error).length;
+    const errored = state.jobs.filter((job) => Boolean(getExecutionError(job))).length;
     const blocked = state.jobs.filter((job) => isLockedJob(job)).length;
 
     container.innerHTML = `
@@ -203,7 +212,7 @@ export async function renderAdminJobsPage(container, { apiClient, isActiveRoute 
         </div>
         <article class="admin-jobs-card">
           <h2 class="admin-jobs-section-title">Jobs</h2>
-          ${state.loading ? '<p class="admin-jobs-muted">Carregando...</p>' : !state.jobs.length ? '<p class="admin-jobs-empty">Nenhum job encontrado.</p>' : `<div class="admin-jobs-table-wrap"><table class="admin-jobs-table"><thead><tr><th>Nome</th><th>Status</th><th>Última execução</th><th>Último sucesso</th><th>Próxima execução</th><th>Duração</th><th>Erro</th><th>Ações</th></tr></thead><tbody>${state.jobs.map((job) => `<tr><td>${esc(JOB_LABELS[job.nome] || job.nome)}</td><td><span class="admin-jobs-status ${statusClass(job.status)}">${esc(job.status || '-')}</span></td><td>${esc(fmtDate(job.last_run_at))}</td><td>${esc(fmtDate(job.last_success_at))}</td><td>${esc(fmtDate(job.next_run_at))}</td><td>${esc(fmtDuration(job.last_duration_ms))}</td><td>${esc(job.last_error || '-')}</td><td class="admin-jobs-actions-cell"><button type="button" class="admin-job-run admin-jobs-btn admin-jobs-btn-primary" data-id="${esc(job.id)}" data-job="${esc(job.nome)}">Executar agora</button> <button type="button" class="admin-job-open admin-jobs-btn admin-jobs-btn-secondary" data-id="${esc(job.id)}">Ver execuções</button></td></tr>`).join('')}</tbody></table></div>`}
+          ${state.loading ? '<p class="admin-jobs-muted">Carregando...</p>' : !state.jobs.length ? '<p class="admin-jobs-empty">Nenhum job encontrado.</p>' : `<div class="admin-jobs-table-wrap"><table class="admin-jobs-table"><thead><tr><th>Nome</th><th>Status</th><th>Última execução</th><th>Último sucesso</th><th>Próxima execução</th><th>Duração</th><th>Erro</th><th>Ações</th></tr></thead><tbody>${state.jobs.map((job) => `<tr><td>${esc(JOB_LABELS[job.nome] || job.nome)}</td><td><span class="admin-jobs-status ${statusClass(getExecutionStatus(job))}">${esc(getExecutionStatus(job))}</span></td><td>${esc(fmtDate(job.execution_started_at || job.last_run_at))}</td><td>${esc(fmtDate(job.last_success_at))}</td><td>${esc(fmtDate(job.next_run_at))}</td><td>${esc(fmtDuration(job.last_duration_ms))}</td><td>${esc(getExecutionError(job) || '-')}</td><td class="admin-jobs-actions-cell"><button type="button" class="admin-job-run admin-jobs-btn admin-jobs-btn-primary" data-id="${esc(job.id)}" data-job="${esc(job.nome)}">Executar agora</button> <button type="button" class="admin-job-open admin-jobs-btn admin-jobs-btn-secondary" data-id="${esc(job.id)}">Ver execuções</button></td></tr>`).join('')}</tbody></table></div>`}
         </article>
         <article class="admin-jobs-card">
           <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">

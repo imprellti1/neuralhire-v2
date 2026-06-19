@@ -1285,7 +1285,34 @@ export async function runDiretorDelegacaoJob(context = {}) {
 
 export async function listJobsOverview(context = {}) {
   const accountId = getAccountIdFromContext(context);
-  return { ok: true, items: await listSystemJobs(accountId) };
+  const [jobs, runs] = await Promise.all([
+    listSystemJobs(accountId),
+    listSystemJobRuns(accountId, { limit: 1000 })
+  ]);
+  const latestRunsByJobId = new Map();
+  for (const run of runs || []) {
+    if (!run?.job_id || latestRunsByJobId.has(String(run.job_id))) continue;
+    latestRunsByJobId.set(String(run.job_id), run);
+  }
+  const items = jobs.map((job) => {
+    const latestRun = latestRunsByJobId.get(String(job.id)) || null;
+    const latestRunSucceeded = String(latestRun?.status || '').toLowerCase() === 'success';
+    const latestRunError = latestRunSucceeded ? null : (latestRun?.error || null);
+    return {
+      ...job,
+      last_run_at: latestRun?.started_at || job.last_run_at || null,
+      last_success_at: latestRunSucceeded ? (latestRun?.finished_at || latestRun?.started_at || job.last_success_at || null) : job.last_success_at || null,
+      last_duration_ms: latestRun?.duration_ms ?? job.last_duration_ms ?? null,
+      last_error: latestRunError,
+      latest_run: latestRun,
+      execution_status: latestRun?.status || null,
+      execution_error: latestRunError,
+      execution_error_count: latestRun?.error_count ?? null,
+      execution_started_at: latestRun?.started_at || null,
+      execution_finished_at: latestRun?.finished_at || null
+    };
+  });
+  return { ok: true, items };
 }
 
 export async function dispatchDueJob(job, context = {}) {
