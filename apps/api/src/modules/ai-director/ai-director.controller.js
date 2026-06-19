@@ -78,7 +78,8 @@ export async function listAiDirectorTasksHandler(context = {}) {
     ok: true,
     items: await listDirectorTasks(accountId, {
       status: query.status ? String(query.status).trim() : undefined,
-      gerente: query.gerente ? String(query.gerente).trim() : undefined,
+      manager_id: query.manager_id ? String(query.manager_id).trim() : query.gerente ? String(query.gerente).trim() : undefined,
+      manager_name: query.manager_name ? String(query.manager_name).trim() : undefined,
       action_plan_id: query.action_plan_id ? String(query.action_plan_id).trim() : undefined
     })
   };

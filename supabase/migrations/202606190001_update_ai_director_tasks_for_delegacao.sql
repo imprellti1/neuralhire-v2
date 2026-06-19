@@ -1,0 +1,120 @@
+create extension if not exists pgcrypto;
+
+create table if not exists public.ai_director_tasks (
+  id uuid primary key default gen_random_uuid(),
+  account_id uuid not null,
+  action_plan_id uuid not null references public.ai_director_action_plans(id) on delete cascade,
+  manager_id text,
+  manager_name text,
+  category text not null default 'geral',
+  title text not null,
+  description text,
+  priority text not null default 'medium',
+  status text not null default 'open',
+  due_at timestamptz null,
+  percentual_conclusao integer not null default 0,
+  metadata jsonb not null default '{}'::jsonb,
+  criado_em timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint ai_director_tasks_status_check check (status in ('open', 'in_progress', 'done', 'blocked', 'cancelled')),
+  constraint ai_director_tasks_percentual_check check (percentual_conclusao between 0 and 100)
+);
+
+alter table if exists public.ai_director_tasks
+  add column if not exists manager_id text;
+
+alter table if exists public.ai_director_tasks
+  add column if not exists manager_name text;
+
+alter table if exists public.ai_director_tasks
+  add column if not exists category text;
+
+alter table if exists public.ai_director_tasks
+  add column if not exists title text;
+
+alter table if exists public.ai_director_tasks
+  add column if not exists description text;
+
+alter table if exists public.ai_director_tasks
+  add column if not exists priority text;
+
+alter table if exists public.ai_director_tasks
+  add column if not exists due_at timestamptz;
+
+alter table if exists public.ai_director_tasks
+  alter column category set default 'geral';
+
+alter table if exists public.ai_director_tasks
+  alter column priority set default 'medium';
+
+alter table if exists public.ai_director_tasks
+  alter column status set default 'open';
+
+update public.ai_director_tasks
+  set
+    manager_id = coalesce(manager_id, gerente),
+    manager_name = coalesce(manager_name, initcap(replace(coalesce(manager_id, gerente, ''), '_', ' '))),
+    category = coalesce(category, 'geral'),
+    title = coalesce(title, titulo),
+    description = coalesce(description, descricao),
+    priority = coalesce(priority, case
+      when prioridade in ('alta', 'high') then 'high'
+      when prioridade in ('media', 'medio', 'medium') then 'medium'
+      when prioridade in ('baixa', 'low') then 'low'
+      else 'medium'
+    end),
+    status = case
+      when status in ('aberto', 'open') then 'open'
+      when status in ('em_andamento', 'in_progress') then 'in_progress'
+      when status in ('concluido', 'done') then 'done'
+      when status in ('bloqueado', 'blocked') then 'blocked'
+      when status in ('cancelado', 'cancelled') then 'cancelled'
+      else coalesce(status, 'open')
+    end,
+    metadata = jsonb_set(
+      jsonb_set(
+        jsonb_set(coalesce(metadata, '{}'::jsonb), '{normalized_dedupe_key}', to_jsonb(coalesce(metadata ->> 'normalized_dedupe_key', concat_ws('|', account_id::text, action_plan_id::text, coalesce(manager_id, gerente, ''), 'open'))), true),
+        '{generated_by}', to_jsonb(coalesce(metadata ->> 'generated_by', 'diretor_delegacao')), true
+      ),
+      '{criteria_version}', to_jsonb(coalesce((metadata ->> 'criteria_version')::int, 2)), true
+    ),
+    updated_at = now();
+
+update public.ai_director_tasks
+  set title = coalesce(title, 'Plano de ação executivo')
+where title is null;
+
+update public.ai_director_tasks
+  set category = coalesce(category, 'geral')
+where category is null;
+
+update public.ai_director_tasks
+  set priority = coalesce(priority, 'medium')
+where priority is null;
+
+update public.ai_director_tasks
+  set status = coalesce(status, 'open')
+where status is null;
+
+alter table if exists public.ai_director_tasks
+  drop constraint if exists ai_director_tasks_status_check;
+
+alter table if exists public.ai_director_tasks
+  add constraint ai_director_tasks_status_check check (status in ('open', 'in_progress', 'done', 'blocked', 'cancelled'));
+
+create index if not exists ai_director_tasks_account_id_idx on public.ai_director_tasks (account_id);
+create index if not exists ai_director_tasks_action_plan_id_idx on public.ai_director_tasks (action_plan_id);
+create index if not exists ai_director_tasks_manager_id_idx on public.ai_director_tasks (manager_id);
+create index if not exists ai_director_tasks_status_idx on public.ai_director_tasks (status);
+create index if not exists ai_director_tasks_created_at_idx on public.ai_director_tasks (criado_em desc);
+create index if not exists ai_director_tasks_due_at_idx on public.ai_director_tasks (due_at);
+
+create unique index if not exists ai_director_tasks_delegacao_unique_idx
+  on public.ai_director_tasks (
+    account_id,
+    action_plan_id,
+    coalesce(manager_id, manager_name),
+    status
+  )
+  where status in ('open', 'in_progress');
+

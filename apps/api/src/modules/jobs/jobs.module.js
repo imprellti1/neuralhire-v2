@@ -11,6 +11,7 @@ export const jobsModule = defineModule({
     'POST /jobs/clientes-enriquecimento/run',
     'POST /jobs/clientes-geolocalizacao/run',
     'POST /jobs/notificacoes-resumo-semanal/run',
-    'POST /jobs/gerente-comercial-observacao/run'
+    'POST /jobs/gerente-comercial-observacao/run',
+    'POST /jobs/diretor-delegacao/run'
   ]
 });

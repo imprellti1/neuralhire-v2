@@ -11,7 +11,7 @@ import { calcularScoreComercialCliente } from '../clientes/clientes.repository.j
 import { createObservationIfNotOpen, listObservations } from '../ai-director-observations/ai-director-observations.repository.js';
 import { listExecutiveMemories, upsertExecutiveMemory } from '../ai-director/ai-director.repository.js';
 import { buildExecutiveActionPlan, listActionPlans, upsertActionPlan } from '../ai-director/ai-director-action-plans.repository.js';
-import { buildDirectorTasksForActionPlan, listDirectorTasks, listOpenActionPlansWithoutTasks, upsertDirectorTask } from '../ai-director/ai-director-tasks.repository.js';
+import { generateDirectorTasksFromOpenActionPlans, listDirectorTasks, listOpenActionPlansForDelegation } from '../ai-director/ai-director-tasks.repository.js';
 import { acquireSystemJobLock, getSystemJobByLockKey, listDueSystemJobs, listSystemJobRuns, listSystemJobs, recordSystemJobRun, releaseSystemJobLock, updateSystemJobSchedule, upsertSystemJob } from './jobs.repository.js';
 import { resolveJobNotificationRecipient, sendJobNotificationEmail } from '../notifications/notifications.email.service.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
@@ -543,24 +543,21 @@ async function runDiretorPlanoAcaoForAccount(job, context, accountId) {
 async function runDiretorDelegacaoForAccount(job, context, accountId) {
   const startedAt = Date.now();
   let created = 0;
+  let skipped = 0;
   let scanned = 0;
   let fatalError = null;
   let metadata = { result: 'empty_queue' };
 
   try {
-    const plans = await listOpenActionPlansWithoutTasks(accountId);
+    const plans = await listOpenActionPlansForDelegation(accountId);
     scanned = plans.length;
-    for (const actionPlan of plans) {
-      const tasks = buildDirectorTasksForActionPlan(actionPlan);
-      for (const task of tasks) {
-        await upsertDirectorTask({ ...task, account_id: accountId, action_plan_id: actionPlan.id });
-        created += 1;
-      }
-    }
-    metadata = { result: 'success', generated: created, scanned };
+    const result = await generateDirectorTasksFromOpenActionPlans(accountId);
+    created = Number(result.created || 0);
+    skipped = Number(result.skipped || 0);
+    metadata = { result: 'success', generated: created, skipped, scanned, total_plans: result.total || scanned };
   } catch (error) {
     fatalError = error;
-    metadata = { result: 'error', scanned, created };
+    metadata = { result: 'error', scanned, created, skipped };
     logJobError('runDiretorDelegacaoJob', error, { accountId, lockKey: job.lock_key, requestId: context.requestId || null });
   }
 
@@ -1018,9 +1015,8 @@ async function analyzeCommercialTenant({ accountId, context }) {
         const outcome = await upsertManagerObservation(context, { ...observationContext('gerente_comercial'), category: 'comercial', severity: 'high', title: 'Cliente sem compra há mais de 90 dias', description: `Cliente ${cliente.nome || 'Cliente'} não compra desde ${lastPurchaseDate.toISOString().slice(0, 10)}.`, source_type: 'cliente', source_id: cliente.id, metadata: { cliente_id: cliente.id, cliente_nome: cliente.nome || null, ultima_compra_em: lastPurchaseDate.toISOString(), dias_sem_compra: daysWithoutPurchase }, impact: 'Queda de recorrência e risco de churn', urgency: 'Alta urgência comercial' });
         outcome.created ? created += 1 : skipped += 1;
       }
-      const recentPurchase = lastPurchaseDate.getTime() >= now.getTime() - 7 * 24 * 60 * 60 * 1000;
       const daysBetweenTwoLastPurchases = previousPedido ? Math.floor((lastPurchaseDate.getTime() - purchaseDateFromPedido(previousPedido).getTime()) / 86400000) : 0;
-      if (recentPurchase && previousPedido && daysBetweenTwoLastPurchases >= 90) {
+      if (previousPedido && daysBetweenTwoLastPurchases >= 90) {
         const outcome = await upsertManagerObservation(context, { ...observationContext('gerente_comercial'), category: 'comercial', severity: 'medium', title: 'Cliente reativado', description: `Cliente ${cliente.nome || 'Cliente'} voltou a comprar após ${daysBetweenTwoLastPurchases} dias sem compra.`, source_type: 'cliente', source_id: cliente.id, metadata: { cliente_id: cliente.id, cliente_nome: cliente.nome || null, pedido_id: latestPedido.id || null, pedido_numero: latestPedido.numero || null, data_pedido: lastPurchaseDate.toISOString(), dias_sem_compra_antes_do_pedido: daysBetweenTwoLastPurchases }, impact: 'Recuperação de carteira', urgency: 'Urgente para acompanhamento' });
         outcome.created ? created += 1 : skipped += 1;
       }
