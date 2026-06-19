@@ -112,6 +112,17 @@ function normalizeExecutiveMemoryPayload(data = {}) {
   return { tipo, titulo, descricao, categoria, severidade, metadata };
 }
 
+function shapeStrategicMemoryRow(row = {}) {
+  if (!row) return row;
+  const createdAt = row.created_at || row.criado_em || null;
+  return {
+    ...row,
+    created_at: createdAt,
+    criado_em: createdAt,
+    updated_at: row.updated_at || null
+  };
+}
+
 function shapeExecutiveMemoryRow(row = {}) {
   if (!row) return row;
   const criadoEm = row.criado_em || row.created_at || null;
@@ -390,24 +401,24 @@ export async function listAiDirectorMemories(filters = {}, options = {}) {
   const limit = Number(filters.limit ?? 10);
   const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 100) : 10;
 
-  if (mode() === 'supabase') {
-    const supabase = getSupabaseClient();
+  if (resolveAiDirectorSupabaseConfigured()) {
+    const supabase = resolveAiDirectorSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data, error } = await supabase
       .from('ai_director_memories')
       .select('*')
       .eq('account_id', accountId)
-    .order('criado_em', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(safeLimit);
     if (error) throw new DatabaseError('Falha ao listar memorias do diretor', { details: error });
-    return { items: data || [], total: (data || []).length };
+    return { items: (data || []).map((item) => shapeStrategicMemoryRow(item)), total: (data || []).length };
   }
 
   const items = memoryStore
     .filter((row) => row.account_id === accountId)
-    .sort((a, b) => String(b.criado_em || b.created_at || '').localeCompare(String(a.criado_em || a.created_at || '')))
+    .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
     .slice(0, safeLimit)
-    .map((item) => shapeExecutiveMemoryRow(clone(item)));
+    .map((item) => shapeStrategicMemoryRow(clone(item)));
   return { items, total: items.length };
 }
 
@@ -626,7 +637,7 @@ export async function listExecutiveMemories(filters = {}, options = {}) {
     .filter((row) => matchesExecutiveFilters(row, filters))
     .sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)))
     .slice(0, safeLimit)
-    .map(({ executive, ...item }) => clone(item));
+    .map(({ executive, ...item }) => shapeExecutiveMemoryRow(clone(item)));
   return { items, total: items.length };
 }
 
