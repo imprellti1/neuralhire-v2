@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestError, DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
+import { logger } from '../../core/logger.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { normalizeCreateObservationPayload, normalizeUpdateObservationPayload, validateObservationPayload } from './ai-director-observations.schemas.js';
 
@@ -60,6 +61,47 @@ function buildObservationKey(accountId, payload = {}) {
     origin.toLowerCase(),
     String(payload.metadata?.dedupe_key || payload.metadata?.dedupeKey || '').trim().toLowerCase()
   ].join('|');
+}
+
+function normalizeObservationMetadata(metadata) {
+  return metadata && typeof metadata === 'object' && !Array.isArray(metadata) ? metadata : {};
+}
+
+function buildReopenMetadata(current = {}, payload = {}) {
+  const currentMetadata = normalizeObservationMetadata(current.metadata);
+  const history = Array.isArray(currentMetadata.history) ? currentMetadata.history.slice() : [];
+  const now = new Date().toISOString();
+  if (current.status === 'resolved') {
+    history.push({
+      event: 'resolved_cycle_reopened',
+      status: current.status,
+      resolved_at: currentMetadata.resolved_at || current.resolved_at || null,
+      reopened_at: now
+    });
+  }
+  const recurrenceCount = Number(currentMetadata.recurrence_count ?? currentMetadata.recurrencias ?? 0) || 0;
+  return {
+    ...currentMetadata,
+    ...normalizeObservationMetadata(payload.metadata),
+    recurrence_count: recurrenceCount + 1,
+    recurrence_history: history,
+    last_reopened_at: now,
+    previous_resolved_at: currentMetadata.resolved_at || current.resolved_at || null,
+    resolved_at: null
+  };
+}
+
+function isResolvedEquivalent(row, accountId, payload) {
+  return (
+    row &&
+    row.account_id === accountId &&
+    row.status === 'resolved' &&
+    row.manager_id === payload.manager_id &&
+    row.category === payload.category &&
+    row.title === payload.title &&
+    String(row.origin || row.source_type || '') === String(payload.origin || payload.source_type || 'manual') &&
+    buildObservationKey(accountId, { ...row, origin: row.origin || row.source_type || 'manual', metadata: row.metadata || {} }) === buildObservationKey(accountId, payload)
+  );
 }
 
 function isOpenEquivalent(row, accountId, payload) {
@@ -142,6 +184,47 @@ async function cleanupDuplicateOpenObservations(supabase, accountId, payload) {
     }
     throw error;
   }
+}
+
+async function reopenResolvedObservation(supabase, accountId, payload) {
+  const { data, error } = await supabase
+    .from('ai_director_observations')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('manager_id', payload.manager_id)
+    .eq('category', payload.category)
+    .eq('title', payload.title)
+    .eq('status', 'resolved')
+    .eq('origin', String(payload.origin || payload.source_type || 'manual').trim())
+    .order('updated_at', { ascending: false })
+    .limit(10);
+
+  if (error) throw new DatabaseError('Falha ao consultar observacao resolvida', { details: error });
+  const rows = Array.isArray(data) ? data : [];
+  const current = rows.find((row) => isResolvedEquivalent(row, accountId, payload)) || null;
+  if (!current) return null;
+
+  const metadata = buildReopenMetadata(current, payload);
+  const updatePayload = {
+    status: 'open',
+    metadata,
+    updated_at: new Date().toISOString()
+  };
+  const { data: updated, error: updateError } = await supabase
+    .from('ai_director_observations')
+    .update(updatePayload)
+    .eq('account_id', accountId)
+    .eq('id', current.id)
+    .select('*')
+    .single();
+  if (updateError) throw new DatabaseError('Falha ao reabrir observacao', { details: updateError });
+  logger.info('ai_director_cycle_reopened', {
+    account_id: accountId,
+    observation_id: updated?.id || current.id,
+    recurrence_count: metadata.recurrence_count,
+    previous_resolved_at: metadata.previous_resolved_at || null
+  });
+  return updated;
 }
 
 export async function listObservations(context = {}, filters = {}) {
@@ -249,6 +332,10 @@ export async function createObservationIfNotOpen(context = {}, payload = {}) {
     if (current && isOpenEquivalent(current, accountId, { ...normalized, account_id: accountId, origin })) {
       return { created: false, reason: 'duplicate', observation: current };
     }
+    const reopened = await reopenResolvedObservation(supabase, accountId, { ...normalized, account_id: accountId, origin });
+    if (reopened) {
+      return { created: false, reason: 'reopened', observation: reopened };
+    }
   }
 
   const openEquivalent = mode() === 'supabase'
@@ -256,6 +343,26 @@ export async function createObservationIfNotOpen(context = {}, payload = {}) {
     : store.find((row) => isEquivalentOpenObservation(row, { ...normalized, account_id: accountId, origin: payload.origin || payload.source_type || 'manual' })) || null;
   if (openEquivalent) {
     return { created: false, reason: 'duplicate', observation: shape(openEquivalent) };
+  }
+
+  const resolvedEquivalent = mode() === 'supabase'
+    ? null
+    : store.find((row) => isResolvedEquivalent(row, accountId, { ...normalized, account_id: accountId, origin: payload.origin || payload.source_type || 'manual' })) || null;
+  if (resolvedEquivalent) {
+    const now = new Date().toISOString();
+    const metadata = buildReopenMetadata(resolvedEquivalent, { metadata: normalized.metadata || {} });
+    Object.assign(resolvedEquivalent, {
+      status: 'open',
+      metadata,
+      updated_at: now
+    });
+    logger.info('ai_director_cycle_reopened', {
+      account_id: accountId,
+      observation_id: resolvedEquivalent.id,
+      recurrence_count: metadata.recurrence_count,
+      previous_resolved_at: metadata.previous_resolved_at || null
+    });
+    return { created: false, reason: 'reopened', observation: shape(resolvedEquivalent) };
   }
 
   const observation = await createObservation(context, { ...normalized, metadata: normalized.metadata || {} });
@@ -272,13 +379,25 @@ export async function updateObservationStatus(context = {}, id, payload = {}) {
   if (mode() === 'supabase') {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data, error } = await supabase.from('ai_director_observations').update(normalized).eq('account_id', accountId).eq('id', observationId).select('*').single();
+    const { data: current, error: currentError } = await supabase.from('ai_director_observations').select('*').eq('account_id', accountId).eq('id', observationId).maybeSingle();
+    if (currentError) throw new DatabaseError('Falha ao consultar observacao', { details: currentError });
+    if (!current) throw new NotFoundError('Observacao nao encontrada', { domain: 'ai-director-observations', code: 'AI_DIRECTOR_OBSERVATION_NOT_FOUND' });
+    const updatePayload = {
+      ...normalized,
+      metadata: normalized.metadata !== undefined ? { ...(current.metadata || {}), ...(normalized.metadata || {}) } : current.metadata,
+      updated_at: new Date().toISOString()
+    };
+    const { data, error } = await supabase.from('ai_director_observations').update(updatePayload).eq('account_id', accountId).eq('id', observationId).select('*').single();
     if (error) throw new NotFoundError('Observacao nao encontrada', { domain: 'ai-director-observations', code: 'AI_DIRECTOR_OBSERVATION_NOT_FOUND' });
     return data;
   }
   const item = store.find((row) => row.account_id === accountId && row.id === observationId);
   if (!item) throw new NotFoundError('Observacao nao encontrada', { domain: 'ai-director-observations', code: 'AI_DIRECTOR_OBSERVATION_NOT_FOUND' });
-  Object.assign(item, normalized, { updated_at: new Date().toISOString() });
+  Object.assign(item, {
+    ...normalized,
+    metadata: normalized.metadata !== undefined ? { ...(item.metadata || {}), ...(normalized.metadata || {}) } : item.metadata,
+    updated_at: new Date().toISOString()
+  });
   return shape(item);
 }
 
