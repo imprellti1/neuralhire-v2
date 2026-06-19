@@ -31,6 +31,13 @@ test('ai sales controller returns overview and portfolio contracts', async () =>
   assert.equal(performance.ok, true);
 });
 
+test('ai sales insights controller requires authenticated tenant context', async () => {
+  await assert.rejects(
+    () => getAiSalesInsightsHandler({ auth: {} }),
+    (error) => error?.code === 'TENANT_REQUIRED' && error?.statusCode === 403
+  );
+});
+
 export function getAiSalesControllerTests() {
   return [];
 }

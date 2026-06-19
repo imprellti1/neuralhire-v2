@@ -1,4 +1,4 @@
-import { getAccountIdFromContext } from '../../core/tenant-context.js';
+import { assertTenantContext, getAccountIdFromContext } from '../../core/tenant-context.js';
 import { getAiSalesAlerts, getAiSalesInsights, getAiSalesOpportunities, getAiSalesOverview, getAiSalesPerformance, getAiSalesPortfolioData, getAiSalesTasks } from './ai-sales.repository.js';
 
 function parseVendedorId(context = {}) {
@@ -36,7 +36,7 @@ export async function getAiSalesPerformanceHandler(context = {}) {
 }
 
 export async function getAiSalesInsightsHandler(context = {}) {
-  const accountId = getAccountIdFromContext(context);
+  const accountId = assertTenantContext(context, { domain: 'ai-sales' });
   return { ok: true, ...(await getAiSalesInsights(accountId, { context, filters: { vendedor_id: parseVendedorId(context) } })) };
 }
 

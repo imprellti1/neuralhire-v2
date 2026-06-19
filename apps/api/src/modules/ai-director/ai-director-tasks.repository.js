@@ -570,13 +570,14 @@ export async function upsertDirectorTask(payload = {}) {
   return { task: clone(row), created: true, skipped: false };
 }
 
-export async function upsertSellerInsightTask(payload = {}) {
-  const accountId = payload.account_id || null;
+export async function upsertSellerInsightTask(payload = {}, options = {}) {
+  const accountId = options.accountId || payload.account_id || null;
   assertAccountId(accountId);
   const reason = normalizeSellerTaskReason(payload.reason || payload.delegation_reason || payload.metadata?.reason);
   if (!reason) throw new BadRequestError('reason obrigatorio');
   const row = rowFromPayload({
     ...payload,
+    account_id: accountId,
     manager_id: payload.manager_id || payload.vendedor_id || null,
     manager_name: payload.manager_name || payload.vendedor_name || null,
     vendedor_id: payload.vendedor_id || null,

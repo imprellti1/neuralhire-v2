@@ -491,6 +491,8 @@ export function __resetSystemJobsForTests() {
   memoryJobs.clear();
   memoryRuns.length = 0;
   memoryLogs.length = 0;
+  supabaseClientOverride = null;
+  supabaseConfiguredOverride = null;
 }
 
 export function __dumpSystemJobsForTests() {

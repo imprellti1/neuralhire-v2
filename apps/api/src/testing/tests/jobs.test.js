@@ -177,8 +177,9 @@ export function getJobsTests() {
         assert.equal(out.res.statusCode, 200);
         assert.equal(out.body.ok, true);
         assert.equal(Array.isArray(out.body.items), true);
-        assert.equal(out.body.items.length, 11);
+        assert.equal(out.body.items.length, 12);
         assert.equal(out.body.items.some((job) => job.nome === 'gerente_comercial_observacao'), true);
+        assert.equal(out.body.items.some((job) => job.nome === 'vendedor_ia_observacao'), true);
         assert.equal(out.body.items.some((job) => job.nome === 'diretor_reuniao_executiva'), true);
         assert.equal(out.body.items.some((job) => job.nome === 'diretor_plano_acao'), true);
       }
@@ -187,16 +188,18 @@ export function getJobsTests() {
       name: 'bootstrap padrão inclui diretor reunião executiva',
       run: async () => {
         const defaults = getSystemJobDefaults();
-        assert.equal(defaults.length, 11);
+        assert.equal(defaults.length, 12);
         assert.equal(defaults.some((job) => job.nome === 'gerente_comercial_observacao'), true);
+        assert.equal(defaults.some((job) => job.nome === 'vendedor_ia_observacao'), true);
         assert.equal(defaults.some((job) => job.nome === 'diretor_reuniao_executiva'), true);
         assert.equal(defaults.some((job) => job.nome === 'diretor_plano_acao'), true);
         __resetSystemJobsForTests();
         const logs = [];
         await ensureDefaultSystemJobs(null, { logger: { info: (...args) => logs.push(args) } });
         const dump = __dumpSystemJobsForTests();
-        assert.equal(dump.jobs.length, 11);
+        assert.equal(dump.jobs.length, 12);
         assert.equal(dump.jobs.some((job) => job.nome === 'gerente_comercial_observacao'), true);
+        assert.equal(dump.jobs.some((job) => job.nome === 'vendedor_ia_observacao'), true);
         assert.equal(dump.jobs.some((job) => job.nome === 'diretor_reuniao_executiva'), true);
         assert.equal(dump.jobs.some((job) => job.nome === 'diretor_plano_acao'), true);
         assert.equal(dump.jobs.some((job) => job.lock_key === 'diretor_reuniao_executiva'), true);
@@ -205,7 +208,7 @@ export function getJobsTests() {
         assert.equal(logs.some(([message]) => message === 'system_jobs_bootstrap_finished'), true);
         await ensureDefaultSystemJobs(null, { logger: { info: () => null } });
         const secondDump = __dumpSystemJobsForTests();
-        assert.equal(secondDump.jobs.length, 11);
+        assert.equal(secondDump.jobs.length, 12);
       }
     },
     {

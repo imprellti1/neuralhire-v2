@@ -56,6 +56,10 @@ function getClienteScore(cliente = {}) {
   return Number(cliente.cliente_score ?? cliente.score ?? 0) || 0;
 }
 
+function resolveClienteId(cliente = {}) {
+  return cliente.id || cliente.cliente_id || null;
+}
+
 function getLastPurchaseDate(pedidos = []) {
   const dates = (Array.isArray(pedidos) ? pedidos : [])
     .map((pedido) => toDate(pedido.data_faturamento) || toDate(pedido.data_emissao) || toDate(pedido.created_at))
@@ -236,7 +240,7 @@ function mapInsightsItem(cliente, pedidos = [], alertas = []) {
   const opportunity = clienteAtivo && ticketCrescente && Number.isFinite(diasSemComprar) && diasSemComprar >= 30;
   return {
     account_id: cliente.account_id || null,
-    cliente_id: cliente.id,
+    cliente_id: resolveClienteId(cliente),
     nome: cliente.nome || cliente.razao_social || '-',
     vendedor_id: cliente.vendedor_id || cliente.owner_user_id || null,
     score,
@@ -251,9 +255,9 @@ function mapInsightsItem(cliente, pedidos = [], alertas = []) {
   };
 }
 
-function buildGeneratedTaskPayload(cliente, reason, priority, title) {
+function buildGeneratedTaskPayload(cliente, accountId, reason, priority, title) {
   return {
-    account_id: cliente.account_id,
+    account_id: accountId,
     cliente_id: cliente.cliente_id,
     vendedor_id: cliente.vendedor_id,
     priority,
@@ -285,22 +289,22 @@ export async function getAiSalesInsights(accountId, options = {}) {
     const insight = mapInsightsItem(cliente, pedidos, alertas);
     if (insight.risk) {
       insights.push({ type: 'risk', ...insight });
-      const result = await upsertSellerInsightTask(buildGeneratedTaskPayload(insight, 'cliente_em_risco', 'high', 'Entrar em contato com cliente em risco'));
+      const result = await upsertSellerInsightTask(buildGeneratedTaskPayload(insight, accountId, 'cliente_em_risco', 'high', 'Entrar em contato com cliente em risco'), { accountId });
       if (result?.task) generatedTasks.push(result.task);
     }
     if (insight.inactive) {
       insights.push({ type: 'inactive', ...insight });
-      const result = await upsertSellerInsightTask(buildGeneratedTaskPayload(insight, 'cliente_inativo', 'high', 'Reativar cliente'));
+      const result = await upsertSellerInsightTask(buildGeneratedTaskPayload(insight, accountId, 'cliente_inativo', 'high', 'Reativar cliente'), { accountId });
       if (result?.task) generatedTasks.push(result.task);
     }
     if (insight.strategic) {
       insights.push({ type: 'strategic', ...insight });
-      const result = await upsertSellerInsightTask(buildGeneratedTaskPayload(insight, 'cliente_estrategico_sem_compra', 'medium', 'Executar follow-up comercial'));
+      const result = await upsertSellerInsightTask(buildGeneratedTaskPayload(insight, accountId, 'cliente_estrategico_sem_compra', 'medium', 'Executar follow-up comercial'), { accountId });
       if (result?.task) generatedTasks.push(result.task);
     }
     if (insight.opportunity) {
       insights.push({ type: 'opportunity', ...insight });
-      const result = await upsertSellerInsightTask(buildGeneratedTaskPayload(insight, 'oportunidade_comercial', 'medium', 'Identificar nova oportunidade de venda'));
+      const result = await upsertSellerInsightTask(buildGeneratedTaskPayload(insight, accountId, 'oportunidade_comercial', 'medium', 'Identificar nova oportunidade de venda'), { accountId });
       if (result?.task) generatedTasks.push(result.task);
     }
   }

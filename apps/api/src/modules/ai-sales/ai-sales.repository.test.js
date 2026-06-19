@@ -111,6 +111,47 @@ test('ai sales repository generates seller insight task and event', async () => 
   assert.equal(events.items.some((event) => event.event_type === 'sales_task_generated'), true);
 });
 
+test('ai sales repository requires accountId for seller insight tasks', async () => {
+  __resetMemoryAiDirectorTasksForTests();
+  __resetMemoryAiDirectorEventsForTests();
+
+  await assert.rejects(
+    () => upsertSellerInsightTask({
+      cliente_id: 'c-risk',
+      vendedor_id: 'v1',
+      priority: 'high',
+      title: 'Entrar em contato com cliente em risco',
+      description: 'Tarefa automática do Vendedor IA',
+      status: 'open',
+      origin: 'vendedor_ia',
+      reason: 'cliente_em_risco'
+    }),
+    (error) => error?.code === 'TENANT_REQUIRED'
+  );
+});
+
+test('ai sales repository accepts explicit accountId for seller insight tasks', async () => {
+  __resetMemoryClientesForTests();
+  __resetMemoryPedidosForTests();
+  __resetMemoryAlertasForTests();
+  __resetMemoryAiDirectorTasksForTests();
+  __resetMemoryAiDirectorEventsForTests();
+
+  const result = await upsertSellerInsightTask({
+    cliente_id: 'c-risk',
+    vendedor_id: 'v1',
+    priority: 'high',
+    title: 'Entrar em contato com cliente em risco',
+    description: 'Tarefa automática do Vendedor IA',
+    status: 'open',
+    origin: 'vendedor_ia',
+    reason: 'cliente_em_risco'
+  }, { accountId: 'acc-test' });
+
+  assert.equal(result.created, true);
+  assert.equal(result.task.account_id, 'acc-test');
+});
+
 export function getAiSalesRepositoryTests() {
   return [];
 }
