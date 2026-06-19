@@ -17,6 +17,7 @@ const validLegacyStatus = new Map([
   ['ignorado', 'dismissed']
 ]);
 const validImpactToPriority = { alto: 'high', high: 'high', media: 'medium', medio: 'medium', baixa: 'low', low: 'low' };
+const prioritySlaDays = { critical: 1, high: 3, medium: 7, low: 15 };
 const memoryTasks = [];
 const legacyGerenteColumnCache = { checked: false, supported: false };
 
@@ -26,6 +27,12 @@ function assertAccountId(accountId) {
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
 function nowIso() { return new Date().toISOString(); }
+function addHoursIso(hours) {
+  return new Date(Date.now() + Number(hours) * 60 * 60 * 1000).toISOString();
+}
+function addDaysIso(days) {
+  return new Date(Date.now() + Number(days) * 24 * 60 * 60 * 1000).toISOString();
+}
 function normalizeText(value = '') {
   return String(value)
     .normalize('NFD')
@@ -56,6 +63,20 @@ function normalizePriority(impacto, prioridadeScore = 0) {
   if (score >= 50) return 'medium';
   return 'low';
 }
+function normalizeTaskPriority(value) {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'critical') return 'critical';
+  if (raw === 'high') return 'high';
+  if (raw === 'medium') return 'medium';
+  if (raw === 'low') return 'low';
+  return 'medium';
+}
+function resolveTaskDueDate(priority) {
+  const normalized = normalizeTaskPriority(priority);
+  if (normalized === 'critical') return addHoursIso(24);
+  const days = prioritySlaDays[normalized];
+  return days ? addDaysIso(days) : null;
+}
 function normalizeCategory(actionPlan = {}) {
   return String(actionPlan.category || actionPlan.categoria || actionPlan.gerente_responsavel || 'geral').trim() || 'geral';
 }
@@ -79,7 +100,7 @@ function buildTaskPayload(actionPlan = {}) {
   const title = String(actionPlan.titulo || '').trim() || 'Plano de ação executivo';
   const description = String(actionPlan.descricao || '').trim() || 'Delegação automática gerada pelo Diretor IA.';
   const priority = normalizePriority(actionPlan.impacto, actionPlan.prioridade_score);
-  const dueAt = actionPlan.prazo_dias ? new Date(Date.now() + Number(actionPlan.prazo_dias) * 24 * 60 * 60 * 1000).toISOString() : null;
+  const dueAt = resolveTaskDueDate(priority);
   const metadata = {
     generated_by: 'diretor_delegacao',
     action_plan_status: actionPlan.status || null,
@@ -105,6 +126,7 @@ function buildTaskPayload(actionPlan = {}) {
     prioridade: priority || 'medium',
     status: 'open',
     due_at: dueAt,
+    completed_at: null,
     percentual_conclusao: 0,
     metadata,
     created_at: nowIso(),
@@ -126,10 +148,11 @@ function rowFromPayload(payload = {}) {
     titulo: String(payload.titulo || payload.title || '').trim() || null,
     description: payload.description ?? payload.descricao ?? null,
     descricao: payload.descricao ?? payload.description ?? null,
-    priority: String(payload.priority || payload.prioridade || 'medium').trim() || 'medium',
-    prioridade: String(payload.prioridade || payload.priority || 'medium').trim() || 'medium',
+    priority: normalizeTaskPriority(payload.priority || payload.prioridade || 'medium'),
+    prioridade: normalizeTaskPriority(payload.prioridade || payload.priority || 'medium'),
     status,
-    due_at: payload.due_at ?? null,
+    due_at: payload.due_at ?? resolveTaskDueDate(payload.priority || payload.prioridade || 'medium'),
+    completed_at: payload.completed_at ?? null,
     percentual_conclusao: Math.max(0, Math.min(100, Number(payload.percentual_conclusao ?? 0) || 0)),
     metadata: { ...(payload.metadata || {}), normalized_dedupe_key: payload?.metadata?.normalized_dedupe_key || dedupeKeyFromRow({ account_id: payload.account_id, action_plan_id: payload.action_plan_id, manager_id, manager_name, status }) },
     criado_em: payload.criado_em || nowIso(),
@@ -450,6 +473,20 @@ export async function listDirectorTasks(accountId, filters = {}) {
   return pageItems;
 }
 
+export function isDirectorTaskOverdue(task, referenceTime = Date.now()) {
+  if (!task?.due_at) return false;
+  const dueTime = new Date(task.due_at).getTime();
+  if (Number.isNaN(dueTime)) return false;
+  return dueTime < referenceTime && !['done', 'dismissed'].includes(normalizeStatus(task.status));
+}
+
+export function getDirectorTaskRemainingDays(task, referenceTime = Date.now()) {
+  if (!task?.due_at) return null;
+  const dueTime = new Date(task.due_at).getTime();
+  if (Number.isNaN(dueTime)) return null;
+  return Math.ceil((dueTime - referenceTime) / (24 * 60 * 60 * 1000));
+}
+
 export async function updateDirectorTaskStatus(id, accountId, status) {
   assertAccountId(accountId);
   const rawStatus = String(status || '').trim().toLowerCase();
@@ -462,7 +499,8 @@ export async function updateDirectorTaskStatus(id, accountId, status) {
     if (error) throw new DatabaseError('Falha ao consultar tarefa', { details: error });
     if (!current) throw new NotFoundError('Tarefa nao encontrada', { domain: 'ai-director-tasks' });
     const percentual = normalizedStatus === 'done' ? 100 : current.percentual_conclusao;
-    const { data, error: updateError } = await supabase.from('ai_director_tasks').update({ status: normalizedStatus, percentual_conclusao: percentual, updated_at: nowIso() }).eq('id', id).eq('account_id', accountId).select('*').single();
+    const completionFields = normalizedStatus === 'done' ? { completed_at: current.completed_at || nowIso() } : {};
+    const { data, error: updateError } = await supabase.from('ai_director_tasks').update({ status: normalizedStatus, percentual_conclusao: percentual, ...completionFields, updated_at: nowIso() }).eq('id', id).eq('account_id', accountId).select('*').single();
     if (updateError) throw new DatabaseError('Falha ao atualizar tarefa', { details: updateError });
     if (normalizedStatus === 'done') {
       await createAiDirectorEvent({
@@ -482,6 +520,7 @@ export async function updateDirectorTaskStatus(id, accountId, status) {
   if (!current) throw new NotFoundError('Tarefa nao encontrada', { domain: 'ai-director-tasks' });
   current.status = normalizedStatus;
   current.percentual_conclusao = current.status === 'done' ? 100 : current.percentual_conclusao;
+  current.completed_at = normalizedStatus === 'done' ? (current.completed_at || nowIso()) : current.completed_at;
   current.updated_at = nowIso();
   current.updated_at = current.updated_at || nowIso();
   if (normalizedStatus === 'done') {

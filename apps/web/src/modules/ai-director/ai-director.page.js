@@ -82,7 +82,24 @@ function isTaskOverdue(task) {
 
 function formatTaskDue(task) {
   if (!task?.due_at) return 'Sem vencimento';
-  return `${formatCompactDate(task.due_at)}${isTaskOverdue(task) ? ' · atrasada' : ''}`;
+  const remaining = getTaskRemainingDays(task);
+  const remainingLabel = Number.isFinite(remaining) ? (remaining < 0 ? `${Math.abs(remaining)}d em atraso` : `${remaining}d restantes`) : '';
+  return `${formatCompactDate(task.due_at)}${remainingLabel ? ` · ${remainingLabel}` : ''}`;
+}
+
+function getTaskRemainingDays(task) {
+  if (!task?.due_at) return null;
+  const due = new Date(task.due_at);
+  if (Number.isNaN(due.getTime())) return null;
+  return Math.ceil((due.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+}
+
+function getTaskLeadTimeHours(task) {
+  if (!task?.completed_at || !task?.created_at) return null;
+  const start = new Date(task.created_at);
+  const end = new Date(task.completed_at);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  return Math.max(0, (end.getTime() - start.getTime()) / 36e5);
 }
 
 function formatManagerLabel(value) {
@@ -515,10 +532,14 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
     const taskActionMessage = state.taskActionMessage;
     const taskActionError = state.taskActionError;
     const taskKpis = {
-      open: tasks.filter((task) => String(task.status || '').toLowerCase() === 'open').length,
-      in_progress: tasks.filter((task) => String(task.status || '').toLowerCase() === 'in_progress').length,
-      done: tasks.filter((task) => String(task.status || '').toLowerCase() === 'done').length,
-      overdue: tasks.filter((task) => isTaskOverdue(task)).length
+      on_time: tasks.filter((task) => !isTaskOverdue(task) && String(task.status || '').toLowerCase() !== 'done').length,
+      overdue: tasks.filter((task) => isTaskOverdue(task)).length,
+      critical: tasks.filter((task) => String(task.priority || task.prioridade || '').toLowerCase() === 'critical').length,
+      avg_completion_hours: (() => {
+        const completed = tasks.filter((task) => String(task.status || '').toLowerCase() === 'done' && task.completed_at && task.created_at);
+        if (!completed.length) return 0;
+        return completed.reduce((sum, task) => sum + (getTaskLeadTimeHours(task) || 0), 0) / completed.length;
+      })()
     };
     const observations = (state.observations || []).filter((item) => observationCategoryMatchesFilter(item, state.observationsFilter));
     const eventKpis = state.eventKpis || { closedCycles: 0, reopenedCycles: 0, avgResolutionHours: 0, recurring: [] };
@@ -938,7 +959,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
                 ${['all', 'open', 'in_progress', 'done', 'dismissed'].map((status) => `<option value="${status}"${state.tasksFilter.status === status ? ' selected' : ''}>${status === 'all' ? 'Todos os status' : normalizeTaskStatusLabel(status)}</option>`).join('')}
               </select>
               <select id="ai-director-tasks-priority" class="nh-select" style="max-width: 180px;">
-                ${['all', 'high', 'medium', 'low'].map((priority) => `<option value="${priority}"${state.tasksFilter.priority === priority ? ' selected' : ''}>${priority === 'all' ? 'Todas as prioridades' : priority}</option>`).join('')}
+                ${['all', 'critical', 'high', 'medium', 'low'].map((priority) => `<option value="${priority}"${state.tasksFilter.priority === priority ? ' selected' : ''}>${priority === 'all' ? 'Todas as prioridades' : priority}</option>`).join('')}
               </select>
               <select id="ai-director-tasks-manager" class="nh-select" style="max-width: 220px;">
                 ${['all', ...new Set(tasks.map((task) => task.manager_id || task.manager_name || task.gerente).filter(Boolean))].map((manager) => `<option value="${manager}"${state.tasksFilter.manager === manager ? ' selected' : ''}>${manager === 'all' ? 'Todos os gerentes' : formatManagerLabel(manager)}</option>`).join('')}
@@ -949,14 +970,14 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
             </div>
           </div>
           <div class="nh-grid-4" style="margin-top: 14px;">
-            <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Abertas</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.open))}</div></div>
-            <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Em andamento</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.in_progress))}</div></div>
-            <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Concluídas</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.done))}</div></div>
-            <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Atrasadas</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.overdue))}</div></div>
+            <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Em prazo</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.on_time))}</div></div>
+            <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Vencidas</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.overdue))}</div></div>
+            <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Críticas</div><div class="nh-kpi-value">${esc(formatCount(taskKpis.critical))}</div></div>
+            <div class="nh-card" style="padding: 16px;"><div class="nh-kpi-label">Tempo médio de conclusão</div><div class="nh-kpi-value">${esc(Number.isFinite(Number(taskKpis.avg_completion_hours)) ? `${Number(taskKpis.avg_completion_hours).toFixed(1)}h` : '0h')}</div></div>
           </div>
           ${taskActionMessage ? `<p class="nh-mini" style="color:#4ce38a; margin-top: 10px;">${esc(taskActionMessage)}</p>` : ''}
           ${taskActionError ? `<p class="nh-mini" style="color:#ff8d8d; margin-top: 10px;">${esc(taskActionError)}</p>` : ''}
-          <div class="nh-list" style="margin-top: 14px;">
+              <div class="nh-list" style="margin-top: 14px;">
             ${tasks.length ? tasks.map((item) => `
               <div class="nh-list-item">
                 <div class="nh-between">
@@ -964,7 +985,7 @@ export async function renderAiDirectorPage(container, { apiClient, isActiveRoute
                   <span class="nh-badge ${badgeClass(item.status)}">${esc(item.status)}</span>
                 </div>
                 <div class="nh-mini" style="margin-top: 6px;">Gerente: ${esc(item.manager_name || item.gerente || '—')} · categoria ${esc(item.category || '—')} · prioridade ${esc(item.priority || item.prioridade || '—')}</div>
-                <div class="nh-mini" style="margin-top: 6px;">Plano de ação: ${esc(item.action_plan_id || '—')} · vencimento ${esc(formatTaskDue(item))}</div>
+                <div class="nh-mini" style="margin-top: 6px;">Plano de ação: ${esc(item.action_plan_id || '—')} · vencimento ${esc(formatTaskDue(item))}${isTaskOverdue(item) ? ' · atraso' : ''}</div>
                 <div style="margin-top: 8px;">${esc(item.description || item.descricao || '—')}</div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top: 10px;">
                   ${String(item.status || '').toLowerCase() !== 'done' ? `<button class="nh-button task-complete-button" data-task-id="${esc(item.id)}" type="button"${state.taskActionLoadingId === item.id ? ' disabled' : ''}>${state.taskActionLoadingId === item.id ? 'Concluindo...' : 'Concluir tarefa'}</button>` : ''}

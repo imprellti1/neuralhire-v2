@@ -12,6 +12,7 @@ create table if not exists public.ai_director_tasks (
   priority text not null default 'medium',
   status text not null default 'open',
   due_at timestamptz null,
+  completed_at timestamptz null,
   percentual_conclusao integer not null default 0,
   metadata jsonb not null default '{}'::jsonb,
   criado_em timestamptz not null default now(),
@@ -40,6 +41,9 @@ alter table if exists public.ai_director_tasks
 
 alter table if exists public.ai_director_tasks
   add column if not exists due_at timestamptz;
+
+alter table if exists public.ai_director_tasks
+  add column if not exists completed_at timestamptz;
 
 alter table if exists public.ai_director_tasks
   alter column category set default 'geral';

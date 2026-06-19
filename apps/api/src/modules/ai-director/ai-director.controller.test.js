@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getAiDirectorDashboardHandler, listAiDirectorEventsHandler } from './ai-director.controller.js';
+import { getAiDirectorDashboardHandler, listAiDirectorEventsHandler, listAiDirectorTasksHandler } from './ai-director.controller.js';
 
 test('ai director controller returns dashboard payload', async () => {
   const result = await getAiDirectorDashboardHandler();
@@ -23,6 +23,15 @@ test('ai director controller returns timeline payload', async () => {
   assert.ok(Array.isArray(result.items));
   assert.ok(result.kpis);
   assert.equal(typeof result.kpis.closedCycles, 'number');
+});
+
+test('ai director controller returns task listing contract', async () => {
+  const result = await listAiDirectorTasksHandler({ auth: { accountId: 'acc-test' }, query: { priority: 'high', page: '1', limit: '10' } });
+  assert.equal(result.ok, true);
+  assert.ok(Array.isArray(result.items));
+  assert.equal(typeof result.page, 'number');
+  assert.equal(typeof result.limit, 'number');
+  assert.equal(typeof result.total, 'number');
 });
 
 export function getAiDirectorControllerTests() {

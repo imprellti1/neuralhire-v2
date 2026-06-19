@@ -3,6 +3,7 @@ import test from 'node:test';
 import { getAiDirectorDashboard } from './ai-director.repository.js';
 import { __resetMemoryAiDirectorForTests, __setAiDirectorSupabaseClientForTests, createExecutiveMemory, listAiDirectorMemories, listExecutiveMemories } from './ai-director.repository.js';
 import { __resetMemoryAiDirectorEventsForTests, createAiDirectorEvent, listAiDirectorEvents } from './ai-director-events.repository.js';
+import { __resetMemoryAiDirectorTasksForTests, getDirectorTaskRemainingDays, isDirectorTaskOverdue, completeDirectorTask, upsertDirectorTask } from './ai-director-tasks.repository.js';
 
 test('ai director repository returns executive dashboard mock', async () => {
   __resetMemoryAiDirectorForTests();
@@ -123,6 +124,32 @@ test('ai director events repository stores and filters timeline entries', async 
   assert.equal(result.total, 1);
   assert.equal(result.items[0].recurrence_count, 2);
   assert.equal(result.items[0].event_type, 'observation_created');
+});
+
+test('ai director tasks calculate SLA fields and completion timestamp', async () => {
+  __resetMemoryAiDirectorTasksForTests();
+  const accountId = 'acc-test';
+  const created = await upsertDirectorTask({
+    account_id: accountId,
+    action_plan_id: 'plan-1',
+    manager_id: 'comercial',
+    manager_name: 'Gerente Comercial',
+    category: 'comercial',
+    title: 'Tarefa SLA',
+    description: 'Validar SLA',
+    priority: 'high',
+    status: 'open',
+    metadata: {}
+  });
+  assert.equal(created.task.priority, 'high');
+  assert.equal(typeof created.task.due_at, 'string');
+  assert.equal(created.task.completed_at, null);
+  assert.equal(isDirectorTaskOverdue({ ...created.task, due_at: '2026-01-01T00:00:00.000Z', status: 'open' }), true);
+  assert.equal(getDirectorTaskRemainingDays({ due_at: '2026-01-10T00:00:00.000Z', status: 'open' }, new Date('2026-01-08T00:00:00.000Z').getTime()), 2);
+
+  const completed = await completeDirectorTask(accountId, created.task.id, {});
+  assert.equal(completed.task.status, 'done');
+  assert.equal(typeof completed.task.completed_at, 'string');
 });
 
 export function getAiDirectorRepositoryTests() {

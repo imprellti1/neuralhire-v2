@@ -214,8 +214,8 @@ test('ai director page dom with radar and auto refresh', async () => {
       { id: 'e1', event_type: 'observation_created', entity_type: 'observacao', entity_id: 'o1', status: 'aberto', title: 'Queda de pipeline', description: 'Pipeline caiu.', recurrence_count: 2, created_at: '2026-06-12T12:00:00.000Z' }
     ],
     tasks: [
-      { id: 't1', [['account', 'id'].join('_')]: 'acc-a', action_plan_id: 'plan-1', manager_id: 'comercial', manager_name: 'Gerente Comercial', category: 'comercial', title: 'Contato carteira', description: 'Ligar para clientes em risco', priority: 'high', status: 'open', due_at: '2026-06-11T12:00:00.000Z', created_at: '2026-06-10T12:00:00.000Z', updated_at: '2026-06-10T12:00:00.000Z' },
-      { id: 't2', [['account', 'id'].join('_')]: 'acc-a', action_plan_id: 'plan-2', manager_id: 'produtos', manager_name: 'Gerente de Produtos', category: 'produtos', title: 'Revisar promoções', description: 'Ajustar campanhas', priority: 'medium', status: 'done', due_at: '2026-06-20T12:00:00.000Z', created_at: '2026-06-10T12:00:00.000Z', updated_at: '2026-06-10T12:00:00.000Z' }
+      { id: 't1', [['account', 'id'].join('_')]: 'acc-a', action_plan_id: 'plan-1', manager_id: 'comercial', manager_name: 'Gerente Comercial', category: 'comercial', title: 'Contato carteira', description: 'Ligar para clientes em risco', priority: 'critical', status: 'open', due_at: '2026-06-11T12:00:00.000Z', created_at: '2026-06-10T12:00:00.000Z', updated_at: '2026-06-10T12:00:00.000Z', completed_at: null },
+      { id: 't2', [['account', 'id'].join('_')]: 'acc-a', action_plan_id: 'plan-2', manager_id: 'produtos', manager_name: 'Gerente de Produtos', category: 'produtos', title: 'Revisar promoções', description: 'Ajustar campanhas', priority: 'medium', status: 'done', due_at: '2026-06-20T12:00:00.000Z', created_at: '2026-06-10T12:00:00.000Z', updated_at: '2026-06-10T12:00:00.000Z', completed_at: '2026-06-10T15:00:00.000Z' }
     ],
     askResult: {
       question: 'Por que o faturamento caiu?',
@@ -250,10 +250,12 @@ test('ai director page dom with radar and auto refresh', async () => {
   assert.match(document.body.textContent, /Queda de pipeline/);
   assert.match(document.body.textContent, /Orquestração dos Gerentes/);
   assert.match(document.body.textContent, /Central de Tarefas/);
-  assert.match(document.body.textContent, /Abertas/);
-  assert.match(document.body.textContent, /Atrasadas/);
+  assert.match(document.body.textContent, /Em prazo/);
+  assert.match(document.body.textContent, /Vencidas/);
+  assert.match(document.body.textContent, /Críticas/);
+  assert.match(document.body.textContent, /Tempo médio de conclusão/);
   assert.match(document.body.textContent, /Contato carteira/);
-  assert.match(document.body.textContent, /atrasada/);
+  assert.match(document.body.textContent, /em atraso|restantes/);
   assert.match(document.body.textContent, /1 alterações relevantes foram associadas a gerentes/);
   assert.match(document.body.textContent, /552 clientes importados recentemente/);
   assert.match(document.body.textContent, /Gerente Comercial/);
