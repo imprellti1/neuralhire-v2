@@ -1,0 +1,158 @@
+{
+  "name": "Evolution -> NeuralHire",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "evolution-neuralhire",
+        "responseMode": "onReceived",
+        "httpMethod": "POST"
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "propertyName": "event",
+        "rules": [
+          { "operation": "equals", "value2": "messages.upsert" },
+          { "operation": "equals", "value2": "send.message" },
+          { "operation": "equals", "value2": "messages.update" }
+        ]
+      },
+      "id": "event-switch",
+      "name": "Switch Event",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 2,
+      "position": [520, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.neuralhire.com.br/integrations/evolution/webhook",
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{$json}}",
+        "sendHeaders": true,
+        "headerParametersJson": "{\n  \"Content-Type\": \"application/json\",\n  \"x-account-id\": \"<ACCOUNT_ID>\"\n}"
+      },
+      "id": "http-neuralhire",
+      "name": "HTTP Request NeuralHire",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [800, 220]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":true,\"routed\":false}",
+        "options": {}
+      },
+      "id": "respond-ignore",
+      "name": "Respond Ignored",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [800, 420]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"ok\":true,\"forwarded\":true}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1040, 220]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.event}}",
+              "rightValue": "messages.upsert",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "if-process",
+      "name": "IF Process",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "operation": "set",
+        "key": "evolution_webhook_error",
+        "value": "={{$json}}"
+      },
+      "id": "log-error",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [1040, 380]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "IF Process",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Process": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request NeuralHire",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Ignored",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request NeuralHire": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "example"
+}

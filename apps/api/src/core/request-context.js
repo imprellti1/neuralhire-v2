@@ -9,6 +9,7 @@ export function createRequestContext(req) {
     query: parseQueryParams(req.url || '/'),
     startedAt: Date.now(),
     ip: req.socket?.remoteAddress || null,
-    userAgent: req.headers?.['user-agent'] || null
+    userAgent: req.headers?.['user-agent'] || null,
+    headers: req.headers || {}
   };
 }
