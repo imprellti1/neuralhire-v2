@@ -1,6 +1,6 @@
 import { logger } from '../../../core/logger.js';
 import { env } from '../../../config/env.js';
-import { createTimelineEventForCustomer, findCustomerByPhone, findOrCreateConversation, findOrCreateLead, linkMessageAfterSave, upsertWhatsappMessage } from './evolution.repository.js';
+import { createTimelineEventForCustomer, findCustomerByPhone, findOrCreateConversation, findOrCreateLead, linkMessageAfterSave, normalizeInstanceType, upsertWhatsappMessage } from './evolution.repository.js';
 import { mapEvolutionWebhookEvent, mapMessageDirection, mapSenderType, normalizeWhatsAppPhone } from './evolution.mapper.js';
 
 function allowHeaderAccountFallback() {
@@ -21,12 +21,19 @@ function resolveContactName(payload = {}, mapped = {}) {
   return payload.contact_name || payload.contactName || payload.name || mapped.instanceName || null;
 }
 
+function resolveInstanceType(context = {}) {
+  const headerValue = context.headers?.['x-instance-type'] || context.headers?.['X-Instance-Type'] || context.headers?.['X-INSTANCE-TYPE'] || null;
+  return normalizeInstanceType(headerValue || 'operational');
+}
+
 export async function processEvolutionWebhook(payload = {}, context = {}) {
   const { accountId, source } = resolveAccountId(context);
   const mapped = mapEvolutionWebhookEvent(payload);
+  const instanceType = resolveInstanceType(context);
   const phone = normalizeWhatsAppPhone({ remote_jid: mapped.remoteJid, phone: payload.phone, telefone: payload.telefone, celular: payload.celular, whatsapp: payload.whatsapp });
 
-  logger.info('evolution_webhook_received', { accountId, accountSource: source, eventType: mapped.eventType, instanceName: mapped.instanceName, remoteJid: mapped.remoteJid, phoneNormalized: phone });
+  logger.info('evolution_webhook_received', { accountId, accountSource: source, eventType: mapped.eventType, instanceName: mapped.instanceName, instanceType, remoteJid: mapped.remoteJid, phoneNormalized: phone });
+  logger.info('evolution_instance_type_detected', { accountId, instanceType, instanceName: mapped.instanceName, eventType: mapped.eventType });
 
   if (!accountId) {
     return { ok: false, processed: false, status: 'ignored', eventType: mapped.eventType || 'unknown', messageId: null, code: 'ACCOUNT_ID_REQUIRED' };
@@ -53,6 +60,7 @@ export async function processEvolutionWebhook(payload = {}, context = {}) {
     senderType: mapSenderType(direction),
     messageType: mapped.messageType,
     body: mapped.text,
+    metadata: { instance_type: instanceType, learning_only: instanceType === 'learning' },
     rawPayload: payload,
     receivedAt: new Date().toISOString()
   };
@@ -77,7 +85,7 @@ export async function processEvolutionWebhook(payload = {}, context = {}) {
       phoneNormalized: phone,
       contactName,
       lastMessageAt: new Date().toISOString(),
-      metadata: { source: 'evolution', event_type: mapped.eventType, instance_name: mapped.instanceName, match_strength: match.matchStrength, provider: 'evolution' }
+    metadata: { source: 'evolution', event_type: mapped.eventType, instance_name: mapped.instanceName, instance_type: instanceType, match_strength: match.matchStrength, provider: 'evolution' }
     });
     logger.info('evolution_conversation_linked', { accountId, messageId: mapped.messageId, conversationId: conversation?.id || null, clienteId: customer.id });
     await linkMessageAfterSave(messageResult.item, { conversationId: conversation?.id || null, clienteId: customer.id, phoneNormalized: phone }, { accountId });
@@ -95,7 +103,8 @@ export async function processEvolutionWebhook(payload = {}, context = {}) {
         conversation_id: conversation?.id || null,
         remote_jid: mapped.remoteJid,
         direction,
-        message_type: mapped.messageType
+        message_type: mapped.messageType,
+        instance_type: instanceType
       }
     }, { accountId });
 
@@ -106,7 +115,7 @@ export async function processEvolutionWebhook(payload = {}, context = {}) {
     }
 
     if (messageResult.status === 'created') {
-      logger.info('evolution_message_created', { accountId, eventType: mapped.eventType, messageId: mapped.messageId, direction });
+      logger.info(instanceType === 'learning' ? 'evolution_learning_message_ingested' : 'evolution_operational_message_ingested', { accountId, eventType: mapped.eventType, messageId: mapped.messageId, direction, instanceType });
     }
     return { ok: true, processed: true, messageId: mapped.messageId, eventType: mapped.eventType, status: messageResult.status === 'already_exists' ? 'already_exists' : 'created' };
   }
@@ -119,6 +128,7 @@ export async function processEvolutionWebhook(payload = {}, context = {}) {
     source: 'evolution',
     event_type: mapped.eventType,
     instance_name: mapped.instanceName,
+    instance_type: instanceType,
     provider: 'evolution',
     ...(ambiguous ? { match_candidates: match.candidates.map((item) => ({ id: item.id || null, nome: item.nome || null, telefone: item.telefone || item.celular || item.whatsapp || null })) } : {}),
     ...(match.matchStrength === 'weak' ? { match_strength: 'weak' } : {})
@@ -144,7 +154,7 @@ export async function processEvolutionWebhook(payload = {}, context = {}) {
     phoneNormalized: phone,
     contactName,
     lastMessageAt: new Date().toISOString(),
-    metadata: { source: 'evolution', event_type: mapped.eventType, instance_name: mapped.instanceName, provider: 'evolution', ...(ambiguous ? { match_candidates: leadMetadata.match_candidates } : {}) }
+    metadata: { source: 'evolution', event_type: mapped.eventType, instance_name: mapped.instanceName, instance_type: instanceType, provider: 'evolution', ...(ambiguous ? { match_candidates: leadMetadata.match_candidates } : {}) }
   });
 
   logger.info('evolution_conversation_linked', { accountId, messageId: mapped.messageId, conversationId: conversation?.id || null, leadId: lead?.id || null });
@@ -152,7 +162,7 @@ export async function processEvolutionWebhook(payload = {}, context = {}) {
   logger.info('evolution_message_attached', { accountId, messageId: mapped.messageId, conversationId: conversation?.id || null, leadId: lead?.id || null });
 
   if (messageResult.status === 'created') {
-    logger.info('evolution_message_created', { accountId, eventType: mapped.eventType, messageId: mapped.messageId, direction });
+    logger.info(instanceType === 'learning' ? 'evolution_learning_message_ingested' : 'evolution_operational_message_ingested', { accountId, eventType: mapped.eventType, messageId: mapped.messageId, direction, instanceType });
   }
 
   return { ok: true, processed: true, messageId: mapped.messageId, eventType: mapped.eventType, status: messageResult.status === 'already_exists' ? 'already_exists' : 'created' };

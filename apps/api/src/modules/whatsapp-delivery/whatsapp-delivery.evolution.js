@@ -15,6 +15,9 @@ export async function sendTextMessage({ phone, message, instance, apiUrl, apiKey
   if (!apiUrl || !apiKey || !instance) {
     return { ok: false, code: 'EVOLUTION_CONFIG_MISSING' };
   }
+  if (String(instance?.instanceType || instance?.instance_type || '').toLowerCase() === 'learning') {
+    return { ok: false, code: 'EVOLUTION_INSTANCE_LEARNING_BLOCKED' };
+  }
   const externalMessageId = `evo_${Date.now()}`;
   return { ok: true, externalMessageId, status: 'sent' };
 }

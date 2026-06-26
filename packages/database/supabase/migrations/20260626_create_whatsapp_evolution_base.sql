@@ -17,6 +17,7 @@ create table if not exists public.whatsapp_instances (
   provider text not null default 'evolution',
   instance_name text not null,
   phone_number text,
+  instance_type text not null default 'operational' check (instance_type in ('operational', 'learning')),
   status text not null default 'unknown',
   webhook_secret text,
   metadata jsonb not null default '{}'::jsonb,
@@ -56,6 +57,7 @@ create table if not exists public.whatsapp_messages (
   sender_type text not null check (sender_type in ('cliente', 'vendedor', 'agente', 'sistema', 'unknown')),
   message_type text,
   body text,
+  metadata jsonb not null default '{}'::jsonb,
   raw_payload jsonb not null default '{}'::jsonb,
   sent_at timestamptz,
   received_at timestamptz not null default now(),
@@ -130,6 +132,7 @@ alter table public.whatsapp_messages
   add column if not exists message_id text,
   add column if not exists remote_jid text,
   add column if not exists phone_normalized text,
+  add column if not exists metadata jsonb not null default '{}'::jsonb,
   add column if not exists raw_payload jsonb not null default '{}'::jsonb,
   add column if not exists received_at timestamptz not null default now(),
   add column if not exists updated_at timestamptz not null default now();
@@ -138,15 +141,19 @@ update public.whatsapp_messages
 set message_id = coalesce(message_id, external_message_id, id::text),
     remote_jid = coalesce(remote_jid, phone, ''),
     phone_normalized = coalesce(phone_normalized, phone),
+    metadata = coalesce(metadata, '{}'::jsonb),
     raw_payload = coalesce(raw_payload, '{}'::jsonb)
 where message_id is null
    or remote_jid is null
    or phone_normalized is null
+   or metadata is null
    or raw_payload is null;
 
 alter table public.whatsapp_messages
   alter column message_id set not null,
   alter column remote_jid set not null,
+  alter column metadata set default '{}'::jsonb,
+  alter column metadata set not null,
   alter column raw_payload set default '{}'::jsonb,
   alter column raw_payload set not null;
 
@@ -204,6 +211,7 @@ alter table public.whatsapp_customer_memories
   alter column conversation_id drop not null;
 
 create index if not exists idx_whatsapp_instances_account_id on public.whatsapp_instances (account_id);
+create index if not exists idx_whatsapp_instances_account_id_instance_type on public.whatsapp_instances (account_id, instance_type);
 create index if not exists idx_whatsapp_instances_instance_name on public.whatsapp_instances (instance_name);
 create index if not exists idx_whatsapp_instances_phone_number on public.whatsapp_instances (phone_number);
 

@@ -19,6 +19,11 @@ function normalizeProvider(provider = 'evolution') {
   return String(provider || 'evolution').trim() || 'evolution';
 }
 
+export function normalizeInstanceType(instanceType = 'operational') {
+  const normalized = String(instanceType || 'operational').trim().toLowerCase();
+  return normalized === 'learning' ? 'learning' : 'operational';
+}
+
 function normalizeDigits(value = '') {
   return String(value || '').replace(/[^0-9]/g, '');
 }
@@ -126,6 +131,7 @@ function buildMessageRow(payload, context = {}) {
     sender_type: payload.senderType,
     message_type: payload.messageType || null,
     body: payload.body || null,
+    metadata: payload.metadata || {},
     raw_payload: payload.rawPayload || {},
     sent_at: payload.sentAt || null,
     received_at: payload.receivedAt || now(),

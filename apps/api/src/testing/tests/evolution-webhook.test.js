@@ -170,6 +170,57 @@ export function getEvolutionWebhookTests() {
         assert.equal(out.res.statusCode, 200);
         assert.equal(out.body.ok, true);
       }
+    },
+    {
+      name: 'webhook operational preserva instance_type',
+      run: async () => {
+        resetState();
+        seedClientes([{ account_id: 'acc-evo-1', id: 'cli-1', nome: 'Ana', telefone: '5511999999999' }]);
+        const app = createApiApp();
+        await call(app, { event: 'messages.upsert', data: { message: { key: { id: 'm12', fromMe: false, remoteJid: '5511999999999@s.whatsapp.net' }, message: { conversation: 'oi' } } } }, { 'x-test-role': 'admin', 'x-test-account-id': 'acc-evo-1', 'x-instance-type': 'operational' });
+        const state = __dumpMemoryEvolution();
+        assert.equal(state.messages[0].metadata.instance_type, 'operational');
+        assert.equal(state.messages[0].metadata.learning_only, false);
+        assert.equal(state.conversations[0].metadata.instance_type, 'operational');
+        assert.equal(state.leads.length, 0);
+      }
+    },
+    {
+      name: 'webhook learning preserva metadata de aprendizado',
+      run: async () => {
+        resetState();
+        seedClientes([{ account_id: 'acc-evo-1', id: 'cli-1', nome: 'Ana', telefone: '5511888888888' }]);
+        const app = createApiApp();
+        await call(app, { event: 'messages.upsert', data: { message: { key: { id: 'm13', fromMe: false, remoteJid: '5511777777777@s.whatsapp.net' }, message: { conversation: 'oi' } } } }, { 'x-test-role': 'admin', 'x-test-account-id': 'acc-evo-1', 'x-instance-type': 'learning' });
+        const state = __dumpMemoryEvolution();
+        assert.equal(state.messages[0].metadata.instance_type, 'learning');
+        assert.equal(state.messages[0].metadata.learning_only, true);
+        assert.equal(state.conversations[0].metadata.instance_type, 'learning');
+        assert.equal(state.leads[0].metadata.instance_type, 'learning');
+      }
+    },
+    {
+      name: 'ausencia de header assume operational',
+      run: async () => {
+        resetState();
+        seedClientes([{ account_id: 'acc-evo-1', id: 'cli-1', nome: 'Ana', telefone: '5511999999999' }]);
+        const app = createApiApp();
+        await call(app, { event: 'messages.upsert', data: { message: { key: { id: 'm14', fromMe: false, remoteJid: '5511999999999@s.whatsapp.net' }, message: { conversation: 'oi' } } } }, { 'x-test-role': 'admin', 'x-test-account-id': 'acc-evo-1' });
+        const state = __dumpMemoryEvolution();
+        assert.equal(state.messages[0].metadata.instance_type, 'operational');
+      }
+    },
+    {
+      name: 'header invalido cai para operational',
+      run: async () => {
+        resetState();
+        seedClientes([{ account_id: 'acc-evo-1', id: 'cli-1', nome: 'Ana', telefone: '5511999999999' }]);
+        const app = createApiApp();
+        const out = await call(app, { event: 'messages.upsert', data: { message: { key: { id: 'm15', fromMe: false, remoteJid: '5511999999999@s.whatsapp.net' }, message: { conversation: 'oi' } } } }, { 'x-test-role': 'admin', 'x-test-account-id': 'acc-evo-1', 'x-instance-type': 'qualquer-coisa' });
+        assert.equal(out.body.ok, true);
+        const state = __dumpMemoryEvolution();
+        assert.equal(state.messages[0].metadata.instance_type, 'operational');
+      }
     }
   ];
 }
