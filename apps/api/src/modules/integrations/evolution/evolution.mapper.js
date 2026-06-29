@@ -1,3 +1,5 @@
+import { logger } from '../../../core/logger.js';
+
 const NON_DIGITS = /[^0-9]/g;
 const EVOLUTION_PAYLOAD_KEYS = [
   'provider',
@@ -45,6 +47,17 @@ export function normalizeWhatsAppPhone(value = '') {
 }
 
 export function mapEvolutionWebhookEvent(payload = {}) {
+  logger.info('evolution_mapper_shapes', {
+    rootKeys: Object.keys(payload || {}),
+    bodyKeys: payload?.body ? Object.keys(payload.body) : [],
+    rawKeys: payload?.raw ? Object.keys(payload.raw) : [],
+    rawBodyKeys: payload?.raw?.body ? Object.keys(payload.raw.body) : [],
+    hasBody: Boolean(payload?.body),
+    hasRaw: Boolean(payload?.raw),
+    hasRawBody: Boolean(payload?.raw?.body),
+    hasInstance: Boolean(payload?.instance),
+    hasEvent: Boolean(payload?.event),
+  });
   const resolvedPayload = resolveEvolutionPayload(payload);
   const rawPayload = resolvedPayload.raw && typeof resolvedPayload.raw === 'object' ? resolvedPayload.raw : null;
   const data = resolvedPayload.data || rawPayload?.data || resolvedPayload.message || resolvedPayload.messages?.[0] || rawPayload || resolvedPayload;
