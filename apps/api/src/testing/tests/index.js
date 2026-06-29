@@ -36,6 +36,7 @@ const suiteSpecs = [
   ['Clientes Pagination', './clientes-pagination.test.js', 'getClientesPaginationTests'],
   ['Clientes Tenant', './clientes-tenant.test.js', 'getClientesTenantTests'],
   ['Clientes RLS Contract', './clientes-rls-contract.test.js', 'getClientesRlsContractTests'],
+  ['WhatsApp Instances Migration', './whatsapp-instances-migration.test.js', 'getWhatsappInstancesMigrationTests'],
   ['Produtos Repository', './produtos-repository.test.js', 'getProdutosRepositoryTests'],
   ['Produtos Pagination', './produtos-pagination.test.js', 'getProdutosPaginationTests'],
   ['Produtos Tenant', './produtos-tenant.test.js', 'getProdutosTenantTests'],
