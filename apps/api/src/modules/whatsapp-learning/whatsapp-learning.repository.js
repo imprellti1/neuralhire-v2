@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { DatabaseError, ForbiddenError } from '../../core/errors.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
+import { buildMediaAttachment } from '../media-manager/media-manager.js';
 
 const memoryEvents = [];
 
@@ -43,18 +44,6 @@ function inferDocumentContentType(messageType, metadata = {}) {
   if (normalizedType === 'csv' || mimeType === 'text/csv' || fileName.endsWith('.csv')) return 'csv';
   if (normalizedType === 'document') return 'document';
   return normalizedType;
-}
-
-function buildAttachment(type, metadata = {}, extra = {}) {
-  return {
-    type,
-    mime_type: metadata.mime_type || metadata.mimeType || null,
-    file_name: metadata.file_name || metadata.fileName || null,
-    url: metadata.url || metadata.file_url || metadata.fileUrl || null,
-    storage_key: metadata.storage_key || metadata.storageKey || null,
-    ...extra,
-    metadata: buildMetadata(metadata.metadata, metadata.original_metadata)
-  };
 }
 
 function buildRow(data = {}) {
@@ -105,14 +94,22 @@ export function buildWhatsappLearningNormalizedPayload(event = {}) {
     text = body;
   } else if (contentType === 'image') {
     text = caption;
-    attachments.push(buildAttachment('image', metadata, { caption }));
+    attachments.push(buildMediaAttachment('image', metadata, {
+      metadata: buildMetadata(metadata.metadata, metadata.original_metadata)
+    }));
   } else if (contentType === 'audio') {
-    attachments.push(buildAttachment('audio', metadata, { duration_seconds: metadata.duration_seconds ?? metadata.durationSeconds ?? null }));
+    attachments.push(buildMediaAttachment('audio', metadata, {
+      metadata: buildMetadata(metadata.metadata, metadata.original_metadata)
+    }));
   } else if (contentType === 'video') {
     text = caption;
-    attachments.push(buildAttachment('video', metadata, { caption, duration_seconds: metadata.duration_seconds ?? metadata.durationSeconds ?? null }));
+    attachments.push(buildMediaAttachment('video', metadata, {
+      metadata: buildMetadata(metadata.metadata, metadata.original_metadata)
+    }));
   } else if (['pdf', 'spreadsheet', 'csv', 'document'].includes(contentType)) {
-    attachments.push(buildAttachment(contentType, metadata));
+    attachments.push(buildMediaAttachment(contentType, metadata, {
+      metadata: buildMetadata(metadata.metadata, metadata.original_metadata)
+    }));
   } else if (contentType === 'location') {
     return {
       version: 1,
@@ -183,7 +180,9 @@ export function buildWhatsappLearningNormalizedPayload(event = {}) {
       })
     };
   } else if (contentType === 'sticker') {
-    attachments.push(buildAttachment('sticker', metadata));
+    attachments.push(buildMediaAttachment('sticker', metadata, {
+      metadata: buildMetadata(metadata.metadata, metadata.original_metadata)
+    }));
   } else {
     return {
       version: 1,

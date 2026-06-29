@@ -11,6 +11,7 @@ import XLSX from 'xlsx';
 import { __loadMemoryEvolutionForTests, __resetMemoryEvolutionForTests } from '../../modules/integrations/evolution/evolution.repository.js';
 import { __dumpMemoryWhatsappLearningForTests, __resetMemoryWhatsappLearningForTests, createLearningEvent } from '../../modules/whatsapp-learning/whatsapp-learning.repository.js';
 import { runWhatsappLearningWorker } from '../../modules/whatsapp-learning/whatsapp-learning.service.js';
+import { buildMediaAttachment, generateMediaSha256 } from '../../modules/media-manager/media-manager.js';
 
 function parse(res) { try { return JSON.parse(res.body || '{}'); } catch { return {}; } }
 
@@ -225,13 +226,24 @@ export function getWhatsappLearningTests() {
         assert.equal(byId.get('msg-image').normalized_payload.extraction.status, 'not_applicable');
         assert.equal(byId.get('msg-image').normalized_payload.text, 'legenda da imagem');
         assert.equal(byId.get('msg-image').normalized_payload.attachments[0].type, 'image');
+        assert.equal(byId.get('msg-image').normalized_payload.attachments[0].media_status, 'pending');
+        assert.equal(byId.get('msg-image').normalized_payload.attachments[0].ocr_status, 'pending');
+        assert.equal(byId.get('msg-image').normalized_payload.attachments[0].transcription_status, null);
+        assert.equal(byId.get('msg-image').normalized_payload.attachments[0].thumbnail_status, null);
+        assert.equal(byId.get('msg-image').normalized_payload.attachments[0].mime_type, 'image/jpeg');
+        assert.ok(byId.get('msg-image').normalized_payload.attachments[0].sha256);
         assert.equal(byId.get('msg-audio').normalized_payload.content_type, 'audio');
         assert.equal(byId.get('msg-audio').normalized_payload.extraction.status, 'not_applicable');
         assert.equal(byId.get('msg-audio').normalized_payload.text, '');
         assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].duration_seconds, 12);
+        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].media_status, 'pending');
+        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].ocr_status, null);
+        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].transcription_status, 'pending');
         assert.equal(byId.get('msg-video').normalized_payload.content_type, 'video');
         assert.equal(byId.get('msg-video').normalized_payload.extraction.status, 'not_applicable');
         assert.equal(byId.get('msg-video').normalized_payload.text, 'legenda do video');
+        assert.equal(byId.get('msg-video').normalized_payload.attachments[0].media_status, 'pending');
+        assert.equal(byId.get('msg-video').normalized_payload.attachments[0].thumbnail_status, 'pending');
         assert.equal(byId.get('msg-pdf').normalized_payload.content_type, 'pdf');
         assert.equal(byId.get('msg-pdf').normalized_payload.extraction.status, 'pending');
         assert.equal(byId.get('msg-spreadsheet').normalized_payload.content_type, 'spreadsheet');
@@ -252,11 +264,64 @@ export function getWhatsappLearningTests() {
         assert.equal(byId.get('msg-sticker').normalized_payload.content_type, 'sticker');
         assert.equal(byId.get('msg-sticker').normalized_payload.extraction.status, 'not_applicable');
         assert.equal(byId.get('msg-sticker').normalized_payload.attachments[0].type, 'sticker');
+        assert.equal(byId.get('msg-sticker').normalized_payload.attachments[0].media_status, 'pending');
         assert.equal(byId.get('msg-unknown').normalized_payload.content_type, 'unknown');
         assert.equal(byId.get('msg-unknown').normalized_payload.extraction.status, 'not_applicable');
         assert.ok(events.every((item) => item.status === 'normalized'));
         assert.ok(events.every((item) => item.normalized_at));
         assert.ok(events.every((item) => Array.isArray(item.normalized_payload.attachments)));
+      }
+    },
+    {
+      name: 'media manager gera hash e preserva metadados estruturais',
+      run: async () => {
+        const first = buildMediaAttachment('image', {
+          mime_type: 'image/jpeg',
+          file_name: 'foto.jpg',
+          file_size: 123456,
+          width: 1920,
+          height: 1080,
+          url: 'https://example.com/foto.jpg',
+          storage_key: 'whatsapp/acc-1/foto.jpg',
+          metadata: { source: 'evolution' }
+        });
+        const second = buildMediaAttachment('image', {
+          mime_type: 'image/jpeg',
+          file_name: 'foto.jpg',
+          file_size: 123456,
+          width: 1920,
+          height: 1080,
+          url: 'https://example.com/foto.jpg',
+          storage_key: 'whatsapp/acc-1/foto.jpg',
+          metadata: { source: 'evolution' }
+        });
+        assert.equal(first.type, 'image');
+        assert.equal(first.mime_type, 'image/jpeg');
+        assert.equal(first.file_name, 'foto.jpg');
+        assert.equal(first.file_size, 123456);
+        assert.equal(first.width, 1920);
+        assert.equal(first.height, 1080);
+        assert.equal(first.url, 'https://example.com/foto.jpg');
+        assert.equal(first.storage_key, 'whatsapp/acc-1/foto.jpg');
+        assert.equal(first.storage_provider, null);
+        assert.equal(first.storage_bucket, null);
+        assert.equal(first.media_status, 'pending');
+        assert.equal(first.ocr_status, 'pending');
+        assert.equal(first.transcription_status, null);
+        assert.equal(first.thumbnail_status, null);
+        assert.equal(first.metadata.source, 'evolution');
+        assert.equal(first.sha256, second.sha256);
+        assert.equal(first.sha256, generateMediaSha256({
+          type: 'image',
+          mime_type: 'image/jpeg',
+          file_name: 'foto.jpg',
+          file_size: 123456,
+          width: 1920,
+          height: 1080,
+          url: 'https://example.com/foto.jpg',
+          storage_key: 'whatsapp/acc-1/foto.jpg',
+          metadata: { source: 'evolution' }
+        }));
       }
     },
     {
@@ -413,6 +478,59 @@ export function getWhatsappLearningTests() {
         assert.equal(byId.get('msg-pdf').normalized_text, '');
         assert.equal(byId.get('msg-pdf').metadata.original_metadata.source, 'legacy');
         assert.equal(byId.get('msg-docx').normalized_payload.extraction.status, 'empty');
+      }
+    },
+    {
+      name: 'worker preserva url e storage_key nos attachments sem baixar mídia',
+      run: async () => {
+        reset();
+        await seedLearningEvent('msg-image', {
+          message_type: 'image',
+          mime_type: 'image/png',
+          file_name: 'image.png',
+          url: 'https://example.com/image.png',
+          storage_key: 'bucket/path/image.png',
+          file_size: 321,
+          width: 640,
+          height: 480
+        }, '');
+        await seedLearningEvent('msg-audio', {
+          message_type: 'audio',
+          mime_type: 'audio/ogg',
+          file_name: 'audio.ogg',
+          url: 'https://example.com/audio.ogg',
+          storage_key: 'bucket/path/audio.ogg',
+          duration_seconds: 18
+        }, '');
+        await seedLearningEvent('msg-video', {
+          message_type: 'video',
+          mime_type: 'video/mp4',
+          file_name: 'video.mp4',
+          url: 'https://example.com/video.mp4',
+          storage_key: 'bucket/path/video.mp4',
+          duration_seconds: 44
+        }, '');
+        await seedLearningEvent('msg-sticker', {
+          message_type: 'sticker',
+          mime_type: 'image/webp',
+          file_name: 'sticker.webp',
+          url: 'https://example.com/sticker.webp',
+          storage_key: 'bucket/path/sticker.webp'
+        }, '');
+        await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+        const byId = new Map(__dumpMemoryWhatsappLearningForTests().map((item) => [item.whatsapp_message_id, item]));
+        assert.equal(byId.get('msg-image').normalized_payload.attachments[0].url, 'https://example.com/image.png');
+        assert.equal(byId.get('msg-image').normalized_payload.attachments[0].storage_key, 'bucket/path/image.png');
+        assert.equal(byId.get('msg-image').normalized_payload.attachments[0].media_status, 'pending');
+        assert.equal(byId.get('msg-image').normalized_payload.attachments[0].ocr_status, 'pending');
+        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].url, 'https://example.com/audio.ogg');
+        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].storage_key, 'bucket/path/audio.ogg');
+        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].transcription_status, 'pending');
+        assert.equal(byId.get('msg-video').normalized_payload.attachments[0].url, 'https://example.com/video.mp4');
+        assert.equal(byId.get('msg-video').normalized_payload.attachments[0].storage_key, 'bucket/path/video.mp4');
+        assert.equal(byId.get('msg-video').normalized_payload.attachments[0].thumbnail_status, 'pending');
+        assert.equal(byId.get('msg-sticker').normalized_payload.attachments[0].url, 'https://example.com/sticker.webp');
+        assert.equal(byId.get('msg-sticker').normalized_payload.attachments[0].storage_key, 'bucket/path/sticker.webp');
       }
     },
     {
