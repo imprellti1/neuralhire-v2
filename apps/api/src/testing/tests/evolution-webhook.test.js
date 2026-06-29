@@ -118,6 +118,7 @@ export function getEvolutionWebhookTests() {
         assert.equal(state.messages[0].instance_id, 'inst-1');
         assert.equal(state.messages[0].message_id, 'm-n8n-1');
         assert.equal(state.messages[0].phone, '5511999999999');
+        assert.equal(state.messages[0].conversation_id, state.conversations[0].id);
         assert.equal(state.messages[0].event_type, 'messages.upsert');
         assert.equal(state.conversations[0].instance_id, 'inst-1');
         assert.equal(state.conversations[0].cliente_id, 'cli-1');
@@ -182,6 +183,42 @@ export function getEvolutionWebhookTests() {
         assert.equal(out.body.ok, true);
         const state = __dumpMemoryEvolution();
         assert.equal(state.messages[0].phone, '555199640252');
+      }
+    },
+    {
+      name: 'webhook idempotente reaproveita conversation_id da conversa persistida',
+      run: async () => {
+        resetState();
+        seedClientes([{ account_id: 'acc-evo-1', id: 'cli-1', nome: 'Ana', telefone: '5511999999999' }]);
+        seedInstances([{ account_id: 'acc-evo-1', instance_name: 'main', instance_type: 'operational' }]);
+        const app = createApiApp();
+        await call(app, {
+          provider: 'evolution',
+          instance: 'main',
+          instanceType: 'operational',
+          event: 'messages.upsert',
+          direction: 'inbound',
+          messageId: 'm-n8n-idem-1',
+          remoteJid: '5511999999999@s.whatsapp.net',
+          phone: '5511999999999',
+          text: 'Mensagem 1',
+          timestamp: '2026-06-29T12:03:00.000Z'
+        });
+        await call(app, {
+          provider: 'evolution',
+          instance: 'main',
+          instanceType: 'operational',
+          event: 'messages.upsert',
+          direction: 'inbound',
+          messageId: 'm-n8n-idem-1',
+          remoteJid: '5511999999999@s.whatsapp.net',
+          phone: '5511999999999',
+          text: 'Mensagem 1',
+          timestamp: '2026-06-29T12:03:00.000Z'
+        });
+        const state = __dumpMemoryEvolution();
+        assert.equal(state.messages.length, 1);
+        assert.equal(state.messages[0].conversation_id, state.conversations[0].id);
       }
     },
     {

@@ -184,6 +184,52 @@ function buildLeadRow(payload, context = {}) {
   };
 }
 
+async function findSupabaseConversation(accountId, instanceId, remoteJid) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new DatabaseError('Supabase indisponivel');
+  const { data, error } = await supabase
+    .from('whatsapp_conversations')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('instance_id', instanceId)
+    .eq('remote_jid', remoteJid)
+    .maybeSingle();
+  if (error) throw new DatabaseError('Falha ao buscar conversa WhatsApp', { details: error });
+  return data || null;
+}
+
+async function insertSupabaseConversation(payload, context = {}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new DatabaseError('Supabase indisponivel');
+  const row = buildConversationRow(payload, context);
+  const { data, error } = await supabase.from('whatsapp_conversations').insert(row).select('*').single();
+  if (error) throw new DatabaseError('Falha ao salvar conversa WhatsApp', { details: error });
+  return data || row;
+}
+
+async function findSupabaseLead(accountId, instanceId, remoteJid) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new DatabaseError('Supabase indisponivel');
+  const { data, error } = await supabase
+    .from('whatsapp_leads')
+    .select('*')
+    .eq('account_id', accountId)
+    .eq('instance_id', instanceId)
+    .eq('remote_jid', remoteJid)
+    .maybeSingle();
+  if (error) throw new DatabaseError('Falha ao buscar lead WhatsApp', { details: error });
+  return data || null;
+}
+
+async function insertSupabaseLead(payload, context = {}) {
+  const supabase = getSupabaseClient();
+  if (!supabase) throw new DatabaseError('Supabase indisponivel');
+  const row = buildLeadRow(payload, context);
+  const { data, error } = await supabase.from('whatsapp_leads').insert(row).select('*').single();
+  if (error) throw new DatabaseError('Falha ao salvar lead WhatsApp', { details: error });
+  return data || row;
+}
+
 export function __resetMemoryEvolutionForTests() {
   memoryMessages.length = 0;
   memoryConversations.length = 0;
@@ -273,6 +319,11 @@ export async function findOrCreateLead({ accountId, instanceId, remoteJid, phone
       metadata: { ...(existing.metadata || {}), ...(metadata || {}) }
     });
   }
+  if (getClientesRepositoryMode().mode === 'supabase') {
+    const found = await findSupabaseLead(accountId, instanceId, remoteJid);
+    if (found) return found;
+    return insertSupabaseLead({ instanceId, remoteJid, phoneNormalized, contactName, metadata, firstMessageAt, lastMessageAt }, { accountId });
+  }
   const item = buildLeadRow({ instanceId, remoteJid, phoneNormalized, contactName, metadata, firstMessageAt, lastMessageAt }, { accountId });
   memoryLeads.push(item);
   return item;
@@ -291,6 +342,13 @@ export async function findOrCreateConversation({ accountId, instanceId, clienteI
       status: 'open',
       metadata: { ...(existing.metadata || {}), ...(metadata || {}) }
     });
+  }
+  if (getClientesRepositoryMode().mode === 'supabase') {
+    const found = await findSupabaseConversation(accountId, instanceId, remoteJid);
+    if (found) {
+      return found;
+    }
+    return insertSupabaseConversation({ instanceId, clienteId, leadId, remoteJid, phoneNormalized, contactName, lastMessageAt, metadata }, { accountId });
   }
   const item = buildConversationRow({ instanceId, clienteId, leadId, remoteJid, phoneNormalized, contactName, lastMessageAt, metadata }, { accountId });
   memoryConversations.push(item);
