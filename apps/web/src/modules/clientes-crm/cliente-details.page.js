@@ -1,5 +1,5 @@
 import { createClienteDetailsState } from './cliente-details.state.js';
-import { calcularScoreCliente, calcularSegmentacaoCliente, enriquecerCliente, fetchAlertasCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, gerarAlertasCliente, geolocalizarCliente, resolverAlertaCliente } from './cliente-details.service.js';
+import { calcularScoreCliente, calcularSegmentacaoCliente, enriquecerCliente, fetchAlertasCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, fetchWhatsappConversationMessagesCliente, fetchWhatsappConversationsCliente, gerarAlertasCliente, geolocalizarCliente, resolverAlertaCliente } from './cliente-details.service.js';
 import { fetchClienteTimeline } from './cliente-timeline.service.js';
 
 function fmtCurrency(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
@@ -129,10 +129,14 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   let alertasLoading = false;
   let alertMessage = '';
   let feedbackMessage = '';
+  let whatsappLoading = false;
+  let whatsappMessagesLoading = false;
+  let whatsappActiveConversationId = null;
   const groupAccordionState = new Map();
   const pedidoAccordionState = new Map();
   const pedidoItemDetails = new Map();
   const pedidoItemLoading = new Set();
+  const whatsappMessagesCache = new Map();
 
   function injectStyles() {
     if (document.getElementById('nh-cliente-details-style')) return;
@@ -182,6 +186,19 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-item-note{font-size:12px;color:#62759a}
     .nho2d-mini-loading{padding:10px 0;color:#62759a;font-size:13px}
     .nho2d-crm-empty{padding:18px;border:1px dashed #d5e0f3;border-radius:12px;color:#5b6c90;background:#fbfcff}
+    .nho2d-whatsapp{display:grid;grid-template-columns:minmax(260px,340px) minmax(0,1fr);gap:14px;min-height:520px}
+    .nho2d-whatsapp-list{display:grid;gap:10px}
+    .nho2d-whatsapp-item{border:1px solid #e5ecf8;border-radius:12px;padding:14px;background:#fbfdff;cursor:pointer;display:grid;gap:6px;text-align:left}
+    .nho2d-whatsapp-item.is-active{border-color:#95b2ff;background:#eef4ff}
+    .nho2d-whatsapp-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+    .nho2d-whatsapp-title{font-weight:700;color:#10264b}
+    .nho2d-whatsapp-meta{color:#62759a;font-size:12px;display:flex;flex-wrap:wrap;gap:8px}
+    .nho2d-whatsapp-preview{color:#46587a;font-size:13px;line-height:1.4}
+    .nho2d-whatsapp-thread{display:grid;gap:10px}
+    .nho2d-whatsapp-msg{max-width:78%;padding:12px 14px;border-radius:14px;border:1px solid #dde7f6;background:#f8fbff;display:grid;gap:4px}
+    .nho2d-whatsapp-msg.is-inbound{margin-right:auto;background:#fff}
+    .nho2d-whatsapp-msg.is-outbound{margin-left:auto;background:#eaf2ff;border-color:#c9dbff}
+    .nho2d-whatsapp-msg-meta{color:#64748b;font-size:12px}
     .nho2d-alert-card{display:grid;gap:12px}
     .nho2d-alert-list{display:grid;gap:10px}
     .nho2d-alert-item{border:1px solid #e5ecf8;border-radius:12px;padding:14px;background:#fbfdff;display:grid;gap:8px}
@@ -217,6 +234,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     if (key === 'enriquecimento') return 'Enriquecimento';
     if (key === 'geolocalizacao') return 'Geolocalização';
     if (key === 'timeline') return 'Timeline';
+    if (key === 'whatsapp') return 'WhatsApp';
     return 'Geral';
   }
 
@@ -278,7 +296,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         <button id="nhcd-back" class="nho2-btn" style="background:#fff;color:#1f56dc">Voltar</button>
       </div>
       <div class="nho2d-tabs" role="tablist" aria-label="Detalhes do cliente">
-        ${['geral', 'comercial', 'crm', 'enriquecimento', 'geolocalizacao', 'timeline'].map((tab) => `<button class="nho2d-tab ${activeTab === tab ? 'is-active' : ''}" data-tab="${tab}" role="tab" aria-selected="${activeTab === tab ? 'true' : 'false'}">${getTabLabel(tab)}</button>`).join('')}
+        ${['geral', 'comercial', 'crm', 'enriquecimento', 'geolocalizacao', 'timeline', 'whatsapp'].map((tab) => `<button class="nho2d-tab ${activeTab === tab ? 'is-active' : ''}" data-tab="${tab}" role="tab" aria-selected="${activeTab === tab ? 'true' : 'false'}">${getTabLabel(tab)}</button>`).join('')}
       </div>
     `;
   }
@@ -672,6 +690,41 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     `;
   }
 
+  function renderWhatsappConversationItem(conversation) {
+    const active = String(whatsappActiveConversationId || '') === String(conversation?.id || '');
+    const instanceType = String(conversation?.instance_type || 'operational');
+    return `<button class="nho2d-whatsapp-item ${active ? 'is-active' : ''}" data-whatsapp-conversation-id="${conversation.id}">
+      <div class="nho2d-whatsapp-head">
+        <div class="nho2d-whatsapp-title">${safeText(conversation.contact_name || conversation.phone || 'Conversa')}</div>
+        <span class="nho2-badge">${safeText(instanceType, 'operational')}</span>
+      </div>
+      <div class="nho2d-whatsapp-meta">
+        <span><strong>Última msg:</strong> ${formatDateFriendly(conversation.last_message_at)}</span>
+        <span><strong>Mensagens:</strong> ${conversation.message_count ?? 0}</span>
+        <span><strong>Direção:</strong> ${safeText(conversation.direction_last_message, '-')}</span>
+      </div>
+      <div class="nho2d-whatsapp-preview">${safeText(conversation.last_message_preview || 'Sem prévia')}</div>
+    </button>`;
+  }
+
+  function renderWhatsapp(d) {
+    const conversations = Array.isArray(d?.whatsappConversations) ? d.whatsappConversations : [];
+    const activeConversation = conversations.find((conversation) => String(conversation?.id || '') === String(whatsappActiveConversationId || '')) || conversations[0] || null;
+    const messages = activeConversation ? (whatsappMessagesCache.get(activeConversation.id) || []) : [];
+    return `<div class="nho2d-section">
+      <article class="nho2d-card">
+        <div class="nho2d-header" style="margin-bottom:12px">
+          <div>
+            <h3 style="margin:0 0 4px">WhatsApp</h3>
+            <div class="nho2d-sub">Aba somente leitura com conversas vinculadas ao cliente e histórico da conversa selecionada.</div>
+          </div>
+        </div>
+        ${whatsappLoading ? '<div class="nho2d-mini-loading">Carregando conversas...</div>' : ''}
+        ${conversations.length ? `<div class="nho2d-whatsapp"><div class="nho2d-whatsapp-list">${conversations.map((conversation) => renderWhatsappConversationItem(conversation)).join('')}</div><div class="nho2d-card" style="margin:0"><div class="nho2d-header" style="margin-bottom:12px"><div><h3 style="margin:0 0 4px">${safeText(activeConversation?.contact_name || activeConversation?.phone || 'Conversa')}</h3><div class="nho2d-sub">${safeText(activeConversation?.instance_name || 'Instância não informada')} • ${safeText(activeConversation?.instance_type || 'operational')}</div></div></div>${whatsappMessagesLoading ? '<div class="nho2d-mini-loading">Carregando mensagens...</div>' : messages.length ? `<div class="nho2d-whatsapp-thread">${messages.map((message) => `<div class="nho2d-whatsapp-msg ${message.direction === 'inbound' ? 'is-inbound' : 'is-outbound'}"><div>${safeText(message.text, message.message_type || 'Mensagem')}</div><div class="nho2d-whatsapp-msg-meta">${formatDateFriendly(message.sent_at || message.created_at)}</div></div>`).join('')}</div>` : '<div class="nho2d-crm-empty">Selecione uma conversa para ver as mensagens.</div>'}</div></div>` : '<div class="nho2d-crm-empty">Nenhuma conversa WhatsApp vinculada a este cliente.</div>'}
+      </article>
+    </div>`;
+  }
+
   function renderGruposComerciais(d) {
     const grupos = Array.isArray(d?.gruposComerciais) ? d.gruposComerciais : [];
     return `<article class="nho2d-card"><h3>Grupos Comerciais</h3>${grupos.length ? `<div class="nho2d-stack">${grupos.map((grupo) => `<div class="nho2d-crm-empty"><strong>${safeText(grupo.nome)}</strong>${grupo.descricao ? `<div class="nho2d-item-note">${safeText(grupo.descricao)}</div>` : ''}</div>`).join('')}</div>` : '<div class="nho2d-crm-empty">Nenhum grupo comercial vinculado.</div>'}</article>`;
@@ -691,6 +744,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       ${activeTab === 'enriquecimento' ? renderEnriquecimento(d) : ''}
       ${activeTab === 'geolocalizacao' ? renderGeolocalizacao(d) : ''}
       ${activeTab === 'timeline' ? renderTimeline(d) : ''}
+      ${activeTab === 'whatsapp' ? renderWhatsapp(d) : ''}
     </section>`;
   }
 
@@ -891,6 +945,27 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         render();
       };
     });
+    root.querySelectorAll('[data-whatsapp-conversation-id]').forEach((button) => {
+      button.onclick = async () => {
+        const conversationId = button.getAttribute('data-whatsapp-conversation-id');
+        whatsappActiveConversationId = conversationId;
+        if (!whatsappMessagesCache.has(conversationId)) {
+          whatsappMessagesLoading = true;
+          render();
+          try {
+            const response = await fetchWhatsappConversationMessagesCliente(apiClient, clienteId, conversationId);
+            whatsappMessagesCache.set(conversationId, Array.isArray(response?.items) ? response.items : []);
+          } catch {
+            whatsappMessagesCache.set(conversationId, []);
+          } finally {
+            whatsappMessagesLoading = false;
+            render();
+          }
+          return;
+        }
+        render();
+      };
+    });
   }
 
   async function load() {
@@ -905,6 +980,13 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       state.data = { ...state.data, cliente_alertas: Array.isArray(alertas?.items) ? alertas.items : [] };
       const timeline = await fetchClienteTimeline(apiClient, clienteId).catch(() => ({ items: [] }));
       state.data = { ...state.data, timeline: Array.isArray(timeline?.items) ? timeline.items : [] };
+      const whatsappConversations = await fetchWhatsappConversationsCliente(apiClient, clienteId).catch(() => ({ items: [] }));
+      state.data = { ...state.data, whatsappConversations: Array.isArray(whatsappConversations?.items) ? whatsappConversations.items : [] };
+      whatsappActiveConversationId = state.data.whatsappConversations[0]?.id || null;
+      if (whatsappActiveConversationId) {
+        const messages = await fetchWhatsappConversationMessagesCliente(apiClient, clienteId, whatsappActiveConversationId).catch(() => ({ items: [] }));
+        whatsappMessagesCache.set(whatsappActiveConversationId, Array.isArray(messages?.items) ? messages.items : []);
+      }
       syncPedidoState();
     } catch (error) {
       if (error?.status === 404) state.notFound = true;

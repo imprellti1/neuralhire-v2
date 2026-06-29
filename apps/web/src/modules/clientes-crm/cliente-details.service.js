@@ -43,6 +43,14 @@ export async function fetchAlertasCliente(apiClient, clienteId) {
   return apiClient.get(`/clientes/${clienteId}/alertas`);
 }
 
+export async function fetchWhatsappConversationsCliente(apiClient, clienteId) {
+  return apiClient.get(`/clientes/${clienteId}/whatsapp/conversations`);
+}
+
+export async function fetchWhatsappConversationMessagesCliente(apiClient, clienteId, conversationId) {
+  return apiClient.get(`/clientes/${clienteId}/whatsapp/conversations/${conversationId}/messages`);
+}
+
 export async function resolverAlertaCliente(apiClient, alertaId) {
   return apiClient.patch(`/clientes/alertas/${alertaId}/resolver`, { status: 'resolvido' });
 }

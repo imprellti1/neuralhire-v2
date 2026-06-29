@@ -77,6 +77,15 @@
       "content-type": "application/json"
     },
     "method": "GET",
+    "path": "/clientes/c1/whatsapp/conversations",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
     "path": "/clientes/c1",
     "query": {}
   },
@@ -118,6 +127,15 @@
     },
     "method": "GET",
     "path": "/clientes/c1/timeline",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/clientes/c1/whatsapp/conversations",
     "query": {}
   },
   {
@@ -181,6 +199,15 @@
     },
     "method": "GET",
     "path": "/clientes/c1/timeline",
+    "query": {}
+  },
+  {
+    "body": null,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "GET",
+    "path": "/clientes/c1/whatsapp/conversations",
     "query": {}
   }
 ]

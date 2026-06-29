@@ -1,6 +1,6 @@
 import { normalizeAddMessagePayload, normalizeConversationListFilters, normalizeConversationStatus, normalizeCreateConversationPayload, normalizeEventPayload, normalizeStatusPayload } from './whatsapp-conversations.schemas.js';
 import { getWhatsappConversationContext } from './whatsapp-context.repository.js';
-import { addEvent, addMessage, createConversation, getConversationDetail, getConversationById, getWhatsappConversationsRepositoryMode, listConversations, listEvents, listMessages, updateConversationStatus } from './whatsapp-conversations.repository.js';
+import { addEvent, addMessage, createConversation, getConversationDetail, getConversationById, getWhatsappConversationsRepositoryMode, listConversations, listConversationsByCliente, listEvents, listMessages, listMessagesByClienteConversation, updateConversationStatus } from './whatsapp-conversations.repository.js';
 import { mapConversation, mapEvents, mapMessages } from './whatsapp-conversations.mapper.js';
 import { getMessageDraftById, listMessageDraftsByConversation } from '../message-drafts/message-drafts.repository.js';
 import { getApprovalByDraftId } from '../message-approvals/message-approvals.repository.js';
@@ -75,4 +75,48 @@ export async function getWhatsappConversationDraftStateHandler(context = {}) {
     approval: approval || { status: null, reviewer: null, comment: null },
     delivery
   };
+}
+
+function mapConversationSummary(item = {}) {
+  return {
+    id: item?.id || null,
+    provider: item?.provider || 'evolution',
+    instance_name: item?.instance_name || item?.instanceName || null,
+    instance_type: item?.instance_type || item?.instanceType || 'operational',
+    phone: item?.phone || null,
+    contact_name: item?.contact_name || item?.contactName || null,
+    last_message_at: item?.last_message_at || null,
+    last_message_preview: item?.last_message_preview || item?.lastMessagePreview || null,
+    message_count: Number(item?.message_count || item?.messageCount || 0),
+    direction_last_message: item?.direction_last_message || item?.directionLastMessage || null,
+    created_at: item?.created_at || null,
+    updated_at: item?.updated_at || null
+  };
+}
+
+function mapWhatsappMessage(item = {}) {
+  return {
+    id: item?.id || null,
+    message_id: item?.message_id || item?.external_message_id || null,
+    direction: item?.direction || null,
+    message_type: item?.message_type || null,
+    text: item?.text || item?.body || null,
+    media_url: item?.media_url || null,
+    sent_at: item?.sent_at || item?.received_at || null,
+    raw_payload: item?.raw_payload || item?.metadata || null,
+    created_at: item?.created_at || null
+  };
+}
+
+export async function listClienteWhatsappConversationsHandler(context = {}) {
+  const clienteId = String(context?.params?.id || '').trim();
+  const conversations = await listConversationsByCliente(clienteId, { accountId: context.accountId });
+  return { ok: true, repositoryMode: getWhatsappConversationsRepositoryMode(), items: conversations.map(mapConversationSummary) };
+}
+
+export async function listClienteWhatsappConversationMessagesHandler(context = {}) {
+  const clienteId = String(context?.params?.id || '').trim();
+  const conversationId = String(context?.params?.conversationId || '').trim();
+  const messages = await listMessagesByClienteConversation(clienteId, conversationId, { accountId: context.accountId });
+  return { ok: true, repositoryMode: getWhatsappConversationsRepositoryMode(), items: messages.map(mapWhatsappMessage) };
 }

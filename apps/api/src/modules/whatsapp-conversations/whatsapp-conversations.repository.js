@@ -93,6 +93,54 @@ export async function listMessages(conversationId, options = {}) {
   return messages.filter((item) => item.account_id === accountId && item.conversation_id === conversationId).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
 }
 
+export async function listConversationsByCliente(clienteId, options = {}) {
+  const accountId = options.accountId || null; assertAccountId(accountId);
+  const normalizedClienteId = String(clienteId || '').trim();
+  if (!normalizedClienteId) throw new ValidationError('Parametro clienteId obrigatorio', { code: 'VALIDATION_ERROR', domain: 'whatsapp-conversations' });
+  if (mode() === 'supabase') {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('whatsapp_conversations')
+      .select('*')
+      .eq('account_id', accountId)
+      .eq('cliente_id', normalizedClienteId)
+      .order('last_message_at', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false, nullsFirst: false });
+    if (error) throw new DatabaseError(error.message || 'Falha ao listar conversas WhatsApp');
+    return data || [];
+  }
+  return conversations
+    .filter((item) => item.account_id === accountId && String(item.cliente_id || '') === normalizedClienteId)
+    .sort((a, b) => String(b.last_message_at || b.created_at || '').localeCompare(String(a.last_message_at || a.created_at || '')));
+}
+
+export async function listMessagesByClienteConversation(clienteId, conversationId, options = {}) {
+  const accountId = options.accountId || null; assertAccountId(accountId);
+  const normalizedClienteId = String(clienteId || '').trim();
+  const normalizedConversationId = String(conversationId || '').trim();
+  if (!normalizedClienteId) throw new ValidationError('Parametro clienteId obrigatorio', { code: 'VALIDATION_ERROR', domain: 'whatsapp-conversations' });
+  if (!normalizedConversationId) throw new ValidationError('Parametro conversationId obrigatorio', { code: 'VALIDATION_ERROR', domain: 'whatsapp-conversations' });
+  const conversation = await getConversationById(normalizedConversationId, options);
+  if (String(conversation.cliente_id || '') !== normalizedClienteId) {
+    throw new NotFoundError('Conversa nao encontrada', { code: 'WHATSAPP_CONVERSATION_NOT_FOUND', domain: 'whatsapp-conversations' });
+  }
+  if (mode() === 'supabase') {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('whatsapp_messages')
+      .select('*')
+      .eq('account_id', accountId)
+      .eq('cliente_id', normalizedClienteId)
+      .eq('conversation_id', normalizedConversationId)
+      .order('created_at', { ascending: true, nullsFirst: false });
+    if (error) throw new DatabaseError(error.message || 'Falha ao listar mensagens WhatsApp');
+    return data || [];
+  }
+  return messages
+    .filter((item) => item.account_id === accountId && item.conversation_id === normalizedConversationId && String(item.cliente_id || '') === normalizedClienteId)
+    .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+}
+
 export async function listEvents(conversationId, options = {}) {
   const accountId = options.accountId || null; assertAccountId(accountId);
   await getConversationById(conversationId, options);

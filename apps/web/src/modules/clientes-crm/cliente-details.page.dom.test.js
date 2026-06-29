@@ -794,3 +794,57 @@ test('cliente details mostra alertas comerciais, gera e resolve sem reload', asy
 
   teardownFrontendDom(dom);
 });
+
+test('cliente details mostra aba WhatsApp com conversas e mensagens selecionáveis', async () => {
+  const dom = setupFrontendDom('#/clientes/c1');
+  const root = document.getElementById('root');
+  const calls = [];
+  const apiClient = {
+    get: async (url, params = {}) => {
+      calls.push({ method: 'GET', url, params });
+      if (url === '/clientes/c1') {
+        return { item: { id: 'c1', empresa: 'Cliente WhatsApp', cidade: 'São Paulo', estado: 'SP', created_at: '2026-05-01T00:00:00.000Z', status: 'ativo' } };
+      }
+      if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
+      if (url === '/clientes/c1/timeline') return { items: [] };
+      if (url === '/clientes/c1/whatsapp/conversations') {
+        return {
+          items: [
+            { id: 'conv-1', provider: 'evolution', instance_name: 'inst-1', instance_type: 'operational', phone: '11999999999', contact_name: 'Ana', last_message_at: '2026-06-12T10:00:00.000Z', last_message_preview: 'Bom dia', message_count: 2, direction_last_message: 'outbound', created_at: '2026-06-10T10:00:00.000Z', updated_at: '2026-06-12T10:00:00.000Z' },
+            { id: 'conv-2', provider: 'evolution', instance_name: 'inst-2', instance_type: 'learning', phone: '11888888888', contact_name: 'Bruno', last_message_at: '2026-06-11T10:00:00.000Z', last_message_preview: 'Olá', message_count: 1, direction_last_message: 'inbound', created_at: '2026-06-09T10:00:00.000Z', updated_at: '2026-06-11T10:00:00.000Z' }
+          ]
+        };
+      }
+      if (url === '/clientes/c1/whatsapp/conversations/conv-1/messages') {
+        return { items: [{ id: 'm1', message_id: 'msg-1', direction: 'inbound', message_type: 'text', text: 'Oi', media_url: null, sent_at: '2026-06-12T09:00:00.000Z', raw_payload: {}, created_at: '2026-06-12T09:00:00.000Z' }, { id: 'm2', message_id: 'msg-2', direction: 'outbound', message_type: 'text', text: 'Tudo bem?', media_url: null, sent_at: '2026-06-12T10:00:00.000Z', raw_payload: {}, created_at: '2026-06-12T10:00:00.000Z' }] };
+      }
+      if (url === '/clientes/c1/alertas') return { items: [] };
+      return { items: [] };
+    }
+  };
+
+  renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
+  await flush();
+  await flush();
+
+  root.querySelector('[data-tab="whatsapp"]')?.click();
+  await flush();
+  await flush();
+
+  assert.match(root.textContent, /WhatsApp/);
+  assert.match(root.textContent, /operational/);
+  assert.match(root.textContent, /Bom dia/);
+  assert.match(root.textContent, /Anainst-1|Selecione uma conversa/);
+
+  root.querySelector('[data-whatsapp-conversation-id="conv-1"]')?.click();
+  await flush();
+  await flush();
+
+  assert.match(root.textContent, /Oi/);
+  assert.match(root.textContent, /Tudo bem\?/);
+  assert.match(root.textContent, /learning/);
+  assert.ok(calls.some((call) => call.url === '/clientes/c1/whatsapp/conversations'));
+  assert.ok(calls.some((call) => call.url === '/clientes/c1/whatsapp/conversations/conv-1/messages'));
+
+  teardownFrontendDom(dom);
+});

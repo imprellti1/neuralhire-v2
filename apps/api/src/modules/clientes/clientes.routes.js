@@ -1,6 +1,7 @@
 import { asyncHandler } from '../../core/async-handler.js';
 import { sendSuccess } from '../../core/response.js';
 import { calcularScoreClienteHandler, calcularSegmentacaoClienteHandler, createClienteHandler, enrichClienteHandler, geolocalizarClienteHandler, gerarAlertasClienteHandler, getAlertasClienteHandler, getClienteByIdHandler, getClientes, getTimelineClienteHandler, resolverAlertaClienteHandler, updateClienteHandler } from './clientes.controller.js';
+import { listClienteWhatsappConversationMessagesHandler, listClienteWhatsappConversationsHandler } from '../whatsapp-conversations/whatsapp-conversations.controller.js';
 import { getClientesRadarHandler, recalcularClientesRadarHandler } from './clientes.radar.controller.js';
 import { createClienteSchema, updateClienteSchema } from './clientes.schemas.js';
 
@@ -121,6 +122,24 @@ export function registerClientesRoutes(router) {
     domain: 'clientes-crm',
     handler: asyncHandler(async (req, res, context) => {
       sendSuccess(res, await getTimelineClienteHandler(context));
+    })
+  });
+
+  router.registerRoute({
+    method: 'GET',
+    path: '/clientes/:id/whatsapp/conversations',
+    domain: 'clientes-crm',
+    handler: asyncHandler(async (req, res, context) => {
+      sendSuccess(res, await listClienteWhatsappConversationsHandler(context));
+    })
+  });
+
+  router.registerRoute({
+    method: 'GET',
+    path: '/clientes/:id/whatsapp/conversations/:conversationId/messages',
+    domain: 'clientes-crm',
+    handler: asyncHandler(async (req, res, context) => {
+      sendSuccess(res, await listClienteWhatsappConversationMessagesHandler(context));
     })
   });
 

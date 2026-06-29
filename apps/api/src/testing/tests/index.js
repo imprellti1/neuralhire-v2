@@ -26,6 +26,7 @@ const suiteSpecs = [
   ['Clientes Repository', './clientes-repository.test.js', 'getClientesRepositoryTests'],
   ['Clientes Enrichment', './clientes-enrichment.test.js', 'getClientesEnrichmentTests'],
   ['Clientes Timeline', './clientes-timeline.test.js', 'getClientesTimelineTests'],
+  ['Clientes WhatsApp', './clientes-whatsapp.test.js', 'getClientesWhatsappTests'],
   ['Clientes Score', './clientes-score.test.js', 'getClientesScoreTests'],
   ['Clientes Segmentacao', './clientes-segmentacao.test.js', 'getClientesSegmentacaoTests'],
   ['Clientes Alerts', './clientes-alerts.test.js', 'getClientesAlertsTests'],

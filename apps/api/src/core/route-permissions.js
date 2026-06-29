@@ -16,6 +16,8 @@ export const ROUTE_PERMISSIONS = {
   'GET /clientes/radar': { authenticated: true, permission: 'clientes:read', tenantRequired: true, domain: 'clientes-crm' },
   'POST /clientes/radar/recalcular': { authenticated: true, permission: 'clientes:write', tenantRequired: true, domain: 'clientes-crm' },
   'GET /clientes/:id': { authenticated: true, permission: 'clientes:read', tenantRequired: true, domain: 'clientes-crm' },
+  'GET /clientes/:id/whatsapp/conversations': { authenticated: true, permission: 'clientes:read', tenantRequired: true, domain: 'clientes-crm' },
+  'GET /clientes/:id/whatsapp/conversations/:conversationId/messages': { authenticated: true, permission: 'clientes:read', tenantRequired: true, domain: 'clientes-crm' },
   'POST /clientes': { authenticated: true, permission: 'clientes:write', tenantRequired: true, domain: 'clientes-crm' },
   'PATCH /clientes/:id': { authenticated: true, permission: 'clientes:write', tenantRequired: true, domain: 'clientes-crm' },
   'POST /clientes/:id/enriquecer': { authenticated: true, permission: 'clientes:write', tenantRequired: true, domain: 'clientes-crm' },

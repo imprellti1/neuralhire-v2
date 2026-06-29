@@ -168,6 +168,8 @@ export function mapClienteDetailsData({ cliente = null, pedidos = [], clienteId,
     produtosComprados,
     gruposComerciais,
     crmConversations: [],
+    whatsappConversations: [],
+    whatsappMessagesByConversation: {},
     timeline: Array.isArray(timeline) ? timeline.map((item) => ({ ...item })) : [],
     auditoria: { criadoEm: dataCadastro, atualizadoEm: asDate(normalizedCliente?.updated_at || normalizedCliente?.updatedAt), origem: normalizedCliente?.origem || null }
   };
