@@ -34,12 +34,12 @@
         "url": "https://api.neuralhire.com.br/integrations/evolution/webhook",
         "sendBody": true,
         "contentType": "json",
-        "jsonBody": "={{$json}}",
+        "jsonBody": "={{ {\n  provider: 'evolution',\n  instance: $json.instance,\n  instanceType: 'operational',\n  event: $json.event,\n  direction: 'inbound',\n  messageId: $json.data?.key?.id || $json.messageId,\n  remoteJid: $json.data?.key?.remoteJid || $json.remoteJid,\n  phone: ($json.data?.key?.remoteJid || $json.remoteJid || '').replace(/\\D/g, ''),\n  text: $json.data?.message?.conversation || $json.text || '',\n  timestamp: $json.date_time || $json.timestamp || new Date().toISOString(),\n  raw: $json\n} }}",
         "sendHeaders": true,
         "headerParametersJson": "{\n  \"Content-Type\": \"application/json\",\n  \"x-account-id\": \"<ACCOUNT_ID>\"\n}"
       },
       "id": "http-neuralhire",
-      "name": "HTTP Request NeuralHire",
+      "name": "Enviar para NeuralHire1",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [800, 220]
@@ -124,7 +124,7 @@
       "main": [
         [
           {
-            "node": "HTTP Request NeuralHire",
+            "node": "Enviar para NeuralHire1",
             "type": "main",
             "index": 0
           }
@@ -138,7 +138,7 @@
         ]
       ]
     },
-    "HTTP Request NeuralHire": {
+    "Enviar para NeuralHire1": {
       "main": [
         [
           {

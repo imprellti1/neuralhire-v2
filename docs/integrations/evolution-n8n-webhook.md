@@ -45,13 +45,36 @@ Se houver um segredo de webhook configurado no backend no futuro, ele deve ser d
 
 ## Payload
 
-O n8n deve reenviar o payload original recebido da Evolution sem transformação pesada.
+O n8n deve montar um JSON real no node HTTP Request, sem enviar o body como texto ou como objeto aninhado numa chave vazia.
 
 Boas práticas:
 
 - não normalizar campos de negócio no n8n
 - não reestruturar o JSON além do necessário
 - não remover campos úteis de depuração
+- usar `Body Content Type = JSON`
+- usar `Specify Body = Using JSON`
+- devolver um objeto JavaScript real no campo JSON do node HTTP Request
+
+Configuração esperada do node `Enviar para NeuralHire1`:
+
+```js
+={{
+  {
+    provider: 'evolution',
+    instance: $json.instance,
+    instanceType: 'operational',
+    event: $json.event,
+    direction: 'inbound',
+    messageId: $json.data?.key?.id || $json.messageId,
+    remoteJid: $json.data?.key?.remoteJid || $json.remoteJid,
+    phone: ($json.data?.key?.remoteJid || $json.remoteJid || '').replace(/\D/g, ''),
+    text: $json.data?.message?.conversation || $json.text || '',
+    timestamp: $json.date_time || $json.timestamp || new Date().toISOString(),
+    raw: $json
+  }
+}}
+```
 
 Exemplo de encaminhamento:
 
@@ -94,4 +117,3 @@ Exemplo de encaminhamento:
 - Evento ignorado: `send.message` e `messages.update` podem passar pelo n8n, mas o backend atual só processa `messages.upsert`.
 - Duplicidade: o NeuralHire já aplica idempotência por `provider + message_id`, então reenvios controlados não devem gerar duplicação.
 - Falha pontual no NeuralHire: o n8n deve registrar o erro e permitir retry manual/controlado, sem loop infinito.
-
