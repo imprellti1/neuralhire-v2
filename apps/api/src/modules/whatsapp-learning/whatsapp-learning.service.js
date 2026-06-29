@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { buildWhatsappLearningNormalizedPayload, listPendingLearningEvents, normalizeLearningEvent } from './whatsapp-learning.repository.js';
 
 const MAX_EXTRACTED_TEXT_CHARS = 50000;
+const MAX_ROWS = 1000;
+const MAX_COLUMNS = 100;
 
 function safeErrorMessage(error) {
   const message = String(error?.message || error || 'Erro de extração');
@@ -20,8 +22,22 @@ function looksLikeDocx(metadata = {}) {
   return mimeType.includes('wordprocessingml') || fileName.endsWith('.docx');
 }
 
+function looksLikeSpreadsheet(metadata = {}, messageType = '') {
+  const mimeType = String(metadata.mime_type || metadata.mimeType || '').toLowerCase();
+  const fileName = String(metadata.file_name || metadata.fileName || '').toLowerCase();
+  const normalizedType = String(messageType || '').toLowerCase();
+  return normalizedType === 'spreadsheet' || mimeType.includes('spreadsheet') || mimeType.includes('excel') || fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+}
+
+function looksLikeCsv(metadata = {}, messageType = '') {
+  const mimeType = String(metadata.mime_type || metadata.mimeType || '').toLowerCase();
+  const fileName = String(metadata.file_name || metadata.fileName || '').toLowerCase();
+  const normalizedType = String(messageType || '').toLowerCase();
+  return normalizedType === 'csv' || mimeType === 'text/csv' || fileName.endsWith('.csv');
+}
+
 function buildExtractionState(status, extras = {}) {
-  return {
+  const state = {
     status,
     method: extras.method || null,
     text_length: extras.text_length ?? 0,
@@ -30,6 +46,12 @@ function buildExtractionState(status, extras = {}) {
     truncated: Boolean(extras.truncated),
     max_chars: extras.max_chars ?? null
   };
+  if (extras.rows_count !== undefined) state.rows_count = extras.rows_count;
+  if (extras.columns_count !== undefined) state.columns_count = extras.columns_count;
+  if (extras.sheets_count !== undefined) state.sheets_count = extras.sheets_count;
+  if (extras.rows_processed !== undefined) state.rows_processed = extras.rows_processed;
+  if (extras.rows_total !== undefined) state.rows_total = extras.rows_total;
+  return state;
 }
 
 async function loadFileBuffer(fileReference) {
@@ -72,18 +94,137 @@ async function extractDocxText(buffer) {
   return String(xml || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function parseCsvLine(line) {
+  const cells = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    const next = line[i + 1];
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (char === ',' && !inQuotes) {
+      cells.push(current);
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  if (inQuotes) throw new Error('CSV malformed input');
+  cells.push(current);
+  return cells.map((cell) => cell.trim());
+}
+
+function csvRowsToText(rows, { maxRows = MAX_ROWS, maxColumns = MAX_COLUMNS } = {}) {
+  if (!rows.length) return { text: '', rowsCount: 0, columnsCount: 0, truncated: false, rowsProcessed: 0, rowsTotal: 0 };
+  const header = rows[0].slice(0, maxColumns).map((cell, index) => String(cell || `Coluna ${index + 1}`).trim() || `Coluna ${index + 1}`);
+  const dataRows = rows.slice(1);
+  const rowsTotal = dataRows.length;
+  const rowsProcessed = Math.min(rowsTotal, maxRows);
+  const columnsCount = header.length;
+  const chunks = [];
+  for (let rowIndex = 0; rowIndex < rowsProcessed; rowIndex += 1) {
+    const row = dataRows[rowIndex].slice(0, maxColumns);
+    const lines = header.map((columnName, columnIndex) => `${columnName}=${String(row[columnIndex] ?? '').trim()}`);
+    chunks.push(`Linha ${rowIndex + 1}:\n${lines.join(' | ')}`);
+  }
+  return {
+    text: chunks.join('\n\n'),
+    rowsCount: rowsTotal,
+    columnsCount,
+    truncated: rowsTotal > maxRows || rows.some((row) => row.length > maxColumns),
+    rowsProcessed,
+    rowsTotal
+  };
+}
+
+async function extractCsvText(buffer) {
+  const raw = Buffer.isBuffer(buffer) ? buffer.toString('utf8') : String(buffer || '');
+  const normalized = raw.replace(/^\uFEFF/, '');
+  const lines = normalized.split(/\r\n|\n|\r/).map((line) => line.trimEnd()).filter((line) => line.trim().length > 0);
+  if (!lines.length) return { text: '', rowsCount: 0, columnsCount: 0, truncated: false, rowsProcessed: 0, rowsTotal: 0 };
+  const rows = lines.map(parseCsvLine);
+  return csvRowsToText(rows);
+}
+
+function sheetRowsToText(sheetRows, sheetName, { maxRows = MAX_ROWS, maxColumns = MAX_COLUMNS } = {}) {
+  const rows = Array.isArray(sheetRows) ? sheetRows : [];
+  if (!rows.length || rows.length <= 1) {
+    return { text: '', rowsCount: 0, columnsCount: 0, truncated: false, rowsProcessed: 0 };
+  }
+  const header = rows[0].slice(0, maxColumns).map((cell, index) => String(cell || `Coluna ${index + 1}`).trim() || `Coluna ${index + 1}`);
+  const dataRows = rows.slice(1);
+  const rowsProcessed = Math.min(dataRows.length, maxRows);
+  const chunks = [`Planilha: ${sheetName}`];
+  for (let rowIndex = 0; rowIndex < rowsProcessed; rowIndex += 1) {
+    const row = dataRows[rowIndex].slice(0, maxColumns);
+    const lines = header.map((columnName, columnIndex) => `${columnName}=${String(row[columnIndex] ?? '').trim()}`);
+    chunks.push(`Linha ${rowIndex + 1}:\n${lines.join(' | ')}`);
+  }
+  return {
+    text: chunks.join('\n\n'),
+    rowsCount: dataRows.length,
+    columnsCount: header.length,
+    truncated: dataRows.length > maxRows || rows.some((row) => row.length > maxColumns),
+    rowsProcessed
+  };
+}
+
+async function extractSpreadsheetText(buffer) {
+  const signature = Buffer.isBuffer(buffer) ? buffer.subarray(0, 2).toString('utf8') : String(buffer || '').slice(0, 2);
+  if (signature !== 'PK') {
+    throw new Error('XLSX malformed input');
+  }
+  const { default: XLSX } = await import('xlsx');
+  const workbook = XLSX.read(buffer, { type: 'buffer', cellText: false, cellFormula: false, cellDates: false });
+  const sheetNames = Array.isArray(workbook?.SheetNames) ? workbook.SheetNames : [];
+  if (!sheetNames.length) return { text: '', rowsCount: 0, columnsCount: 0, sheetsCount: 0, truncated: false, rowsProcessed: 0 };
+  const segments = [];
+  let rowsCount = 0;
+  let columnsCount = 0;
+  let rowsProcessed = 0;
+  let truncated = false;
+  for (const sheetName of sheetNames) {
+    const worksheet = workbook.Sheets?.[sheetName];
+    const rows = XLSX.utils.sheet_to_json(worksheet || {}, { header: 1, raw: true, blankrows: false });
+    const extracted = sheetRowsToText(rows, sheetName);
+    segments.push(extracted.text);
+    rowsCount += extracted.rowsCount;
+    columnsCount = Math.max(columnsCount, extracted.columnsCount);
+    rowsProcessed += extracted.rowsProcessed;
+    truncated = truncated || extracted.truncated;
+  }
+  return {
+    text: segments.filter(Boolean).join('\n\n'),
+    rowsCount,
+    columnsCount,
+    sheetsCount: sheetNames.length,
+    truncated,
+    rowsProcessed
+  };
+}
+
 function detectDocumentMethod(messageType, metadata = {}) {
   const mimeType = String(metadata.mime_type || metadata.mimeType || '').toLowerCase();
   const fileName = String(metadata.file_name || metadata.fileName || '').toLowerCase();
   if (messageType === 'pdf' || mimeType === 'application/pdf' || fileName.endsWith('.pdf')) return 'pdf_text_extraction';
   if (messageType === 'document' && looksLikeDocx(metadata)) return 'docx_text_extraction';
+  if (looksLikeSpreadsheet(metadata, messageType)) return 'spreadsheet_text_extraction';
+  if (looksLikeCsv(metadata, messageType)) return 'spreadsheet_text_extraction';
   return null;
 }
 
 async function extractNormalizedText(message = {}, normalizedPayload = {}) {
   const metadata = message.metadata && typeof message.metadata === 'object' && !Array.isArray(message.metadata) ? message.metadata : {};
   const contentType = normalizedPayload.content_type || 'unknown';
-  if (!['pdf', 'document'].includes(contentType)) {
+  if (!['pdf', 'document', 'spreadsheet', 'csv'].includes(contentType)) {
     return {
       normalizedPayload: {
         ...normalizedPayload,
@@ -121,20 +262,43 @@ async function extractNormalizedText(message = {}, normalizedPayload = {}) {
       return {
         normalizedPayload: {
           ...normalizedPayload,
-          extraction: buildExtractionState('empty', { method, extracted_at: new Date().toISOString() })
+          extraction: buildExtractionState('empty', {
+            method,
+            extracted_at: new Date().toISOString(),
+            rows_count: 0,
+            columns_count: 0,
+            sheets_count: contentType === 'csv' ? 1 : 0,
+            rows_processed: 0,
+            rows_total: 0
+          })
         },
         normalizedText: ''
       };
     }
 
-    const rawText = method === 'pdf_text_extraction' ? await extractPdfText(buffer) : await extractDocxText(buffer);
+    let extracted;
+    if (method === 'pdf_text_extraction') extracted = { text: await extractPdfText(buffer) };
+    else if (method === 'docx_text_extraction') extracted = { text: await extractDocxText(buffer) };
+    else if (method === 'spreadsheet_text_extraction' && contentType === 'csv') extracted = await extractCsvText(buffer);
+    else if (method === 'spreadsheet_text_extraction') extracted = await extractSpreadsheetText(buffer);
+    else extracted = { text: '' };
+    const rawText = extracted.text || '';
     const trimmedText = String(rawText || '').trim();
     if (!trimmedText) {
       return {
         normalizedPayload: {
           ...normalizedPayload,
           text: '',
-          extraction: buildExtractionState('empty', { method, extracted_at: new Date().toISOString() })
+          extraction: buildExtractionState('empty', {
+            method,
+            extracted_at: new Date().toISOString(),
+            rows_count: extracted.rowsCount ?? 0,
+            columns_count: extracted.columnsCount ?? 0,
+            sheets_count: extracted.sheetsCount ?? (contentType === 'csv' ? 1 : 0),
+            rows_processed: extracted.rowsProcessed ?? 0,
+            rows_total: extracted.rowsTotal ?? 0,
+            truncated: Boolean(extracted.truncated)
+          })
         },
         normalizedText: ''
       };
@@ -150,8 +314,13 @@ async function extractNormalizedText(message = {}, normalizedPayload = {}) {
           method,
           text_length: extractedText.length,
           extracted_at: new Date().toISOString(),
-          truncated,
-          max_chars: truncated ? MAX_EXTRACTED_TEXT_CHARS : null
+          truncated: truncated || Boolean(extracted.truncated),
+          max_chars: truncated ? MAX_EXTRACTED_TEXT_CHARS : null,
+          rows_count: extracted.rowsCount ?? 0,
+          columns_count: extracted.columnsCount ?? 0,
+          sheets_count: extracted.sheetsCount ?? (contentType === 'csv' ? 1 : 0),
+          rows_processed: extracted.rowsProcessed ?? 0,
+          rows_total: extracted.rowsTotal ?? 0
         })
       },
       normalizedText: extractedText

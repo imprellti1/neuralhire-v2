@@ -7,6 +7,7 @@ import { createApiApp } from '../../app.js';
 import { createTestRequest } from '../create-test-request.js';
 import { createTestResponse } from '../create-test-response.js';
 import JSZip from 'jszip';
+import XLSX from 'xlsx';
 import { __loadMemoryEvolutionForTests, __resetMemoryEvolutionForTests } from '../../modules/integrations/evolution/evolution.repository.js';
 import { __dumpMemoryWhatsappLearningForTests, __resetMemoryWhatsappLearningForTests, createLearningEvent } from '../../modules/whatsapp-learning/whatsapp-learning.repository.js';
 import { runWhatsappLearningWorker } from '../../modules/whatsapp-learning/whatsapp-learning.service.js';
@@ -79,6 +80,25 @@ async function createMinimalDocxBuffer(text) {
   </w:body>
 </w:document>`);
   return zip.generateAsync({ type: 'nodebuffer' });
+}
+
+async function createMinimalCsvFile(name, csv) {
+  return createTempFile(name, Buffer.from(csv, 'utf8'));
+}
+
+async function createMinimalXlsxBuffer(sheets) {
+  const workbook = XLSX.utils.book_new();
+  for (const [sheetName, rows] of Object.entries(sheets)) {
+    const worksheet = XLSX.utils.aoa_to_sheet(rows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+  }
+  return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+}
+
+async function createEmptyXlsxBuffer() {
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([]), 'Vazia');
+  return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 }
 
 async function seedLearningEvent(messageId, metadata = {}, body = '', extra = {}) {
@@ -215,9 +235,9 @@ export function getWhatsappLearningTests() {
         assert.equal(byId.get('msg-pdf').normalized_payload.content_type, 'pdf');
         assert.equal(byId.get('msg-pdf').normalized_payload.extraction.status, 'pending');
         assert.equal(byId.get('msg-spreadsheet').normalized_payload.content_type, 'spreadsheet');
-        assert.equal(byId.get('msg-spreadsheet').normalized_payload.extraction.status, 'not_applicable');
+        assert.equal(byId.get('msg-spreadsheet').normalized_payload.extraction.status, 'pending');
         assert.equal(byId.get('msg-csv').normalized_payload.content_type, 'csv');
-        assert.equal(byId.get('msg-csv').normalized_payload.extraction.status, 'not_applicable');
+        assert.equal(byId.get('msg-csv').normalized_payload.extraction.status, 'pending');
         assert.equal(byId.get('msg-document').normalized_payload.content_type, 'document');
         assert.equal(byId.get('msg-document').normalized_payload.extraction.status, 'pending');
         assert.equal(byId.get('msg-location').normalized_payload.content_type, 'location');
@@ -258,6 +278,124 @@ export function getWhatsappLearningTests() {
         assert.equal(byId.get('msg-docx').normalized_payload.extraction.status, 'extracted');
         assert.equal(byId.get('msg-docx').normalized_payload.extraction.method, 'docx_text_extraction');
         assert.equal(byId.get('msg-docx').normalized_text.includes('Texto do DOCX'), true);
+      }
+    },
+    {
+      name: 'worker extrai texto tabular de csv',
+      run: async () => {
+        reset();
+        const csvPath = await createMinimalCsvFile('sample.csv', 'Código,Produto,Quantidade\n1001,Toalha,12\n1002,Lençol,8');
+        await seedLearningEvent('msg-csv', { message_type: 'csv', mime_type: 'text/csv', file_name: 'sample.csv', url: pathToFileURL(csvPath).href }, '');
+        const result = await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+        assert.equal(result.processed, 1);
+        const updated = __dumpMemoryWhatsappLearningForTests()[0];
+        assert.equal(updated.normalized_payload.content_type, 'csv');
+        assert.equal(updated.normalized_payload.extraction.status, 'extracted');
+        assert.equal(updated.normalized_payload.extraction.method, 'spreadsheet_text_extraction');
+        assert.equal(updated.normalized_payload.extraction.rows_count, 2);
+        assert.equal(updated.normalized_payload.extraction.columns_count, 3);
+        assert.equal(updated.normalized_payload.extraction.sheets_count, 1);
+        assert.equal(updated.normalized_payload.text.includes('Linha 1:'), true);
+        assert.equal(updated.normalized_payload.text.includes('Código=1001 | Produto=Toalha | Quantidade=12'), true);
+        assert.equal(updated.normalized_text, updated.normalized_payload.text);
+      }
+    },
+    {
+      name: 'worker marca csv vazio como empty e preserva metadados',
+      run: async () => {
+        reset();
+        const csvPath = await createMinimalCsvFile('empty.csv', '');
+        await seedLearningEvent('msg-csv', { message_type: 'csv', mime_type: 'text/csv', file_name: 'empty.csv', url: pathToFileURL(csvPath).href, original_metadata: { source: 'legacy' } }, '');
+        await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+        const updated = __dumpMemoryWhatsappLearningForTests()[0];
+        assert.equal(updated.normalized_payload.extraction.status, 'empty');
+        assert.equal(updated.normalized_payload.extraction.rows_count, 0);
+        assert.equal(updated.normalized_payload.extraction.columns_count, 0);
+        assert.equal(updated.metadata.original_metadata.source, 'legacy');
+        assert.equal(updated.normalized_text, '');
+      }
+    },
+    {
+      name: 'worker marca csv invalido como failed',
+      run: async () => {
+        reset();
+        const csvPath = await createMinimalCsvFile('broken.csv', 'Código,Produto\n1001,"Toalha');
+        await seedLearningEvent('msg-csv', { message_type: 'csv', mime_type: 'text/csv', file_name: 'broken.csv', url: pathToFileURL(csvPath).href }, '');
+        await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+        const updated = __dumpMemoryWhatsappLearningForTests()[0];
+        assert.equal(updated.normalized_payload.extraction.status, 'failed');
+        assert.ok(String(updated.normalized_payload.extraction.error || '').length > 0);
+      }
+    },
+    {
+      name: 'worker trunca csv muito grande sem quebrar o worker',
+      run: async () => {
+        reset();
+        const rows = ['Código,Produto,Quantidade'];
+        for (let i = 1; i <= 1100; i += 1) rows.push(`${1000 + i},Produto ${i},${i}`);
+        const csvPath = await createMinimalCsvFile('large.csv', rows.join('\n'));
+        await seedLearningEvent('msg-csv', { message_type: 'csv', mime_type: 'text/csv', file_name: 'large.csv', url: pathToFileURL(csvPath).href }, '');
+        await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+        const updated = __dumpMemoryWhatsappLearningForTests()[0];
+        assert.equal(updated.normalized_payload.extraction.status, 'extracted');
+        assert.equal(updated.normalized_payload.extraction.truncated, true);
+        assert.equal(updated.normalized_payload.extraction.rows_processed, 1000);
+        assert.equal(updated.normalized_payload.extraction.rows_total, 1100);
+      }
+    },
+    {
+      name: 'worker extrai xlsx com uma aba e múltiplas abas',
+      run: async () => {
+        reset();
+        const singleSheetPath = await createTempFile('single.xlsx', await createMinimalXlsxBuffer({
+          Produtos: [
+            ['Código', 'Produto', 'Quantidade'],
+            [1001, 'Toalha', 12],
+            [1002, 'Lençol', 8]
+          ]
+        }));
+        const multiSheetPath = await createTempFile('multi.xlsx', await createMinimalXlsxBuffer({
+          Produtos: [
+            ['Código', 'Produto', 'Quantidade'],
+            [1001, 'Toalha', 12]
+          ],
+          Estoque: [
+            ['Local', 'Qtd'],
+            ['CD1', 20]
+          ]
+        }));
+        await seedLearningEvent('msg-single', { message_type: 'spreadsheet', mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', file_name: 'single.xlsx', url: pathToFileURL(singleSheetPath).href }, '');
+        await seedLearningEvent('msg-multi', { message_type: 'spreadsheet', mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', file_name: 'multi.xlsx', url: pathToFileURL(multiSheetPath).href }, '');
+        await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+        const byId = new Map(__dumpMemoryWhatsappLearningForTests().map((item) => [item.whatsapp_message_id, item]));
+        assert.equal(byId.get('msg-single').normalized_payload.extraction.status, 'extracted');
+        assert.equal(byId.get('msg-single').normalized_payload.extraction.sheets_count, 1);
+        assert.equal(byId.get('msg-single').normalized_payload.extraction.rows_count, 2);
+        assert.equal(byId.get('msg-single').normalized_payload.extraction.columns_count, 3);
+        assert.equal(byId.get('msg-single').normalized_text.includes('Planilha: Produtos'), true);
+        assert.equal(byId.get('msg-single').normalized_text.includes('Código=1001 | Produto=Toalha | Quantidade=12'), true);
+        assert.equal(byId.get('msg-multi').normalized_payload.extraction.status, 'extracted');
+        assert.equal(byId.get('msg-multi').normalized_payload.extraction.sheets_count, 2);
+        assert.equal(byId.get('msg-multi').normalized_payload.extraction.rows_count, 2);
+        assert.equal(byId.get('msg-multi').normalized_payload.extraction.columns_count, 3);
+        assert.equal(byId.get('msg-multi').normalized_text.includes('Planilha: Produtos'), true);
+        assert.equal(byId.get('msg-multi').normalized_text.includes('Planilha: Estoque'), true);
+      }
+    },
+    {
+      name: 'worker marca xlsx vazio e invalido corretamente',
+      run: async () => {
+        reset();
+        const emptyXlsxPath = await createTempFile('empty.xlsx', await createEmptyXlsxBuffer());
+        const brokenXlsxPath = await createTempFile('broken.xlsx', Buffer.from('not-a-real-xlsx', 'utf8'));
+        await seedLearningEvent('msg-empty', { message_type: 'spreadsheet', mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', file_name: 'empty.xlsx', url: pathToFileURL(emptyXlsxPath).href }, '');
+        await seedLearningEvent('msg-broken', { message_type: 'spreadsheet', mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', file_name: 'broken.xlsx', url: pathToFileURL(brokenXlsxPath).href }, '');
+        await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+        const events = __dumpMemoryWhatsappLearningForTests();
+        const byId = new Map(events.map((item) => [item.whatsapp_message_id, item]));
+        assert.equal(byId.get('msg-empty').normalized_payload.extraction.status, 'empty');
+        assert.equal(byId.get('msg-empty').normalized_payload.extraction.sheets_count, 1);
+        assert.equal(byId.get('msg-broken').normalized_payload.extraction.status, 'failed');
       }
     },
     {
