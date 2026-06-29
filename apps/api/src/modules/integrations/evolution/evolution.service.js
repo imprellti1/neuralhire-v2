@@ -29,17 +29,37 @@ function resolveInstanceType(context = {}, payload = {}, mapped = {}) {
 async function resolveWebhookAccountContext(payload = {}, context = {}, mapped = {}) {
   const resolved = resolveAccountId(context);
   const instanceType = resolveInstanceType(context, payload, mapped);
+  const provider = payload.provider || 'evolution';
+  logger.info('evolution_webhook_account_lookup_before', {
+    provider,
+    instanceName: mapped.instanceName || null,
+    instanceType,
+    eventType: mapped.eventType || null,
+    messageId: mapped.messageId || null
+  });
   if (resolved.accountId) {
+    logger.info('evolution_webhook_account_lookup_after', {
+      found: 'sim',
+      accountId: resolved.accountId,
+      source: resolved.source,
+      reason: 'account_id_from_context'
+    });
     return { accountId: resolved.accountId, source: resolved.source, instanceType, instance: null };
   }
 
   const instance = await findWhatsappInstanceByName({
-    provider: payload.provider || 'evolution',
+    provider,
     instanceName: mapped.instanceName,
     instanceType
   }, { context });
 
   if (instance?.account_id) {
+    logger.info('evolution_webhook_account_lookup_after', {
+      found: 'sim',
+      accountId: instance.account_id,
+      source: 'whatsapp_instances',
+      instanceId: instance.id || null
+    });
     return {
       accountId: instance.account_id,
       source: 'whatsapp_instances',
@@ -48,6 +68,15 @@ async function resolveWebhookAccountContext(payload = {}, context = {}, mapped =
     };
   }
 
+  logger.info('evolution_webhook_account_lookup_after', {
+    found: 'nao',
+    accountId: null,
+    source: 'unresolved',
+    reason: !mapped.instanceName ? 'instance_name_missing' : 'instance_not_found',
+    provider,
+    instanceName: mapped.instanceName || null,
+    instanceType
+  });
   return { accountId: null, source: 'unresolved', instanceType, instance: null };
 }
 

@@ -70,6 +70,17 @@ export function mapEvolutionWebhookEvent(payload = {}) {
   );
   const eventType = rawEventType || (fallbackUpsert ? 'messages.upsert' : '');
 
+  if (!instanceName) {
+    logger.info('evolution_mapper_instance_name_missing', {
+      payloadInstance: payload.instance || null,
+      payloadInstanceName: payload.instance_name || payload.instanceName || null,
+      dataInstance: data?.instance || null,
+      dataInstanceName: data?.instance_name || data?.instanceName || null,
+      rawPayloadInstance: rawPayload?.instance || null,
+      rawPayloadInstanceName: rawPayload?.instance_name || rawPayload?.instanceName || null
+    });
+  }
+
   return {
     eventType,
     instanceName,
