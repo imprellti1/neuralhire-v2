@@ -1,4 +1,36 @@
 const NON_DIGITS = /[^0-9]/g;
+const EVOLUTION_PAYLOAD_KEYS = [
+  'provider',
+  'instance',
+  'instance_name',
+  'instanceName',
+  'instanceType',
+  'instance_type',
+  'event',
+  'eventType',
+  'type',
+  'messageId',
+  'message_id',
+  'id',
+  'remoteJid',
+  'remote_jid',
+  'phone',
+  'text',
+  'timestamp',
+  'raw',
+  'data'
+];
+
+function hasUsefulEvolutionFields(value) {
+  return Boolean(value && typeof value === 'object' && EVOLUTION_PAYLOAD_KEYS.some((key) => key in value));
+}
+
+function resolveEvolutionPayload(payload = {}) {
+  if (hasUsefulEvolutionFields(payload.body)) {
+    return payload.body;
+  }
+  return payload;
+}
 
 export function normalizeWhatsAppPhone(value = '') {
   const source = value && typeof value === 'object'
@@ -13,14 +45,15 @@ export function normalizeWhatsAppPhone(value = '') {
 }
 
 export function mapEvolutionWebhookEvent(payload = {}) {
-  const rawPayload = payload.raw && typeof payload.raw === 'object' ? payload.raw : null;
-  const data = payload.data || rawPayload?.data || payload.message || payload.messages?.[0] || rawPayload || payload;
-  const normalizedDirection = String(payload.direction || data?.direction || '').trim().toLowerCase();
-  const rawEventType = String(payload.event || payload.event_type || payload.type || rawPayload?.event || rawPayload?.event_type || rawPayload?.type || '').trim();
-  const instanceName = String(payload.instance || payload.instance_name || payload.instanceName || data?.instance || data?.instance_name || data?.instanceName || rawPayload?.instance || rawPayload?.instance_name || rawPayload?.instanceName || '').trim();
-  const instanceType = String(payload.instanceType || payload.instance_type || data?.instanceType || data?.instance_type || rawPayload?.instanceType || rawPayload?.instance_type || '').trim().toLowerCase();
+  const resolvedPayload = resolveEvolutionPayload(payload);
+  const rawPayload = resolvedPayload.raw && typeof resolvedPayload.raw === 'object' ? resolvedPayload.raw : null;
+  const data = resolvedPayload.data || rawPayload?.data || resolvedPayload.message || resolvedPayload.messages?.[0] || rawPayload || resolvedPayload;
+  const normalizedDirection = String(resolvedPayload.direction || data?.direction || '').trim().toLowerCase();
+  const rawEventType = String(resolvedPayload.event || resolvedPayload.event_type || resolvedPayload.type || rawPayload?.event || rawPayload?.event_type || rawPayload?.type || '').trim();
+  const instanceName = String(resolvedPayload.instance || resolvedPayload.instance_name || resolvedPayload.instanceName || data?.instance || data?.instance_name || data?.instanceName || rawPayload?.instance || rawPayload?.instance_name || rawPayload?.instanceName || '').trim();
+  const instanceType = String(resolvedPayload.instanceType || resolvedPayload.instance_type || data?.instanceType || data?.instance_type || rawPayload?.instanceType || rawPayload?.instance_type || '').trim().toLowerCase();
   const rawMessage = data?.message || data?.messages?.[0] || rawPayload?.message || rawPayload?.messages?.[0] || data?.msg || data?.messageData || data || {};
-  const remoteJid = String(rawMessage.remoteJid || rawMessage.remote_jid || rawMessage.key?.remoteJid || data?.remoteJid || data?.remote_jid || payload.remoteJid || payload.remote_jid || rawPayload?.remoteJid || rawPayload?.remote_jid || '').trim();
+  const remoteJid = String(rawMessage.remoteJid || rawMessage.remote_jid || rawMessage.key?.remoteJid || data?.remoteJid || data?.remote_jid || resolvedPayload.remoteJid || resolvedPayload.remote_jid || rawPayload?.remoteJid || rawPayload?.remote_jid || '').trim();
   const messageId = String(
     rawMessage.key?.id
     || rawMessage.id
@@ -28,8 +61,9 @@ export function mapEvolutionWebhookEvent(payload = {}) {
     || rawMessage.message_id
     || data?.messageId
     || data?.message_id
-    || payload.messageId
-    || payload.message_id
+    || resolvedPayload.messageId
+    || resolvedPayload.message_id
+    || resolvedPayload.id
     || rawPayload?.messageId
     || rawPayload?.message_id
     || rawPayload?.data?.messageId
@@ -42,7 +76,7 @@ export function mapEvolutionWebhookEvent(payload = {}) {
     ?? data?.fromMe
     ?? rawPayload?.fromMe
     ?? (normalizedDirection ? normalizedDirection === 'outbound' : undefined)
-    ?? payload.fromMe
+    ?? resolvedPayload.fromMe
   );
   const text =
     rawMessage.message?.conversation
@@ -52,7 +86,7 @@ export function mapEvolutionWebhookEvent(payload = {}) {
     || rawMessage.conversation
     || rawMessage.text
     || data?.text
-    || payload.text
+    || resolvedPayload.text
     || '';
   const messageType = String(
     rawMessage.messageType
@@ -60,13 +94,13 @@ export function mapEvolutionWebhookEvent(payload = {}) {
     || Object.keys(rawMessage.message || {})[0]
     || rawMessage.type
     || data?.messageType
-    || payload.messageType
+    || resolvedPayload.messageType
     || 'unknown'
   ).trim() || 'unknown';
   const fallbackUpsert = Boolean(
     normalizedDirection
     && messageId
-    && (remoteJid || payload.phone || payload.telefone || payload.celular || payload.whatsapp)
+    && (remoteJid || resolvedPayload.phone || resolvedPayload.telefone || resolvedPayload.celular || resolvedPayload.whatsapp)
   );
   const eventType = rawEventType || (fallbackUpsert ? 'messages.upsert' : '');
 
@@ -80,7 +114,7 @@ export function mapEvolutionWebhookEvent(payload = {}) {
     messageType,
     fromMe,
     rawMessage,
-    timestamp: payload.timestamp || data?.timestamp || rawPayload?.timestamp || null
+    timestamp: resolvedPayload.timestamp || data?.timestamp || rawPayload?.timestamp || null
   };
 }
 

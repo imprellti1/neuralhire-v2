@@ -150,6 +150,34 @@ export function getEvolutionWebhookTests() {
       }
     },
     {
+      name: 'payload envelopado do n8n é normalizado pelo body',
+      run: async () => {
+        resetState();
+        seedInstances([{ account_id: 'acc-evo-1', instance_name: 'projeto-representantes', instance_type: 'operational' }]);
+        const app = createApiApp();
+        const out = await call(app, {
+          body: {
+            provider: 'evolution',
+            instance: 'projeto-representantes',
+            instanceType: 'operational',
+            event: 'messages.upsert',
+            messageId: 'm-envelope-1',
+            remoteJid: '5511999999999@s.whatsapp.net',
+            phone: '5511999999999',
+            text: 'Olá'
+          }
+        });
+        assert.equal(out.res.statusCode, 200);
+        assert.equal(out.body.ok, true);
+        assert.equal(out.body.eventType, 'messages.upsert');
+        assert.equal(out.body.messageId, 'm-envelope-1');
+        const state = __dumpMemoryEvolution();
+        assert.equal(state.messages.length, 1);
+        assert.equal(state.messages[0].message_id, 'm-envelope-1');
+        assert.equal(state.messages[0].instance_id, 'inst-1');
+      }
+    },
+    {
       name: 'webhook aceita token valido',
       run: async () => {
         resetState();
