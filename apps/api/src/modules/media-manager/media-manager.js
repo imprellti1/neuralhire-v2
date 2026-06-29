@@ -2,10 +2,16 @@ import { createHash } from 'node:crypto';
 
 const SUPPORTED_MEDIA_TYPES = new Set(['image', 'audio', 'video', 'sticker']);
 const SUPPORTED_OCR_STATUSES = new Set(['pending', 'processing', 'extracted', 'empty', 'failed', 'unsupported', 'disabled']);
+const SUPPORTED_TRANSCRIPTION_STATUSES = new Set(['pending', 'processing', 'transcribed', 'empty', 'failed', 'unsupported', 'disabled']);
 
 function normalizeOcrStatus(value, fallback = 'pending') {
   const normalized = String(value || '').trim().toLowerCase();
   return SUPPORTED_OCR_STATUSES.has(normalized) ? normalized : fallback;
+}
+
+function normalizeTranscriptionStatus(value, fallback = 'pending') {
+  const normalized = String(value || '').trim().toLowerCase();
+  return SUPPORTED_TRANSCRIPTION_STATUSES.has(normalized) ? normalized : fallback;
 }
 
 function cleanString(value) {
@@ -88,7 +94,11 @@ export function buildMediaAttachment(type, metadata = {}, extra = {}) {
     ocr_provider: normalizedType === 'image' ? (extra.ocr_provider ?? null) : extra.ocr_provider ?? null,
     ocr_error: normalizedType === 'image' ? (extra.ocr_error ?? null) : extra.ocr_error ?? null,
     ocr_processed_at: normalizedType === 'image' ? (extra.ocr_processed_at ?? null) : extra.ocr_processed_at ?? null,
-    transcription_status: normalizedType === 'audio' ? (extra.transcription_status || 'pending') : extra.transcription_status ?? null,
+    transcription_status: normalizedType === 'audio' ? normalizeTranscriptionStatus(extra.transcription_status, 'pending') : extra.transcription_status ?? null,
+    transcription_text: normalizedType === 'audio' ? String(extra.transcription_text ?? '') : extra.transcription_text ?? null,
+    transcription_provider: normalizedType === 'audio' ? (extra.transcription_provider ?? null) : extra.transcription_provider ?? null,
+    transcription_error: normalizedType === 'audio' ? (extra.transcription_error ?? null) : extra.transcription_error ?? null,
+    transcription_processed_at: normalizedType === 'audio' ? (extra.transcription_processed_at ?? null) : extra.transcription_processed_at ?? null,
     thumbnail_status: normalizedType === 'video' ? (extra.thumbnail_status || 'pending') : extra.thumbnail_status ?? null,
     metadata: {
       ...attachmentMetadata,

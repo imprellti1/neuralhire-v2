@@ -13,6 +13,7 @@ import { __dumpMemoryWhatsappLearningForTests, __resetMemoryWhatsappLearningForT
 import { runWhatsappLearningWorker } from '../../modules/whatsapp-learning/whatsapp-learning.service.js';
 import { buildMediaAttachment, generateMediaSha256 } from '../../modules/media-manager/media-manager.js';
 import { extractTextFromImage } from '../../modules/media-manager/ocr-provider.js';
+import { transcribeAudio } from '../../modules/media-manager/transcription-provider.js';
 
 function parse(res) { try { return JSON.parse(res.body || '{}'); } catch { return {}; } }
 
@@ -144,6 +145,26 @@ export function getWhatsappLearningTests() {
         });
         process.env.OCR_ENABLED = previousEnabled;
         process.env.OCR_PROVIDER = previousProvider;
+      }
+    },
+    {
+      name: 'provider de transcricao desligado retorna contrato disabled sem texto',
+      run: async () => {
+        const previousEnabled = process.env.TRANSCRIPTION_ENABLED;
+        const previousProvider = process.env.TRANSCRIPTION_PROVIDER;
+        process.env.TRANSCRIPTION_ENABLED = 'false';
+        process.env.TRANSCRIPTION_PROVIDER = 'disabled';
+        const result = await transcribeAudio({ enabled: false, provider: 'disabled' });
+        assert.deepEqual(result, {
+          status: 'disabled',
+          text: '',
+          provider: null,
+          error: null,
+          processedAt: null,
+          metadata: {}
+        });
+        process.env.TRANSCRIPTION_ENABLED = previousEnabled;
+        process.env.TRANSCRIPTION_PROVIDER = previousProvider;
       }
     },
     {
@@ -297,7 +318,11 @@ export function getWhatsappLearningTests() {
         assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].duration_seconds, 12);
         assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].media_status, 'pending');
         assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].ocr_status, null);
-        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].transcription_status, 'pending');
+        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].transcription_status, 'disabled');
+        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].transcription_text, '');
+        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].transcription_provider, null);
+        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].transcription_error, null);
+        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].transcription_processed_at, null);
         assert.equal(byId.get('msg-video').normalized_payload.content_type, 'video');
         assert.equal(byId.get('msg-video').normalized_payload.extraction.status, 'not_applicable');
         assert.equal(byId.get('msg-video').normalized_payload.text, 'legenda do video');
@@ -371,6 +396,10 @@ export function getWhatsappLearningTests() {
         assert.equal(first.ocr_error, null);
         assert.equal(first.ocr_processed_at, null);
         assert.equal(first.transcription_status, null);
+        assert.equal(first.transcription_text, null);
+        assert.equal(first.transcription_provider, null);
+        assert.equal(first.transcription_error, null);
+        assert.equal(first.transcription_processed_at, null);
         assert.equal(first.thumbnail_status, null);
         assert.equal(first.metadata.source, 'evolution');
         assert.equal(first.sha256, second.sha256);
@@ -588,7 +617,11 @@ export function getWhatsappLearningTests() {
         assert.equal(byId.get('msg-image').normalized_payload.attachments[0].ocr_status, 'disabled');
         assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].url, 'https://example.com/audio.ogg');
         assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].storage_key, 'bucket/path/audio.ogg');
-        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].transcription_status, 'pending');
+        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].transcription_status, 'disabled');
+        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].transcription_text, '');
+        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].transcription_provider, null);
+        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].transcription_error, null);
+        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].transcription_processed_at, null);
         assert.equal(byId.get('msg-video').normalized_payload.attachments[0].url, 'https://example.com/video.mp4');
         assert.equal(byId.get('msg-video').normalized_payload.attachments[0].storage_key, 'bucket/path/video.mp4');
         assert.equal(byId.get('msg-video').normalized_payload.attachments[0].thumbnail_status, 'pending');

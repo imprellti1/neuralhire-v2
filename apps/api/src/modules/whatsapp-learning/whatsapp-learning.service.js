@@ -3,6 +3,7 @@ import { access, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { buildWhatsappLearningNormalizedPayload, listPendingLearningEvents, normalizeLearningEvent } from './whatsapp-learning.repository.js';
 import { extractTextFromImage } from '../media-manager/ocr-provider.js';
+import { transcribeAudio } from '../media-manager/transcription-provider.js';
 
 const MAX_EXTRACTED_TEXT_CHARS = 50000;
 const MAX_ROWS = 1000;
@@ -251,6 +252,34 @@ async function extractNormalizedText(message = {}, normalizedPayload = {}) {
         extraction: buildExtractionState('not_applicable')
       },
       normalizedText: normalizedPayload.text || ''
+    };
+  }
+  if (contentType === 'audio') {
+    const transcription = await transcribeAudio({
+      enabled: process.env.TRANSCRIPTION_ENABLED,
+      provider: process.env.TRANSCRIPTION_PROVIDER,
+      metadata,
+      message
+    });
+    const audioAttachment = Array.isArray(normalizedPayload.attachments) && normalizedPayload.attachments[0] && typeof normalizedPayload.attachments[0] === 'object'
+      ? normalizedPayload.attachments[0]
+      : null;
+    return {
+      normalizedPayload: {
+        ...normalizedPayload,
+        attachments: audioAttachment
+          ? [{
+              ...audioAttachment,
+              transcription_status: transcription.status,
+              transcription_text: String(transcription.text || ''),
+              transcription_provider: transcription.provider ?? null,
+              transcription_error: transcription.error ?? null,
+              transcription_processed_at: transcription.processedAt ?? null
+            }]
+          : normalizedPayload.attachments,
+        extraction: buildExtractionState('not_applicable')
+      },
+      normalizedText: ''
     };
   }
   if (!['pdf', 'document', 'spreadsheet', 'csv'].includes(contentType)) {
