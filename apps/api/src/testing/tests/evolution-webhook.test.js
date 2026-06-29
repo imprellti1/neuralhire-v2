@@ -61,8 +61,94 @@ function seedClientes(items) {
   })));
 }
 
+function seedInstances(items) {
+  const snapshot = __dumpMemoryEvolution();
+  __loadMemoryEvolutionForTests({
+    messages: snapshot.messages,
+    conversations: snapshot.conversations,
+    leads: snapshot.leads,
+    instances: items.map((item, idx) => ({
+      id: item.id || `inst-${idx + 1}`,
+      account_id: item.account_id,
+      provider: item.provider || 'evolution',
+      instance_name: item.instance_name,
+      instance_type: item.instance_type || 'operational',
+      name: item.name || item.instance_name,
+      metadata: item.metadata || {}
+    }))
+  });
+}
+
 export function getEvolutionWebhookTests() {
   return [
+    {
+      name: 'webhook normalizado do n8n resolve account_id via whatsapp_instances',
+      run: async () => {
+        resetState();
+        seedClientes([{ account_id: 'acc-evo-1', id: 'cli-1', nome: 'Ana', telefone: '5511999999999' }]);
+        seedInstances([{ account_id: 'acc-evo-1', instance_name: 'main', instance_type: 'operational' }]);
+        const app = createApiApp();
+        const out = await call(app, {
+          provider: 'evolution',
+          instance: 'main',
+          instanceType: 'operational',
+          event: 'messages.upsert',
+          direction: 'inbound',
+          messageId: 'm-n8n-1',
+          remoteJid: '5511999999999@s.whatsapp.net',
+          phone: '5511999999999',
+          text: 'Olá do n8n',
+          timestamp: '2026-06-29T12:00:00.000Z',
+          raw: {
+            event: 'messages.upsert',
+            data: {
+              message: {
+                key: { id: 'm-n8n-1', fromMe: false, remoteJid: '5511999999999@s.whatsapp.net' },
+                message: { conversation: 'Olá do n8n' }
+              }
+            }
+          }
+        });
+        assert.equal(out.res.statusCode, 200);
+        assert.equal(out.body.ok, true);
+        assert.equal(out.body.status, 'created');
+        const state = __dumpMemoryEvolution();
+        assert.equal(state.messages.length, 1);
+        assert.equal(state.messages[0].account_id, 'acc-evo-1');
+        assert.equal(state.messages[0].instance_id, 'inst-1');
+        assert.equal(state.messages[0].message_id, 'm-n8n-1');
+        assert.equal(state.messages[0].event_type, 'messages.upsert');
+        assert.equal(state.conversations[0].instance_id, 'inst-1');
+        assert.equal(state.conversations[0].cliente_id, 'cli-1');
+      }
+    },
+    {
+      name: 'payload normalizado corrige eventType e messageId quando faltam campos do Evolution original',
+      run: async () => {
+        resetState();
+        seedInstances([{ account_id: 'acc-evo-1', instance_name: 'main', instance_type: 'learning' }]);
+        const app = createApiApp();
+        const out = await call(app, {
+          provider: 'evolution',
+          instance: 'main',
+          instanceType: 'learning',
+          direction: 'outbound',
+          messageId: 'm-n8n-2',
+          remoteJid: '5511777777777@s.whatsapp.net',
+          phone: '5511777777777',
+          text: 'Mensagem normalizada',
+          timestamp: '2026-06-29T12:01:00.000Z',
+          raw: { foo: 'bar' }
+        });
+        assert.equal(out.res.statusCode, 200);
+        assert.equal(out.body.ok, true);
+        assert.equal(out.body.eventType, 'messages.upsert');
+        assert.equal(out.body.messageId, 'm-n8n-2');
+        const state = __dumpMemoryEvolution();
+        assert.equal(state.messages[0].metadata.instance_type, 'learning');
+        assert.equal(state.leads.length, 1);
+      }
+    },
     {
       name: 'webhook aceita token valido',
       run: async () => {

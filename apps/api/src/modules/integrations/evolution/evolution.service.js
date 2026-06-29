@@ -1,6 +1,6 @@
 import { logger } from '../../../core/logger.js';
 import { env } from '../../../config/env.js';
-import { createTimelineEventForCustomer, findCustomerByPhone, findOrCreateConversation, findOrCreateLead, linkMessageAfterSave, normalizeInstanceType, upsertWhatsappMessage } from './evolution.repository.js';
+import { createTimelineEventForCustomer, findCustomerByPhone, findOrCreateConversation, findOrCreateLead, findWhatsappInstanceByName, linkMessageAfterSave, normalizeInstanceType, upsertWhatsappMessage } from './evolution.repository.js';
 import { mapEvolutionWebhookEvent, mapMessageDirection, mapSenderType, normalizeWhatsAppPhone } from './evolution.mapper.js';
 
 function allowHeaderAccountFallback() {
@@ -21,15 +21,39 @@ function resolveContactName(payload = {}, mapped = {}) {
   return payload.contact_name || payload.contactName || payload.name || mapped.instanceName || null;
 }
 
-function resolveInstanceType(context = {}) {
+function resolveInstanceType(context = {}, payload = {}, mapped = {}) {
   const headerValue = context.headers?.['x-instance-type'] || context.headers?.['X-Instance-Type'] || context.headers?.['X-INSTANCE-TYPE'] || null;
-  return normalizeInstanceType(headerValue || 'operational');
+  return normalizeInstanceType(headerValue || payload.instanceType || payload.instance_type || mapped.instanceType || 'operational');
+}
+
+async function resolveWebhookAccountContext(payload = {}, context = {}, mapped = {}) {
+  const resolved = resolveAccountId(context);
+  const instanceType = resolveInstanceType(context, payload, mapped);
+  if (resolved.accountId) {
+    return { accountId: resolved.accountId, source: resolved.source, instanceType, instance: null };
+  }
+
+  const instance = await findWhatsappInstanceByName({
+    provider: payload.provider || 'evolution',
+    instanceName: mapped.instanceName,
+    instanceType
+  }, { context });
+
+  if (instance?.account_id) {
+    return {
+      accountId: instance.account_id,
+      source: 'whatsapp_instances',
+      instanceType: normalizeInstanceType(instance.instance_type || instanceType),
+      instance
+    };
+  }
+
+  return { accountId: null, source: 'unresolved', instanceType, instance: null };
 }
 
 export async function processEvolutionWebhook(payload = {}, context = {}) {
-  const { accountId, source } = resolveAccountId(context);
   const mapped = mapEvolutionWebhookEvent(payload);
-  const instanceType = resolveInstanceType(context);
+  const { accountId, source, instanceType, instance } = await resolveWebhookAccountContext(payload, context, mapped);
   const phone = normalizeWhatsAppPhone({ remote_jid: mapped.remoteJid, phone: payload.phone, telefone: payload.telefone, celular: payload.celular, whatsapp: payload.whatsapp });
 
   logger.info('evolution_webhook_received', { accountId, accountSource: source, eventType: mapped.eventType, instanceName: mapped.instanceName, instanceType, remoteJid: mapped.remoteJid, phoneNormalized: phone });
@@ -60,9 +84,10 @@ export async function processEvolutionWebhook(payload = {}, context = {}) {
     senderType: mapSenderType(direction),
     messageType: mapped.messageType,
     body: mapped.text,
-    metadata: { instance_type: instanceType, learning_only: instanceType === 'learning' },
+    instanceId: instance?.id || null,
+    metadata: { instance_type: instanceType, learning_only: instanceType === 'learning', instance_name: mapped.instanceName || null },
     rawPayload: payload,
-    receivedAt: new Date().toISOString()
+    receivedAt: mapped.timestamp ? new Date(mapped.timestamp).toISOString() : new Date().toISOString()
   };
 
   const messageResult = await upsertWhatsappMessage(itemPayload, { accountId });
@@ -79,13 +104,13 @@ export async function processEvolutionWebhook(payload = {}, context = {}) {
     logger.info('evolution_customer_match_found', { accountId, messageId: mapped.messageId, phoneNormalized: phone, customerId: customer.id, matchStrength: match.matchStrength });
     const conversation = await findOrCreateConversation({
       accountId,
-      instanceId: null,
+      instanceId: instance?.id || null,
       clienteId: customer.id,
       remoteJid: mapped.remoteJid,
       phoneNormalized: phone,
       contactName,
       lastMessageAt: new Date().toISOString(),
-    metadata: { source: 'evolution', event_type: mapped.eventType, instance_name: mapped.instanceName, instance_type: instanceType, match_strength: match.matchStrength, provider: 'evolution' }
+      metadata: { source: 'evolution', event_type: mapped.eventType, instance_name: mapped.instanceName, instance_type: instanceType, match_strength: match.matchStrength, provider: 'evolution' }
     });
     logger.info('evolution_conversation_linked', { accountId, messageId: mapped.messageId, conversationId: conversation?.id || null, clienteId: customer.id });
     await linkMessageAfterSave(messageResult.item, { conversationId: conversation?.id || null, clienteId: customer.id, phoneNormalized: phone }, { accountId });
@@ -136,7 +161,7 @@ export async function processEvolutionWebhook(payload = {}, context = {}) {
 
   const lead = await findOrCreateLead({
     accountId,
-    instanceId: null,
+    instanceId: instance?.id || null,
     remoteJid: mapped.remoteJid,
     phoneNormalized: phone,
     contactName,
@@ -148,7 +173,7 @@ export async function processEvolutionWebhook(payload = {}, context = {}) {
   logger.info('evolution_lead_created', { accountId, messageId: mapped.messageId, leadId: lead?.id || null, phoneNormalized: phone });
   const conversation = await findOrCreateConversation({
     accountId,
-    instanceId: null,
+    instanceId: instance?.id || null,
     leadId: lead?.id || null,
     remoteJid: mapped.remoteJid,
     phoneNormalized: phone,

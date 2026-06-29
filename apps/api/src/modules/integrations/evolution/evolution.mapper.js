@@ -13,13 +13,37 @@ export function normalizeWhatsAppPhone(value = '') {
 }
 
 export function mapEvolutionWebhookEvent(payload = {}) {
-  const eventType = String(payload.event || payload.event_type || payload.type || '').trim();
-  const data = payload.data || payload.message || payload.messages?.[0] || payload;
-  const instanceName = String(payload.instance || payload.instance_name || payload.instanceName || data?.instance || data?.instance_name || '').trim();
-  const rawMessage = data?.message || data?.messages?.[0] || data?.msg || data?.messageData || data || {};
-  const remoteJid = String(rawMessage.remoteJid || rawMessage.remote_jid || rawMessage.key?.remoteJid || data?.remoteJid || data?.remote_jid || payload.remoteJid || payload.remote_jid || '').trim();
-  const messageId = String(rawMessage.key?.id || rawMessage.id || data?.messageId || data?.message_id || payload.messageId || payload.message_id || '').trim();
-  const fromMe = Boolean(rawMessage.key?.fromMe ?? rawMessage.fromMe ?? data?.fromMe ?? payload.fromMe);
+  const rawPayload = payload.raw && typeof payload.raw === 'object' ? payload.raw : null;
+  const data = payload.data || rawPayload?.data || payload.message || payload.messages?.[0] || rawPayload || payload;
+  const normalizedDirection = String(payload.direction || data?.direction || '').trim().toLowerCase();
+  const rawEventType = String(payload.event || payload.event_type || payload.type || rawPayload?.event || rawPayload?.event_type || rawPayload?.type || '').trim();
+  const instanceName = String(payload.instance || payload.instance_name || payload.instanceName || data?.instance || data?.instance_name || data?.instanceName || rawPayload?.instance || rawPayload?.instance_name || rawPayload?.instanceName || '').trim();
+  const instanceType = String(payload.instanceType || payload.instance_type || data?.instanceType || data?.instance_type || rawPayload?.instanceType || rawPayload?.instance_type || '').trim().toLowerCase();
+  const rawMessage = data?.message || data?.messages?.[0] || rawPayload?.message || rawPayload?.messages?.[0] || data?.msg || data?.messageData || data || {};
+  const remoteJid = String(rawMessage.remoteJid || rawMessage.remote_jid || rawMessage.key?.remoteJid || data?.remoteJid || data?.remote_jid || payload.remoteJid || payload.remote_jid || rawPayload?.remoteJid || rawPayload?.remote_jid || '').trim();
+  const messageId = String(
+    rawMessage.key?.id
+    || rawMessage.id
+    || rawMessage.messageId
+    || rawMessage.message_id
+    || data?.messageId
+    || data?.message_id
+    || payload.messageId
+    || payload.message_id
+    || rawPayload?.messageId
+    || rawPayload?.message_id
+    || rawPayload?.data?.messageId
+    || rawPayload?.data?.message_id
+    || ''
+  ).trim();
+  const fromMe = Boolean(
+    rawMessage.key?.fromMe
+    ?? rawMessage.fromMe
+    ?? data?.fromMe
+    ?? rawPayload?.fromMe
+    ?? (normalizedDirection ? normalizedDirection === 'outbound' : undefined)
+    ?? payload.fromMe
+  );
   const text =
     rawMessage.message?.conversation
     || rawMessage.message?.extendedTextMessage?.text
@@ -28,6 +52,7 @@ export function mapEvolutionWebhookEvent(payload = {}) {
     || rawMessage.conversation
     || rawMessage.text
     || data?.text
+    || payload.text
     || '';
   const messageType = String(
     rawMessage.messageType
@@ -35,18 +60,27 @@ export function mapEvolutionWebhookEvent(payload = {}) {
     || Object.keys(rawMessage.message || {})[0]
     || rawMessage.type
     || data?.messageType
+    || payload.messageType
     || 'unknown'
   ).trim() || 'unknown';
+  const fallbackUpsert = Boolean(
+    normalizedDirection
+    && messageId
+    && (remoteJid || payload.phone || payload.telefone || payload.celular || payload.whatsapp)
+  );
+  const eventType = rawEventType || (fallbackUpsert ? 'messages.upsert' : '');
 
   return {
     eventType,
     instanceName,
+    instanceType,
     remoteJid,
     messageId,
     text: String(text || ''),
     messageType,
     fromMe,
-    rawMessage
+    rawMessage,
+    timestamp: payload.timestamp || data?.timestamp || rawPayload?.timestamp || null
   };
 }
 

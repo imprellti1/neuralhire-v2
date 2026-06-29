@@ -7,6 +7,7 @@ import { registrarEventoTimeline } from '../../clientes/clientes.timeline.servic
 const memoryMessages = [];
 const memoryConversations = [];
 const memoryLeads = [];
+const memoryInstances = [];
 const memoryMessageLinks = new Map();
 
 function now() { return new Date().toISOString(); }
@@ -180,6 +181,7 @@ export function __resetMemoryEvolutionForTests() {
   memoryMessages.length = 0;
   memoryConversations.length = 0;
   memoryLeads.length = 0;
+  memoryInstances.length = 0;
   memoryMessageLinks.clear();
 }
 
@@ -188,6 +190,32 @@ export function __loadMemoryEvolutionForTests(snapshot = {}) {
   for (const item of snapshot.messages || []) memoryMessages.push({ ...item });
   for (const item of snapshot.conversations || []) memoryConversations.push({ ...item });
   for (const item of snapshot.leads || []) memoryLeads.push({ ...item });
+  for (const item of snapshot.instances || []) memoryInstances.push({ ...item });
+}
+
+export async function findWhatsappInstanceByName({ provider = 'evolution', instanceName, instanceType = null }, options = {}) {
+  const normalizedProvider = normalizeProvider(provider);
+  const normalizedName = String(instanceName || '').trim();
+  const normalizedType = instanceType ? normalizeInstanceType(instanceType) : null;
+  if (!normalizedName) return null;
+
+  if (getClientesRepositoryMode().mode === 'supabase') {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    let query = supabase
+      .from('whatsapp_instances')
+      .select('*')
+      .eq('provider', normalizedProvider)
+      .eq('instance_name', normalizedName)
+      .limit(10);
+    const { data, error } = await query;
+    if (error) throw new DatabaseError('Falha ao buscar instancia WhatsApp', { details: error });
+    const items = data || [];
+    return items.find((item) => !normalizedType || normalizeInstanceType(item.instance_type) === normalizedType) || items[0] || null;
+  }
+
+  const items = memoryInstances.filter((item) => normalizeProvider(item.provider) === normalizedProvider && String(item.instance_name || '').trim() === normalizedName);
+  return items.find((item) => !normalizedType || normalizeInstanceType(item.instance_type) === normalizedType) || items[0] || null;
 }
 
 export async function findMessageByLogicalKey({ accountId, provider = 'evolution', messageId }) {
@@ -329,7 +357,7 @@ export async function linkMessageAfterSave(message, link, context = {}) {
 }
 
 export function __dumpMemoryEvolution() {
-  return { messages: memoryMessages.map((item) => ({ ...item })), conversations: memoryConversations.map((item) => ({ ...item })), leads: memoryLeads.map((item) => ({ ...item })) };
+  return { messages: memoryMessages.map((item) => ({ ...item })), conversations: memoryConversations.map((item) => ({ ...item })), leads: memoryLeads.map((item) => ({ ...item })), instances: memoryInstances.map((item) => ({ ...item })) };
 }
 
 export function getEvolutionRepositoryStatus() {
