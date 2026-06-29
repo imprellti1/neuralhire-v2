@@ -33,6 +33,11 @@ function stripWhatsAppSuffix(value = '') {
   return String(value || '').replace(/@(s\.whatsapp\.net|c\.us|g\.us)$/i, '');
 }
 
+function resolveMessagePhone(payload = {}) {
+  const source = payload.phone || payload.phoneNormalized || payload.remoteJid || '';
+  return normalizeDigits(stripWhatsAppSuffix(source));
+}
+
 export function normalizeWhatsAppPhoneVariants(input = {}) {
   const raw = stripWhatsAppSuffix(input.remote_jid || input.phone || input.telefone || input.celular || input.whatsapp || '');
   const digits = normalizeDigits(raw);
@@ -116,6 +121,7 @@ function patchMemoryLead(id, accountId, patch) {
 }
 
 function buildMessageRow(payload, context = {}) {
+  const phone = resolveMessagePhone(payload);
   return {
     id: randomUUID(),
     account_id: context.accountId,
@@ -127,6 +133,7 @@ function buildMessageRow(payload, context = {}) {
     event_type: payload.eventType || null,
     message_id: payload.messageId,
     remote_jid: payload.remoteJid,
+    phone,
     phone_normalized: payload.phoneNormalized || null,
     direction: payload.direction,
     sender_type: payload.senderType,

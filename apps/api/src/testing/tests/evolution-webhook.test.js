@@ -117,6 +117,7 @@ export function getEvolutionWebhookTests() {
         assert.equal(state.messages[0].account_id, 'acc-evo-1');
         assert.equal(state.messages[0].instance_id, 'inst-1');
         assert.equal(state.messages[0].message_id, 'm-n8n-1');
+        assert.equal(state.messages[0].phone, '5511999999999');
         assert.equal(state.messages[0].event_type, 'messages.upsert');
         assert.equal(state.conversations[0].instance_id, 'inst-1');
         assert.equal(state.conversations[0].cliente_id, 'cli-1');
@@ -146,7 +147,41 @@ export function getEvolutionWebhookTests() {
         assert.equal(out.body.messageId, 'm-n8n-2');
         const state = __dumpMemoryEvolution();
         assert.equal(state.messages[0].metadata.instance_type, 'learning');
+        assert.equal(state.messages[0].phone, '5511777777777');
         assert.equal(state.leads.length, 1);
+      }
+    },
+    {
+      name: 'fallback de phone usa remoteJid quando phone estiver vazio',
+      run: async () => {
+        resetState();
+        seedInstances([{ account_id: 'acc-evo-1', instance_name: 'main', instance_type: 'operational' }]);
+        const app = createApiApp();
+        const out = await call(app, {
+          provider: 'evolution',
+          instance: 'main',
+          instanceType: 'operational',
+          event: 'messages.upsert',
+          direction: 'inbound',
+          messageId: 'm-n8n-remotejid-1',
+          remoteJid: '555199640252@s.whatsapp.net',
+          phone: '',
+          text: 'Olá do remoteJid',
+          timestamp: '2026-06-29T12:02:00.000Z',
+          raw: {
+            event: 'messages.upsert',
+            data: {
+              message: {
+                key: { id: 'm-n8n-remotejid-1', fromMe: false, remoteJid: '555199640252@s.whatsapp.net' },
+                message: { conversation: 'Olá do remoteJid' }
+              }
+            }
+          }
+        });
+        assert.equal(out.res.statusCode, 200);
+        assert.equal(out.body.ok, true);
+        const state = __dumpMemoryEvolution();
+        assert.equal(state.messages[0].phone, '555199640252');
       }
     },
     {
