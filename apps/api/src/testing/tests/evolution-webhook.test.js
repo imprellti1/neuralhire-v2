@@ -11,7 +11,10 @@ function parse(res) {
 }
 
 async function call(app, body, headers = {}) {
-  const req = createTestRequest({ method: 'POST', url: '/integrations/evolution/webhook', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+  const webhookHeaders = process.env.NEURALHIRE_WEBHOOK_TOKEN
+    ? { 'x-neuralhire-webhook-token': process.env.NEURALHIRE_WEBHOOK_TOKEN }
+    : {};
+  const req = createTestRequest({ method: 'POST', url: '/integrations/evolution/webhook', headers: { 'content-type': 'application/json', ...webhookHeaders, ...headers }, body: JSON.stringify(body) });
   const res = createTestResponse();
   await app(req, res);
   return { res, body: parse(res) };
@@ -22,6 +25,27 @@ function resetState() {
   __resetMemoryTimelineForTests();
   __resetMemoryEvolutionForTests();
 }
+
+function withWebhookToken(token, fn) {
+  const previous = process.env.NEURALHIRE_WEBHOOK_TOKEN;
+  if (token === undefined) {
+    delete process.env.NEURALHIRE_WEBHOOK_TOKEN;
+  } else {
+    process.env.NEURALHIRE_WEBHOOK_TOKEN = token;
+  }
+
+  return Promise.resolve()
+    .then(fn)
+    .finally(() => {
+      if (previous === undefined) {
+        delete process.env.NEURALHIRE_WEBHOOK_TOKEN;
+      } else {
+        process.env.NEURALHIRE_WEBHOOK_TOKEN = previous;
+      }
+    });
+}
+
+process.env.NEURALHIRE_WEBHOOK_TOKEN = process.env.NEURALHIRE_WEBHOOK_TOKEN || 'secret-token';
 
 function seedClientes(items) {
   __loadMemoryClientes(items.map((item, idx) => ({
@@ -39,6 +63,52 @@ function seedClientes(items) {
 
 export function getEvolutionWebhookTests() {
   return [
+    {
+      name: 'webhook aceita token valido',
+      run: async () => {
+        resetState();
+        const app = createApiApp();
+        const out = await call(app, { event: 'messages.upsert', data: { message: { key: { id: 'm-valid', fromMe: false, remoteJid: '5511999999999@s.whatsapp.net' }, message: { conversation: 'oi' } } } }, { 'x-test-role': 'admin', 'x-test-account-id': 'acc-evo-1' });
+        assert.equal(out.res.statusCode, 200);
+        assert.equal(out.body.ok, true);
+      }
+    },
+    {
+      name: 'webhook rejeita token invalido',
+      run: async () => {
+        await withWebhookToken('secret-token', async () => {
+          resetState();
+          const app = createApiApp();
+          const out = await call(app, { event: 'messages.upsert', data: { message: { key: { id: 'm-invalid', fromMe: false, remoteJid: '5511999999999@s.whatsapp.net' }, message: { conversation: 'oi' } } } }, { 'x-test-role': 'admin', 'x-test-account-id': 'acc-evo-1', 'x-neuralhire-webhook-token': 'wrong-token' });
+          assert.equal(out.res.statusCode, 401);
+          assert.deepStrictEqual(out.body, {
+            ok: false,
+            error: {
+              code: 'INVALID_WEBHOOK_TOKEN',
+              message: 'Token inválido.'
+            }
+          });
+        });
+      }
+    },
+    {
+      name: 'webhook retorna erro quando token nao configurado',
+      run: async () => {
+        await withWebhookToken(undefined, async () => {
+          resetState();
+          const app = createApiApp();
+          const out = await call(app, { event: 'messages.upsert', data: { message: { key: { id: 'm-missing', fromMe: false, remoteJid: '5511999999999@s.whatsapp.net' }, message: { conversation: 'oi' } } } }, { 'x-test-role': 'admin', 'x-test-account-id': 'acc-evo-1' });
+          assert.equal(out.res.statusCode, 500);
+          assert.deepStrictEqual(out.body, {
+            ok: false,
+            error: {
+              code: 'WEBHOOK_TOKEN_NOT_CONFIGURED',
+              message: 'Webhook token não configurado.'
+            }
+          });
+        });
+      }
+    },
     {
       name: 'cliente encontrado por numero completo',
       run: async () => {
