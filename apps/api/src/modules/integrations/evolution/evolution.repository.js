@@ -38,6 +38,10 @@ function resolveMessagePhone(payload = {}) {
   return normalizeDigits(stripWhatsAppSuffix(source));
 }
 
+function resolveConversationPhone(payload = {}) {
+  return resolveMessagePhone(payload);
+}
+
 export function normalizeWhatsAppPhoneVariants(input = {}) {
   const raw = stripWhatsAppSuffix(input.remote_jid || input.phone || input.telefone || input.celular || input.whatsapp || '');
   const digits = normalizeDigits(raw);
@@ -149,6 +153,7 @@ function buildMessageRow(payload, context = {}) {
 }
 
 function buildConversationRow(payload, context = {}) {
+  const phone = resolveConversationPhone(payload);
   return {
     id: randomUUID(),
     account_id: context.accountId,
@@ -156,6 +161,7 @@ function buildConversationRow(payload, context = {}) {
     cliente_id: payload.clienteId || null,
     lead_id: payload.leadId || null,
     remote_jid: payload.remoteJid,
+    phone,
     phone_normalized: payload.phoneNormalized || null,
     contact_name: payload.contactName || null,
     status: 'open',
@@ -333,9 +339,11 @@ export async function findOrCreateConversation({ accountId, instanceId, clienteI
   assertAccountId(accountId);
   const existing = memoryFindConversation(accountId, instanceId, remoteJid);
   if (existing) {
+    const phone = resolveConversationPhone({ remoteJid, phoneNormalized });
     return patchMemoryConversation(existing.id, accountId, {
       cliente_id: clienteId ?? existing.cliente_id ?? null,
       lead_id: leadId ?? existing.lead_id ?? null,
+      phone: phone || existing.phone || null,
       phone_normalized: phoneNormalized || existing.phone_normalized || null,
       contact_name: contactName || existing.contact_name || null,
       last_message_at: lastMessageAt || now(),
@@ -346,6 +354,20 @@ export async function findOrCreateConversation({ accountId, instanceId, clienteI
   if (getClientesRepositoryMode().mode === 'supabase') {
     const found = await findSupabaseConversation(accountId, instanceId, remoteJid);
     if (found) {
+      const phone = resolveConversationPhone({ remoteJid, phoneNormalized });
+      if (phone && !found.phone) {
+        const supabase = getSupabaseClient();
+        if (!supabase) throw new DatabaseError('Supabase indisponivel');
+        const { data, error } = await supabase
+          .from('whatsapp_conversations')
+          .update({ phone, updated_at: now() })
+          .eq('id', found.id)
+          .eq('account_id', accountId)
+          .select('*')
+          .maybeSingle();
+        if (error) throw new DatabaseError('Falha ao atualizar conversa WhatsApp', { details: error });
+        return data || found;
+      }
       return found;
     }
     return insertSupabaseConversation({ instanceId, clienteId, leadId, remoteJid, phoneNormalized, contactName, lastMessageAt, metadata }, { accountId });

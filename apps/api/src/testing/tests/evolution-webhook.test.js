@@ -120,6 +120,7 @@ export function getEvolutionWebhookTests() {
         assert.equal(state.messages[0].phone, '5511999999999');
         assert.equal(state.messages[0].conversation_id, state.conversations[0].id);
         assert.equal(state.messages[0].event_type, 'messages.upsert');
+        assert.equal(state.conversations[0].phone, '5511999999999');
         assert.equal(state.conversations[0].instance_id, 'inst-1');
         assert.equal(state.conversations[0].cliente_id, 'cli-1');
       }
@@ -149,6 +150,7 @@ export function getEvolutionWebhookTests() {
         const state = __dumpMemoryEvolution();
         assert.equal(state.messages[0].metadata.instance_type, 'learning');
         assert.equal(state.messages[0].phone, '5511777777777');
+        assert.equal(state.conversations[0].phone, '5511777777777');
         assert.equal(state.leads.length, 1);
       }
     },
@@ -183,6 +185,7 @@ export function getEvolutionWebhookTests() {
         assert.equal(out.body.ok, true);
         const state = __dumpMemoryEvolution();
         assert.equal(state.messages[0].phone, '555199640252');
+        assert.equal(state.conversations[0].phone, '555199640252');
       }
     },
     {
@@ -219,6 +222,7 @@ export function getEvolutionWebhookTests() {
         const state = __dumpMemoryEvolution();
         assert.equal(state.messages.length, 1);
         assert.equal(state.messages[0].conversation_id, state.conversations[0].id);
+        assert.equal(state.conversations[0].phone, '5511999999999');
       }
     },
     {
