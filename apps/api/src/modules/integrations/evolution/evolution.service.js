@@ -27,6 +27,52 @@ function resolveInstanceType(context = {}, payload = {}, mapped = {}) {
   return normalizeInstanceType(headerValue || payload.instanceType || payload.instance_type || mapped.instanceType || 'operational');
 }
 
+function buildLearningEventMetadata({ instanceType, instanceName, direction, messageType }) {
+  return {
+    provider: 'evolution',
+    instance_type: instanceType,
+    instance_name: instanceName || null,
+    direction,
+    message_type: messageType || null,
+    learning_source: 'whatsapp_persisted_message'
+  };
+}
+
+function buildLearningEventContentMetadata(mapped = {}) {
+  const rawMessage = mapped.rawMessage || {};
+  const message = rawMessage.message || {};
+  const documentMessage = message.documentMessage || {};
+  const locationMessage = message.locationMessage || {};
+  const contactMessage = message.contactMessage || {};
+  const reactionMessage = message.reactionMessage || {};
+  return {
+    caption: message.imageMessage?.caption || message.videoMessage?.caption || null,
+    mime_type: documentMessage.mimetype || documentMessage.mimeType || message.imageMessage?.mimetype || message.videoMessage?.mimetype || message.audioMessage?.mimetype || message.stickerMessage?.mimetype || null,
+    file_name: documentMessage.fileName || documentMessage.file_name || null,
+    duration_seconds: message.audioMessage?.seconds || message.videoMessage?.seconds || null,
+    location: locationMessage ? {
+      latitude: locationMessage.degreesLatitude ?? locationMessage.latitude ?? null,
+      longitude: locationMessage.degreesLongitude ?? locationMessage.longitude ?? null,
+      name: locationMessage.name || null,
+      address: locationMessage.address || null,
+      metadata: {}
+    } : null,
+    contact: contactMessage ? {
+      name: contactMessage.displayName || contactMessage.name || null,
+      phone: contactMessage.phoneNumber || contactMessage.phone || null,
+      email: contactMessage.email || null,
+      metadata: {}
+    } : null,
+    reaction: reactionMessage ? {
+      emoji: reactionMessage.text || reactionMessage.emoji || null,
+      target_message_id: reactionMessage.key?.id || reactionMessage.targetMessageId || null,
+      metadata: {}
+    } : null,
+    emoji: reactionMessage.text || reactionMessage.emoji || null,
+    target_message_id: reactionMessage.key?.id || reactionMessage.targetMessageId || null
+  };
+}
+
 async function resolveWebhookAccountContext(payload = {}, context = {}, mapped = {}) {
   const resolved = resolveAccountId(context);
   const instanceType = resolveInstanceType(context, payload, mapped);
@@ -115,7 +161,12 @@ export async function processEvolutionWebhook(payload = {}, context = {}) {
     messageType: mapped.messageType,
     body: mapped.text,
     instanceId: instance?.id || null,
-    metadata: { instance_type: instanceType, learning_only: instanceType === 'learning', instance_name: mapped.instanceName || null },
+    metadata: {
+      instance_type: instanceType,
+      learning_only: instanceType === 'learning',
+      instance_name: mapped.instanceName || null,
+      ...buildLearningEventContentMetadata(mapped)
+    },
     rawPayload: payload,
     receivedAt: mapped.timestamp ? new Date(mapped.timestamp).toISOString() : new Date().toISOString()
   };
@@ -137,11 +188,13 @@ export async function processEvolutionWebhook(payload = {}, context = {}) {
       contentType: 'text',
       body: mapped.text || null,
       metadata: {
-        provider: 'evolution',
-        instance_type: instanceType,
-        instance_name: mapped.instanceName || null,
+        ...buildLearningEventMetadata({
+        instanceType,
+        instanceName: mapped.instanceName,
         direction,
-        message_type: mapped.messageType || null
+        messageType: mapped.messageType
+        }),
+        ...buildLearningEventContentMetadata(mapped)
       }
     }, { accountId });
   }

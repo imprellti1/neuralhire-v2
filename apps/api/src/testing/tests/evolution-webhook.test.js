@@ -124,6 +124,7 @@ export function getEvolutionWebhookTests() {
         assert.equal(state.messages[0].event_type, 'messages.upsert');
         assert.equal(__dumpMemoryWhatsappLearningForTests().length, 1);
         assert.equal(__dumpMemoryWhatsappLearningForTests()[0].status, 'pending');
+        assert.equal(__dumpMemoryWhatsappLearningForTests()[0].metadata.learning_source, 'whatsapp_persisted_message');
         assert.equal(state.conversations[0].phone, '5511999999999');
         assert.equal(state.conversations[0].instance_id, 'inst-1');
         assert.equal(state.conversations[0].cliente_id, 'cli-1');
@@ -259,6 +260,43 @@ export function getEvolutionWebhookTests() {
         assert.equal(state.messages[0].message_id, 'm-envelope-1');
         assert.equal(state.messages[0].instance_id, 'inst-1');
         assert.equal(__dumpMemoryWhatsappLearningForTests().length, 1);
+      }
+    },
+    {
+      name: 'webhook cria evento de aprendizagem para mensagens persistidas em qualquer instancia',
+      run: async () => {
+        resetState();
+        seedClientes([{ account_id: 'acc-evo-1', id: 'cli-1', nome: 'Ana', telefone: '5511999999999' }]);
+        seedInstances([
+          { account_id: 'acc-evo-1', instance_name: 'oficial-igor', instance_type: 'learning' },
+          { account_id: 'acc-evo-1', instance_name: 'projeto-representantes', instance_type: 'operational' }
+        ]);
+        const app = createApiApp();
+        const cases = [
+          { instance: 'oficial-igor', instanceType: 'learning', messageId: 'm-learning-in', direction: 'inbound', fromMe: false },
+          { instance: 'oficial-igor', instanceType: 'learning', messageId: 'm-learning-out', direction: 'outbound', fromMe: true },
+          { instance: 'projeto-representantes', instanceType: 'operational', messageId: 'm-operational-in', direction: 'inbound', fromMe: false },
+          { instance: 'projeto-representantes', instanceType: 'operational', messageId: 'm-operational-out', direction: 'outbound', fromMe: true }
+        ];
+        for (const item of cases) {
+          await call(app, {
+            provider: 'evolution',
+            instance: item.instance,
+            instanceType: item.instanceType,
+            event: 'messages.upsert',
+            direction: item.direction,
+            messageId: item.messageId,
+            remoteJid: '5511999999999@s.whatsapp.net',
+            phone: '5511999999999',
+            text: item.messageId
+          }, { 'x-account-id': 'acc-evo-1' });
+        }
+        const events = __dumpMemoryWhatsappLearningForTests();
+        assert.equal(events.length, 4);
+        assert.deepEqual(events.map((item) => item.whatsapp_message_id).sort(), ['m-learning-in', 'm-learning-out', 'm-operational-in', 'm-operational-out']);
+        assert.deepEqual(events.map((item) => item.metadata.instance_type).sort(), ['learning', 'learning', 'operational', 'operational']);
+        assert.deepEqual(events.map((item) => item.metadata.direction).sort(), ['inbound', 'inbound', 'outbound', 'outbound']);
+        assert.ok(events.every((item) => item.metadata.learning_source === 'whatsapp_persisted_message'));
       }
     },
     {
@@ -465,6 +503,36 @@ export function getEvolutionWebhookTests() {
         assert.equal(state.messages[0].metadata.learning_only, true);
         assert.equal(state.conversations[0].metadata.instance_type, 'learning');
         assert.equal(state.leads[0].metadata.instance_type, 'learning');
+        assert.equal(__dumpMemoryWhatsappLearningForTests()[0].metadata.learning_source, 'whatsapp_persisted_message');
+      }
+    },
+    {
+      name: 'webhook multimodal preserva detalhes estruturais para aprendizagem',
+      run: async () => {
+        resetState();
+        seedClientes([{ account_id: 'acc-evo-1', id: 'cli-1', nome: 'Ana', telefone: '5511999999999' }]);
+        const app = createApiApp();
+        await call(app, {
+          event: 'messages.upsert',
+          data: {
+            message: {
+              key: { id: 'm16', fromMe: false, remoteJid: '5511999999999@s.whatsapp.net' },
+              message: {
+                imageMessage: {
+                  caption: 'foto do pedido',
+                  mimetype: 'image/jpeg'
+                }
+              }
+            }
+          }
+        }, { 'x-test-role': 'admin', 'x-test-account-id': 'acc-evo-1' });
+        const learning = __dumpMemoryWhatsappLearningForTests()[0];
+        assert.equal(learning.metadata.message_type, 'imageMessage');
+        assert.equal(learning.metadata.caption, 'foto do pedido');
+        assert.equal(learning.status, 'pending');
+        const state = __dumpMemoryEvolution();
+        assert.equal(state.messages[0].metadata.message_type, 'imageMessage');
+        assert.equal(state.messages[0].metadata.caption, 'foto do pedido');
       }
     },
     {

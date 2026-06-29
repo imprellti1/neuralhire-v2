@@ -143,7 +143,10 @@ function buildMessageRow(payload, context = {}) {
     sender_type: payload.senderType,
     message_type: payload.messageType || null,
     body: payload.body || null,
-    metadata: payload.metadata || {},
+    metadata: {
+      ...(payload.metadata || {}),
+      message_type: payload.messageType || payload.metadata?.message_type || null
+    },
     raw_payload: payload.rawPayload || {},
     sent_at: payload.sentAt || null,
     received_at: payload.receivedAt || now(),

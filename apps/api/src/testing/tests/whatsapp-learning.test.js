@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
+import { mkdir, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { createApiApp } from '../../app.js';
 import { createTestRequest } from '../create-test-request.js';
 import { createTestResponse } from '../create-test-response.js';
+import JSZip from 'jszip';
 import { __loadMemoryEvolutionForTests, __resetMemoryEvolutionForTests } from '../../modules/integrations/evolution/evolution.repository.js';
 import { __dumpMemoryWhatsappLearningForTests, __resetMemoryWhatsappLearningForTests, createLearningEvent } from '../../modules/whatsapp-learning/whatsapp-learning.repository.js';
 import { runWhatsappLearningWorker } from '../../modules/whatsapp-learning/whatsapp-learning.service.js';
@@ -23,6 +28,78 @@ function reset() {
   __resetMemoryWhatsappLearningForTests();
 }
 
+async function createTempFile(name, content) {
+  const dir = path.join(os.tmpdir(), 'neuralhire-whatsapp-learning');
+  await mkdir(dir, { recursive: true });
+  const filePath = path.join(dir, name);
+  await writeFile(filePath, content);
+  return filePath;
+}
+
+async function createMinimalPdfBuffer(text) {
+  const safeText = String(text || '').replace(/[\\()]/g, '\\$&');
+  const content = `BT\n/F1 18 Tf\n72 720 Td\n(${safeText}) Tj\nET\n`;
+  const objects = [
+    '1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n',
+    '2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n',
+    '3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj\n',
+    '4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n',
+    `5 0 obj << /Length ${Buffer.byteLength(content, 'utf8')} >> stream\n${content}endstream endobj\n`
+  ];
+  let offset = Buffer.byteLength('%PDF-1.4\n', 'utf8');
+  const xrefEntries = ['0000000000 65535 f \n'];
+  let body = '';
+  for (const obj of objects) {
+    xrefEntries.push(`${String(offset).padStart(10, '0')} 00000 n \n`);
+    body += obj;
+    offset += Buffer.byteLength(obj, 'utf8');
+  }
+  const xrefStart = Buffer.byteLength('%PDF-1.4\n' + body, 'utf8');
+  const trailer = `xref\n0 ${xrefEntries.length}\n${xrefEntries.join('')}trailer << /Size ${xrefEntries.length} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
+  return Buffer.from(`%PDF-1.4\n${body}${trailer}`, 'utf8');
+}
+
+async function createMinimalDocxBuffer(text) {
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`);
+  zip.folder('_rels').file('.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`);
+  zip.folder('word').file('document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>${text}</w:t></w:r></w:p>
+    <w:sectPr><w:pgSz w:w="12240" w:h="15840"/></w:sectPr>
+  </w:body>
+</w:document>`);
+  return zip.generateAsync({ type: 'nodebuffer' });
+}
+
+async function seedLearningEvent(messageId, metadata = {}, body = '', extra = {}) {
+  await createLearningEvent({
+    accountId: 'acc-1',
+    whatsappMessageId: messageId,
+    messageId: `m-${messageId}`,
+    body,
+    contentType: metadata.message_type || 'text',
+    metadata: {
+      provider: 'evolution',
+      instance_name: 'main',
+      instance_type: 'operational',
+      direction: 'inbound',
+      learning_source: 'whatsapp_persisted_message',
+      ...metadata
+    },
+    ...extra
+  }, { accountId: 'acc-1' });
+}
+
 process.env.NEURALHIRE_WEBHOOK_TOKEN = process.env.NEURALHIRE_WEBHOOK_TOKEN || 'secret-token';
 
 export function getWhatsappLearningTests() {
@@ -38,6 +115,14 @@ export function getWhatsappLearningTests() {
         const events = __dumpMemoryWhatsappLearningForTests();
         assert.equal(events.length, 1);
         assert.equal(events[0].status, 'pending');
+        assert.equal(events[0].intent, 'unknown');
+        assert.equal(events[0].sentiment, 'neutral');
+        assert.equal(events[0].importance, 1);
+        assert.equal(events[0].summary, null);
+        assert.deepEqual(events[0].entities, {});
+        assert.deepEqual(events[0].topics, []);
+        assert.equal(events[0].needs_followup, false);
+        assert.equal(events[0].next_action, null);
         assert.equal(events[0].whatsapp_message_id, 'msg-1');
       }
     },
@@ -51,16 +136,173 @@ export function getWhatsappLearningTests() {
       }
     },
     {
-      name: 'worker processa evento pendente e muda status para processed',
+      name: 'worker normaliza evento pendente e muda status para normalized',
       run: async () => {
         reset();
-        await createLearningEvent({ accountId: 'acc-1', whatsappMessageId: 'msg-1', messageId: 'm1', body: 'preciso de orçamento de tapete 40x60 cinza' }, { accountId: 'acc-1' });
+        await seedLearningEvent('msg-1', { message_type: 'text' }, 'preciso de orçamento de tapete 40x60 cinza');
         const result = await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
         assert.equal(result.processed, 1);
         const updated = __dumpMemoryWhatsappLearningForTests()[0];
-        assert.equal(updated.status, 'processed');
-        assert.equal(updated.intent, 'quotation');
-        assert.equal(updated.needs_followup, true);
+        assert.equal(updated.status, 'normalized');
+        assert.equal(updated.intent, 'unknown');
+        assert.equal(updated.sentiment, 'neutral');
+        assert.equal(updated.summary, null);
+        assert.equal(updated.normalized_text, 'preciso de orçamento de tapete 40x60 cinza');
+        assert.ok(updated.normalized_at);
+        assert.deepEqual(updated.normalized_payload, {
+          version: 1,
+          channel: 'whatsapp',
+          content_type: 'text',
+          language: 'pt-BR',
+          text: 'preciso de orçamento de tapete 40x60 cinza',
+          attachments: [],
+          extraction: {
+            status: 'not_applicable',
+            method: null,
+            text_length: 0,
+            extracted_at: null,
+            error: null,
+            truncated: false,
+            max_chars: null
+          },
+          metadata: {
+            provider: 'evolution',
+            instance_name: 'main',
+            instance_type: 'operational',
+            direction: 'inbound',
+            learning_source: 'whatsapp_persisted_message',
+            message_type: 'text'
+          }
+        });
+      }
+    },
+    {
+      name: 'worker normaliza tipos multimodais por tipo',
+      run: async () => {
+        reset();
+        await seedLearningEvent('msg-text', { message_type: 'text' }, 'texto original');
+        await seedLearningEvent('msg-image', { message_type: 'image', caption: 'legenda da imagem', mime_type: 'image/jpeg' }, '');
+        await seedLearningEvent('msg-audio', { message_type: 'audio', mime_type: 'audio/ogg', duration_seconds: 12 }, '');
+        await seedLearningEvent('msg-video', { message_type: 'video', caption: 'legenda do video', mime_type: 'video/mp4', duration_seconds: 31 }, '');
+        await seedLearningEvent('msg-pdf', { message_type: 'document', mime_type: 'application/pdf', file_name: 'arquivo.pdf' }, '');
+        await seedLearningEvent('msg-spreadsheet', { message_type: 'document', mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', file_name: 'planilha.xlsx' }, '');
+        await seedLearningEvent('msg-csv', { message_type: 'document', mime_type: 'text/csv', file_name: 'dados.csv' }, '');
+        await seedLearningEvent('msg-document', { message_type: 'document', mime_type: 'application/msword', file_name: 'documento.docx' }, '');
+        await seedLearningEvent('msg-location', { message_type: 'location', location: { latitude: -23.55, longitude: -46.63, name: 'Centro', address: 'SP' } }, '');
+        await seedLearningEvent('msg-contact', { message_type: 'contact', contact: { name: 'João', phone: '5511999999999', email: 'joao@exemplo.com' } }, '');
+        await seedLearningEvent('msg-reaction', { message_type: 'reaction', reaction: { emoji: '👍', target_message_id: 'target-1' } }, '');
+        await seedLearningEvent('msg-sticker', { message_type: 'sticker', mime_type: 'image/webp' }, '');
+        await seedLearningEvent('msg-unknown', { message_type: 'system' }, '');
+        const result = await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 20 });
+        assert.equal(result.processed, 13);
+        const events = __dumpMemoryWhatsappLearningForTests();
+        const byId = new Map(events.map((item) => [item.whatsapp_message_id, item]));
+        assert.equal(byId.get('msg-text').normalized_payload.content_type, 'text');
+        assert.equal(byId.get('msg-text').normalized_payload.extraction.status, 'not_applicable');
+        assert.equal(byId.get('msg-text').normalized_text, 'texto original');
+        assert.equal(byId.get('msg-text').normalized_payload.attachments.length, 0);
+        assert.equal(byId.get('msg-image').normalized_payload.content_type, 'image');
+        assert.equal(byId.get('msg-image').normalized_payload.extraction.status, 'not_applicable');
+        assert.equal(byId.get('msg-image').normalized_payload.text, 'legenda da imagem');
+        assert.equal(byId.get('msg-image').normalized_payload.attachments[0].type, 'image');
+        assert.equal(byId.get('msg-audio').normalized_payload.content_type, 'audio');
+        assert.equal(byId.get('msg-audio').normalized_payload.extraction.status, 'not_applicable');
+        assert.equal(byId.get('msg-audio').normalized_payload.text, '');
+        assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].duration_seconds, 12);
+        assert.equal(byId.get('msg-video').normalized_payload.content_type, 'video');
+        assert.equal(byId.get('msg-video').normalized_payload.extraction.status, 'not_applicable');
+        assert.equal(byId.get('msg-video').normalized_payload.text, 'legenda do video');
+        assert.equal(byId.get('msg-pdf').normalized_payload.content_type, 'pdf');
+        assert.equal(byId.get('msg-pdf').normalized_payload.extraction.status, 'pending');
+        assert.equal(byId.get('msg-spreadsheet').normalized_payload.content_type, 'spreadsheet');
+        assert.equal(byId.get('msg-spreadsheet').normalized_payload.extraction.status, 'not_applicable');
+        assert.equal(byId.get('msg-csv').normalized_payload.content_type, 'csv');
+        assert.equal(byId.get('msg-csv').normalized_payload.extraction.status, 'not_applicable');
+        assert.equal(byId.get('msg-document').normalized_payload.content_type, 'document');
+        assert.equal(byId.get('msg-document').normalized_payload.extraction.status, 'pending');
+        assert.equal(byId.get('msg-location').normalized_payload.content_type, 'location');
+        assert.equal(byId.get('msg-location').normalized_payload.extraction.status, 'not_applicable');
+        assert.deepEqual(byId.get('msg-location').normalized_payload.location.latitude, -23.55);
+        assert.equal(byId.get('msg-contact').normalized_payload.content_type, 'contact');
+        assert.equal(byId.get('msg-contact').normalized_payload.extraction.status, 'not_applicable');
+        assert.equal(byId.get('msg-contact').normalized_payload.contact.phone, '5511999999999');
+        assert.equal(byId.get('msg-reaction').normalized_payload.content_type, 'reaction');
+        assert.equal(byId.get('msg-reaction').normalized_payload.extraction.status, 'not_applicable');
+        assert.equal(byId.get('msg-reaction').normalized_payload.reaction.emoji, '👍');
+        assert.equal(byId.get('msg-sticker').normalized_payload.content_type, 'sticker');
+        assert.equal(byId.get('msg-sticker').normalized_payload.extraction.status, 'not_applicable');
+        assert.equal(byId.get('msg-sticker').normalized_payload.attachments[0].type, 'sticker');
+        assert.equal(byId.get('msg-unknown').normalized_payload.content_type, 'unknown');
+        assert.equal(byId.get('msg-unknown').normalized_payload.extraction.status, 'not_applicable');
+        assert.ok(events.every((item) => item.status === 'normalized'));
+        assert.ok(events.every((item) => item.normalized_at));
+        assert.ok(events.every((item) => Array.isArray(item.normalized_payload.attachments)));
+      }
+    },
+    {
+      name: 'worker extrai texto de pdf e docx acessiveis',
+      run: async () => {
+        reset();
+        const pdfPath = await createTempFile('sample.pdf', await createMinimalPdfBuffer('Texto do PDF'));
+        const docxPath = await createTempFile('sample.docx', await createMinimalDocxBuffer('Texto do DOCX'));
+        await seedLearningEvent('msg-pdf', { message_type: 'document', mime_type: 'application/pdf', file_name: 'sample.pdf', url: pathToFileURL(pdfPath).href }, '');
+        await seedLearningEvent('msg-docx', { message_type: 'document', mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', file_name: 'sample.docx', url: pathToFileURL(docxPath).href }, '');
+        const result = await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+        assert.equal(result.processed, 2);
+        const events = __dumpMemoryWhatsappLearningForTests();
+        const byId = new Map(events.map((item) => [item.whatsapp_message_id, item]));
+        assert.equal(byId.get('msg-pdf').normalized_payload.extraction.status, 'extracted');
+        assert.equal(byId.get('msg-pdf').normalized_payload.extraction.method, 'pdf_text_extraction');
+        assert.equal(byId.get('msg-pdf').normalized_text.includes('Texto do PDF'), true);
+        assert.equal(byId.get('msg-pdf').normalized_payload.text.includes('Texto do PDF'), true);
+        assert.equal(byId.get('msg-docx').normalized_payload.extraction.status, 'extracted');
+        assert.equal(byId.get('msg-docx').normalized_payload.extraction.method, 'docx_text_extraction');
+        assert.equal(byId.get('msg-docx').normalized_text.includes('Texto do DOCX'), true);
+      }
+    },
+    {
+      name: 'worker marca pdf e docx vazios como empty e preserva metadados',
+      run: async () => {
+        reset();
+        const pdfPath = await createTempFile('empty.pdf', await createMinimalPdfBuffer(''));
+        const docxPath = await createTempFile('empty.docx', await createMinimalDocxBuffer(''));
+        await seedLearningEvent('msg-pdf', { message_type: 'document', mime_type: 'application/pdf', file_name: 'empty.pdf', url: pathToFileURL(pdfPath).href, original_metadata: { source: 'legacy' } }, '');
+        await seedLearningEvent('msg-docx', { message_type: 'document', mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', file_name: 'empty.docx', url: pathToFileURL(docxPath).href }, '');
+        const result = await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+        assert.equal(result.processed, 2);
+        const byId = new Map(__dumpMemoryWhatsappLearningForTests().map((item) => [item.whatsapp_message_id, item]));
+        assert.equal(byId.get('msg-pdf').normalized_payload.extraction.status, 'empty');
+        assert.equal(byId.get('msg-pdf').normalized_text, '');
+        assert.equal(byId.get('msg-pdf').metadata.original_metadata.source, 'legacy');
+        assert.equal(byId.get('msg-docx').normalized_payload.extraction.status, 'empty');
+      }
+    },
+    {
+      name: 'worker marca arquivo inacessivel como pending e tipo nao docx como unsupported',
+      run: async () => {
+        reset();
+        const docPath = await createTempFile('sample.doc', Buffer.from('legacy-word-placeholder'));
+        await seedLearningEvent('msg-pdf', { message_type: 'document', mime_type: 'application/pdf', file_name: 'sample.pdf' }, '');
+        await seedLearningEvent('msg-doc', { message_type: 'document', mime_type: 'application/msword', file_name: 'sample.doc', url: pathToFileURL(docPath).href }, '');
+        const result = await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+        assert.equal(result.processed, 2);
+        const byId = new Map(__dumpMemoryWhatsappLearningForTests().map((item) => [item.whatsapp_message_id, item]));
+        assert.equal(byId.get('msg-pdf').normalized_payload.extraction.status, 'pending');
+        assert.equal(byId.get('msg-doc').normalized_payload.extraction.status, 'unsupported');
+      }
+    },
+    {
+      name: 'worker registra falha tecnica de extração sem quebrar processamento',
+      run: async () => {
+        reset();
+        const filePath = await createTempFile('broken.docx', Buffer.from('not a real docx zip'));
+        await seedLearningEvent('msg-broken', { message_type: 'document', mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', file_name: 'broken.docx', url: pathToFileURL(filePath).href }, '');
+        const result = await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+        assert.equal(result.failed, 0);
+        const updated = __dumpMemoryWhatsappLearningForTests()[0];
+        assert.equal(updated.status, 'normalized');
+        assert.equal(updated.normalized_payload.extraction.status, 'failed');
+        assert.ok(updated.normalized_payload.extraction.error);
       }
     },
     {
@@ -85,10 +327,10 @@ export function getWhatsappLearningTests() {
         const events = __dumpMemoryWhatsappLearningForTests();
         const greeting = events.find((item) => item.whatsapp_message_id === 'msg-1');
         const complaint = events.find((item) => item.whatsapp_message_id === 'msg-2');
-        assert.equal(greeting.intent, 'greeting');
-        assert.equal(greeting.sentiment, 'neutral');
-        assert.equal(complaint.intent, 'complaint');
-        assert.equal(complaint.sentiment, 'negative');
+        assert.equal(greeting.status, 'normalized');
+        assert.equal(complaint.status, 'normalized');
+        assert.equal(greeting.normalized_payload.content_type, 'text');
+        assert.equal(complaint.normalized_payload.content_type, 'text');
       }
     }
   ];

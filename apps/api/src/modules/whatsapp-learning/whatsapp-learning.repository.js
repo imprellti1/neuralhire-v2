@@ -12,6 +12,51 @@ function normalizeKey(accountId, whatsappMessageId) {
   return `${String(accountId || '').trim()}::${String(whatsappMessageId || '').trim()}`;
 }
 
+function normalizeInitialImportance(value) {
+  if (value === 'low') return 1;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) return Math.min(10, Math.max(1, Math.round(numeric)));
+  return 1;
+}
+
+function cleanText(value) {
+  const text = String(value ?? '').trim();
+  return text.length > 0 ? text : '';
+}
+
+function buildMetadata(original = {}, extras = {}) {
+  const metadata = original && typeof original === 'object' && !Array.isArray(original) ? { ...original } : {};
+  return { ...metadata, ...extras };
+}
+
+function normalizeMessageType(value) {
+  return cleanText(value).toLowerCase() || 'unknown';
+}
+
+function inferDocumentContentType(messageType, metadata = {}) {
+  const normalizedType = normalizeMessageType(messageType);
+  const mimeType = cleanText(metadata.mime_type || metadata.mimeType).toLowerCase();
+  const fileName = cleanText(metadata.file_name || metadata.fileName).toLowerCase();
+
+  if (normalizedType === 'pdf' || mimeType === 'application/pdf' || fileName.endsWith('.pdf')) return 'pdf';
+  if (normalizedType === 'spreadsheet' || mimeType.includes('spreadsheet') || mimeType.includes('excel') || fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) return 'spreadsheet';
+  if (normalizedType === 'csv' || mimeType === 'text/csv' || fileName.endsWith('.csv')) return 'csv';
+  if (normalizedType === 'document') return 'document';
+  return normalizedType;
+}
+
+function buildAttachment(type, metadata = {}, extra = {}) {
+  return {
+    type,
+    mime_type: metadata.mime_type || metadata.mimeType || null,
+    file_name: metadata.file_name || metadata.fileName || null,
+    url: metadata.url || metadata.file_url || metadata.fileUrl || null,
+    storage_key: metadata.storage_key || metadata.storageKey || null,
+    ...extra,
+    metadata: buildMetadata(metadata.metadata, metadata.original_metadata)
+  };
+}
+
 function buildRow(data = {}) {
   return {
     id: randomUUID(),
@@ -23,15 +68,19 @@ function buildRow(data = {}) {
     source: data.source || 'whatsapp',
     content_type: data.contentType || 'text',
     body: data.body || null,
-    intent: data.intent || null,
-    sentiment: data.sentiment || null,
-    importance: data.importance ?? null,
+    intent: data.intent || 'unknown',
+    sentiment: data.sentiment || 'neutral',
+    importance: normalizeInitialImportance(data.importance ?? 'low'),
     summary: data.summary || null,
-    needs_followup: Boolean(data.needsFollowup),
+    needs_followup: Boolean(data.needsFollowup ?? false),
     next_action: data.nextAction || null,
-    entities: Array.isArray(data.entities) ? data.entities : [],
+    entities: data.entities && typeof data.entities === 'object' ? data.entities : {},
     topics: Array.isArray(data.topics) ? data.topics : [],
     metadata: data.metadata && typeof data.metadata === 'object' && !Array.isArray(data.metadata) ? data.metadata : {},
+    normalized_text: data.normalizedText || null,
+    normalized_payload: data.normalizedPayload && typeof data.normalizedPayload === 'object' && !Array.isArray(data.normalizedPayload) ? data.normalizedPayload : null,
+    normalized_at: data.normalizedAt || null,
+    processing_error: data.processingError || null,
     status: data.status || 'pending',
     processed_at: data.processedAt || null,
     error: data.error || null,
@@ -40,8 +89,149 @@ function buildRow(data = {}) {
   };
 }
 
+export function buildWhatsappLearningNormalizedPayload(event = {}) {
+  const metadata = event.metadata && typeof event.metadata === 'object' && !Array.isArray(event.metadata) ? event.metadata : {};
+  const messageType = normalizeMessageType(metadata.message_type || event.content_type || 'text');
+  const contentType = inferDocumentContentType(messageType, metadata);
+  const body = cleanText(event.body);
+  const caption = cleanText(metadata.caption || metadata.text || body);
+  const location = metadata.location && typeof metadata.location === 'object' && !Array.isArray(metadata.location) ? metadata.location : null;
+  const contact = metadata.contact && typeof metadata.contact === 'object' && !Array.isArray(metadata.contact) ? metadata.contact : null;
+  const reaction = metadata.reaction && typeof metadata.reaction === 'object' && !Array.isArray(metadata.reaction) ? metadata.reaction : null;
+  const attachments = [];
+  let text = '';
+
+  if (contentType === 'text') {
+    text = body;
+  } else if (contentType === 'image') {
+    text = caption;
+    attachments.push(buildAttachment('image', metadata, { caption }));
+  } else if (contentType === 'audio') {
+    attachments.push(buildAttachment('audio', metadata, { duration_seconds: metadata.duration_seconds ?? metadata.durationSeconds ?? null }));
+  } else if (contentType === 'video') {
+    text = caption;
+    attachments.push(buildAttachment('video', metadata, { caption, duration_seconds: metadata.duration_seconds ?? metadata.durationSeconds ?? null }));
+  } else if (['pdf', 'spreadsheet', 'csv', 'document'].includes(contentType)) {
+    attachments.push(buildAttachment(contentType, metadata));
+  } else if (contentType === 'location') {
+    return {
+      version: 1,
+      channel: 'whatsapp',
+      content_type: 'location',
+      language: 'pt-BR',
+      text: '',
+      attachments: [],
+      location: {
+        latitude: location?.latitude ?? metadata.latitude ?? metadata.lat ?? null,
+        longitude: location?.longitude ?? metadata.longitude ?? metadata.lng ?? null,
+        name: location?.name ?? metadata.name ?? null,
+        address: location?.address ?? metadata.address ?? null,
+        metadata: buildMetadata(location?.metadata, metadata.location_metadata)
+      },
+      metadata: buildMetadata(metadata, {
+        provider: metadata.provider || 'evolution',
+        instance_name: metadata.instance_name || null,
+        instance_type: metadata.instance_type || null,
+        direction: metadata.direction || null,
+        learning_source: metadata.learning_source || 'whatsapp_persisted_message',
+        message_type: messageType
+      })
+    };
+  } else if (contentType === 'contact') {
+    return {
+      version: 1,
+      channel: 'whatsapp',
+      content_type: 'contact',
+      language: 'pt-BR',
+      text: '',
+      attachments: [],
+      contact: {
+        name: contact?.name ?? metadata.contact_name ?? metadata.name ?? null,
+        phone: contact?.phone ?? metadata.phone ?? null,
+        email: contact?.email ?? metadata.email ?? null,
+        metadata: buildMetadata(contact?.metadata, metadata.contact_metadata)
+      },
+      metadata: buildMetadata(metadata, {
+        provider: metadata.provider || 'evolution',
+        instance_name: metadata.instance_name || null,
+        instance_type: metadata.instance_type || null,
+        direction: metadata.direction || null,
+        learning_source: metadata.learning_source || 'whatsapp_persisted_message',
+        message_type: messageType
+      })
+    };
+  } else if (contentType === 'reaction') {
+    return {
+      version: 1,
+      channel: 'whatsapp',
+      content_type: 'reaction',
+      language: 'pt-BR',
+      text: '',
+      attachments: [],
+      reaction: {
+        emoji: reaction?.emoji ?? metadata.emoji ?? null,
+        target_message_id: reaction?.target_message_id ?? metadata.target_message_id ?? metadata.targetMessageId ?? null,
+        metadata: buildMetadata(reaction?.metadata, metadata.reaction_metadata)
+      },
+      metadata: buildMetadata(metadata, {
+        provider: metadata.provider || 'evolution',
+        instance_name: metadata.instance_name || null,
+        instance_type: metadata.instance_type || null,
+        direction: metadata.direction || null,
+        learning_source: metadata.learning_source || 'whatsapp_persisted_message',
+        message_type: messageType
+      })
+    };
+  } else if (contentType === 'sticker') {
+    attachments.push(buildAttachment('sticker', metadata));
+  } else {
+    return {
+      version: 1,
+      channel: 'whatsapp',
+      content_type: 'unknown',
+      language: 'pt-BR',
+      text: '',
+      attachments: [],
+      metadata: buildMetadata(metadata, {
+        provider: metadata.provider || 'evolution',
+        instance_name: metadata.instance_name || null,
+        instance_type: metadata.instance_type || null,
+        direction: metadata.direction || null,
+        learning_source: metadata.learning_source || 'whatsapp_persisted_message',
+        message_type: messageType
+      })
+    };
+  }
+
+  const normalizedMetadata = {
+    provider: event.metadata?.provider || 'evolution',
+    instance_name: metadata.instance_name || null,
+    instance_type: metadata.instance_type || null,
+    direction: metadata.direction || null,
+    learning_source: metadata.learning_source || 'whatsapp_persisted_message',
+    message_type: messageType
+  };
+
+  return {
+    version: 1,
+    channel: 'whatsapp',
+    content_type: contentType,
+    language: 'pt-BR',
+    text,
+    attachments,
+    metadata: normalizedMetadata
+  };
+}
+
 export function __resetMemoryWhatsappLearningForTests() { memoryEvents.length = 0; }
-export function __dumpMemoryWhatsappLearningForTests() { return memoryEvents.map((item) => ({ ...item, entities: [...(item.entities || [])], topics: [...(item.topics || [])], metadata: { ...(item.metadata || {}) } })); }
+export function __dumpMemoryWhatsappLearningForTests() {
+  return memoryEvents.map((item) => ({
+    ...item,
+    entities: Array.isArray(item.entities) ? [...item.entities] : { ...(item.entities || {}) },
+    topics: [...(item.topics || [])],
+    metadata: { ...(item.metadata || {}) }
+  }));
+}
 
 export async function createLearningEvent(data = {}, options = {}) {
   const accountId = options.accountId || data.accountId || null;
@@ -67,6 +257,27 @@ export async function createLearningEvent(data = {}, options = {}) {
   const row = buildRow({ ...data, accountId, whatsappMessageId });
   memoryEvents.push(row);
   return { item: row, status: 'created' };
+}
+
+export async function normalizeLearningEvent(eventId, patch = {}, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  if (mode() === 'supabase') {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('whatsapp_learning_events')
+      .update({ ...patch, updated_at: now() })
+      .eq('id', eventId)
+      .eq('account_id', accountId)
+      .select('*')
+      .single();
+    if (error) throw new DatabaseError('Falha ao normalizar evento de aprendizagem', { details: error });
+    return data;
+  }
+  const idx = memoryEvents.findIndex((item) => item.id === eventId && item.account_id === accountId);
+  if (idx < 0) return null;
+  memoryEvents[idx] = { ...memoryEvents[idx], ...patch, updated_at: now() };
+  return memoryEvents[idx];
 }
 
 export async function listPendingLearningEvents({ accountId, limit = 10 } = {}) {
