@@ -98,6 +98,7 @@ const suiteSpecs = [
   ['Message Approvals', './message-approvals.test.js', 'getMessageApprovalsTests'],
   ['WhatsApp Delivery', './whatsapp-delivery.test.js', 'getWhatsappDeliveryTests'],
   ['Evolution Webhook', './evolution-webhook.test.js', 'getEvolutionWebhookTests'],
+  ['WhatsApp Learning', './whatsapp-learning.test.js', 'getWhatsappLearningTests'],
   ['Commercial Agent', './commercial-agent.test.js', 'getCommercialAgentTests'],
   ['Approval Intelligence', './approval-intelligence.test.js', 'getApprovalIntelligenceTests'],
   ['Portfolio Dashboard', './portfolio-dashboard.test.js', 'getPortfolioDashboardTests'],

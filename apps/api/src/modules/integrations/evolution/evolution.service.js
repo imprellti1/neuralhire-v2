@@ -2,6 +2,7 @@ import { logger } from '../../../core/logger.js';
 import { env } from '../../../config/env.js';
 import { createTimelineEventForCustomer, findCustomerByPhone, findOrCreateConversation, findOrCreateLead, findWhatsappInstanceByName, linkMessageAfterSave, normalizeInstanceType, upsertWhatsappMessage } from './evolution.repository.js';
 import { mapEvolutionWebhookEvent, mapMessageDirection, mapSenderType, normalizeWhatsAppPhone } from './evolution.mapper.js';
+import { createLearningEvent } from '../../whatsapp-learning/whatsapp-learning.repository.js';
 
 function allowHeaderAccountFallback() {
   const appEnv = String(env.APP_ENV || '').toLowerCase();
@@ -125,6 +126,26 @@ export async function processEvolutionWebhook(payload = {}, context = {}) {
     return { ok: true, processed: true, messageId: mapped.messageId, eventType: mapped.eventType, status: 'already_exists' };
   }
 
+  async function enqueueLearningEvent(conversationId = null, leadId = null) {
+    return createLearningEvent({
+      accountId,
+      whatsappMessageId: mapped.messageId,
+      messageId: messageResult.item?.id || null,
+      conversationId,
+      leadId,
+      source: 'whatsapp',
+      contentType: 'text',
+      body: mapped.text || null,
+      metadata: {
+        provider: 'evolution',
+        instance_type: instanceType,
+        instance_name: mapped.instanceName || null,
+        direction,
+        message_type: mapped.messageType || null
+      }
+    }, { accountId });
+  }
+
   const match = await findCustomerByPhone(accountId, phone);
   const customer = match.cliente || null;
   const ambiguous = Array.isArray(match.candidates) && match.candidates.length > 1 && !customer;
@@ -143,6 +164,7 @@ export async function processEvolutionWebhook(payload = {}, context = {}) {
     });
     logger.info('evolution_conversation_linked', { accountId, messageId: mapped.messageId, conversationId: conversation?.id || null, clienteId: customer.id });
     await linkMessageAfterSave(messageResult.item, { conversationId: conversation?.id || null, clienteId: customer.id, phoneNormalized: phone }, { accountId });
+    await enqueueLearningEvent(conversation?.id || null, null);
     logger.info('evolution_message_attached', { accountId, messageId: mapped.messageId, conversationId: conversation?.id || null, clienteId: customer.id });
 
     const timelineResult = await createTimelineEventForCustomer(customer.id, {
@@ -213,6 +235,7 @@ export async function processEvolutionWebhook(payload = {}, context = {}) {
 
   logger.info('evolution_conversation_linked', { accountId, messageId: mapped.messageId, conversationId: conversation?.id || null, leadId: lead?.id || null });
   await linkMessageAfterSave(messageResult.item, { conversationId: conversation?.id || null, leadId: lead?.id || null, phoneNormalized: phone }, { accountId });
+  await enqueueLearningEvent(conversation?.id || null, lead?.id || null);
   logger.info('evolution_message_attached', { accountId, messageId: mapped.messageId, conversationId: conversation?.id || null, leadId: lead?.id || null });
 
   if (messageResult.status === 'created') {

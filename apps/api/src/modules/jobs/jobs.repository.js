@@ -66,7 +66,8 @@ export function getSystemJobDefaults() {
     { nome: 'vendedor_ia_observacao', lock_key: 'vendedor_ia_observacao', metadata: { cadence: 'every-6-hours', ttlMinutes: 60 } },
     { nome: 'diretor_reuniao_executiva', lock_key: 'diretor_reuniao_executiva', metadata: { cadence: 'daily-0500', ttlMinutes: 60 } },
     { nome: 'diretor_plano_acao', lock_key: 'diretor_plano_acao', metadata: { cadence: 'daily-0530', ttlMinutes: 60 } },
-    { nome: 'diretor_delegacao', lock_key: 'diretor_delegacao', metadata: { cadence: 'daily-0430', ttlMinutes: 60 } }
+    { nome: 'diretor_delegacao', lock_key: 'diretor_delegacao', metadata: { cadence: 'daily-0430', ttlMinutes: 60 } },
+    { nome: 'whatsapp_learning_worker', lock_key: 'whatsapp_learning_worker', metadata: { cadence: 'every-5-minutes', ttlMinutes: 15 } }
   ];
 }
 

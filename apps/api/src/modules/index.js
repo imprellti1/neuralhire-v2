@@ -63,6 +63,7 @@ import { registerApprovalIntelligenceRoutes } from './approval-intelligence/appr
 import { approvalIntelligenceModule } from './approval-intelligence/approval-intelligence.module.js';
 import { registerWhatsappDeliveryRoutes } from './whatsapp-delivery/whatsapp-delivery.routes.js';
 import { whatsappDeliveryModule } from './whatsapp-delivery/whatsapp-delivery.module.js';
+import { whatsappLearningModule } from './whatsapp-learning/whatsapp-learning.module.js';
 import { registerEvolutionRoutes } from './integrations/evolution/evolution.routes.js';
 import { evolutionModule } from './integrations/evolution/evolution.module.js';
 import { registerCommercialAgentRoutes } from './commercial-agent/commercial-agent.routes.js';
@@ -96,7 +97,7 @@ export const registeredModules = [
   accountActivationModule, implementationTrackerModule, customerSuccessModule, customerSuccessAutomationModule,
   customerSuccessTimelineModule, customerRetentionModule, executiveDashboardModule, executivePortfolioAnalyticsModule,
   revenueIntelligenceModule, portfolioDashboardModule, legacyImportModule, customerMemoryModule,
-  whatsappConversationsModule, messageDraftsModule, messageApprovalsModule, approvalIntelligenceModule, whatsappDeliveryModule, commercialAgentModule, fabricantesModule, vendedoresModule,
+  whatsappConversationsModule, messageDraftsModule, messageApprovalsModule, approvalIntelligenceModule, whatsappDeliveryModule, whatsappLearningModule, commercialAgentModule, fabricantesModule, vendedoresModule,
   evolutionModule,
   priceTableImportModule, clientesImportModule
   ,pedidosImportModule, pedidosItensModule, productAuditModule, productEditorModule, produtoImagensModule, auditLogsModule

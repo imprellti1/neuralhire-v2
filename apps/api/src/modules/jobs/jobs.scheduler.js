@@ -19,6 +19,7 @@ import { listProdutos } from '../produtos/produtos.repository.js';
 import { listPromocoes } from '../promocoes/promocoes.repository.js';
 import { listBatches } from '../legacy-import/legacy-import-staging.repository.js';
 import { getAiSalesInsights } from '../ai-sales/ai-sales.repository.js';
+import { runWhatsappLearningWorker as executeWhatsappLearningWorker } from '../whatsapp-learning/whatsapp-learning.service.js';
 
 function isoNow() {
   return new Date().toISOString();
@@ -75,7 +76,8 @@ function canonicalJobLockKey(nome) {
     vendedor_ia_observacao: 'vendedor_ia_observacao',
     diretor_reuniao_executiva: 'diretor_reuniao_executiva',
     diretor_plano_acao: 'diretor_plano_acao',
-    diretor_delegacao: 'diretor_delegacao'
+    diretor_delegacao: 'diretor_delegacao',
+    whatsapp_learning_worker: 'whatsapp_learning_worker'
   })[nome] || nome;
 }
 
@@ -108,10 +110,11 @@ const JOB_HANDLERS = {
   vendedor_ia_observacao: runVendedorIaObservacaoJob,
   diretor_reuniao_executiva: runDiretorReuniaoExecutivaJob,
   diretor_plano_acao: runDiretorPlanoAcaoJob,
-  diretor_delegacao: runDiretorDelegacaoJob
+  diretor_delegacao: runDiretorDelegacaoJob,
+  whatsapp_learning_worker: runWhatsappLearningWorker
 };
 
-const TENANT_AWARE_JOB_NAMES = new Set(['clientes_enriquecimento_automatico', 'clientes_geolocalizacao_automatico', 'gerente_comercial_observacao', 'gerente_produtos_observacao', 'gerente_auditoria_observacao', 'gerente_administrativo_observacao', 'vendedor_ia_observacao', 'diretor_reuniao_executiva', 'diretor_plano_acao']);
+const TENANT_AWARE_JOB_NAMES = new Set(['clientes_enriquecimento_automatico', 'clientes_geolocalizacao_automatico', 'gerente_comercial_observacao', 'gerente_produtos_observacao', 'gerente_auditoria_observacao', 'gerente_administrativo_observacao', 'vendedor_ia_observacao', 'diretor_reuniao_executiva', 'diretor_plano_acao', 'whatsapp_learning_worker']);
 
 let schedulerTimer = null;
 let schedulerRunning = false;
@@ -1347,6 +1350,27 @@ export async function runDiretorDelegacaoJob(context = {}) {
     return { ok: true, mode: 'tenant_fanout', accountIds, results };
   }
   return runDiretorDelegacaoForAccount(job, context, accountId);
+}
+
+export async function runWhatsappLearningWorker(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const job = context.job || await resolveGlobalSystemJob('whatsapp_learning_worker') || await upsertSystemJob({
+    nome: 'whatsapp_learning_worker',
+    lock_key: canonicalJobLockKey('whatsapp_learning_worker'),
+    account_id: null,
+    status: 'ativo',
+    last_run_at: isoNow(),
+    next_run_at: nextInMinutes(new Date(), 5)
+  }, { accountId: null });
+  if (!accountId) {
+    const accountIds = await listTenantExecutiveAccounts();
+    const results = [];
+    for (const tenantAccountId of accountIds) {
+      results.push(await executeWhatsappLearningWorker({ ...context, accountId: tenantAccountId, job }));
+    }
+    return { ok: true, mode: 'tenant_fanout', accountIds, results };
+  }
+  return executeWhatsappLearningWorker({ ...context, job, accountId });
 }
 
 export async function listJobsOverview(context = {}) {

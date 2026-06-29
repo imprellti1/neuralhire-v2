@@ -5,6 +5,7 @@ import { createTestResponse } from '../create-test-response.js';
 import { __loadMemoryClientes, __resetMemoryClientesForTests } from '../../modules/clientes/clientes.repository.js';
 import { __resetMemoryTimelineForTests } from '../../modules/clientes/clientes.timeline.service.js';
 import { __dumpMemoryEvolution, __loadMemoryEvolutionForTests, __resetMemoryEvolutionForTests } from '../../modules/integrations/evolution/evolution.repository.js';
+import { __dumpMemoryWhatsappLearningForTests, __resetMemoryWhatsappLearningForTests } from '../../modules/whatsapp-learning/whatsapp-learning.repository.js';
 
 function parse(res) {
   try { return JSON.parse(res.body || '{}'); } catch { return {}; }
@@ -24,6 +25,7 @@ function resetState() {
   __resetMemoryClientesForTests();
   __resetMemoryTimelineForTests();
   __resetMemoryEvolutionForTests();
+  __resetMemoryWhatsappLearningForTests();
 }
 
 function withWebhookToken(token, fn) {
@@ -120,6 +122,8 @@ export function getEvolutionWebhookTests() {
         assert.equal(state.messages[0].phone, '5511999999999');
         assert.equal(state.messages[0].conversation_id, state.conversations[0].id);
         assert.equal(state.messages[0].event_type, 'messages.upsert');
+        assert.equal(__dumpMemoryWhatsappLearningForTests().length, 1);
+        assert.equal(__dumpMemoryWhatsappLearningForTests()[0].status, 'pending');
         assert.equal(state.conversations[0].phone, '5511999999999');
         assert.equal(state.conversations[0].instance_id, 'inst-1');
         assert.equal(state.conversations[0].cliente_id, 'cli-1');
@@ -152,6 +156,7 @@ export function getEvolutionWebhookTests() {
         assert.equal(state.messages[0].phone, '5511777777777');
         assert.equal(state.conversations[0].phone, '5511777777777');
         assert.equal(state.leads.length, 1);
+        assert.equal(__dumpMemoryWhatsappLearningForTests().length, 1);
       }
     },
     {
@@ -186,6 +191,7 @@ export function getEvolutionWebhookTests() {
         const state = __dumpMemoryEvolution();
         assert.equal(state.messages[0].phone, '555199640252');
         assert.equal(state.conversations[0].phone, '555199640252');
+        assert.equal(__dumpMemoryWhatsappLearningForTests().length, 1);
       }
     },
     {
@@ -223,6 +229,7 @@ export function getEvolutionWebhookTests() {
         assert.equal(state.messages.length, 1);
         assert.equal(state.messages[0].conversation_id, state.conversations[0].id);
         assert.equal(state.conversations[0].phone, '5511999999999');
+        assert.equal(__dumpMemoryWhatsappLearningForTests().length, 1);
       }
     },
     {
@@ -251,6 +258,7 @@ export function getEvolutionWebhookTests() {
         assert.equal(state.messages.length, 1);
         assert.equal(state.messages[0].message_id, 'm-envelope-1');
         assert.equal(state.messages[0].instance_id, 'inst-1');
+        assert.equal(__dumpMemoryWhatsappLearningForTests().length, 1);
       }
     },
     {
