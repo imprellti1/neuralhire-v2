@@ -12,6 +12,7 @@ import { __loadMemoryEvolutionForTests, __resetMemoryEvolutionForTests } from '.
 import { __dumpMemoryWhatsappLearningForTests, __resetMemoryWhatsappLearningForTests, createLearningEvent } from '../../modules/whatsapp-learning/whatsapp-learning.repository.js';
 import { runWhatsappLearningWorker } from '../../modules/whatsapp-learning/whatsapp-learning.service.js';
 import { buildMediaAttachment, generateMediaSha256 } from '../../modules/media-manager/media-manager.js';
+import { extractTextFromImage } from '../../modules/media-manager/ocr-provider.js';
 
 function parse(res) { try { return JSON.parse(res.body || '{}'); } catch { return {}; } }
 
@@ -126,6 +127,26 @@ process.env.NEURALHIRE_WEBHOOK_TOKEN = process.env.NEURALHIRE_WEBHOOK_TOKEN || '
 export function getWhatsappLearningTests() {
   return [
     {
+      name: 'provider OCR desligado retorna contrato disabled sem texto',
+      run: async () => {
+        const previousEnabled = process.env.OCR_ENABLED;
+        const previousProvider = process.env.OCR_PROVIDER;
+        process.env.OCR_ENABLED = 'false';
+        process.env.OCR_PROVIDER = 'disabled';
+        const result = await extractTextFromImage({ enabled: false, provider: 'disabled' });
+        assert.deepEqual(result, {
+          status: 'disabled',
+          text: '',
+          provider: null,
+          error: null,
+          processedAt: null,
+          metadata: {}
+        });
+        process.env.OCR_ENABLED = previousEnabled;
+        process.env.OCR_PROVIDER = previousProvider;
+      }
+    },
+    {
       name: 'webhook cria evento pendente de aprendizagem',
       run: async () => {
         reset();
@@ -145,6 +166,40 @@ export function getWhatsappLearningTests() {
         assert.equal(events[0].needs_followup, false);
         assert.equal(events[0].next_action, null);
         assert.equal(events[0].whatsapp_message_id, 'msg-1');
+      }
+    },
+    {
+      name: 'imagem recebe contrato OCR completo e worker permanece normalized com OCR desabilitado',
+      run: async () => {
+        reset();
+        const previousEnabled = process.env.OCR_ENABLED;
+        const previousProvider = process.env.OCR_PROVIDER;
+        process.env.OCR_ENABLED = 'false';
+        process.env.OCR_PROVIDER = 'disabled';
+        await seedLearningEvent('msg-image', {
+          message_type: 'image',
+          mime_type: 'image/jpeg',
+          file_name: 'foto.jpg',
+          caption: 'Legenda da foto',
+          url: 'https://example.com/foto.jpg',
+          storage_key: 'bucket/path/foto.jpg'
+        }, '');
+        const result = await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+        assert.equal(result.failed, 0);
+        const updated = __dumpMemoryWhatsappLearningForTests()[0];
+        assert.equal(updated.status, 'normalized');
+        assert.equal(updated.normalized_payload.content_type, 'image');
+        assert.equal(updated.normalized_payload.text, 'Legenda da foto');
+        assert.equal(updated.normalized_text, 'Legenda da foto');
+        assert.equal(updated.normalized_payload.attachments.length, 1);
+        assert.equal(updated.normalized_payload.attachments[0].ocr_status, 'disabled');
+        assert.equal(updated.normalized_payload.attachments[0].ocr_text, '');
+        assert.equal(updated.normalized_payload.attachments[0].ocr_provider, null);
+        assert.equal(updated.normalized_payload.attachments[0].ocr_error, null);
+        assert.equal(updated.normalized_payload.attachments[0].ocr_processed_at, null);
+        assert.equal(updated.normalized_payload.attachments[0].media_status, 'pending');
+        process.env.OCR_ENABLED = previousEnabled;
+        process.env.OCR_PROVIDER = previousProvider;
       }
     },
     {
@@ -227,7 +282,11 @@ export function getWhatsappLearningTests() {
         assert.equal(byId.get('msg-image').normalized_payload.text, 'legenda da imagem');
         assert.equal(byId.get('msg-image').normalized_payload.attachments[0].type, 'image');
         assert.equal(byId.get('msg-image').normalized_payload.attachments[0].media_status, 'pending');
-        assert.equal(byId.get('msg-image').normalized_payload.attachments[0].ocr_status, 'pending');
+        assert.equal(byId.get('msg-image').normalized_payload.attachments[0].ocr_status, 'disabled');
+        assert.equal(byId.get('msg-image').normalized_payload.attachments[0].ocr_text, '');
+        assert.equal(byId.get('msg-image').normalized_payload.attachments[0].ocr_provider, null);
+        assert.equal(byId.get('msg-image').normalized_payload.attachments[0].ocr_error, null);
+        assert.equal(byId.get('msg-image').normalized_payload.attachments[0].ocr_processed_at, null);
         assert.equal(byId.get('msg-image').normalized_payload.attachments[0].transcription_status, null);
         assert.equal(byId.get('msg-image').normalized_payload.attachments[0].thumbnail_status, null);
         assert.equal(byId.get('msg-image').normalized_payload.attachments[0].mime_type, 'image/jpeg');
@@ -307,6 +366,10 @@ export function getWhatsappLearningTests() {
         assert.equal(first.storage_bucket, null);
         assert.equal(first.media_status, 'pending');
         assert.equal(first.ocr_status, 'pending');
+        assert.equal(first.ocr_text, '');
+        assert.equal(first.ocr_provider, null);
+        assert.equal(first.ocr_error, null);
+        assert.equal(first.ocr_processed_at, null);
         assert.equal(first.transcription_status, null);
         assert.equal(first.thumbnail_status, null);
         assert.equal(first.metadata.source, 'evolution');
@@ -522,7 +585,7 @@ export function getWhatsappLearningTests() {
         assert.equal(byId.get('msg-image').normalized_payload.attachments[0].url, 'https://example.com/image.png');
         assert.equal(byId.get('msg-image').normalized_payload.attachments[0].storage_key, 'bucket/path/image.png');
         assert.equal(byId.get('msg-image').normalized_payload.attachments[0].media_status, 'pending');
-        assert.equal(byId.get('msg-image').normalized_payload.attachments[0].ocr_status, 'pending');
+        assert.equal(byId.get('msg-image').normalized_payload.attachments[0].ocr_status, 'disabled');
         assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].url, 'https://example.com/audio.ogg');
         assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].storage_key, 'bucket/path/audio.ogg');
         assert.equal(byId.get('msg-audio').normalized_payload.attachments[0].transcription_status, 'pending');

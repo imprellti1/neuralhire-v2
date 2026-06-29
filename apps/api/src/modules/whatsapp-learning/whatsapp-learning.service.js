@@ -2,6 +2,7 @@ import { logger } from '../../core/logger.js';
 import { access, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { buildWhatsappLearningNormalizedPayload, listPendingLearningEvents, normalizeLearningEvent } from './whatsapp-learning.repository.js';
+import { extractTextFromImage } from '../media-manager/ocr-provider.js';
 
 const MAX_EXTRACTED_TEXT_CHARS = 50000;
 const MAX_ROWS = 1000;
@@ -224,6 +225,34 @@ function detectDocumentMethod(messageType, metadata = {}) {
 async function extractNormalizedText(message = {}, normalizedPayload = {}) {
   const metadata = message.metadata && typeof message.metadata === 'object' && !Array.isArray(message.metadata) ? message.metadata : {};
   const contentType = normalizedPayload.content_type || 'unknown';
+  if (contentType === 'image') {
+    const ocr = await extractTextFromImage({
+      enabled: process.env.OCR_ENABLED,
+      provider: process.env.OCR_PROVIDER,
+      metadata,
+      message
+    });
+    const imageAttachment = Array.isArray(normalizedPayload.attachments) && normalizedPayload.attachments[0] && typeof normalizedPayload.attachments[0] === 'object'
+      ? normalizedPayload.attachments[0]
+      : null;
+    return {
+      normalizedPayload: {
+        ...normalizedPayload,
+        attachments: imageAttachment
+          ? [{
+              ...imageAttachment,
+              ocr_status: ocr.status,
+              ocr_text: String(ocr.text || ''),
+              ocr_provider: ocr.provider ?? null,
+              ocr_error: ocr.error ?? null,
+              ocr_processed_at: ocr.processedAt ?? null
+            }]
+          : normalizedPayload.attachments,
+        extraction: buildExtractionState('not_applicable')
+      },
+      normalizedText: normalizedPayload.text || ''
+    };
+  }
   if (!['pdf', 'document', 'spreadsheet', 'csv'].includes(contentType)) {
     return {
       normalizedPayload: {

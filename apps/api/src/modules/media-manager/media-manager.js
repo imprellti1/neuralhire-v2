@@ -1,6 +1,12 @@
 import { createHash } from 'node:crypto';
 
 const SUPPORTED_MEDIA_TYPES = new Set(['image', 'audio', 'video', 'sticker']);
+const SUPPORTED_OCR_STATUSES = new Set(['pending', 'processing', 'extracted', 'empty', 'failed', 'unsupported', 'disabled']);
+
+function normalizeOcrStatus(value, fallback = 'pending') {
+  const normalized = String(value || '').trim().toLowerCase();
+  return SUPPORTED_OCR_STATUSES.has(normalized) ? normalized : fallback;
+}
 
 function cleanString(value) {
   return String(value ?? '').trim();
@@ -77,7 +83,11 @@ export function buildMediaAttachment(type, metadata = {}, extra = {}) {
     height,
     duration_seconds: durationSeconds,
     media_status: extra.media_status || 'pending',
-    ocr_status: normalizedType === 'image' ? (extra.ocr_status || 'pending') : extra.ocr_status ?? null,
+    ocr_status: normalizedType === 'image' ? normalizeOcrStatus(extra.ocr_status) : extra.ocr_status ?? null,
+    ocr_text: normalizedType === 'image' ? String(extra.ocr_text ?? '') : extra.ocr_text ?? null,
+    ocr_provider: normalizedType === 'image' ? (extra.ocr_provider ?? null) : extra.ocr_provider ?? null,
+    ocr_error: normalizedType === 'image' ? (extra.ocr_error ?? null) : extra.ocr_error ?? null,
+    ocr_processed_at: normalizedType === 'image' ? (extra.ocr_processed_at ?? null) : extra.ocr_processed_at ?? null,
     transcription_status: normalizedType === 'audio' ? (extra.transcription_status || 'pending') : extra.transcription_status ?? null,
     thumbnail_status: normalizedType === 'video' ? (extra.thumbnail_status || 'pending') : extra.thumbnail_status ?? null,
     metadata: {
@@ -90,4 +100,3 @@ export function buildMediaAttachment(type, metadata = {}, extra = {}) {
 export function isSupportedMediaType(type) {
   return SUPPORTED_MEDIA_TYPES.has(cleanString(type).toLowerCase());
 }
-
