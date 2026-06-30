@@ -8,13 +8,14 @@ import { __resetMemoryAlertasForTests } from '../../modules/clientes/clientes.al
 import { __resetMemoryTimelineForTests } from '../../modules/clientes/clientes.timeline.service.js';
 import { __loadMemoryPedidos, __resetMemoryPedidosForTests, createPedido } from '../../modules/pedidos/pedidos.repository.js';
 import { __resetMemoryProdutosForTests, createProduto } from '../../modules/produtos/produtos.repository.js';
+import { __dumpMemoryCustomerKnowledgeEmbeddingsForTests, __resetMemoryCustomerKnowledgeEmbeddingsForTests, createPendingEmbedding, upsertEmbedding } from '../../modules/whatsapp-learning/customer-knowledge-embedding.repository.js';
 import { __resetMemoryAiDirectorObservationsForTests, createObservation, listObservations } from '../../modules/ai-director-observations/ai-director-observations.repository.js';
 import { __dumpMemoryAiDirectorForTests, __resetMemoryAiDirectorForTests, __setAiDirectorSupabaseClientForTests, createExecutiveMemory, listExecutiveMemories } from '../../modules/ai-director/ai-director.repository.js';
 import { __resetMemoryAiDirectorActionPlansForTests, buildExecutiveActionPlan, listActionPlans, upsertActionPlan } from '../../modules/ai-director/ai-director-action-plans.repository.js';
 import { __resetMemoryAiDirectorTasksForTests, generateDirectorTasksFromOpenActionPlans, listDirectorTasks, normalizeDirectorTaskKey } from '../../modules/ai-director/ai-director-tasks.repository.js';
 import { __resetAuditLogsForTests, __seedAuditLogForTests } from '../../modules/audit-logs/audit-logs.repository.js';
 import { __resetSystemJobsForTests, __dumpSystemJobsForTests, __setSystemJobsSupabaseClientForTests, acquireSystemJobLock, ensureDefaultSystemJobs, getSystemJobDefaults, listDueSystemJobs, recordSystemJobRun, updateSystemJobSchedule, upsertSystemJob } from '../../modules/jobs/jobs.repository.js';
-import { __resetJobsSchedulerForTests, dispatchDueJob, nextDaily0300, runDiretorDelegacaoJob, runDiretorPlanoAcaoJob, runDiretorReuniaoExecutivaJob, runJobsSchedulerTick, runVendedorIaObservacaoJob, startJobsScheduler, stopJobsScheduler } from '../../modules/jobs/jobs.scheduler.js';
+import { __resetJobsSchedulerForTests, dispatchDueJob, nextDaily0300, runDiretorDelegacaoJob, runDiretorPlanoAcaoJob, runDiretorReuniaoExecutivaJob, runJobsSchedulerTick, runVendedorIaObservacaoJob, startJobsScheduler, stopJobsScheduler, runWhatsappLearningEmbeddingWorker } from '../../modules/jobs/jobs.scheduler.js';
 
 function parse(res) {
   try { return JSON.parse(res.body || '{}'); } catch { return {}; }
@@ -177,7 +178,7 @@ export function getJobsTests() {
         assert.equal(out.res.statusCode, 200);
         assert.equal(out.body.ok, true);
         assert.equal(Array.isArray(out.body.items), true);
-        assert.equal(out.body.items.length, 15);
+        assert.equal(out.body.items.length, 16);
         assert.equal(out.body.items.some((job) => job.nome === 'gerente_comercial_observacao'), true);
         assert.equal(out.body.items.some((job) => job.nome === 'vendedor_ia_observacao'), true);
         assert.equal(out.body.items.some((job) => job.nome === 'diretor_reuniao_executiva'), true);
@@ -190,7 +191,7 @@ export function getJobsTests() {
       name: 'bootstrap padrão inclui diretor reunião executiva',
       run: async () => {
         const defaults = getSystemJobDefaults();
-        assert.equal(defaults.length, 15);
+        assert.equal(defaults.length, 16);
         assert.equal(defaults.some((job) => job.nome === 'gerente_comercial_observacao'), true);
         assert.equal(defaults.some((job) => job.nome === 'vendedor_ia_observacao'), true);
         assert.equal(defaults.some((job) => job.nome === 'diretor_reuniao_executiva'), true);
@@ -201,7 +202,7 @@ export function getJobsTests() {
         const logs = [];
         await ensureDefaultSystemJobs(null, { logger: { info: (...args) => logs.push(args) } });
         const dump = __dumpSystemJobsForTests();
-        assert.equal(dump.jobs.length, 15);
+        assert.equal(dump.jobs.length, 16);
         assert.equal(dump.jobs.some((job) => job.nome === 'gerente_comercial_observacao'), true);
         assert.equal(dump.jobs.some((job) => job.nome === 'vendedor_ia_observacao'), true);
         assert.equal(dump.jobs.some((job) => job.nome === 'diretor_reuniao_executiva'), true);
@@ -209,6 +210,7 @@ export function getJobsTests() {
         assert.equal(dump.jobs.some((job) => job.nome === 'whatsapp_learning_worker'), true);
         assert.equal(dump.jobs.some((job) => job.nome === 'whatsapp_learning_cognitive_worker'), true);
         assert.equal(dump.jobs.some((job) => job.nome === 'whatsapp_learning_consolidation_worker'), true);
+        assert.equal(dump.jobs.some((job) => job.nome === 'whatsapp_learning_embedding_worker'), true);
         assert.equal(dump.jobs.some((job) => job.metadata.cadence === 'every-10-minutes'), true);
         assert.equal(dump.jobs.some((job) => job.lock_key === 'diretor_reuniao_executiva'), true);
         assert.equal(dump.jobs.some((job) => job.lock_key === 'diretor_plano_acao'), true);
@@ -216,7 +218,67 @@ export function getJobsTests() {
         assert.equal(logs.some(([message]) => message === 'system_jobs_bootstrap_finished'), true);
         await ensureDefaultSystemJobs(null, { logger: { info: () => null } });
         const secondDump = __dumpSystemJobsForTests();
-        assert.equal(secondDump.jobs.length, 15);
+        assert.equal(secondDump.jobs.length, 16);
+      }
+    },
+    {
+      name: 'whatsapp_learning_embedding_worker é registrado e respeita flag desligada',
+      run: async () => {
+        __resetSystemJobsForTests();
+        const previous = process.env.EMBEDDING_WORKER_ENABLED;
+        process.env.EMBEDDING_WORKER_ENABLED = 'false';
+        try {
+          const defaults = getSystemJobDefaults();
+          assert.equal(defaults.some((job) => job.nome === 'whatsapp_learning_embedding_worker'), true);
+          await ensureDefaultSystemJobs(null, { logger: { info: () => null } });
+          const dump = __dumpSystemJobsForTests();
+          const job = dump.jobs.find((item) => item.nome === 'whatsapp_learning_embedding_worker');
+          assert.ok(job);
+          assert.equal(job.metadata.cadence, 'every-10-minutes');
+          assert.equal(job.lock_key, 'whatsapp_learning_embedding_worker');
+          const result = await runWhatsappLearningEmbeddingWorker({});
+          assert.equal(result.ok, true);
+          assert.equal(result.disabled, true);
+          assert.equal(result.processed, 0);
+          assert.equal(result.failed, 0);
+          assert.equal(result.ignored, 0);
+        } finally {
+          if (previous === undefined) delete process.env.EMBEDDING_WORKER_ENABLED;
+          else process.env.EMBEDDING_WORKER_ENABLED = previous;
+        }
+      }
+    },
+    {
+      name: 'whatsapp_learning_embedding_worker processa pending de um tenant e ignora já processados',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryCustomerKnowledgeEmbeddingsForTests();
+        const previous = process.env.EMBEDDING_WORKER_ENABLED;
+        process.env.EMBEDDING_WORKER_ENABLED = 'true';
+        try {
+          await createPendingEmbedding({ accountId: 'acc-embed', customerKnowledgeId: 'ck-pending-1', embeddingHash: 'hash-pending-1', embeddingMetadata: { source_event_id: 'evt-pending-1' } }, { accountId: 'acc-embed' });
+          await upsertEmbedding({ accountId: 'acc-embed', customerKnowledgeId: 'ck-processed-1', embeddingStatus: 'processed', embeddingProvider: 'disabled', embeddingVersion: 1, embeddingHash: 'hash-processed-1', embeddingMetadata: { source_event_id: 'evt-processed-1' }, processedAt: '2026-06-30T09:00:00.000Z', lastAttemptAt: '2026-06-30T09:00:00.000Z' }, { accountId: 'acc-embed' });
+          await upsertEmbedding({ accountId: 'acc-other', customerKnowledgeId: 'ck-other', embeddingStatus: 'pending', embeddingProvider: 'disabled', embeddingVersion: 1, embeddingHash: 'hash-other', embeddingMetadata: { source_event_id: 'evt-other' } }, { accountId: 'acc-other' });
+          const first = await runWhatsappLearningEmbeddingWorker({ accountId: 'acc-embed' });
+          assert.equal(first.ok, true);
+          assert.equal(first.disabled, true);
+          assert.equal(first.provider, 'disabled');
+          assert.equal(first.processed, 1);
+          assert.equal(first.failed, 0);
+          assert.equal(first.scanned, 1);
+          const rows = __dumpMemoryCustomerKnowledgeEmbeddingsForTests();
+          assert.equal(rows.find((row) => row.customer_knowledge_id === 'ck-pending-1').embedding_status, 'processed');
+          assert.equal(rows.find((row) => row.customer_knowledge_id === 'ck-processed-1').embedding_status, 'processed');
+          assert.equal(rows.find((row) => row.customer_knowledge_id === 'ck-other').embedding_status, 'pending');
+          const second = await runWhatsappLearningEmbeddingWorker({ accountId: 'acc-embed' });
+          assert.equal(second.processed, 0);
+          assert.equal(second.failed, 0);
+          assert.equal(second.scanned, 0);
+          assert.equal(second.ignored, 0);
+        } finally {
+          if (previous === undefined) delete process.env.EMBEDDING_WORKER_ENABLED;
+          else process.env.EMBEDDING_WORKER_ENABLED = previous;
+        }
       }
     },
     {

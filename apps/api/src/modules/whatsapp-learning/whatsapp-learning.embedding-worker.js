@@ -26,7 +26,8 @@ function buildWorkerSummary({ scanned = 0, claimed = 0, processed = 0, failed = 
     failed,
     skipped,
     ignored: skipped,
-    provider
+    provider,
+    disabled: provider === 'disabled'
   };
 }
 
@@ -34,6 +35,20 @@ export async function runWhatsappLearningEmbeddingWorker(context = {}) {
   const accountId = context.accountId || null;
   const limit = Math.max(1, Number(context.limit) || 5);
   const embedKnowledgeFn = typeof context.embedKnowledge === 'function' ? context.embedKnowledge : embedKnowledge;
+  const workerEnabled = String(context.enabled ?? process.env.EMBEDDING_WORKER_ENABLED ?? 'false').toLowerCase() === 'true';
+
+  if (!workerEnabled) {
+    return {
+      ok: true,
+      disabled: true,
+      scanned: 0,
+      processed: 0,
+      failed: 0,
+      ignored: 0,
+      provider: 'disabled'
+    };
+  }
+
   const embeddings = await findPendingEmbeddings({ accountId, limit });
   let claimed = 0;
   let processed = 0;
@@ -60,7 +75,7 @@ export async function runWhatsappLearningEmbeddingWorker(context = {}) {
     try {
       const result = await embedKnowledgeFn({
         ...buildEmbeddingInput(claimedEmbedding, accountId),
-        enabled: false
+        enabled: workerEnabled
       });
       lastProvider = result.provider || claimedEmbedding.embedding_provider || 'disabled';
       const metadata = {

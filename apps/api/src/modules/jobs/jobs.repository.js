@@ -69,7 +69,8 @@ export function getSystemJobDefaults() {
     { nome: 'diretor_delegacao', lock_key: 'diretor_delegacao', metadata: { cadence: 'daily-0430', ttlMinutes: 60 } },
     { nome: 'whatsapp_learning_worker', lock_key: 'whatsapp_learning_worker', metadata: { cadence: 'every-5-minutes', ttlMinutes: 15 } },
     { nome: 'whatsapp_learning_cognitive_worker', lock_key: 'whatsapp_learning_cognitive_worker', metadata: { cadence: 'every-10-minutes', ttlMinutes: 20 } },
-    { nome: 'whatsapp_learning_consolidation_worker', lock_key: 'whatsapp_learning_consolidation_worker', metadata: { cadence: 'every-10-minutes', ttlMinutes: 20 } }
+    { nome: 'whatsapp_learning_consolidation_worker', lock_key: 'whatsapp_learning_consolidation_worker', metadata: { cadence: 'every-10-minutes', ttlMinutes: 20 } },
+    { nome: 'whatsapp_learning_embedding_worker', lock_key: 'whatsapp_learning_embedding_worker', metadata: { cadence: 'every-10-minutes', ttlMinutes: 20 } }
   ];
 }
 

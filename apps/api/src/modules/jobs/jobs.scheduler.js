@@ -22,6 +22,7 @@ import { getAiSalesInsights } from '../ai-sales/ai-sales.repository.js';
 import { runWhatsappLearningWorker as executeWhatsappLearningWorker } from '../whatsapp-learning/whatsapp-learning.service.js';
 import { executeWhatsappLearningWorker as executeWhatsappLearningCognitiveWorker } from '../whatsapp-learning/whatsapp-learning.executor.js';
 import { consolidateWhatsappLearningKnowledge } from '../whatsapp-learning/whatsapp-learning.consolidator.js';
+import { runWhatsappLearningEmbeddingWorker as executeWhatsappLearningEmbeddingWorker } from '../whatsapp-learning/whatsapp-learning.embedding-worker.js';
 
 function isoNow() {
   return new Date().toISOString();
@@ -81,7 +82,8 @@ function canonicalJobLockKey(nome) {
     diretor_delegacao: 'diretor_delegacao',
     whatsapp_learning_worker: 'whatsapp_learning_worker',
     whatsapp_learning_cognitive_worker: 'whatsapp_learning_cognitive_worker',
-    whatsapp_learning_consolidation_worker: 'whatsapp_learning_consolidation_worker'
+    whatsapp_learning_consolidation_worker: 'whatsapp_learning_consolidation_worker',
+    whatsapp_learning_embedding_worker: 'whatsapp_learning_embedding_worker'
   })[nome] || nome;
 }
 
@@ -117,7 +119,8 @@ const JOB_HANDLERS = {
   diretor_delegacao: runDiretorDelegacaoJob,
   whatsapp_learning_worker: runWhatsappLearningWorker,
   whatsapp_learning_cognitive_worker: runWhatsappLearningCognitiveWorker,
-  whatsapp_learning_consolidation_worker: runWhatsappLearningConsolidationWorker
+  whatsapp_learning_consolidation_worker: runWhatsappLearningConsolidationWorker,
+  whatsapp_learning_embedding_worker: runWhatsappLearningEmbeddingWorker
 };
 
 const TENANT_AWARE_JOB_NAMES = new Set(['clientes_enriquecimento_automatico', 'clientes_geolocalizacao_automatico', 'gerente_comercial_observacao', 'gerente_produtos_observacao', 'gerente_auditoria_observacao', 'gerente_administrativo_observacao', 'vendedor_ia_observacao', 'diretor_reuniao_executiva', 'diretor_plano_acao', 'whatsapp_learning_worker', 'whatsapp_learning_consolidation_worker']);
@@ -1426,6 +1429,28 @@ export async function runWhatsappLearningConsolidationWorker(context = {}) {
     return { ok: true, skipped: true, reason: 'tenant_account_required', scanned: 0, processed: 0, created: 0, updated: 0, ignored: 0, failed: 0, job };
   }
   const result = await consolidateWhatsappLearningKnowledge({ ...context, job, accountId, limit: Math.max(1, Number(context.limit) || 100) });
+  return {
+    ok: true,
+    ...result,
+    job
+  };
+}
+
+export async function runWhatsappLearningEmbeddingWorker(context = {}) {
+  const accountId = context.accountId || getAccountIdFromContext(context);
+  const job = context.job || await resolveGlobalSystemJob('whatsapp_learning_embedding_worker') || await upsertSystemJob({
+    nome: 'whatsapp_learning_embedding_worker',
+    lock_key: canonicalJobLockKey('whatsapp_learning_embedding_worker'),
+    account_id: null,
+    status: 'ativo',
+    last_run_at: isoNow(),
+    next_run_at: nextInMinutes(new Date(), 10)
+  }, { accountId: null });
+  if (!accountId) {
+    return { ok: true, skipped: true, reason: 'tenant_account_required', disabled: String(process.env.EMBEDDING_WORKER_ENABLED ?? 'false').toLowerCase() !== 'true', scanned: 0, processed: 0, failed: 0, ignored: 0, provider: 'disabled', job };
+  }
+  const enabled = String(process.env.EMBEDDING_WORKER_ENABLED ?? 'false').toLowerCase() === 'true';
+  const result = await executeWhatsappLearningEmbeddingWorker({ ...context, job, accountId, enabled, limit: Math.max(1, Number(context.limit) || 5) });
   return {
     ok: true,
     ...result,
