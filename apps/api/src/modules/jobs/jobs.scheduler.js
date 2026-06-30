@@ -156,10 +156,16 @@ function sumPedidosInRange(pedidos = [], fromDate, toDate) {
 }
 
 function computeClientSalesSignals(pedidos = [], now = new Date()) {
-  const currentEnd = now;
-  const currentStart = new Date(currentEnd.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const previousStart = new Date(currentEnd.getTime() - 60 * 24 * 60 * 60 * 1000);
-  const previousEnd = currentStart;
+  const currentEnd = new Date(now);
+  currentEnd.setHours(23, 59, 59, 999);
+  const currentStart = new Date(currentEnd);
+  currentStart.setDate(currentStart.getDate() - 30);
+  currentStart.setHours(0, 0, 0, 0);
+  const previousEnd = new Date(currentStart);
+  previousEnd.setMilliseconds(-1);
+  const previousStart = new Date(previousEnd);
+  previousStart.setDate(previousStart.getDate() - 30);
+  previousStart.setHours(0, 0, 0, 0);
   return {
     faturamentoAtual: sumPedidosInRange(pedidos, currentStart, currentEnd),
     faturamentoAnterior: sumPedidosInRange(pedidos, previousStart, previousEnd)
@@ -609,7 +615,8 @@ async function runHandlerForTenant(job, handler, accountId, context = {}) {
 }
 
 async function dispatchTenantAwareJob(job, handler, context = {}) {
-  const accountIds = await listTenantAccountIds();
+  const forcedAccountId = String(context.accountId || context.auth?.accountId || job?.account_id || '').trim() || null;
+  const accountIds = forcedAccountId ? [forcedAccountId] : await listTenantAccountIds();
   if (!accountIds.length) {
     logger.warn('jobs_scheduler_tenant_accounts_missing', { jobId: job.id || null, nome: job.nome || null });
     return { ok: true, skipped: true, reason: 'no_tenant_accounts', accountIds: [] };
@@ -617,7 +624,7 @@ async function dispatchTenantAwareJob(job, handler, context = {}) {
 
   const results = [];
   const startedAt = Date.now();
-  logger.info('job_run_started', { job: job.nome || null, jobId: job.id || null, accountIds });
+  logger.info('job_run_started', { job: job.nome || null, jobId: job.id || null, accountIds, forcedAccountId });
   for (const accountId of accountIds) {
     try {
       results.push(await runHandlerForTenant(job, handler, accountId, { ...context, schedulerManaged: true, job }));
@@ -1032,7 +1039,7 @@ async function analyzeCommercialTenant({ accountId, context }) {
       }
     }
     const { faturamentoAtual, faturamentoAnterior } = computeClientSalesSignals(validPedidos, now);
-    if (faturamentoAnterior >= 500) {
+    if (faturamentoAnterior > 0) {
       const quedaPercentual = faturamentoAnterior > 0 ? Math.round(((faturamentoAnterior - faturamentoAtual) / faturamentoAnterior) * 100) : 0;
       const crescimentoPercentual = faturamentoAnterior > 0 ? Math.round(((faturamentoAtual - faturamentoAnterior) / faturamentoAnterior) * 100) : 0;
       if (quedaPercentual >= 50) {

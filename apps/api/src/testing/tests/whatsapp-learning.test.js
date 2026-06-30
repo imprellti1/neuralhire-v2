@@ -11,6 +11,7 @@ import XLSX from 'xlsx';
 import { __loadMemoryEvolutionForTests, __resetMemoryEvolutionForTests } from '../../modules/integrations/evolution/evolution.repository.js';
 import { __dumpMemoryWhatsappLearningForTests, __resetMemoryWhatsappLearningForTests, createLearningEvent } from '../../modules/whatsapp-learning/whatsapp-learning.repository.js';
 import { runWhatsappLearningWorker } from '../../modules/whatsapp-learning/whatsapp-learning.service.js';
+import { analyzeLearningEvent } from '../../modules/whatsapp-learning/cognitive-provider.js';
 import { buildMediaAttachment, generateMediaSha256 } from '../../modules/media-manager/media-manager.js';
 import { extractTextFromImage } from '../../modules/media-manager/ocr-provider.js';
 import { transcribeAudio } from '../../modules/media-manager/transcription-provider.js';
@@ -208,7 +209,7 @@ export function getWhatsappLearningTests() {
         const result = await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
         assert.equal(result.failed, 0);
         const updated = __dumpMemoryWhatsappLearningForTests()[0];
-        assert.equal(updated.status, 'normalized');
+        assert.equal(updated.status, 'processed');
         assert.equal(updated.normalized_payload.content_type, 'image');
         assert.equal(updated.normalized_payload.text, 'Legenda da foto');
         assert.equal(updated.normalized_text, 'Legenda da foto');
@@ -233,19 +234,29 @@ export function getWhatsappLearningTests() {
       }
     },
     {
-      name: 'worker normaliza evento pendente e muda status para normalized',
+      name: 'worker normaliza evento pendente e depois processa a cognição em defaults',
       run: async () => {
         reset();
         await seedLearningEvent('msg-1', { message_type: 'text' }, 'preciso de orçamento de tapete 40x60 cinza');
         const result = await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
         assert.equal(result.processed, 1);
+        assert.equal(result.cognitivelyProcessed, 1);
         const updated = __dumpMemoryWhatsappLearningForTests()[0];
-        assert.equal(updated.status, 'normalized');
+        assert.equal(updated.status, 'processed');
         assert.equal(updated.intent, 'unknown');
         assert.equal(updated.sentiment, 'neutral');
         assert.equal(updated.summary, null);
         assert.equal(updated.normalized_text, 'preciso de orçamento de tapete 40x60 cinza');
         assert.ok(updated.normalized_at);
+        assert.equal(updated.processing_error, null);
+        assert.equal(updated.processed_at !== null, true);
+        assert.deepEqual(updated.metadata.cognitive, {
+          status: 'disabled',
+          provider: null,
+          model: null,
+          processed_at: updated.metadata.cognitive.processed_at,
+          error: null
+        });
         assert.deepEqual(updated.normalized_payload, {
           version: 1,
           channel: 'whatsapp',
@@ -262,6 +273,13 @@ export function getWhatsappLearningTests() {
             truncated: false,
             max_chars: null
           },
+          cognitive: {
+            status: 'disabled',
+            provider: null,
+            model: null,
+            processed_at: updated.normalized_payload.cognitive.processed_at,
+            error: null
+          },
           metadata: {
             provider: 'evolution',
             instance_name: 'main',
@@ -271,6 +289,76 @@ export function getWhatsappLearningTests() {
             message_type: 'text'
           }
         });
+      }
+    },
+    {
+      name: 'provider cognitivo desligado retorna defaults sem dependencia externa',
+      run: async () => {
+        const result = await analyzeLearningEvent({
+          event_id: 'event-1',
+          account_id: 'acc-1',
+          normalized_text: 'oi',
+          normalized_payload: { text: 'oi' },
+          metadata: { source: 'test' }
+        });
+        assert.deepEqual(result, {
+          status: 'disabled',
+          intent: 'unknown',
+          sentiment: 'neutral',
+          importance: 1,
+          summary: null,
+          entities: {},
+          topics: [],
+          needs_followup: false,
+          next_action: null,
+          provider: null,
+          model: null,
+          error: null,
+          metadata: {
+            event_id: 'event-1',
+            account_id: 'acc-1',
+            normalized_text: 'oi',
+            normalized_payload: { text: 'oi' },
+            has_normalized_text: true,
+            has_normalized_payload: true
+          }
+        });
+      }
+    },
+    {
+      name: 'evento processed nao volta para a fila cognitiva',
+      run: async () => {
+        reset();
+        await seedLearningEvent('msg-1', { message_type: 'text' }, 'oi');
+        await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+        const before = __dumpMemoryWhatsappLearningForTests()[0];
+        const result = await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+        assert.equal(result.scanned, 0);
+        assert.equal(__dumpMemoryWhatsappLearningForTests()[0].status, 'processed');
+        assert.equal(before.status, 'processed');
+      }
+    },
+    {
+      name: 'erro tecnico do provider marca failed sem quebrar o lote',
+      run: async () => {
+        reset();
+        const previousEnabled = process.env.COGNITIVE_WORKER_ENABLED;
+        const previousProvider = process.env.COGNITIVE_PROVIDER;
+        process.env.COGNITIVE_WORKER_ENABLED = 'true';
+        process.env.COGNITIVE_PROVIDER = 'throw';
+        try {
+          await seedLearningEvent('msg-1', { message_type: 'text' }, 'oi');
+          await seedLearningEvent('msg-2', { message_type: 'text' }, 'tudo bem');
+          const result = await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+          assert.equal(result.failed, 2);
+          const events = __dumpMemoryWhatsappLearningForTests();
+          assert.equal(events.every((item) => item.status === 'failed'), true);
+          assert.equal(String(events[0].processing_error || '').includes('forced_cognitive_provider_failure'), true);
+          assert.equal(String(events[0].processing_error || '').includes('Error:'), false);
+        } finally {
+          process.env.COGNITIVE_WORKER_ENABLED = previousEnabled;
+          process.env.COGNITIVE_PROVIDER = previousProvider;
+        }
       }
     },
     {
@@ -351,7 +439,7 @@ export function getWhatsappLearningTests() {
         assert.equal(byId.get('msg-sticker').normalized_payload.attachments[0].media_status, 'pending');
         assert.equal(byId.get('msg-unknown').normalized_payload.content_type, 'unknown');
         assert.equal(byId.get('msg-unknown').normalized_payload.extraction.status, 'not_applicable');
-        assert.ok(events.every((item) => item.status === 'normalized'));
+        assert.ok(events.every((item) => item.status === 'processed'));
         assert.ok(events.every((item) => item.normalized_at));
         assert.ok(events.every((item) => Array.isArray(item.normalized_payload.attachments)));
       }
@@ -652,7 +740,7 @@ export function getWhatsappLearningTests() {
         const result = await runWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
         assert.equal(result.failed, 0);
         const updated = __dumpMemoryWhatsappLearningForTests()[0];
-        assert.equal(updated.status, 'normalized');
+        assert.equal(updated.status, 'processed');
         assert.equal(updated.normalized_payload.extraction.status, 'failed');
         assert.ok(updated.normalized_payload.extraction.error);
       }
@@ -679,8 +767,8 @@ export function getWhatsappLearningTests() {
         const events = __dumpMemoryWhatsappLearningForTests();
         const greeting = events.find((item) => item.whatsapp_message_id === 'msg-1');
         const complaint = events.find((item) => item.whatsapp_message_id === 'msg-2');
-        assert.equal(greeting.status, 'normalized');
-        assert.equal(complaint.status, 'normalized');
+        assert.equal(greeting.status, 'processed');
+        assert.equal(complaint.status, 'processed');
         assert.equal(greeting.normalized_payload.content_type, 'text');
         assert.equal(complaint.normalized_payload.content_type, 'text');
       }

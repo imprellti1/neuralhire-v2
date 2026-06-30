@@ -10,6 +10,8 @@ export const envSchema = {
   SUPABASE_ANON_KEY: { required: false, defaultValue: '' },
   PUBLIC_INTEREST_ACCOUNT_ID: { required: false, defaultValue: '' },
   INTEREST_LEADS_ACCOUNT_ID: { required: false, defaultValue: '' },
+  COGNITIVE_WORKER_ENABLED: { required: false, defaultValue: 'false', allowed: ['true', 'false'] },
+  COGNITIVE_PROVIDER: { required: false, defaultValue: 'disabled' },
   ASAAS_ENV: { required: false, defaultValue: 'sandbox', allowed: ['sandbox', 'production'] },
   ASAAS_API_KEY: { required: false, defaultValue: '' },
   ASAAS_ALLOW_PRODUCTION: { required: false, defaultValue: 'false', allowed: ['true', 'false'] }

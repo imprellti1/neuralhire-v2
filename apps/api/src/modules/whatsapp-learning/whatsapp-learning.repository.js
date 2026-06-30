@@ -290,6 +290,17 @@ export async function listPendingLearningEvents({ accountId, limit = 10 } = {}) 
   return memoryEvents.filter((item) => item.account_id === accountId && item.status === 'pending').slice(0, Math.max(1, Number(limit) || 10));
 }
 
+export async function listNormalizedLearningEvents({ accountId, limit = 10 } = {}) {
+  assertAccountId(accountId);
+  if (mode() === 'supabase') {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase.from('whatsapp_learning_events').select('*').eq('account_id', accountId).eq('status', 'normalized').order('created_at', { ascending: true }).limit(Math.max(1, Number(limit) || 10));
+    if (error) throw new DatabaseError('Falha ao listar eventos de aprendizagem normalizados', { details: error });
+    return data || [];
+  }
+  return memoryEvents.filter((item) => item.account_id === accountId && item.status === 'normalized').slice(0, Math.max(1, Number(limit) || 10));
+}
+
 export async function updateLearningEvent(eventId, patch = {}, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
