@@ -1,5 +1,5 @@
 import { logger } from '../../core/logger.js';
-import { claimNormalizedLearningEvent, listNormalizedLearningEvents, normalizeLearningEvent } from './whatsapp-learning.repository.js';
+import { claimNormalizedLearningEvent, createKnowledgeFromLearningEvent, listNormalizedLearningEvents, normalizeLearningEvent } from './whatsapp-learning.repository.js';
 import { analyzeLearningEvent } from './cognitive-provider.js';
 
 function safeAnalysisMetadata(event = {}, analysis = {}) {
@@ -40,6 +40,43 @@ function sanitizeAnalysisResult(analysis = {}) {
   };
 }
 
+function buildKnowledgeDefaults(event = {}, analysis = {}, provider = 'disabled') {
+  const normalizedPayload = event.normalized_payload && typeof event.normalized_payload === 'object' ? event.normalized_payload : {};
+  const metadata = event.metadata && typeof event.metadata === 'object' ? event.metadata : {};
+  const sourceMetadata = normalizedPayload.metadata && typeof normalizedPayload.metadata === 'object' ? normalizedPayload.metadata : {};
+  return {
+    sourceEventId: event.id,
+    sourceProvider: sourceMetadata.provider || metadata.provider || 'evolution',
+    sourceInstance: sourceMetadata.instance_name || metadata.instance_name || null,
+    sourceInstanceType: sourceMetadata.instance_type || metadata.instance_type || null,
+    direction: sourceMetadata.direction || metadata.direction || null,
+    phone: metadata.phone || null,
+    remoteJid: metadata.remote_jid || metadata.remoteJid || null,
+    normalizedText: event.normalized_text || normalizedPayload.text || '',
+    knowledgeType: provider === 'disabled' ? 'observation' : 'analysis',
+    confidence: provider === 'disabled' ? 0 : 0.5,
+    intent: analysis.intent || 'unknown',
+    sentiment: analysis.sentiment || 'neutral',
+    entities: analysis.entities && typeof analysis.entities === 'object' ? analysis.entities : {},
+    topics: Array.isArray(analysis.topics) ? analysis.topics : [],
+    summary: analysis.summary ?? null,
+    rawCognitivePayload: {
+      status: analysis.status || 'disabled',
+      provider: analysis.provider ?? null,
+      model: analysis.model ?? null,
+      error: analysis.error ?? null,
+      metadata: analysis.metadata && typeof analysis.metadata === 'object' ? analysis.metadata : {}
+    },
+    metadata: {
+      cognitive_provider: provider,
+      analysis_status: analysis.status || 'disabled',
+      has_normalized_text: Boolean(event.normalized_text),
+      has_normalized_payload: Boolean(event.normalized_payload && typeof event.normalized_payload === 'object')
+    },
+    status: 'learned'
+  };
+}
+
 export async function executeWhatsappLearningWorker(context = {}) {
   const accountId = context.accountId || null;
   const limit = Math.max(1, Number(context.limit) || 5);
@@ -65,6 +102,12 @@ export async function executeWhatsappLearningWorker(context = {}) {
         normalized_payload: claimed.normalized_payload && typeof claimed.normalized_payload === 'object' ? claimed.normalized_payload : {},
         metadata: claimed.metadata && typeof claimed.metadata === 'object' ? claimed.metadata : {}
       });
+
+      await createKnowledgeFromLearningEvent({
+        ...buildKnowledgeDefaults(claimed, analysis, provider),
+        intent: analysis.intent || 'unknown',
+        sentiment: analysis.sentiment || 'neutral'
+      }, { accountId });
 
       const cognitive = buildCognitivePayload(claimed, analysis);
       await normalizeLearningEvent(claimed.id, {

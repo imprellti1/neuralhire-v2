@@ -4,6 +4,8 @@ import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase
 import { buildMediaAttachment } from '../media-manager/media-manager.js';
 
 const memoryEvents = [];
+const memoryKnowledge = [];
+let knowledgePersistenceFailure = null;
 
 function now() { return new Date().toISOString(); }
 function assertAccountId(accountId) { if (!accountId) throw new ForbiddenError('Contexto de tenant obrigatorio', { code: 'TENANT_REQUIRED', domain: 'whatsapp-learning' }); }
@@ -73,6 +75,37 @@ function buildRow(data = {}) {
     status: data.status || 'pending',
     processed_at: data.processedAt || null,
     error: data.error || null,
+    created_at: now(),
+    updated_at: now()
+  };
+}
+
+function normalizeKnowledgeKey(accountId, sourceEventId) {
+  return `${String(accountId || '').trim()}::${String(sourceEventId || '').trim()}`;
+}
+
+function buildKnowledgeRow(data = {}) {
+  return {
+    id: randomUUID(),
+    account_id: data.accountId,
+    source_event_id: data.sourceEventId || null,
+    source_provider: data.sourceProvider || null,
+    source_instance: data.sourceInstance || null,
+    source_instance_type: data.sourceInstanceType || null,
+    direction: data.direction || null,
+    phone: data.phone || null,
+    remote_jid: data.remoteJid || null,
+    normalized_text: data.normalizedText || null,
+    knowledge_type: cleanText(data.knowledgeType || data.knowledge_type).toLowerCase() || 'general',
+    confidence: Number.isFinite(Number(data.confidence)) ? Math.min(1, Math.max(0, Number(data.confidence))) : 0,
+    intent: data.intent || 'unknown',
+    sentiment: data.sentiment || 'neutral',
+    entities: data.entities && typeof data.entities === 'object' && !Array.isArray(data.entities) ? data.entities : {},
+    topics: Array.isArray(data.topics) ? data.topics : [],
+    summary: data.summary ?? null,
+    raw_cognitive_payload: data.rawCognitivePayload && typeof data.rawCognitivePayload === 'object' && !Array.isArray(data.rawCognitivePayload) ? data.rawCognitivePayload : {},
+    metadata: data.metadata && typeof data.metadata === 'object' && !Array.isArray(data.metadata) ? data.metadata : {},
+    status: data.status || 'learned',
     created_at: now(),
     updated_at: now()
   };
@@ -232,6 +265,25 @@ export function __dumpMemoryWhatsappLearningForTests() {
   }));
 }
 
+export function __dumpMemoryWhatsappLearningKnowledgeForTests() {
+  return memoryKnowledge.map((item) => ({
+    ...item,
+    entities: Array.isArray(item.entities) ? [...item.entities] : { ...(item.entities || {}) },
+    topics: [...(item.topics || [])],
+    raw_cognitive_payload: { ...(item.raw_cognitive_payload || {}) },
+    metadata: { ...(item.metadata || {}) }
+  }));
+}
+
+export function __resetMemoryWhatsappLearningKnowledgeForTests() {
+  memoryKnowledge.length = 0;
+  knowledgePersistenceFailure = null;
+}
+
+export function __setMemoryWhatsappLearningKnowledgeFailureForTests(error = null) {
+  knowledgePersistenceFailure = error;
+}
+
 export async function createLearningEvent(data = {}, options = {}) {
   const accountId = options.accountId || data.accountId || null;
   assertAccountId(accountId);
@@ -340,4 +392,37 @@ export async function updateLearningEvent(eventId, patch = {}, options = {}) {
   if (idx < 0) return null;
   memoryEvents[idx] = { ...memoryEvents[idx], ...patch, updated_at: now() };
   return memoryEvents[idx];
+}
+
+export async function createKnowledgeFromLearningEvent(data = {}, options = {}) {
+  const accountId = options.accountId || data.accountId || null;
+  assertAccountId(accountId);
+  if (knowledgePersistenceFailure) throw (knowledgePersistenceFailure instanceof Error ? knowledgePersistenceFailure : new Error(String(knowledgePersistenceFailure)));
+  const sourceEventId = data.sourceEventId || null;
+  if (!sourceEventId) throw new DatabaseError('sourceEventId obrigatorio');
+  const key = normalizeKnowledgeKey(accountId, sourceEventId);
+  const row = buildKnowledgeRow({ ...data, accountId, sourceEventId });
+
+  if (mode() === 'supabase') {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+    const { data: existing, error: existingError } = await supabase.from('whatsapp_learning_knowledge').select('*').eq('account_id', accountId).eq('source_event_id', sourceEventId).maybeSingle();
+    if (existingError) throw new DatabaseError('Falha ao consultar conhecimento de aprendizagem', { details: existingError });
+    if (existing) {
+      const { data: updated, error: updateError } = await supabase.from('whatsapp_learning_knowledge').update({ ...row, id: existing.id, created_at: existing.created_at || row.created_at, updated_at: now() }).eq('id', existing.id).eq('account_id', accountId).select('*').single();
+      if (updateError) throw new DatabaseError('Falha ao atualizar conhecimento de aprendizagem', { details: updateError });
+      return { item: updated, status: 'updated' };
+    }
+    const { data: created, error } = await supabase.from('whatsapp_learning_knowledge').insert(row).select('*').single();
+    if (error) throw new DatabaseError('Falha ao criar conhecimento de aprendizagem', { details: error });
+    return { item: created || row, status: 'created' };
+  }
+
+  const idx = memoryKnowledge.findIndex((item) => normalizeKnowledgeKey(item.account_id, item.source_event_id) === key);
+  if (idx >= 0) {
+    memoryKnowledge[idx] = { ...memoryKnowledge[idx], ...row, id: memoryKnowledge[idx].id, created_at: memoryKnowledge[idx].created_at, updated_at: now() };
+    return { item: memoryKnowledge[idx], status: 'updated' };
+  }
+  memoryKnowledge.push(row);
+  return { item: row, status: 'created' };
 }

@@ -9,7 +9,7 @@ import { createTestResponse } from '../create-test-response.js';
 import JSZip from 'jszip';
 import XLSX from 'xlsx';
 import { __loadMemoryEvolutionForTests, __resetMemoryEvolutionForTests } from '../../modules/integrations/evolution/evolution.repository.js';
-import { __dumpMemoryWhatsappLearningForTests, __resetMemoryWhatsappLearningForTests, createLearningEvent, updateLearningEvent } from '../../modules/whatsapp-learning/whatsapp-learning.repository.js';
+import { __dumpMemoryWhatsappLearningForTests, __dumpMemoryWhatsappLearningKnowledgeForTests, __resetMemoryWhatsappLearningForTests, __resetMemoryWhatsappLearningKnowledgeForTests, __setMemoryWhatsappLearningKnowledgeFailureForTests, createKnowledgeFromLearningEvent, createLearningEvent, updateLearningEvent } from '../../modules/whatsapp-learning/whatsapp-learning.repository.js';
 import { runWhatsappLearningWorker } from '../../modules/whatsapp-learning/whatsapp-learning.service.js';
 import { executeWhatsappLearningWorker } from '../../modules/whatsapp-learning/whatsapp-learning.executor.js';
 import { runWhatsappLearningCognitiveWorker } from '../../modules/jobs/jobs.scheduler.js';
@@ -33,6 +33,7 @@ async function call(app, body, headers = {}) {
 function reset() {
   __resetMemoryEvolutionForTests();
   __resetMemoryWhatsappLearningForTests();
+  __resetMemoryWhatsappLearningKnowledgeForTests();
 }
 
 async function createTempFile(name, content) {
@@ -365,6 +366,89 @@ export function getWhatsappLearningTests() {
       }
     },
     {
+      name: 'persistencia de conhecimento cria registro e deduplica por evento',
+      run: async () => {
+        reset();
+        const created = await createLearningEvent({
+          accountId: 'acc-1',
+          whatsappMessageId: 'msg-knowledge',
+          messageId: 'm-knowledge',
+          body: 'quero falar sobre pagamento'
+        }, { accountId: 'acc-1' });
+        await updateLearningEvent(created.item.id, { status: 'normalized', normalized_text: 'quero falar sobre pagamento', normalized_payload: { text: 'quero falar sobre pagamento', metadata: { provider: 'evolution', instance_name: 'main', instance_type: 'learning', direction: 'inbound' } } }, { accountId: 'acc-1' });
+        const first = await createKnowledgeFromLearningEvent({
+          sourceEventId: created.item.id,
+          sourceProvider: 'evolution',
+          sourceInstance: 'main',
+          sourceInstanceType: 'learning',
+          direction: 'inbound',
+          phone: '5511999999999',
+          remoteJid: '5511999999999@s.whatsapp.net',
+          normalizedText: 'quero falar sobre pagamento',
+          knowledgeType: 'observation',
+          confidence: 0,
+          intent: 'payment',
+          sentiment: 'neutral',
+          entities: { payment: true },
+          topics: ['payment'],
+          summary: 'Cliente quer falar sobre pagamento',
+          rawCognitivePayload: { status: 'disabled' },
+          metadata: { provider: 'evolution' }
+        }, { accountId: 'acc-1' });
+        const second = await createKnowledgeFromLearningEvent({
+          sourceEventId: created.item.id,
+          sourceProvider: 'evolution',
+          sourceInstance: 'main',
+          sourceInstanceType: 'learning',
+          direction: 'inbound',
+          phone: '5511999999999',
+          remoteJid: '5511999999999@s.whatsapp.net',
+          normalizedText: 'quero falar sobre pagamento',
+          knowledgeType: 'observation',
+          confidence: 0,
+          intent: 'payment',
+          sentiment: 'neutral',
+          entities: { payment: true },
+          topics: ['payment'],
+          summary: 'Cliente quer falar sobre pagamento',
+          rawCognitivePayload: { status: 'disabled' },
+          metadata: { provider: 'evolution' }
+        }, { accountId: 'acc-1' });
+        assert.equal(first.status, 'created');
+        assert.equal(second.status, 'updated');
+        const knowledge = __dumpMemoryWhatsappLearningKnowledgeForTests();
+        assert.equal(knowledge.length, 1);
+        assert.equal(knowledge[0].account_id, 'acc-1');
+        assert.equal(knowledge[0].source_instance_type, 'learning');
+        assert.equal(knowledge[0].confidence, 0);
+        assert.equal(knowledge[0].status, 'learned');
+      }
+    },
+    {
+      name: 'executor cognitivo persiste defaults seguros com provider disabled',
+      run: async () => {
+        reset();
+        const created = await createLearningEvent({
+          accountId: 'acc-1',
+          whatsappMessageId: 'msg-disabled',
+          messageId: 'm-disabled',
+          body: 'oi',
+          metadata: { provider: 'evolution', instance_name: 'main', instance_type: 'learning', direction: 'inbound', phone: '5511999999999', remote_jid: '5511999999999@s.whatsapp.net' }
+        }, { accountId: 'acc-1' });
+        await updateLearningEvent(created.item.id, { status: 'normalized', normalized_text: 'oi', normalized_payload: { text: 'oi', metadata: { provider: 'evolution', instance_name: 'main', instance_type: 'learning', direction: 'inbound' } } }, { accountId: 'acc-1' });
+        const result = await executeWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+        assert.equal(result.processed, 1);
+        const knowledge = __dumpMemoryWhatsappLearningKnowledgeForTests();
+        assert.equal(knowledge.length, 1);
+        assert.equal(knowledge[0].knowledge_type, 'observation');
+        assert.equal(knowledge[0].confidence, 0);
+        assert.equal(knowledge[0].source_instance_type, 'learning');
+        assert.equal(knowledge[0].status, 'learned');
+        assert.equal(knowledge[0].raw_cognitive_payload.status, 'disabled');
+        assert.equal(knowledge[0].metadata.cognitive_provider, 'disabled');
+      }
+    },
+    {
       name: 'job cognitivo respeita flag desligada e nao executa fan-out',
       run: async () => {
         reset();
@@ -492,6 +576,26 @@ export function getWhatsappLearningTests() {
           process.env.COGNITIVE_WORKER_ENABLED = previousEnabled;
           process.env.COGNITIVE_PROVIDER = previousProvider;
         }
+      }
+    },
+    {
+      name: 'persistencia de conhecimento falha controla o evento como failed',
+      run: async () => {
+        reset();
+        const created = await createLearningEvent({
+          accountId: 'acc-1',
+          whatsappMessageId: 'msg-knowledge-fail',
+          messageId: 'm-knowledge-fail',
+          body: 'oi'
+        }, { accountId: 'acc-1' });
+        await updateLearningEvent(created.item.id, { status: 'normalized', normalized_text: 'oi', normalized_payload: { text: 'oi', metadata: { provider: 'evolution', instance_name: 'main', instance_type: 'learning' } } }, { accountId: 'acc-1' });
+        __setMemoryWhatsappLearningKnowledgeFailureForTests(new Error('forced_knowledge_persistence_failure'));
+        const result = await executeWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+        assert.equal(result.failed, 1);
+        const updated = __dumpMemoryWhatsappLearningForTests()[0];
+        assert.equal(updated.status, 'failed');
+        assert.ok(String(updated.processing_error || '').includes('forced_knowledge_persistence_failure'));
+        assert.equal(__dumpMemoryWhatsappLearningKnowledgeForTests().length, 0);
       }
     },
     {
