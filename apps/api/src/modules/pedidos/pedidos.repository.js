@@ -134,7 +134,7 @@ async function enrichPedidosWithClienteNome(items = [], accountId) {
     const clienteIds = [...new Set(items.map((i) => i?.cliente_id).filter(Boolean))];
     if (!clienteIds.length) return items.map((item) => ({ ...item, cliente_nome: null, cliente: null }));
     try {
-      const { data, error } = await supabase.from('clientes').select('id, nome, codigo').eq('account_id', accountId).in('id', clienteIds);
+      const { data, error } = await supabase.from('clientes').select('id, nome').eq('account_id', accountId).in('id', clienteIds);
       if (error) throw new DatabaseError('Falha ao enriquecer pedidos com cliente', { details: error });
       const byId = new Map((data || []).map((c) => [c.id, c]));
       return items.map((item) => {

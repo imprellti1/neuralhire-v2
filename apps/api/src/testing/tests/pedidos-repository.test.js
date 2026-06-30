@@ -119,6 +119,66 @@ export function getPedidosRepositoryTests() {
       }
     },
     {
+      name: 'listPedidos em supabase nao depende de coluna codigo do cliente',
+      run: async () => {
+        __resetMemoryPedidosForTests();
+        const cliente = await createCliente({ nome: 'Cliente Supabase' }, { accountId });
+        const produto = await createProduto({ nome: 'Produto Supabase' }, { accountId });
+        await createPedido({ cliente_id: cliente.id, itens: [{ produto_id: produto.id, quantidade: 1, preco_unitario: 10 }] }, { accountId });
+
+        const mock = createSupabaseMock();
+        mock.state.pedidos = [{ id: 'p-1', account_id: accountId, cliente_id: cliente.id, created_at: '2026-06-30T10:00:00.000Z' }];
+        mock.state.clientes = [{ id: cliente.id, nome: 'Cliente Supabase' }];
+        mock.from = (table) => {
+          if (table === 'pedidos') {
+            return {
+              _filter: {},
+              select(fields) {
+                this._select = fields;
+                return this;
+              },
+              eq(key, value) { this._filter[key] = value; return this; },
+              order() { return this; },
+              range() { return Promise.resolve({ data: mock.state.pedidos, count: mock.state.pedidos.length, error: null }); }
+            };
+          }
+          if (table === 'clientes') {
+            return {
+              select(fields) {
+                assertEqual(String(fields).includes('codigo'), false);
+                return this;
+              },
+              eq() { return this; },
+              in() { return Promise.resolve({ data: mock.state.clientes, error: null }); }
+            };
+          }
+          if (table === 'pedido_itens') {
+            return {
+              select() { return this; },
+              eq() { return this; },
+              in() { return Promise.resolve({ data: [], error: null }); }
+            };
+          }
+          if (table === 'vendedores') {
+            return {
+              select() { return this; },
+              eq() { return this; },
+              in() { return Promise.resolve({ data: [], error: null }); }
+            };
+          }
+          throw new Error(`Unexpected table: ${table}`);
+        };
+        __setPedidosSupabaseClientForTests(mock, true);
+        try {
+          const result = await listPedidos({ cliente_id: cliente.id }, { accountId });
+          assertEqual(result.total, 1);
+          assertEqual(result.items[0].cliente_nome, 'Cliente Supabase');
+        } finally {
+          __setPedidosSupabaseClientForTests(null, false);
+        }
+      }
+    },
+    {
       name: 'listPedidos nao vaza cliente_nome entre tenants e tolera cliente ausente',
       run: async () => {
         __resetMemoryPedidosForTests();
