@@ -469,6 +469,61 @@ test('cliente details permite editar dados principais com salvar e cancelar', as
   teardownFrontendDom(dom);
 });
 
+test('cliente details dispara sincronizacao 360 ao abrir e aplica retorno', async () => {
+  const dom = setupFrontendDom('#/clientes/c1');
+  const root = document.getElementById('root');
+  const calls = [];
+  const apiClient = {
+    get: async (url, params = {}) => {
+      calls.push({ method: 'GET', url, params });
+      if (url === '/clientes/c1') {
+        return {
+          item: {
+            id: 'c1',
+            empresa: 'Cliente A',
+            cidade: 'São Paulo',
+            estado: 'SP',
+            created_at: '2026-05-01T00:00:00.000Z',
+            status: 'ativo',
+            documento: '00.000.000/0001-00',
+            telefone: '(11) 99999-9999',
+            email: 'a@a.com'
+          }
+        };
+      }
+      if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
+      if (url === '/clientes/c1/timeline') return { items: [] };
+      return { items: [] };
+    },
+    post: async (url) => {
+      calls.push({ method: 'POST', url });
+      if (url === '/clientes/c1/sincronizar-360') {
+        return {
+          item: {
+            id: 'c1',
+            empresa: 'Cliente A',
+            cidade: 'Curitiba',
+            estado: 'PR',
+            status: 'ativo',
+            cliente_score: 88,
+            timeline: [{ id: 't-sync', categoria: 'score', titulo: 'Score atualizado', descricao: 'OK', created_at: '2026-06-30T10:00:00.000Z' }]
+          },
+          resumo: { changes: ['cidade', 'estado', 'cliente_score'], errors: [] }
+        };
+      }
+      throw new Error('unexpected post');
+    }
+  };
+
+  renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
+  await flush();
+  await flush();
+  assert.ok(calls.some((call) => call.method === 'POST' && call.url === '/clientes/c1/sincronizar-360'));
+  assert.match(root.textContent, /Atualizando dados do cliente|Sincronização concluída|campo\(s\) atualizados/i);
+  assert.match(root.textContent, /Curitiba/);
+  teardownFrontendDom(dom);
+});
+
 test('cliente details mostra aba de enriquecimento e executa enriquecimento manual', async () => {
   const dom = setupFrontendDom('#/clientes/c1');
   const root = document.getElementById('root');

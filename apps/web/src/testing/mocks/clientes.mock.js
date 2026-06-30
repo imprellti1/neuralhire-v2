@@ -19,7 +19,8 @@ export function createClientesMockHandlers({ scenario = 'success', overrides = {
     },
     'GET /pedidos/p1': () => createSuccessResponse({ item: { id: 'p1', itens: [{ produto: 'Produto X', quantidade: 2, preco_unitario: 10, total: 20, status_vinculo: 'vinculado' }] } }),
     'POST /clientes': () => createSuccessResponse({ item: { id: 'c1' } }),
-    'PATCH /clientes/c1': ({ body }) => createSuccessResponse({ item: { id: 'c1', ...body } })
+    'PATCH /clientes/c1': ({ body }) => createSuccessResponse({ item: { id: 'c1', ...body } }),
+    'POST /clientes/c1/sincronizar-360': () => createSuccessResponse({ item: { id: 'c1', cliente_score: 81 }, resumo: { changes: ['cliente_score'], errors: [] } })
   };
 
   if (scenario === 'notFound') return createMockScenario(baseHandlers, { 'GET /clientes/c1': () => createNotFoundResponse('Cliente nao encontrado') }, overrides);

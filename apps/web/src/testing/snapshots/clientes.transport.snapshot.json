@@ -54,6 +54,15 @@
     "query": {}
   },
   {
+    "body": {},
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "POST",
+    "path": "/clientes/c1/sincronizar-360",
+    "query": {}
+  },
+  {
     "body": null,
     "headers": {
       "content-type": "application/json"
@@ -109,6 +118,15 @@
     },
     "method": "GET",
     "path": "/clientes/c1/timeline",
+    "query": {}
+  },
+  {
+    "body": {},
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "POST",
+    "path": "/clientes/c1/sincronizar-360",
     "query": {}
   },
   {
@@ -181,6 +199,15 @@
     },
     "method": "GET",
     "path": "/clientes/c1/timeline",
+    "query": {}
+  },
+  {
+    "body": {},
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "POST",
+    "path": "/clientes/c1/sincronizar-360",
     "query": {}
   },
   {

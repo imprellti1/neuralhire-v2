@@ -23,6 +23,10 @@ export async function atualizarCliente(apiClient, clienteId, payload) {
   return apiClient.patch(`/clientes/${clienteId}`, payload);
 }
 
+export async function sincronizarCliente360(apiClient, clienteId) {
+  return apiClient.post(`/clientes/${clienteId}/sincronizar-360`);
+}
+
 export async function enriquecerCliente(apiClient, clienteId) {
   return apiClient.post(`/clientes/${clienteId}/enriquecer`);
 }

@@ -1,5 +1,5 @@
 import { createClienteDetailsState } from './cliente-details.state.js';
-import { atualizarCliente, calcularScoreCliente, calcularSegmentacaoCliente, enriquecerCliente, fetchAlertasCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, fetchWhatsappConversationMessagesCliente, fetchWhatsappConversationsCliente, gerarAlertasCliente, geolocalizarCliente, resolverAlertaCliente } from './cliente-details.service.js';
+import { atualizarCliente, calcularScoreCliente, calcularSegmentacaoCliente, enriquecerCliente, fetchAlertasCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, fetchWhatsappConversationMessagesCliente, fetchWhatsappConversationsCliente, gerarAlertasCliente, geolocalizarCliente, resolverAlertaCliente, sincronizarCliente360 } from './cliente-details.service.js';
 import { fetchClienteTimeline } from './cliente-timeline.service.js';
 
 function fmtCurrency(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
@@ -132,6 +132,8 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   let whatsappLoading = false;
   let whatsappMessagesLoading = false;
   let whatsappActiveConversationId = null;
+  let syncLoading = false;
+  let syncMessage = '';
   let editMode = false;
   let editSaving = false;
   let editErrorMessage = '';
@@ -147,19 +149,19 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     const style = document.createElement('style');
     style.id = 'nh-cliente-details-style';
     style.textContent = `
-    .nho2d-wrap{max-width:1280px;width:100%;margin:0 auto}
-    .nho2d-shell{background:linear-gradient(180deg,#ffffff 0%,#f6f9ff 100%);border:1px solid #dbe4f2;border-radius:18px;padding:20px;box-shadow:0 10px 28px rgba(16,34,68,.07)}
+    .nho2d-wrap{max-width:1280px;width:100%;margin:0 auto;color:#e9eef8}
+    .nho2d-shell{background:linear-gradient(180deg,#11172a 0%,#0b1220 100%);border:1px solid #1f2a44;border-radius:20px;padding:20px;box-shadow:0 22px 48px rgba(0,0,0,.35)}
     .nho2d-header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap;margin-bottom:16px}
-    .nho2d-title{font-size:32px;font-weight:750;letter-spacing:-.03em;color:#10264b}
-    .nho2d-sub{margin-top:4px;color:#61708f;font-size:14px}
-    .nho2d-meta{margin-top:10px;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;color:#31456f;font-size:14px}
-    .nho2d-tabs{display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid #dbe4f2;margin:10px 0 18px;padding-bottom:2px}
-    .nho2d-tab{border:1px solid transparent;background:transparent;color:#5e6f93;border-radius:999px;padding:10px 14px;font-weight:700;cursor:pointer}
-    .nho2d-tab.is-active{background:#0f3ea8;color:#fff;box-shadow:0 8px 18px rgba(15,62,168,.18)}
+    .nho2d-title{font-size:32px;font-weight:750;letter-spacing:-.03em;color:#f5f7fb}
+    .nho2d-sub{margin-top:4px;color:#93a4c7;font-size:14px}
+    .nho2d-meta{margin-top:10px;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;color:#bfd0f4;font-size:14px}
+    .nho2d-tabs{display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid #22304d;margin:10px 0 18px;padding-bottom:2px}
+    .nho2d-tab{border:1px solid #243253;background:#10192d;color:#a7b6d4;border-radius:999px;padding:10px 14px;font-weight:700;cursor:pointer}
+    .nho2d-tab.is-active{background:#2f6dff;color:#fff;box-shadow:0 10px 22px rgba(47,109,255,.28)}
     .nho2d-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);gap:16px}
     .nho2d-stack{display:grid;gap:14px}
-    .nho2d-card{background:#fff;border:1px solid #e5ecf8;border-radius:14px;padding:20px;box-shadow:0 4px 14px rgba(16,34,68,.04)}
-    .nho2d-card h3{margin:0 0 10px;font-size:16px;color:#10264b}
+    .nho2d-card{background:#f6f8fc;border:1px solid #dfe7f3;border-radius:16px;padding:20px;box-shadow:0 10px 24px rgba(4,10,20,.18)}
+    .nho2d-card h3{margin:0 0 10px;font-size:16px;color:#0e1726}
     .nho2d-dl{display:grid;grid-template-columns:160px minmax(0,1fr);gap:10px 14px;margin:0}
     .nho2d-dt{color:#5e6f93;font-weight:600}
     .nho2d-dd{margin:0;color:#1d2e4f}
@@ -232,6 +234,11 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-product-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;color:#5e6f93;font-size:13px}
     .nho2d-variation-panel{padding:0 18px 16px}
     .nho2d-variation-note{font-size:12px;color:#62759a;margin-top:4px}
+    .nho2d-sync{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:#15213a;border:1px solid #253556;color:#b9c8e6;font-size:12px;font-weight:700}
+    .nho2d-sync-dot{width:8px;height:8px;border-radius:999px;background:#5fb3ff;box-shadow:0 0 0 4px rgba(95,179,255,.14)}
+    .nho2d-shell .nho2d-badge{background:#18243d;color:#dbe6ff;border-color:#273454}
+    .nho2d-shell .nho2-btn{background:#2f6dff;color:#fff;border:1px solid #366fff;box-shadow:0 10px 20px rgba(47,109,255,.20)}
+    .nho2d-shell .nho2-btn.secondary{background:#111a2e;color:#d9e4f7;border-color:#263655;box-shadow:none}
     @media (max-width:1280px){.nho2d-title{font-size:28px}}
     @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}.nho2d-kpi-grid{grid-template-columns:1fr}}
     `;
@@ -350,6 +357,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         <div>
           <div class="nho2d-title">${safeText(d?.nomeEmpresa, 'Cliente não identificado')}</div>
           <div class="nho2d-sub">Cliente 360°</div>
+          ${syncLoading ? `<div class="nho2d-sync" role="status" aria-live="polite"><span class="nho2d-sync-dot"></span>Atualizando dados do cliente...</div>` : syncMessage ? `<div class="nho2d-sync" role="status" aria-live="polite"><span class="nho2d-sync-dot"></span>${safeText(syncMessage, '')}</div>` : ''}
           <div class="nho2d-meta">
             <span class="nho2-badge ${statusClass(d?.status)}">${safeText(d?.status, '-')}</span>
             ${d?.cidade || d?.uf ? `<span><strong>${[d?.cidade, d?.uf].filter(Boolean).join(' / ')}</strong></span>` : ''}
@@ -399,12 +407,12 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       <div class="nho2d-grid">
         <div class="nho2d-stack">
           <article class="nho2d-card">
-            <div class="nho2d-header" style="margin-bottom:12px">
-              <div>
-                <h3 style="margin:0 0 4px">Score Comercial</h3>
-                <div class="nho2d-sub">Cálculo manual com base em pedidos válidos, frequência, ticket, recência e diversidade.</div>
-              </div>
-              <button id="nho2d-score" class="nho2-btn" ${scoreLoading ? 'disabled' : ''}>${scoreLoading ? 'Calculando score...' : 'Calcular Score'}</button>
+      <div class="nho2d-header" style="margin-bottom:12px">
+        <div>
+          <h3 style="margin:0 0 4px">Score Comercial</h3>
+          <div class="nho2d-sub">Cálculo manual com base em pedidos válidos, frequência, ticket, recência e diversidade.</div>
+        </div>
+              <button id="nho2d-score" class="nho2-btn secondary" ${scoreLoading ? 'disabled' : ''}>${scoreLoading ? 'Calculando score...' : 'Recalcular agora'}</button>
             </div>
             ${feedbackMessage ? `<div class="nho2d-crm-empty" style="margin-bottom:12px">${safeText(feedbackMessage, '')}</div>` : ''}
             <dl class="nho2d-dl">
@@ -430,7 +438,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
                 <h3 style="margin:0 0 4px">Segmentação Comercial</h3>
                 <div class="nho2d-sub">Camada estratégica acima do score comercial para priorização da equipe.</div>
               </div>
-              <button id="nho2d-segmentacao" class="nho2-btn" ${scoreLoading ? 'disabled' : ''}>${scoreLoading ? 'Calculando...' : 'Calcular Segmentação'}</button>
+              <button id="nho2d-segmentacao" class="nho2-btn secondary" ${scoreLoading ? 'disabled' : ''}>${scoreLoading ? 'Calculando...' : 'Recalcular segmentação'}</button>
             </div>
             <dl class="nho2d-dl">
               <dt class="nho2d-dt">Segmento</dt>
@@ -447,7 +455,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
                 <h3 style="margin:0 0 4px">Alertas Comerciais</h3>
                 <div class="nho2d-sub">Riscos, oportunidades e ações recomendadas.</div>
               </div>
-              <button id="nho2d-alerts-generate" class="nho2-btn" ${alertsLoading ? 'disabled' : ''}>${alertsLoading ? 'Gerando...' : 'Gerar Alertas'}</button>
+              <button id="nho2d-alerts-generate" class="nho2-btn secondary" ${alertsLoading ? 'disabled' : ''}>${alertsLoading ? 'Gerando...' : 'Gerar Alertas'}</button>
             </div>
             ${alertMessage ? `<div class="nho2d-crm-empty">${safeText(alertMessage, '')}</div>` : ''}
             ${(Array.isArray(d?.cliente_alertas) ? d.cliente_alertas.filter((item) => String(item?.status || '') === 'ativo') : []).length
@@ -461,7 +469,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
                     <span class="nho2-badge">${safeText(alerta.severidade, '-')}</span>
                   </div>
                   <div class="nho2d-alert-actions">
-                    <button class="nho2-btn" data-resolver-alerta="${alerta.id}">Marcar como resolvido</button>
+                  <button class="nho2-btn secondary" data-resolver-alerta="${alerta.id}">Marcar como resolvido</button>
                   </div>
                 </div>`).join('')}</div>`
               : '<div class="nho2d-crm-empty">Nenhum alerta ativo para este cliente.</div>'}
@@ -665,7 +673,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
               <h3 style="margin:0 0 4px">Enriquecimento</h3>
               <div class="nho2d-sub">Consulta manual da BrasilAPI por CNPJ.</div>
             </div>
-            <button id="nho2d-enrich" class="nho2-btn" ${enrichmentLoading ? 'disabled' : ''}>${enrichmentLoading ? 'Enriquecendo dados...' : 'Enriquecer CNPJ'}</button>
+            <button id="nho2d-enrich" class="nho2-btn secondary" ${enrichmentLoading ? 'disabled' : ''}>${enrichmentLoading ? 'Enriquecendo dados...' : 'Enriquecer CNPJ'}</button>
           </div>
           ${feedbackMessage ? `<div class="nho2d-crm-empty" style="margin-bottom:12px">${safeText(feedbackMessage, '')}</div>` : ''}
           <dl class="nho2d-dl">
@@ -721,7 +729,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
               <h3 style="margin:0 0 4px">Geolocalização</h3>
               <div class="nho2d-sub">Consulta manual do endereço do cliente via Nominatim/OpenStreetMap.</div>
             </div>
-            <button id="nho2d-geocode" class="nho2-btn" ${geolocationLoading ? 'disabled' : ''}>${geolocationLoading ? 'Geolocalizando...' : 'Geolocalizar Cliente'}</button>
+            <button id="nho2d-geocode" class="nho2-btn secondary" ${geolocationLoading ? 'disabled' : ''}>${geolocationLoading ? 'Geolocalizando...' : 'Geolocalizar Cliente'}</button>
           </div>
           ${feedbackMessage ? `<div class="nho2d-crm-empty" style="margin-bottom:12px">${safeText(feedbackMessage, '')}</div>` : ''}
           <dl class="nho2d-dl">
@@ -749,7 +757,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
               <h3 style="margin:0 0 4px">Timeline</h3>
               <div class="nho2d-sub">Eventos relevantes do Cliente 360 em ordem cronológica decrescente.</div>
             </div>
-            <button id="nho2d-timeline-refresh" class="nho2-btn">Atualizar</button>
+            <button id="nho2d-timeline-refresh" class="nho2-btn secondary">Atualizar</button>
           </div>
           ${items.length ? `<div class="nho2d-timeline-list">${items.map((item) => `
             <div class="nho2d-timeline-item">
@@ -1107,10 +1115,30 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     state.loading = true;
     state.error = false;
     state.notFound = false;
+    syncLoading = false;
+    syncMessage = '';
     render();
     try {
       state.data = await fetchClienteDetailsData(apiClient, clienteId);
       if (!state?.data?.id) state.notFound = true;
+      syncLoading = true;
+      render();
+      try {
+        const syncResponse = await sincronizarCliente360(apiClient, clienteId);
+        if (syncResponse?.item) {
+          state.data = { ...state.data, ...syncResponse.item };
+        }
+        const resumo = syncResponse?.resumo || {};
+        const updates = Array.isArray(resumo.changes) ? resumo.changes.length : 0;
+        const errors = Array.isArray(resumo.errors) ? resumo.errors.length : 0;
+        syncMessage = updates || errors
+          ? `${updates ? `${updates} campo(s) atualizados` : 'Sincronização concluída'}${errors ? ` com ${errors} aviso(s)` : ''}.`
+          : 'Dados do cliente já estavam atualizados.';
+      } catch (error) {
+        syncMessage = error?.message || 'Não foi possível sincronizar os dados do cliente.';
+      } finally {
+        syncLoading = false;
+      }
       const alertas = await fetchAlertasCliente(apiClient, clienteId).catch(() => ({ items: [] }));
       state.data = { ...state.data, cliente_alertas: Array.isArray(alertas?.items) ? alertas.items : [] };
       const timeline = await fetchClienteTimeline(apiClient, clienteId).catch(() => ({ items: [] }));

@@ -1,6 +1,6 @@
 import { asyncHandler } from '../../core/async-handler.js';
 import { sendSuccess } from '../../core/response.js';
-import { calcularScoreClienteHandler, calcularSegmentacaoClienteHandler, createClienteHandler, enrichClienteHandler, geolocalizarClienteHandler, gerarAlertasClienteHandler, getAlertasClienteHandler, getClienteByIdHandler, getClientes, getTimelineClienteHandler, resolverAlertaClienteHandler, updateClienteHandler } from './clientes.controller.js';
+import { calcularScoreClienteHandler, calcularSegmentacaoClienteHandler, createClienteHandler, enrichClienteHandler, geolocalizarClienteHandler, gerarAlertasClienteHandler, getAlertasClienteHandler, getClienteByIdHandler, getClientes, getTimelineClienteHandler, resolverAlertaClienteHandler, sincronizarCliente360Handler, updateClienteHandler } from './clientes.controller.js';
 import { listClienteWhatsappConversationMessagesHandler, listClienteWhatsappConversationsHandler } from '../whatsapp-conversations/whatsapp-conversations.controller.js';
 import { getClientesRadarHandler, recalcularClientesRadarHandler } from './clientes.radar.controller.js';
 import { createClienteSchema, updateClienteSchema } from './clientes.schemas.js';
@@ -68,6 +68,15 @@ export function registerClientesRoutes(router) {
     domain: 'clientes-crm',
     handler: asyncHandler(async (req, res, context) => {
       sendSuccess(res, await enrichClienteHandler(context));
+    })
+  });
+
+  router.registerRoute({
+    method: 'POST',
+    path: '/clientes/:id/sincronizar-360',
+    domain: 'clientes-crm',
+    handler: asyncHandler(async (req, res, context) => {
+      sendSuccess(res, await sincronizarCliente360Handler(context));
     })
   });
 
