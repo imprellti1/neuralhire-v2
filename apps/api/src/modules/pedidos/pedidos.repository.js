@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { env } from '../../config/env.js';
 import { createPedidoAuditEvent } from '../../core/audit.js';
 import { BadRequestError, DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
+import { logger } from '../../core/logger.js';
 import { applyOwnerFilter, canAccessAllTenantData, getUserIdFromContext } from '../../core/commercial-scope.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { getClienteById } from '../clientes/clientes.repository.js';
@@ -204,9 +205,26 @@ export async function listPedidos(filters = {}, options = {}) {
       data_faturamento,
       comissao_principal_percentual,
       comissao_preposto_percentual
-    `, { count: 'exact' }).eq('account_id', accountId).order('created_at', { ascending: false });
+      `, { count: 'exact' }).eq('account_id', accountId).order('created_at', { ascending: false });
     if (scopedFilters.status) query = query.eq('status', scopedFilters.status); if (scopedFilters.cliente_id) query = query.eq('cliente_id', scopedFilters.cliente_id); if (scopedFilters.owner_user_id) query = query.eq('owner_user_id', scopedFilters.owner_user_id);
-    const from = (page - 1) * limit; const { data, error, count } = await query.range(from, from + limit - 1); if (error) { throw new DatabaseError('Falha ao listar pedidos', { details: error }); }
+    const from = (page - 1) * limit; const { data, error, count } = await query.range(from, from + limit - 1);
+    if (error) {
+      logger.error({
+        message: 'pedidos_list_supabase_failed',
+        error,
+        supabase_error: error,
+        message_detail: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+        stack: error?.stack,
+        account_id: accountId,
+        filters: scopedFilters,
+        page,
+        limit
+      });
+      throw new DatabaseError('Falha ao listar pedidos', { details: error });
+    }
     const total = count || 0;
     const enrichedItems = await enrichPedidosWithClienteNome(data || [], accountId).catch(() => (data || []).map((item) => ({ ...item, cliente_nome: null })));
     return { items: enrichedItems, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };

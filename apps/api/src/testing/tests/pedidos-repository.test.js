@@ -13,6 +13,9 @@ import {
   listPedidos,
   updatePedidoVendedor
 } from '../../modules/pedidos/pedidos.repository.js';
+import { createApiApp } from '../../app.js';
+import { createTestRequest } from '../create-test-request.js';
+import { createTestResponse } from '../create-test-response.js';
 
 const accountId = 'acc-pedidos-repo';
 
@@ -59,6 +62,17 @@ function createSupabaseMock() {
       throw new Error(`Unexpected table: ${table}`);
     }
   };
+}
+
+async function call(app, { method, url, role, accountId, body }) {
+  const headers = {};
+  if (role) headers['x-test-role'] = role;
+  if (accountId) headers['x-test-account-id'] = accountId;
+  if (body !== undefined) headers['content-type'] = 'application/json';
+  const req = createTestRequest({ method, url, headers, body: body !== undefined ? JSON.stringify(body) : null });
+  const res = createTestResponse();
+  await app(req, res);
+  return { res, body: (() => { try { return JSON.parse(res.body || '{}'); } catch { return {}; } })() };
 }
 
 export function getPedidosRepositoryTests() {
@@ -176,6 +190,68 @@ export function getPedidosRepositoryTests() {
         } finally {
           __setPedidosSupabaseClientForTests(null, false);
         }
+      }
+    },
+    {
+      name: 'listPedidos registra erro bruto do supabase antes de falhar',
+      run: async () => {
+        __resetMemoryPedidosForTests();
+        const mock = createSupabaseMock();
+        mock.from = (table) => {
+          if (table === 'pedidos') {
+            return {
+              _filter: {},
+              select() { return this; },
+              eq() { return this; },
+              order() { return this; },
+              range() { return Promise.resolve({ data: null, count: null, error: { message: 'boom', code: '42703', details: 'missing column', hint: 'check schema' } }); }
+            };
+          }
+          if (table === 'clientes') return { select() { return this; }, eq() { return this; }, in() { return Promise.resolve({ data: [], error: null }); } };
+          if (table === 'vendedores') return { select() { return this; }, eq() { return this; }, in() { return Promise.resolve({ data: [], error: null }); } };
+          if (table === 'pedido_itens') return { select() { return this; }, eq() { return this; }, in() { return Promise.resolve({ data: [], error: null }); } };
+          throw new Error(`Unexpected table: ${table}`);
+        };
+        const logs = [];
+        const originalError = console.error;
+        console.error = (...args) => { logs.push(args); };
+        __setPedidosSupabaseClientForTests(mock, true);
+        try {
+          let failed = false;
+          try {
+            await listPedidos({}, { accountId });
+          } catch (error) {
+            failed = String(error?.message || '').includes('Falha ao listar pedidos');
+          }
+          assertEqual(failed, true);
+          const logged = logs.map((entry) => {
+            try { return JSON.parse(String(entry[0] || '{}')); } catch { return null; }
+          }).find((entry) => entry && entry.message === 'pedidos_list_supabase_failed');
+          assertEqual(Boolean(logged), true);
+          assertEqual(logged.code, '42703');
+          assertEqual(logged.details, 'missing column');
+          assertEqual(logged.hint, 'check schema');
+          assertEqual(logged.stack === undefined || logged.stack === null, true);
+        } finally {
+          console.error = originalError;
+          __setPedidosSupabaseClientForTests(null, false);
+        }
+      }
+    },
+    {
+      name: 'GET /pedidos?cliente_id usa o mesmo fluxo do repository',
+      run: async () => {
+        __resetMemoryPedidosForTests();
+        const app = createApiApp();
+        const accountId = 'acc-ped-route';
+        const cliente = await call(app, { method: 'POST', url: '/clientes', role: 'admin', accountId, body: { nome: 'Cliente Rota' } });
+        const produto = await call(app, { method: 'POST', url: '/produtos', role: 'admin', accountId, body: { nome: 'Produto Rota', preco: 15 } });
+        await call(app, { method: 'POST', url: '/pedidos', role: 'admin', accountId, body: { cliente_id: cliente.body.item.id, itens: [{ produto_id: produto.body.item.id, quantidade: 1, preco_unitario: 15 }] } });
+        const list = await call(app, { method: 'GET', url: `/pedidos?cliente_id=${cliente.body.item.id}`, role: 'manager', accountId });
+        assertEqual(list.res.statusCode, 200);
+        assertEqual(list.body.items.length, 1);
+        assertEqual(list.body.items[0].cliente_id, cliente.body.item.id);
+        assertEqual(list.body.items[0].cliente_nome, 'Cliente Rota');
       }
     },
     {
