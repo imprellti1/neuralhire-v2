@@ -162,6 +162,7 @@ export async function markEmbeddingFailed({ accountId, id, errorMessage, embeddi
   assertAccountId(accountId);
   const patch = {
     embedding_status: 'failed',
+    processed_at: null,
     last_attempt_at: now(),
     error_message: cleanText(errorMessage) || null,
     embedding_metadata: embeddingMetadata,
