@@ -3,7 +3,7 @@ import { env } from '../../config/env.js';
 import { createPedidoAuditEvent } from '../../core/audit.js';
 import { BadRequestError, DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { logger } from '../../core/logger.js';
-import { applyOwnerFilter, canAccessAllTenantData, getUserIdFromContext } from '../../core/commercial-scope.js';
+import { canAccessAllTenantData, getUserIdFromContext } from '../../core/commercial-scope.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { getClienteById } from '../clientes/clientes.repository.js';
 import { getProdutoById } from '../produtos/produtos.repository.js';
@@ -185,7 +185,7 @@ export function getPedidosRepositoryMode() { const supabaseConfigured = resolveS
 export async function listPedidos(filters = {}, options = {}) {
   const accountId = options.accountId || null; assertAccountId(accountId);
   const { page, limit } = normalizePagination(filters); const repositoryMode = getPedidosRepositoryMode(); debugRepository('listPedidos', { repositoryMode, accountId, filters });
-  const scopedFilters = options.context ? applyOwnerFilter(options.context, filters) : filters;
+  const scopedFilters = { ...filters };
   if (repositoryMode.mode === 'supabase') {
     const supabase = resolveSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
     let query = supabase.from('pedidos').select(`
@@ -206,7 +206,9 @@ export async function listPedidos(filters = {}, options = {}) {
       comissao_principal_percentual,
       comissao_preposto_percentual
       `, { count: 'exact' }).eq('account_id', accountId).order('created_at', { ascending: false });
-    if (scopedFilters.status) query = query.eq('status', scopedFilters.status); if (scopedFilters.cliente_id) query = query.eq('cliente_id', scopedFilters.cliente_id); if (scopedFilters.owner_user_id) query = query.eq('owner_user_id', scopedFilters.owner_user_id);
+    if (scopedFilters.status) query = query.eq('status', scopedFilters.status);
+    if (scopedFilters.cliente_id) query = query.eq('cliente_id', scopedFilters.cliente_id);
+    if (scopedFilters.vendedor_id) query = query.eq('vendedor_id', scopedFilters.vendedor_id);
     const from = (page - 1) * limit; const { data, error, count } = await query.range(from, from + limit - 1);
     if (error) {
       logger.error({
@@ -229,7 +231,10 @@ export async function listPedidos(filters = {}, options = {}) {
     const enrichedItems = await enrichPedidosWithClienteNome(data || [], accountId).catch(() => (data || []).map((item) => ({ ...item, cliente_nome: null })));
     return { items: enrichedItems, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
-  let items = memoryPedidos.filter((i) => i.account_id === accountId); if (scopedFilters.status) items = items.filter((i) => i.status === scopedFilters.status); if (scopedFilters.cliente_id) items = items.filter((i) => i.cliente_id === scopedFilters.cliente_id); if (scopedFilters.owner_user_id) items = items.filter((i) => String(i.owner_user_id || '') === String(scopedFilters.owner_user_id));
+  let items = memoryPedidos.filter((i) => i.account_id === accountId);
+  if (scopedFilters.status) items = items.filter((i) => i.status === scopedFilters.status);
+  if (scopedFilters.cliente_id) items = items.filter((i) => i.cliente_id === scopedFilters.cliente_id);
+  if (scopedFilters.vendedor_id) items = items.filter((i) => String(i.vendedor_id || '') === String(scopedFilters.vendedor_id));
   const total = items.length;
   const from = (page - 1) * limit;
   const pagedItems = items.slice(from, from + limit);

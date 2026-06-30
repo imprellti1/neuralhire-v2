@@ -53,14 +53,17 @@ export function getCommercialOwnershipTests(){
       assertEqual(okPedidoB.res.statusCode,200);
 
       const pedidosA=await call(app,{method:'GET',url:'/pedidos',...salesA});
-      assertEqual(pedidosA.body.items.length,1);
-      assertEqual(pedidosA.body.items[0].owner_user_id,'sales-a');
+      assertEqual(pedidosA.body.items.length,2);
+
+      const pedidosFiltrados=await call(app,{method:'GET',url:`/pedidos?cliente_id=${cA.body.item.id}`,...salesA});
+      assertEqual(pedidosFiltrados.body.items.length,1);
+      assertEqual(pedidosFiltrados.body.items[0].cliente_id,cA.body.item.id);
 
       const managerPedidos=await call(app,{method:'GET',url:'/pedidos',...manager});
       assertEqual(managerPedidos.body.items.length,2);
 
       const analyticsSales=await call(app,{method:'GET',url:'/analytics/summary',...salesA});
-      assertEqual(analyticsSales.body.totalPedidos,1);
+      assertEqual(analyticsSales.body.totalPedidos,2);
 
       const analyticsManager=await call(app,{method:'GET',url:'/analytics/summary',...manager});
       assertEqual(analyticsManager.body.totalPedidos,2);

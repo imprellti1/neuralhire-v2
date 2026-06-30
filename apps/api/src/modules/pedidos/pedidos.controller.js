@@ -1,5 +1,4 @@
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
-import { applyOwnerFilter } from '../../core/commercial-scope.js';
 import { createPedido, getPedidoById, getPedidoStatusHistory, getPedidosRepositoryMode, listPedidos, listPedidosAuditoria, updatePedido, updatePedidoComissao, updatePedidoFaturamento, updatePedidoItens, updatePedidoStatus, updatePedidoVendedor } from './pedidos.repository.js';
 import { recordAuditLog } from '../../core/audit-logs.js';
 
@@ -7,7 +6,7 @@ export async function getPedidos(context = {}) {
   const accountId = getAccountIdFromContext(context);
   const query = context.query || {};
   const filters = { page: query.page !== undefined ? Number(query.page) : undefined, limit: query.limit !== undefined ? Number(query.limit) : undefined, status: query.status, cliente_id: query.cliente_id };
-  const result = await listPedidos(applyOwnerFilter(context, filters), { accountId, context });
+  const result = await listPedidos(filters, { accountId, context });
   return { ok: true, repositoryMode: getPedidosRepositoryMode(), pagination: { page: result.page, limit: result.limit, total: result.total, totalPages: result.totalPages }, items: result.items };
 }
 
@@ -21,7 +20,7 @@ export async function getPedidosAuditoria(context = {}) {
     issue: query.issue,
     search: query.search
   };
-  const result = await listPedidosAuditoria(applyOwnerFilter(context, filters), { accountId, context });
+  const result = await listPedidosAuditoria(filters, { accountId, context });
   return { ok: true, repositoryMode: getPedidosRepositoryMode(), pagination: { page: result.page, limit: result.limit, total: result.total, totalPages: result.totalPages }, items: result.items };
 }
 
