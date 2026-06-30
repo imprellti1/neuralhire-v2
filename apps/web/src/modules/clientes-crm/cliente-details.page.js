@@ -902,8 +902,8 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
               telefone: String(editForm.telefone || '').trim() || null,
               email: String(editForm.email || '').trim() || null
             };
-            const response = await atualizarCliente(apiClient, clienteId, payload);
-            state.data = response?.item ? { ...state.data, ...response.item } : { ...state.data, ...payload };
+            await atualizarCliente(apiClient, clienteId, payload);
+            state.data = await fetchClienteDetailsData(apiClient, clienteId);
             editMode = false;
             editForm = null;
             editErrorMessage = '';

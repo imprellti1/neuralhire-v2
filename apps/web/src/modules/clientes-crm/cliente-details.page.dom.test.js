@@ -404,25 +404,24 @@ test('cliente details permite editar dados principais com salvar e cancelar', as
   const dom = setupFrontendDom('#/clientes/c1');
   const root = document.getElementById('root');
   const calls = [];
+  let clienteAtual = {
+    id: 'c1',
+    empresa: 'Cliente A',
+    razao_social: 'Cliente A LTDA',
+    cidade: 'São Paulo',
+    estado: 'SP',
+    created_at: '2026-05-01T00:00:00.000Z',
+    status: 'ativo',
+    vendedor_nome: 'Vendedor 1',
+    documento: '00.000.000/0001-00',
+    telefone: '(11) 99999-9999',
+    email: 'a@a.com'
+  };
   const apiClient = {
     get: async (url, params = {}) => {
       calls.push({ method: 'GET', url, params });
       if (url === '/clientes/c1') {
-        return {
-          item: {
-            id: 'c1',
-            empresa: 'Cliente A',
-            razao_social: 'Cliente A LTDA',
-            cidade: 'São Paulo',
-            estado: 'SP',
-            created_at: '2026-05-01T00:00:00.000Z',
-            status: 'ativo',
-            vendedor_nome: 'Vendedor 1',
-            documento: '00.000.000/0001-00',
-            telefone: '(11) 99999-9999',
-            email: 'a@a.com'
-          }
-        };
+        return { item: clienteAtual };
       }
       if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') {
         return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
@@ -432,7 +431,10 @@ test('cliente details permite editar dados principais com salvar e cancelar', as
     },
     patch: async (url, body) => {
       calls.push({ method: 'PATCH', url, body });
-      if (url === '/clientes/c1') return { item: { id: 'c1', ...body } };
+      if (url === '/clientes/c1') {
+        clienteAtual = { ...clienteAtual, ...body };
+        return { item: { id: 'c1', ...body } };
+      }
       throw new Error('unexpected patch');
     }
   };
@@ -455,6 +457,9 @@ test('cliente details permite editar dados principais com salvar e cancelar', as
   assert.ok(patchCall);
   assert.equal(patchCall.body.cidade, 'Curitiba');
   assert.equal(patchCall.body.email, 'novo@exemplo.com');
+  assert.ok(calls.filter((call) => call.method === 'GET' && call.url === '/clientes/c1').length >= 2);
+  assert.match(root.textContent, /Curitiba/);
+  assert.match(root.textContent, /novo@exemplo\.com/);
   assert.match(root.textContent, /Dados do cliente atualizados com sucesso/i);
 
   root.querySelector('#nho2d-edit-start')?.click();
