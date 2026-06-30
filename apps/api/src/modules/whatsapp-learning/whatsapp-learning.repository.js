@@ -301,6 +301,32 @@ export async function listNormalizedLearningEvents({ accountId, limit = 10 } = {
   return memoryEvents.filter((item) => item.account_id === accountId && item.status === 'normalized').slice(0, Math.max(1, Number(limit) || 10));
 }
 
+export async function claimNormalizedLearningEvent(eventId, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  if (mode() === 'supabase') {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('whatsapp_learning_events')
+      .update({ status: 'processing', processing_error: null, updated_at: now() })
+      .eq('id', eventId)
+      .eq('account_id', accountId)
+      .eq('status', 'normalized')
+      .select('*')
+      .single();
+    if (error) {
+      const notFound = String(error?.code || '') === 'PGRST116' || String(error?.message || '').toLowerCase().includes('no rows');
+      if (notFound) return null;
+      throw new DatabaseError('Falha ao reservar evento de aprendizagem', { details: error });
+    }
+    return data;
+  }
+  const idx = memoryEvents.findIndex((item) => item.id === eventId && item.account_id === accountId && item.status === 'normalized');
+  if (idx < 0) return null;
+  memoryEvents[idx] = { ...memoryEvents[idx], status: 'processing', processing_error: null, updated_at: now() };
+  return memoryEvents[idx];
+}
+
 export async function updateLearningEvent(eventId, patch = {}, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);

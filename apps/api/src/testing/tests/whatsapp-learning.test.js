@@ -9,8 +9,9 @@ import { createTestResponse } from '../create-test-response.js';
 import JSZip from 'jszip';
 import XLSX from 'xlsx';
 import { __loadMemoryEvolutionForTests, __resetMemoryEvolutionForTests } from '../../modules/integrations/evolution/evolution.repository.js';
-import { __dumpMemoryWhatsappLearningForTests, __resetMemoryWhatsappLearningForTests, createLearningEvent } from '../../modules/whatsapp-learning/whatsapp-learning.repository.js';
+import { __dumpMemoryWhatsappLearningForTests, __resetMemoryWhatsappLearningForTests, createLearningEvent, updateLearningEvent } from '../../modules/whatsapp-learning/whatsapp-learning.repository.js';
 import { runWhatsappLearningWorker } from '../../modules/whatsapp-learning/whatsapp-learning.service.js';
+import { executeWhatsappLearningWorker } from '../../modules/whatsapp-learning/whatsapp-learning.executor.js';
 import { analyzeLearningEvent } from '../../modules/whatsapp-learning/cognitive-provider.js';
 import { buildMediaAttachment, generateMediaSha256 } from '../../modules/media-manager/media-manager.js';
 import { extractTextFromImage } from '../../modules/media-manager/ocr-provider.js';
@@ -339,6 +340,55 @@ export function getWhatsappLearningTests() {
       }
     },
     {
+      name: 'executor cogitivo processa normalized e preserva metadata',
+      run: async () => {
+        reset();
+        const created = await createLearningEvent({
+          accountId: 'acc-1',
+          whatsappMessageId: 'msg-1',
+          messageId: 'm1',
+          body: 'oi',
+          metadata: { provider: 'evolution', instance_name: 'main', custom: 'keep-me' }
+        }, { accountId: 'acc-1' });
+        await updateLearningEvent(created.item.id, { status: 'normalized', normalized_text: 'oi', normalized_payload: { text: 'oi', metadata: { source: 'legacy' } } }, { accountId: 'acc-1' });
+        const result = await executeWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+        assert.equal(result.processed, 1);
+        assert.equal(result.cognitivelyProcessed, 1);
+        const updated = __dumpMemoryWhatsappLearningForTests()[0];
+        assert.equal(updated.status, 'processed');
+        assert.equal(updated.metadata.custom, 'keep-me');
+        assert.equal(updated.metadata.cognitive.status, 'disabled');
+        assert.equal(updated.normalized_payload.cognitive.status, 'disabled');
+        assert.equal(updated.normalized_payload.cognitive.provider, null);
+      }
+    },
+    {
+      name: 'executor pula item ja processado e respeita processing',
+      run: async () => {
+        reset();
+        const processed = await createLearningEvent({
+          accountId: 'acc-1',
+          whatsappMessageId: 'msg-processed',
+          messageId: 'm1',
+          body: 'oi',
+          metadata: { custom: 'keep' }
+        }, { accountId: 'acc-1' });
+        const locked = await createLearningEvent({
+          accountId: 'acc-1',
+          whatsappMessageId: 'msg-locked',
+          messageId: 'm2',
+          body: 'oi'
+        }, { accountId: 'acc-1' });
+        await updateLearningEvent(processed.item.id, { status: 'processed', processed_at: '2026-06-30T00:00:00.000Z' }, { accountId: 'acc-1' });
+        await updateLearningEvent(locked.item.id, { status: 'processing', processing_error: null }, { accountId: 'acc-1' });
+        const result = await executeWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+        assert.equal(result.scanned, 0);
+        assert.equal(result.processed, 0);
+        assert.equal(__dumpMemoryWhatsappLearningForTests().find((item) => item.whatsapp_message_id === 'msg-processed').status, 'processed');
+        assert.equal(__dumpMemoryWhatsappLearningForTests().find((item) => item.whatsapp_message_id === 'msg-locked').status, 'processing');
+      }
+    },
+    {
       name: 'erro tecnico do provider marca failed sem quebrar o lote',
       run: async () => {
         reset();
@@ -355,6 +405,33 @@ export function getWhatsappLearningTests() {
           assert.equal(events.every((item) => item.status === 'failed'), true);
           assert.equal(String(events[0].processing_error || '').includes('forced_cognitive_provider_failure'), true);
           assert.equal(String(events[0].processing_error || '').includes('Error:'), false);
+        } finally {
+          process.env.COGNITIVE_WORKER_ENABLED = previousEnabled;
+          process.env.COGNITIVE_PROVIDER = previousProvider;
+        }
+      }
+    },
+    {
+      name: 'executor marca failed em erro controlado sem reprocessar item reservado',
+      run: async () => {
+        reset();
+        const previousEnabled = process.env.COGNITIVE_WORKER_ENABLED;
+        const previousProvider = process.env.COGNITIVE_PROVIDER;
+        process.env.COGNITIVE_WORKER_ENABLED = 'true';
+        process.env.COGNITIVE_PROVIDER = 'throw';
+        try {
+          const created = await createLearningEvent({
+            accountId: 'acc-1',
+            whatsappMessageId: 'msg-1',
+            messageId: 'm1',
+            body: 'oi'
+          }, { accountId: 'acc-1' });
+          await updateLearningEvent(created.item.id, { status: 'normalized', normalized_text: 'oi', normalized_payload: { text: 'oi' } }, { accountId: 'acc-1' });
+          const result = await executeWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
+          assert.equal(result.failed, 1);
+          const updated = __dumpMemoryWhatsappLearningForTests()[0];
+          assert.equal(updated.status, 'failed');
+          assert.ok(String(updated.processing_error || '').includes('forced_cognitive_provider_failure'));
         } finally {
           process.env.COGNITIVE_WORKER_ENABLED = previousEnabled;
           process.env.COGNITIVE_PROVIDER = previousProvider;
