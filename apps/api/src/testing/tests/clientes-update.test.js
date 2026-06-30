@@ -2,7 +2,7 @@ import { assertEqual } from '../assert.js';
 import { createApiApp } from '../../app.js';
 import { createTestRequest } from '../create-test-request.js';
 import { createTestResponse } from '../create-test-response.js';
-import { __resetMemoryClientesForTests, createCliente } from '../../modules/clientes/clientes.repository.js';
+import { __resetMemoryClientesForTests, __setClientesSupabaseClientForTests, createCliente } from '../../modules/clientes/clientes.repository.js';
 
 function parseBody(res) {
   try {
@@ -26,6 +26,90 @@ function createFetchResponse({ ok, status, body, contentType = 'application/json
     json: async () => {
       if (contentType.includes('json')) return typeof body === 'string' ? JSON.parse(body) : body;
       return body;
+    }
+  };
+}
+
+function createClientesSupabaseMock() {
+  const state = { lastUpdatePayload: null, currentItem: null };
+  return {
+    state,
+    from(table) {
+      if (table !== 'clientes') throw new Error(`Tabela inesperada: ${table}`);
+      return {
+        select() {
+          return {
+            eq() {
+              return {
+                eq() {
+                  return {
+                    maybeSingle: async () => ({
+                      data: state.currentItem,
+                      error: null
+                    })
+                  };
+                }
+              };
+            }
+          };
+        },
+        insert(payload) {
+          state.currentItem = {
+            id: 'cliente-supabase-1',
+            account_id: 'acc-1',
+            ...payload
+          };
+          return {
+            select() {
+              return {
+                single: async () => ({
+                  data: state.currentItem,
+                  error: null
+                })
+              };
+            }
+          };
+        },
+        update(payload) {
+          state.lastUpdatePayload = payload;
+          state.currentItem = {
+            id: 'cliente-supabase-1',
+            account_id: 'acc-1',
+            ...state.currentItem,
+            ...payload
+          };
+          return {
+            eq() {
+              return {
+                eq() {
+                  return {
+                    select() {
+                      return {
+                        single: async () => ({
+                          data: {
+                            id: 'cliente-supabase-1',
+                            account_id: 'acc-1',
+                            nome: payload.nome,
+                            razao_social: payload.razao_social,
+                            cidade: payload.cidade,
+                            estado: payload.estado,
+                            status: payload.status,
+                            telefone: payload.telefone,
+                            email: payload.email,
+                            vendedor_id: payload.vendedor_id,
+                            documento: payload.documento
+                          },
+                          error: null
+                        })
+                      };
+                    }
+                  };
+                }
+              };
+            }
+          };
+        }
+      };
     }
   };
 }
@@ -64,6 +148,48 @@ export function getClientesUpdateTests() {
         assertEqual(updated.body.item.estado, 'PR');
         assertEqual(updated.body.item.status, 'prospect');
         assertEqual(updated.body.item.vendedor_id, 'vend-1');
+      }
+    },
+    {
+      name: 'PATCH /clientes/:id aceita o mesmo payload da tela de Cliente 360',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        const supabaseMock = createClientesSupabaseMock();
+        __setClientesSupabaseClientForTests(supabaseMock, true);
+        try {
+          const app = createApiApp();
+          const created = await call(app, { method: 'POST', url: '/clientes', role: 'admin', accountId: 'acc-1', body: { nome: 'Cliente Tela', cidade: 'São Paulo', estado: 'SP', status: 'ativo' } });
+          const payload = {
+            nome: 'Cliente Tela LTDA',
+            razao_social: 'Cliente Tela LTDA',
+            cidade: 'Curitiba',
+            estado: 'PR',
+            status: 'prospect',
+            vendedor_id: 'vend-1',
+            documento: '00.000.000/0001-00',
+            telefone: '(41) 99999-0000',
+            email: 'contato@exemplo.com'
+          };
+          const updated = await call(app, {
+            method: 'PATCH',
+            url: `/clientes/${created.body.item.id}`,
+            role: 'admin',
+            accountId: 'acc-1',
+            body: payload
+          });
+
+          assertEqual(updated.res.statusCode, 200);
+          assertEqual(updated.body.item.nome, payload.nome);
+          assertEqual(updated.body.item.razao_social, payload.razao_social);
+          assertEqual(updated.body.item.cidade, payload.cidade);
+          assertEqual(updated.body.item.estado, payload.estado);
+          assertEqual(updated.body.item.status, payload.status);
+          assertEqual(updated.body.item.vendedor_id, payload.vendedor_id);
+          assertEqual(supabaseMock.state.lastUpdatePayload.status, payload.status);
+          assertEqual(supabaseMock.state.lastUpdatePayload.razao_social, payload.razao_social);
+        } finally {
+          __setClientesSupabaseClientForTests(null, false);
+        }
       }
     },
     {

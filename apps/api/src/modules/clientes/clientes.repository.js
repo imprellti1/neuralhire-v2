@@ -67,13 +67,41 @@ function normalizeDateValue(value) {
 
 function logSupabaseError(action, error, context = {}) {
   console.error(`[clientes.repository] ${action}`, {
+    error: error || null,
     accountId: context.accountId || null,
     clienteId: context.clienteId || null,
+    payload: context.payload || null,
     message: error?.message || null,
+    stack: error?.stack || null,
     code: error?.code || null,
     details: error?.details || null,
     hint: error?.hint || null
   });
+}
+
+function sanitizeClienteUpdatePayload(payload = {}) {
+  const redactedFields = new Set(['email', 'telefone', 'documento']);
+  return Object.entries(payload || {}).reduce((acc, [key, value]) => {
+    if (value === undefined) return acc;
+    if (value === null) {
+      acc[key] = null;
+      return acc;
+    }
+    if (redactedFields.has(key)) {
+      acc[key] = String(value).trim() ? '[REDACTED]' : null;
+      return acc;
+    }
+    if (Array.isArray(value)) {
+      acc[key] = value;
+      return acc;
+    }
+    if (value && typeof value === 'object') {
+      acc[key] = '[REDACTED_OBJECT]';
+      return acc;
+    }
+    acc[key] = value;
+    return acc;
+  }, {});
 }
 
 function computeCommercialStatusFromDays(daysSinceLastPurchase) {
@@ -432,6 +460,7 @@ export async function createCliente(data, options = {}) {
       telefone: data.telefone || null,
       cidade: data.cidade || null,
       estado: data.estado || null,
+      status: data.status || null,
       logradouro: data.logradouro || null,
       numero: data.numero || null,
       complemento: data.complemento || null,
@@ -458,6 +487,7 @@ export async function createCliente(data, options = {}) {
     telefone: data.telefone || null,
     cidade: data.cidade || null,
     estado: data.estado || null,
+    status: data.status || null,
     logradouro: data.logradouro || null,
     numero: data.numero || null,
     complemento: data.complemento || null,
@@ -514,7 +544,7 @@ export async function updateCliente(id, data, options = {}) {
   if (getClientesRepositoryMode().mode === 'supabase') {
     const supabase = resolveSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data: updated, error } = await supabase.from('clientes').update({
+    const updatePayload = {
       nome: next.nome,
       codigo: next.codigo,
       documento: next.documento,
@@ -522,6 +552,7 @@ export async function updateCliente(id, data, options = {}) {
       telefone: next.telefone,
       cidade: next.cidade,
       estado: next.estado,
+      razao_social: next.razao_social ?? null,
       status: next.status,
       logradouro: next.logradouro,
       numero: next.numero,
@@ -533,8 +564,16 @@ export async function updateCliente(id, data, options = {}) {
       metadata: normalizeClienteMetadata(next.metadata),
       vendedor_id: next.vendedor_id,
       updated_at: new Date().toISOString()
-    }).eq('account_id', accountId).eq('id', id).select('*').single();
-    if (error) throw new DatabaseError('Falha ao atualizar cliente', { details: error });
+    };
+    const { data: updated, error } = await supabase.from('clientes').update(updatePayload).eq('account_id', accountId).eq('id', id).select('*').single();
+    if (error) {
+      logSupabaseError('updateCliente supabase error', error, {
+        accountId,
+        clienteId: id,
+        payload: sanitizeClienteUpdatePayload(updatePayload)
+      });
+      throw new DatabaseError('Falha ao atualizar cliente', { details: error });
+    }
     return updated;
   }
 
