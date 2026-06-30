@@ -96,6 +96,8 @@ export async function consolidateWhatsappLearningKnowledge(context = {}) {
       knowledgeValue: normalizedText,
       knowledgeType: rule.knowledgeType,
       confidence: Number(event.confidence ?? 0.5),
+      lastSourceEventId: event.source_event_id || event.id,
+      lastSourceInstanceType: scope.sourceInstanceType || sourceMetadata.instance_type || null,
       firstSeenAt: event.created_at || new Date().toISOString(),
       lastSeenAt: event.created_at || event.updated_at || new Date().toISOString(),
       occurrences: 1,

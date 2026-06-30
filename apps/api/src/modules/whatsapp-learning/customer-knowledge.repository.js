@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { DatabaseError, ForbiddenError } from '../../core/errors.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
+import { resolveCustomerKnowledgeUpdate } from './customer-knowledge.resolver.js';
 
 const memoryCustomerKnowledge = [];
 
@@ -24,6 +25,12 @@ function buildCustomerKnowledgeRow(data = {}) {
     knowledge_value: data.knowledgeValue ?? null,
     knowledge_type: cleanText(data.knowledgeType || 'general').toLowerCase() || 'general',
     confidence: Number.isFinite(Number(data.confidence)) ? Math.min(1, Math.max(0, Number(data.confidence))) : 0,
+    version: Math.max(1, Number(data.version) || 1),
+    updated_reason: data.updatedReason || null,
+    previous_value: data.previousValue ?? null,
+    change_count: Math.max(0, Number(data.changeCount) || 0),
+    last_source_event_id: data.lastSourceEventId || null,
+    last_source_instance_type: data.lastSourceInstanceType || null,
     first_seen_at: data.firstSeenAt || now(),
     last_seen_at: data.lastSeenAt || now(),
     occurrences: Math.max(1, Number(data.occurrences) || 1),
@@ -65,15 +72,27 @@ export async function upsertCustomerKnowledge(data = {}, options = {}) {
     const { data: existing, error: existingError } = await supabase.from('customer_knowledge').select('*').eq('account_id', accountId).eq('knowledge_key', row.knowledge_key).eq('phone', row.phone).eq('remote_jid', row.remote_jid).maybeSingle();
     if (existingError) throw new DatabaseError('Falha ao consultar memoria consolidada', { details: existingError });
     if (existing) {
+      const decision = resolveCustomerKnowledgeUpdate({
+        knowledgeKey: row.knowledge_key,
+        previousValue: existing.knowledge_value,
+        nextValue: row.knowledge_value
+      });
+      const sourceEvents = [...new Map([...(existing.source_events || []), ...(row.source_events || [])].map((item) => [String(item?.source_event_id || item?.event_id || ''), item])).values()];
       const merged = {
         ...existing,
-        knowledge_value: row.knowledge_value ?? existing.knowledge_value,
+        knowledge_value: decision.value,
         knowledge_type: row.knowledge_type || existing.knowledge_type,
         confidence: Math.max(Number(existing.confidence || 0), Number(row.confidence || 0)),
+        version: Number(existing.version || 1) + (decision.changed ? 1 : 0),
+        updated_reason: decision.updatedReason,
+        previous_value: decision.changed ? existing.knowledge_value : existing.previous_value ?? null,
+        change_count: Number(existing.change_count || 0) + (decision.changed ? 1 : 0),
+        last_source_event_id: row.last_source_event_id || existing.last_source_event_id || null,
+        last_source_instance_type: row.last_source_instance_type || existing.last_source_instance_type || null,
         first_seen_at: existing.first_seen_at || row.first_seen_at,
         last_seen_at: row.last_seen_at || now(),
         occurrences: Number(existing.occurrences || 1) + Number(row.occurrences || 1),
-        source_events: [...new Set([...(existing.source_events || []), ...(row.source_events || [])])],
+        source_events: sourceEvents,
         metadata: { ...(existing.metadata || {}), ...(row.metadata || {}) },
         status: row.status || existing.status
       };
@@ -88,15 +107,29 @@ export async function upsertCustomerKnowledge(data = {}, options = {}) {
 
   const idx = memoryCustomerKnowledge.findIndex((item) => scopeKey(item.account_id, item.phone, item.remote_jid, item.knowledge_key) === key);
   if (idx >= 0) {
+    const current = memoryCustomerKnowledge[idx];
+    const decision = resolveCustomerKnowledgeUpdate({
+      knowledgeKey: row.knowledge_key,
+      previousValue: current.knowledge_value,
+      nextValue: row.knowledge_value
+    });
+    const sourceEvents = [...new Map([...(current.source_events || []), ...(row.source_events || [])].map((item) => [String(item?.source_event_id || item?.event_id || ''), item])).values()];
     memoryCustomerKnowledge[idx] = {
-      ...memoryCustomerKnowledge[idx],
+      ...current,
       ...row,
-      id: memoryCustomerKnowledge[idx].id,
-      first_seen_at: memoryCustomerKnowledge[idx].first_seen_at,
+      id: current.id,
+      knowledge_value: decision.value,
+      version: Number(current.version || 1) + (decision.changed ? 1 : 0),
+      updated_reason: decision.updatedReason,
+      previous_value: decision.changed ? current.knowledge_value : current.previous_value ?? null,
+      change_count: Number(current.change_count || 0) + (decision.changed ? 1 : 0),
+      last_source_event_id: row.last_source_event_id || current.last_source_event_id || null,
+      last_source_instance_type: row.last_source_instance_type || current.last_source_instance_type || null,
+      first_seen_at: current.first_seen_at,
       last_seen_at: row.last_seen_at || now(),
-      occurrences: Number(memoryCustomerKnowledge[idx].occurrences || 1) + Number(row.occurrences || 1),
-      source_events: [...new Set([...(memoryCustomerKnowledge[idx].source_events || []), ...(row.source_events || [])])],
-      metadata: { ...(memoryCustomerKnowledge[idx].metadata || {}), ...(row.metadata || {}) },
+      occurrences: Number(current.occurrences || 1) + Number(row.occurrences || 1),
+      source_events: sourceEvents,
+      metadata: { ...(current.metadata || {}), ...(row.metadata || {}) },
       updated_at: now()
     };
     return { item: memoryCustomerKnowledge[idx], status: 'updated' };
