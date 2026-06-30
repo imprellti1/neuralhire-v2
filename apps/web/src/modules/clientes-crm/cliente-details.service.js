@@ -19,6 +19,10 @@ export async function fetchPedidoDetailsForCliente(apiClient, pedidoId) {
   return apiClient.get(`/pedidos/${pedidoId}`);
 }
 
+export async function atualizarCliente(apiClient, clienteId, payload) {
+  return apiClient.patch(`/clientes/${clienteId}`, payload);
+}
+
 export async function enriquecerCliente(apiClient, clienteId) {
   return apiClient.post(`/clientes/${clienteId}/enriquecer`);
 }

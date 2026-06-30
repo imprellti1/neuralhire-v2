@@ -18,7 +18,8 @@ export function createClientesMockHandlers({ scenario = 'success', overrides = {
       return { items: [], pagination: { page: Number(query.page || 1), totalPages: 1, total: 0, limit: Number(query.limit || 100) } };
     },
     'GET /pedidos/p1': () => createSuccessResponse({ item: { id: 'p1', itens: [{ produto: 'Produto X', quantidade: 2, preco_unitario: 10, total: 20, status_vinculo: 'vinculado' }] } }),
-    'POST /clientes': () => createSuccessResponse({ item: { id: 'c1' } })
+    'POST /clientes': () => createSuccessResponse({ item: { id: 'c1' } }),
+    'PATCH /clientes/c1': ({ body }) => createSuccessResponse({ item: { id: 'c1', ...body } })
   };
 
   if (scenario === 'notFound') return createMockScenario(baseHandlers, { 'GET /clientes/c1': () => createNotFoundResponse('Cliente nao encontrado') }, overrides);

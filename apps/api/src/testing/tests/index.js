@@ -24,6 +24,7 @@ const suiteSpecs = [
   ['Payload Limit', './payload-limit.test.js', 'getPayloadLimitTests'],
   ['Scopes', './scopes.test.js', 'getScopesTests'],
   ['Clientes Repository', './clientes-repository.test.js', 'getClientesRepositoryTests'],
+  ['Clientes Update', './clientes-update.test.js', 'getClientesUpdateTests'],
   ['Clientes Enrichment', './clientes-enrichment.test.js', 'getClientesEnrichmentTests'],
   ['Clientes Timeline', './clientes-timeline.test.js', 'getClientesTimelineTests'],
   ['Clientes WhatsApp', './clientes-whatsapp.test.js', 'getClientesWhatsappTests'],

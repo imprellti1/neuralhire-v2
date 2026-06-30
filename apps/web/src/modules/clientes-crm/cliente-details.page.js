@@ -1,5 +1,5 @@
 import { createClienteDetailsState } from './cliente-details.state.js';
-import { calcularScoreCliente, calcularSegmentacaoCliente, enriquecerCliente, fetchAlertasCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, fetchWhatsappConversationMessagesCliente, fetchWhatsappConversationsCliente, gerarAlertasCliente, geolocalizarCliente, resolverAlertaCliente } from './cliente-details.service.js';
+import { atualizarCliente, calcularScoreCliente, calcularSegmentacaoCliente, enriquecerCliente, fetchAlertasCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, fetchWhatsappConversationMessagesCliente, fetchWhatsappConversationsCliente, gerarAlertasCliente, geolocalizarCliente, resolverAlertaCliente } from './cliente-details.service.js';
 import { fetchClienteTimeline } from './cliente-timeline.service.js';
 
 function fmtCurrency(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
@@ -132,6 +132,10 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   let whatsappLoading = false;
   let whatsappMessagesLoading = false;
   let whatsappActiveConversationId = null;
+  let editMode = false;
+  let editSaving = false;
+  let editErrorMessage = '';
+  let editForm = null;
   const groupAccordionState = new Map();
   const pedidoAccordionState = new Map();
   const pedidoItemDetails = new Map();
@@ -186,6 +190,12 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-item-note{font-size:12px;color:#62759a}
     .nho2d-mini-loading{padding:10px 0;color:#62759a;font-size:13px}
     .nho2d-crm-empty{padding:18px;border:1px dashed #d5e0f3;border-radius:12px;color:#5b6c90;background:#fbfcff}
+    .nho2d-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .nho2d-edit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    .nho2d-edit-field{display:grid;gap:6px}
+    .nho2d-edit-label{font-size:12px;font-weight:700;color:#5e6f93}
+    .nho2d-edit-input{width:100%;border:1px solid #dbe4f2;border-radius:10px;padding:10px 12px;font:inherit;color:#10264b;background:#fff}
+    .nho2d-edit-input:focus{outline:2px solid #c4d6ff;outline-offset:1px;border-color:#9cb8ff}
     .nho2d-whatsapp{display:grid;grid-template-columns:minmax(260px,340px) minmax(0,1fr);gap:14px;min-height:520px}
     .nho2d-whatsapp-list{display:grid;gap:10px}
     .nho2d-whatsapp-item{border:1px solid #e5ecf8;border-radius:12px;padding:14px;background:#fbfdff;cursor:pointer;display:grid;gap:6px;text-align:left}
@@ -265,9 +275,62 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     return map[value] || map.INATIVO;
   }
 
+  function renderEditField(id, label, value, type = 'text', extra = '') {
+    return `<label class="nho2d-edit-field" for="${id}"><span class="nho2d-edit-label">${label}</span><input id="${id}" class="nho2d-edit-input" type="${type}" value="${safeText(value, '')}" ${extra}></label>`;
+  }
+
+  function renderEditForm(d) {
+    if (!editForm) editForm = buildEditForm(d);
+    return `
+      <div class="nho2d-edit-grid">
+        ${renderEditField('nho2d-edit-nome', 'Nome / Razão social', editForm.nome)}
+        ${renderEditField('nho2d-edit-cidade', 'Cidade', editForm.cidade)}
+        ${renderEditField('nho2d-edit-estado', 'Estado', editForm.estado, 'text', 'maxlength="2"')}
+        <label class="nho2d-edit-field" for="nho2d-edit-status"><span class="nho2d-edit-label">Status</span>
+          <select id="nho2d-edit-status" class="nho2d-edit-input">
+            ${['ativo', 'inativo', 'prospect'].map((option) => `<option value="${option}" ${String(editForm.status || 'ativo') === option ? 'selected' : ''}>${option}</option>`).join('')}
+          </select>
+        </label>
+        ${renderEditField('nho2d-edit-vendedor', 'vendedor_id', editForm.vendedor_id)}
+        ${renderEditField('nho2d-edit-documento', 'Documento', editForm.documento)}
+        ${renderEditField('nho2d-edit-telefone', 'Telefone', editForm.telefone)}
+        ${renderEditField('nho2d-edit-email', 'Email', editForm.email, 'email')}
+        ${renderEditField('nho2d-edit-razao-social', 'Razão social', editForm.razao_social)}
+      </div>
+    `;
+  }
+
   function safeValue(value) {
     const text = String(value || '').trim();
     return text || 'Não informado';
+  }
+
+  function buildEditForm(data) {
+    return {
+      nome: String(data?.razao_social || data?.nomeEmpresa || '').trim(),
+      cidade: String(data?.cidade || '').trim(),
+      estado: String(data?.uf || data?.estado || '').trim(),
+      status: String(data?.status_raw || data?.status_editavel || data?.status || '').trim() || 'ativo',
+      vendedor_id: String(data?.dadosCliente?.vendedor_id || data?.vendedor_id || '').trim(),
+      documento: String(data?.dadosCliente?.documento || data?.documento || '').trim(),
+      telefone: String(data?.dadosCliente?.telefone || data?.telefone || '').trim(),
+      email: String(data?.dadosCliente?.email || data?.email || '').trim(),
+      razao_social: String(data?.razao_social || data?.nomeEmpresa || '').trim()
+    };
+  }
+
+  function startEditMode() {
+    editForm = buildEditForm(state.data);
+    editErrorMessage = '';
+    editMode = true;
+    render();
+  }
+
+  function cancelEditMode() {
+    editForm = null;
+    editErrorMessage = '';
+    editMode = false;
+    render();
   }
 
   function formatDateFriendly(value) {
@@ -328,6 +391,10 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       ['Telefone', d?.dadosCliente?.telefone || '-'],
       ['Email', d?.dadosCliente?.email || '-']
     ];
+    const relevantFields = editMode
+      ? null
+      : fields.slice(4);
+    const editLabel = editMode ? 'Visualizando' : 'Editar dados';
     return `
       <div class="nho2d-grid">
         <div class="nho2d-stack">
@@ -401,9 +468,17 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
           </article>
           <article class="nho2d-card">
             <h3>Dados relevantes</h3>
-            <dl class="nho2d-dl">
-              ${fields.slice(4).map(([label, value]) => `<dt class="nho2d-dt">${label}</dt><dd class="nho2d-dd">${value}</dd>`).join('')}
-            </dl>
+            <div class="nho2d-header" style="margin-bottom:12px">
+              <div class="nho2d-sub">Controle explícito de edição para os dados principais do cliente.</div>
+              ${editMode ? `
+                <div class="nho2d-actions">
+                  <button id="nho2d-edit-cancel" class="nho2-btn secondary" ${editSaving ? 'disabled' : ''}>Cancelar</button>
+                  <button id="nho2d-edit-save" class="nho2-btn" ${editSaving ? 'disabled' : ''}>${editSaving ? 'Salvando...' : 'Salvar'}</button>
+                </div>
+              ` : `<button id="nho2d-edit-start" class="nho2-btn">${editLabel}</button>`}
+            </div>
+            ${editErrorMessage ? `<div class="nho2d-crm-empty" role="alert" style="margin-bottom:12px">${safeText(editErrorMessage, '')}</div>` : ''}
+            ${editMode ? renderEditForm(d) : `<dl class="nho2d-dl">${relevantFields.map(([label, value]) => `<dt class="nho2d-dt">${label}</dt><dd class="nho2d-dd">${value}</dd>`).join('')}</dl>`}
           </article>
         </div>
         <div class="nho2d-stack">
@@ -774,6 +849,66 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     if (retry) retry.onclick = () => load();
     const back = root.querySelector('#nhcd-back');
     if (back) back.onclick = () => { window.location.hash = '#/clientes'; };
+    const editStart = root.querySelector('#nho2d-edit-start');
+    if (editStart) editStart.onclick = () => startEditMode();
+    const editCancel = root.querySelector('#nho2d-edit-cancel');
+    if (editCancel) editCancel.onclick = () => cancelEditMode();
+    const bindEditInput = (selector, key) => {
+      const input = root.querySelector(selector);
+      if (!input) return;
+      input.oninput = (event) => {
+        editForm = { ...(editForm || buildEditForm(state.data)), [key]: event.target.value };
+      };
+    };
+    if (editMode) {
+      bindEditInput('#nho2d-edit-nome', 'nome');
+      bindEditInput('#nho2d-edit-cidade', 'cidade');
+      bindEditInput('#nho2d-edit-estado', 'estado');
+      bindEditInput('#nho2d-edit-vendedor', 'vendedor_id');
+      bindEditInput('#nho2d-edit-documento', 'documento');
+      bindEditInput('#nho2d-edit-telefone', 'telefone');
+      bindEditInput('#nho2d-edit-email', 'email');
+      bindEditInput('#nho2d-edit-razao-social', 'razao_social');
+      const statusInput = root.querySelector('#nho2d-edit-status');
+      if (statusInput) {
+        statusInput.onchange = (event) => {
+          editForm = { ...(editForm || buildEditForm(state.data)), status: event.target.value };
+        };
+      }
+      const editSave = root.querySelector('#nho2d-edit-save');
+      if (editSave) {
+        editSave.onclick = async () => {
+          if (!editForm) return;
+          editSaving = true;
+          editErrorMessage = '';
+          render();
+          try {
+            const payload = {
+              nome: String(editForm.nome || '').trim(),
+              razao_social: String(editForm.razao_social || '').trim(),
+              cidade: String(editForm.cidade || '').trim() || null,
+              estado: String(editForm.estado || '').trim() || null,
+              status: String(editForm.status || '').trim() || null,
+              vendedor_id: String(editForm.vendedor_id || '').trim() || null,
+              documento: String(editForm.documento || '').trim() || null,
+              telefone: String(editForm.telefone || '').trim() || null,
+              email: String(editForm.email || '').trim() || null
+            };
+            const response = await atualizarCliente(apiClient, clienteId, payload);
+            state.data = response?.item ? { ...state.data, ...response.item } : { ...state.data, ...payload };
+            editMode = false;
+            editForm = null;
+            editErrorMessage = '';
+            feedbackMessage = 'Dados do cliente atualizados com sucesso.';
+          } catch (error) {
+            editErrorMessage = error?.body?.error?.message || error?.message || 'Falha ao salvar cliente.';
+          } finally {
+            editSaving = false;
+            render();
+          }
+        };
+      }
+    }
     root.querySelectorAll('[data-tab]').forEach((button) => {
       button.onclick = () => { activeTab = button.getAttribute('data-tab') || 'geral'; render(); };
     });

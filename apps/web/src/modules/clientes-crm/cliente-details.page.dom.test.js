@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { renderClienteDetailsPage } from './cliente-details.page.js';
-import { flush, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
+import { dispatchInput, flush, setupFrontendDom, teardownFrontendDom } from '../../testing/frontend-test-helpers.js';
 
 test('cliente details comercial agrupa pedidos por status e mantém accordions fechados por padrão', async () => {
   const dom = setupFrontendDom('#/clientes/c1');
@@ -396,6 +396,75 @@ test('cliente details comercial atualiza valor do pedido e resumo do grupo quand
   assert.match(root.textContent, /Valor total:\s*R\$\s*29,00/);
   assert.match(root.textContent, /Produto A/);
   assert.match(root.textContent, /Produto B/);
+
+  teardownFrontendDom(dom);
+});
+
+test('cliente details permite editar dados principais com salvar e cancelar', async () => {
+  const dom = setupFrontendDom('#/clientes/c1');
+  const root = document.getElementById('root');
+  const calls = [];
+  const apiClient = {
+    get: async (url, params = {}) => {
+      calls.push({ method: 'GET', url, params });
+      if (url === '/clientes/c1') {
+        return {
+          item: {
+            id: 'c1',
+            empresa: 'Cliente A',
+            razao_social: 'Cliente A LTDA',
+            cidade: 'São Paulo',
+            estado: 'SP',
+            created_at: '2026-05-01T00:00:00.000Z',
+            status: 'ativo',
+            vendedor_nome: 'Vendedor 1',
+            documento: '00.000.000/0001-00',
+            telefone: '(11) 99999-9999',
+            email: 'a@a.com'
+          }
+        };
+      }
+      if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') {
+        return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
+      }
+      if (url === '/clientes/c1/timeline') return { items: [] };
+      return { items: [] };
+    },
+    patch: async (url, body) => {
+      calls.push({ method: 'PATCH', url, body });
+      if (url === '/clientes/c1') return { item: { id: 'c1', ...body } };
+      throw new Error('unexpected patch');
+    }
+  };
+
+  renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
+  await flush();
+  await flush();
+
+  root.querySelector('#nho2d-edit-start')?.click();
+  await flush();
+  await flush();
+  assert.ok(root.querySelector('#nho2d-edit-save'));
+  dispatchInput(root.querySelector('#nho2d-edit-cidade'), 'Curitiba');
+  dispatchInput(root.querySelector('#nho2d-edit-email'), 'novo@exemplo.com');
+  root.querySelector('#nho2d-edit-save')?.click();
+  await flush();
+  await flush();
+
+  const patchCall = calls.find((call) => call.method === 'PATCH');
+  assert.ok(patchCall);
+  assert.equal(patchCall.body.cidade, 'Curitiba');
+  assert.equal(patchCall.body.email, 'novo@exemplo.com');
+  assert.match(root.textContent, /Dados do cliente atualizados com sucesso/i);
+
+  root.querySelector('#nho2d-edit-start')?.click();
+  await flush();
+  await flush();
+  dispatchInput(root.querySelector('#nho2d-edit-cidade'), 'Florianópolis');
+  root.querySelector('#nho2d-edit-cancel')?.click();
+  await flush();
+  await flush();
+  assert.ok(!root.querySelector('#nho2d-edit-save'));
 
   teardownFrontendDom(dom);
 });
