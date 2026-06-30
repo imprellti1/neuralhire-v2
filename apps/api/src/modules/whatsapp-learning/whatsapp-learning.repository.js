@@ -426,3 +426,29 @@ export async function createKnowledgeFromLearningEvent(data = {}, options = {}) 
   memoryKnowledge.push(row);
   return { item: row, status: 'created' };
 }
+
+export async function markLearningKnowledgeConsolidated(sourceEventId, patch = {}, options = {}) {
+  const accountId = options.accountId || null;
+  assertAccountId(accountId);
+  const updatePatch = {
+    ...patch,
+    status: 'consolidated',
+    updated_at: now()
+  };
+  if (mode() === 'supabase') {
+    const supabase = getSupabaseClient();
+    const { data, error } = await supabase
+      .from('whatsapp_learning_knowledge')
+      .update(updatePatch)
+      .eq('account_id', accountId)
+      .eq('source_event_id', sourceEventId)
+      .select('*')
+      .single();
+    if (error) throw new DatabaseError('Falha ao marcar conhecimento consolidado', { details: error });
+    return data;
+  }
+  const idx = memoryKnowledge.findIndex((item) => item.account_id === accountId && item.source_event_id === sourceEventId);
+  if (idx < 0) return null;
+  memoryKnowledge[idx] = { ...memoryKnowledge[idx], ...updatePatch, metadata: { ...(memoryKnowledge[idx].metadata || {}), ...(patch.metadata || {}) } };
+  return memoryKnowledge[idx];
+}

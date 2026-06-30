@@ -10,9 +10,10 @@ import JSZip from 'jszip';
 import XLSX from 'xlsx';
 import { __loadMemoryEvolutionForTests, __resetMemoryEvolutionForTests } from '../../modules/integrations/evolution/evolution.repository.js';
 import { __dumpMemoryWhatsappLearningForTests, __dumpMemoryWhatsappLearningKnowledgeForTests, __resetMemoryWhatsappLearningForTests, __resetMemoryWhatsappLearningKnowledgeForTests, __setMemoryWhatsappLearningKnowledgeFailureForTests, createKnowledgeFromLearningEvent, createLearningEvent, updateLearningEvent } from '../../modules/whatsapp-learning/whatsapp-learning.repository.js';
+import { __dumpMemoryCustomerKnowledgeForTests, __resetMemoryCustomerKnowledgeForTests } from '../../modules/whatsapp-learning/customer-knowledge.repository.js';
 import { runWhatsappLearningWorker } from '../../modules/whatsapp-learning/whatsapp-learning.service.js';
 import { executeWhatsappLearningWorker } from '../../modules/whatsapp-learning/whatsapp-learning.executor.js';
-import { runWhatsappLearningCognitiveWorker } from '../../modules/jobs/jobs.scheduler.js';
+import { runWhatsappLearningCognitiveWorker, runWhatsappLearningConsolidationWorker } from '../../modules/jobs/jobs.scheduler.js';
 import { analyzeLearningEvent } from '../../modules/whatsapp-learning/cognitive-provider.js';
 import { buildMediaAttachment, generateMediaSha256 } from '../../modules/media-manager/media-manager.js';
 import { extractTextFromImage } from '../../modules/media-manager/ocr-provider.js';
@@ -34,6 +35,7 @@ function reset() {
   __resetMemoryEvolutionForTests();
   __resetMemoryWhatsappLearningForTests();
   __resetMemoryWhatsappLearningKnowledgeForTests();
+  __resetMemoryCustomerKnowledgeForTests();
 }
 
 async function createTempFile(name, content) {
@@ -499,6 +501,120 @@ export function getWhatsappLearningTests() {
         } finally {
           process.env.COGNITIVE_WORKER_ENABLED = previousEnabled;
           process.env.COGNITIVE_PROVIDER = previousProvider;
+        }
+      }
+    },
+    {
+      name: 'job de consolidacao respeita flag desligada',
+      run: async () => {
+        reset();
+        const previousEnabled = process.env.LEARNING_CONSOLIDATION_ENABLED;
+        process.env.LEARNING_CONSOLIDATION_ENABLED = 'false';
+        try {
+          const created = await createKnowledgeFromLearningEvent({
+            accountId: 'acc-1',
+            sourceEventId: 'source-disabled',
+            sourceProvider: 'evolution',
+            sourceInstance: 'main',
+            sourceInstanceType: 'learning',
+            direction: 'inbound',
+            phone: '5511999999999',
+            remoteJid: '5511999999999@s.whatsapp.net',
+            normalizedText: 'aceito pagamento no boleto com prazo de 30 dias',
+            knowledgeType: 'observation',
+            confidence: 0.4,
+            status: 'learned',
+            metadata: { provider: 'evolution', instance_type: 'learning', instance_name: 'main' }
+          }, { accountId: 'acc-1' });
+          const result = await runWhatsappLearningConsolidationWorker({ accountId: 'acc-1', limit: 10 });
+          assert.equal(result.disabled, true);
+          assert.equal(result.processed, 0);
+          assert.equal(result.scanned, 0);
+          assert.equal(__dumpMemoryCustomerKnowledgeForTests().length, 0);
+          assert.equal(__dumpMemoryWhatsappLearningKnowledgeForTests()[0].status, 'learned');
+          assert.equal(created.item.account_id, 'acc-1');
+        } finally {
+          process.env.LEARNING_CONSOLIDATION_ENABLED = previousEnabled;
+        }
+      }
+    },
+    {
+      name: 'job de consolidacao cria e atualiza memoria de forma idempotente',
+      run: async () => {
+        reset();
+        const previousEnabled = process.env.LEARNING_CONSOLIDATION_ENABLED;
+        process.env.LEARNING_CONSOLIDATION_ENABLED = 'true';
+        try {
+          await createKnowledgeFromLearningEvent({
+            accountId: 'acc-1',
+            sourceEventId: 'source-1',
+            sourceProvider: 'evolution',
+            sourceInstance: 'main',
+            sourceInstanceType: 'learning',
+            direction: 'inbound',
+            phone: '5511999999999',
+            remoteJid: '5511999999999@s.whatsapp.net',
+            normalizedText: 'aceito pagamento no boleto com prazo de 30 dias',
+            knowledgeType: 'observation',
+            confidence: 0.4,
+            status: 'learned',
+            metadata: { provider: 'evolution', instance_type: 'learning', instance_name: 'main' }
+          }, { accountId: 'acc-1' });
+          await createKnowledgeFromLearningEvent({
+            accountId: 'acc-1',
+            sourceEventId: 'source-2',
+            sourceProvider: 'evolution',
+            sourceInstance: 'main',
+            sourceInstanceType: 'learning',
+            direction: 'inbound',
+            phone: '5511999999999',
+            remoteJid: '5511999999999@s.whatsapp.net',
+            normalizedText: 'condicao de pagamento no boleto com prazo de 30 dias',
+            knowledgeType: 'observation',
+            confidence: 0.4,
+            status: 'learned',
+            metadata: { provider: 'evolution', instance_type: 'learning', instance_name: 'main' }
+          }, { accountId: 'acc-1' });
+          await createKnowledgeFromLearningEvent({
+            accountId: 'acc-2',
+            sourceEventId: 'source-other',
+            sourceProvider: 'evolution',
+            sourceInstance: 'main',
+            sourceInstanceType: 'learning',
+            direction: 'inbound',
+            phone: '5511888888888',
+            remoteJid: '5511888888888@s.whatsapp.net',
+            normalizedText: 'quero falar sobre entrega',
+            knowledgeType: 'observation',
+            confidence: 0.4,
+            status: 'learned',
+            metadata: { provider: 'evolution', instance_type: 'learning', instance_name: 'main' }
+          }, { accountId: 'acc-2' });
+          const first = await runWhatsappLearningConsolidationWorker({ accountId: 'acc-1', limit: 10 });
+          assert.equal(first.ok, true);
+          assert.equal(first.processed, 2);
+          assert.equal(first.created, 1);
+          assert.equal(first.updated, 1);
+          assert.equal(first.ignored, 0);
+          assert.equal(first.failed, 0);
+          const second = await runWhatsappLearningConsolidationWorker({ accountId: 'acc-1', limit: 10 });
+          assert.equal(second.processed, 0);
+          assert.equal(second.created, 0);
+          assert.equal(second.updated, 0);
+          assert.equal(second.ignored, 0);
+          assert.equal(second.failed, 0);
+          const knowledge = __dumpMemoryCustomerKnowledgeForTests();
+          assert.equal(knowledge.length, 1);
+          assert.equal(knowledge[0].occurrences, 2);
+          assert.equal(knowledge[0].version, 2);
+          assert.equal(knowledge[0].change_count, 1);
+          assert.equal(knowledge[0].knowledge_key, 'condicao_comercial');
+          assert.equal(__dumpMemoryCustomerKnowledgeForTests().every((item) => item.account_id === 'acc-1'), true);
+          const raw = __dumpMemoryWhatsappLearningKnowledgeForTests();
+          assert.equal(raw.filter((item) => item.account_id === 'acc-1').every((item) => item.status === 'consolidated'), true);
+          assert.equal(raw.find((item) => item.account_id === 'acc-2')?.status, 'learned');
+        } finally {
+          process.env.LEARNING_CONSOLIDATION_ENABLED = previousEnabled;
         }
       }
     },

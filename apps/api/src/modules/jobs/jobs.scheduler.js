@@ -21,6 +21,7 @@ import { listBatches } from '../legacy-import/legacy-import-staging.repository.j
 import { getAiSalesInsights } from '../ai-sales/ai-sales.repository.js';
 import { runWhatsappLearningWorker as executeWhatsappLearningWorker } from '../whatsapp-learning/whatsapp-learning.service.js';
 import { executeWhatsappLearningWorker as executeWhatsappLearningCognitiveWorker } from '../whatsapp-learning/whatsapp-learning.executor.js';
+import { consolidateWhatsappLearningKnowledge } from '../whatsapp-learning/whatsapp-learning.consolidator.js';
 
 function isoNow() {
   return new Date().toISOString();
@@ -79,7 +80,8 @@ function canonicalJobLockKey(nome) {
     diretor_plano_acao: 'diretor_plano_acao',
     diretor_delegacao: 'diretor_delegacao',
     whatsapp_learning_worker: 'whatsapp_learning_worker',
-    whatsapp_learning_cognitive_worker: 'whatsapp_learning_cognitive_worker'
+    whatsapp_learning_cognitive_worker: 'whatsapp_learning_cognitive_worker',
+    whatsapp_learning_consolidation_worker: 'whatsapp_learning_consolidation_worker'
   })[nome] || nome;
 }
 
@@ -114,10 +116,11 @@ const JOB_HANDLERS = {
   diretor_plano_acao: runDiretorPlanoAcaoJob,
   diretor_delegacao: runDiretorDelegacaoJob,
   whatsapp_learning_worker: runWhatsappLearningWorker,
-  whatsapp_learning_cognitive_worker: runWhatsappLearningCognitiveWorker
+  whatsapp_learning_cognitive_worker: runWhatsappLearningCognitiveWorker,
+  whatsapp_learning_consolidation_worker: runWhatsappLearningConsolidationWorker
 };
 
-const TENANT_AWARE_JOB_NAMES = new Set(['clientes_enriquecimento_automatico', 'clientes_geolocalizacao_automatico', 'gerente_comercial_observacao', 'gerente_produtos_observacao', 'gerente_auditoria_observacao', 'gerente_administrativo_observacao', 'vendedor_ia_observacao', 'diretor_reuniao_executiva', 'diretor_plano_acao', 'whatsapp_learning_worker']);
+const TENANT_AWARE_JOB_NAMES = new Set(['clientes_enriquecimento_automatico', 'clientes_geolocalizacao_automatico', 'gerente_comercial_observacao', 'gerente_produtos_observacao', 'gerente_auditoria_observacao', 'gerente_administrativo_observacao', 'vendedor_ia_observacao', 'diretor_reuniao_executiva', 'diretor_plano_acao', 'whatsapp_learning_worker', 'whatsapp_learning_consolidation_worker']);
 
 let schedulerTimer = null;
 let schedulerRunning = false;
@@ -1399,6 +1402,35 @@ export async function runWhatsappLearningCognitiveWorker(context = {}) {
   }
 
   return executeWhatsappLearningCognitiveWorker({ ...context, job, accountId, limit: Math.max(1, Number(context.limit) || 5) });
+}
+
+function isEnabledFlag(value) {
+  return ['true', '1', 'yes', 'on'].includes(String(value ?? '').trim().toLowerCase());
+}
+
+export async function runWhatsappLearningConsolidationWorker(context = {}) {
+  const accountId = context.accountId || getAccountIdFromContext(context);
+  const job = context.job || await resolveGlobalSystemJob('whatsapp_learning_consolidation_worker') || await upsertSystemJob({
+    nome: 'whatsapp_learning_consolidation_worker',
+    lock_key: canonicalJobLockKey('whatsapp_learning_consolidation_worker'),
+    account_id: null,
+    status: 'ativo',
+    last_run_at: isoNow(),
+    next_run_at: nextInMinutes(new Date(), 10)
+  }, { accountId: null });
+  const enabled = isEnabledFlag(process.env.LEARNING_CONSOLIDATION_ENABLED);
+  if (!enabled) {
+    return { ok: true, skipped: true, disabled: true, reason: 'learning_consolidation_disabled', scanned: 0, processed: 0, created: 0, updated: 0, ignored: 0, failed: 0, job };
+  }
+  if (!accountId) {
+    return { ok: true, skipped: true, reason: 'tenant_account_required', scanned: 0, processed: 0, created: 0, updated: 0, ignored: 0, failed: 0, job };
+  }
+  const result = await consolidateWhatsappLearningKnowledge({ ...context, job, accountId, limit: Math.max(1, Number(context.limit) || 100) });
+  return {
+    ok: true,
+    ...result,
+    job
+  };
 }
 
 export async function listJobsOverview(context = {}) {

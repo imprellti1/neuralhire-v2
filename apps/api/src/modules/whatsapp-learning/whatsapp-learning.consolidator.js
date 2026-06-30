@@ -67,66 +67,77 @@ export async function consolidateWhatsappLearningKnowledge(context = {}) {
   const limit = Math.max(1, Number(context.limit) || 100);
   const events = await listEligibleLearningKnowledge(accountId, limit);
   let processed = 0;
-  let skipped = 0;
+  let created = 0;
+  let updated = 0;
+  let ignored = 0;
+  let failed = 0;
 
   for (const event of events) {
-    const normalizedText = cleanText(event.normalized_text || event.normalizedText || '');
-    if (!hasUsefulContent(normalizedText)) {
-      skipped += 1;
-      continue;
-    }
-    const rule = inferKnowledgeKey(normalizedText);
-    if (!rule) {
-      skipped += 1;
-      continue;
-    }
-    const scope = normalizeScope(event);
-    if (!scope.phone && !scope.remoteJid) {
-      skipped += 1;
-      continue;
-    }
-
-    const sourceMetadata = event.metadata && typeof event.metadata === 'object' ? event.metadata : {};
-    const result = await upsertCustomerKnowledge({
-      accountId,
-      customerId: event.customer_id || null,
-      phone: scope.phone || null,
-      remoteJid: scope.remoteJid || null,
-      knowledgeKey: rule.knowledgeKey,
-      knowledgeValue: normalizedText,
-      knowledgeType: rule.knowledgeType,
-      confidence: Number(event.confidence ?? 0.5),
-      lastSourceEventId: event.source_event_id || event.id,
-      lastSourceInstanceType: scope.sourceInstanceType || sourceMetadata.instance_type || null,
-      firstSeenAt: event.created_at || new Date().toISOString(),
-      lastSeenAt: event.created_at || event.updated_at || new Date().toISOString(),
-      occurrences: 1,
-      sourceEvents: [buildSourceEventRef(event, rule)],
-      metadata: {
-        source_instance_type: scope.sourceInstanceType || sourceMetadata.instance_type || null,
-        source_instance: scope.sourceInstance || sourceMetadata.instance_name || null,
-        source_provider: sourceMetadata.provider || null,
-        learning_source: sourceMetadata.learning_source || 'whatsapp_persisted_message',
-        original_status: event.status || 'learned'
-      },
-      status: 'active'
-    }, { accountId });
-
-    await markLearningKnowledgeConsolidated(event.source_event_id || event.id, {
-      knowledge_key: rule.knowledgeKey,
-      customer_knowledge_id: result.item?.id || null,
-      metadata: {
-        consolidated_at: new Date().toISOString(),
-        source_instance_type: scope.sourceInstanceType || sourceMetadata.instance_type || null,
-        knowledge_key: rule.knowledgeKey
+    try {
+      const normalizedText = cleanText(event.normalized_text || event.normalizedText || '');
+      if (!hasUsefulContent(normalizedText)) {
+        ignored += 1;
+        continue;
       }
-    }, { accountId }).catch(() => null);
-    processed += 1;
+      const rule = inferKnowledgeKey(normalizedText);
+      if (!rule) {
+        ignored += 1;
+        continue;
+      }
+      const scope = normalizeScope(event);
+      if (!scope.phone && !scope.remoteJid) {
+        ignored += 1;
+        continue;
+      }
+
+      const sourceMetadata = event.metadata && typeof event.metadata === 'object' ? event.metadata : {};
+      const result = await upsertCustomerKnowledge({
+        accountId,
+        customerId: event.customer_id || null,
+        phone: scope.phone || null,
+        remoteJid: scope.remoteJid || null,
+        knowledgeKey: rule.knowledgeKey,
+        knowledgeValue: normalizedText,
+        knowledgeType: rule.knowledgeType,
+        confidence: Number(event.confidence ?? 0.5),
+        lastSourceEventId: event.source_event_id || event.id,
+        lastSourceInstanceType: scope.sourceInstanceType || sourceMetadata.instance_type || null,
+        firstSeenAt: event.created_at || new Date().toISOString(),
+        lastSeenAt: event.created_at || event.updated_at || new Date().toISOString(),
+        occurrences: Number(event.occurrences || 1),
+        sourceEvents: [buildSourceEventRef(event, rule)],
+        metadata: {
+          source_instance_type: scope.sourceInstanceType || sourceMetadata.instance_type || null,
+          source_instance: scope.sourceInstance || sourceMetadata.instance_name || null,
+          source_provider: sourceMetadata.provider || null,
+          learning_source: sourceMetadata.learning_source || 'whatsapp_persisted_message',
+          original_status: event.status || 'learned'
+        },
+        status: 'active'
+      }, { accountId });
+
+      if (result?.status === 'created') created += 1;
+      else if (result?.status === 'updated') updated += 1;
+      processed += 1;
+
+      await markLearningKnowledgeConsolidated(event.source_event_id || event.id, {
+        knowledge_key: rule.knowledgeKey,
+        customer_knowledge_id: result.item?.id || null,
+        metadata: {
+          consolidated_at: new Date().toISOString(),
+          source_instance_type: scope.sourceInstanceType || sourceMetadata.instance_type || null,
+          knowledge_key: rule.knowledgeKey
+        }
+      }, { accountId }).catch(() => null);
+    } catch (error) {
+      failed += 1;
+      logger.error({ message: 'whatsapp_learning_consolidator_failed', error: error?.message || String(error), account_id: accountId, event_id: event?.id || null });
+    }
   }
 
   if (processed > 0) {
-    logger.info({ message: 'whatsapp_learning_knowledge_consolidated', account_id: accountId, processed, skipped });
+    logger.info({ message: 'whatsapp_learning_knowledge_consolidated', account_id: accountId, processed, created, updated, ignored, failed });
   }
 
-  return { ok: true, processed, skipped, scanned: events.length };
+  return { ok: true, processed, created, updated, ignored, failed, scanned: events.length };
 }
