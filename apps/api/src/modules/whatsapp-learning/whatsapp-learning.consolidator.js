@@ -2,6 +2,7 @@ import { logger } from '../../core/logger.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { markLearningKnowledgeConsolidated } from './whatsapp-learning.repository.js';
 import { upsertCustomerKnowledge } from './customer-knowledge.repository.js';
+import { buildEmbeddingHash, createPendingEmbedding } from './customer-knowledge-embedding.repository.js';
 
 const KNOWLEDGE_RULES = [
   { key: 'preferencia_entrega', type: 'preference', patterns: [/entrega/i, /frete/i, /entregar/i, /receber/i] },
@@ -42,6 +43,19 @@ function buildSourceEventRef(event, rule) {
     created_at: event.created_at || null,
     last_seen_at: event.created_at || event.updated_at || null,
     knowledge_key: rule.knowledgeKey
+  };
+}
+
+function buildEmbeddingMetadata(event = {}, knowledgeResult = {}, sourceMetadata = {}, scope = {}) {
+  return {
+    knowledge_key: knowledgeResult.item?.knowledge_key || null,
+    knowledge_type: knowledgeResult.item?.knowledge_type || null,
+    source_instance_type: scope.sourceInstanceType || sourceMetadata.instance_type || null,
+    source_instance: scope.sourceInstance || sourceMetadata.instance_name || null,
+    source_provider: sourceMetadata.provider || null,
+    learning_source: sourceMetadata.learning_source || 'whatsapp_persisted_message',
+    original_status: event.status || 'learned',
+    knowledge_value_length: String(knowledgeResult.item?.knowledge_value || '').length
   };
 }
 
@@ -114,6 +128,23 @@ export async function consolidateWhatsappLearningKnowledge(context = {}) {
           original_status: event.status || 'learned'
         },
         status: 'active'
+      }, { accountId });
+
+      const embeddingHash = buildEmbeddingHash(result.item?.knowledge_value || normalizedText, result.item?.version || 1);
+      const embeddingMetadata = buildEmbeddingMetadata(event, result, sourceMetadata, scope);
+      await createPendingEmbedding({
+        accountId,
+        customerKnowledgeId: result.item?.id || null,
+        embeddingProvider: 'disabled',
+        embeddingModel: null,
+        embeddingDimensions: 0,
+        embeddingStatus: 'pending',
+        embeddingVersion: Number(result.item?.version || 1),
+        embeddingHash,
+        embeddingMetadata,
+        lastAttemptAt: null,
+        processedAt: null,
+        errorMessage: null
       }, { accountId });
 
       if (result?.status === 'created') created += 1;

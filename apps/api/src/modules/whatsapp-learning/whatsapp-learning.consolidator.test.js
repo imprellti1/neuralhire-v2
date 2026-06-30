@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createKnowledgeFromLearningEvent, __dumpMemoryWhatsappLearningKnowledgeForTests, __resetMemoryWhatsappLearningKnowledgeForTests } from './whatsapp-learning.repository.js';
 import { __dumpMemoryCustomerKnowledgeForTests, __resetMemoryCustomerKnowledgeForTests } from './customer-knowledge.repository.js';
 import { consolidateWhatsappLearningKnowledge } from './whatsapp-learning.consolidator.js';
+import { buildEmbeddingHash, createPendingEmbedding, __dumpMemoryCustomerKnowledgeEmbeddingsForTests, __resetMemoryCustomerKnowledgeEmbeddingsForTests, markEmbeddingFailed, markEmbeddingProcessed, markEmbeddingProcessing } from './customer-knowledge-embedding.repository.js';
 
 async function seedLearningKnowledge({
   accountId = 'acc-1',
@@ -43,6 +44,7 @@ async function seedLearningKnowledge({
 function reset() {
   __resetMemoryWhatsappLearningKnowledgeForTests();
   __resetMemoryCustomerKnowledgeForTests();
+  __resetMemoryCustomerKnowledgeEmbeddingsForTests();
 }
 
 export function getWhatsappLearningConsolidatorTests() {
@@ -65,6 +67,13 @@ export function getWhatsappLearningConsolidatorTests() {
         assert.equal(consolidated[0].last_source_instance_type, 'learning');
         assert.equal(consolidated[0].first_seen_at, seeded.created_at);
         assert.equal(consolidated[0].last_seen_at, seeded.created_at);
+        const embeddings = __dumpMemoryCustomerKnowledgeEmbeddingsForTests();
+        assert.equal(embeddings.length, 1);
+        assert.equal(embeddings[0].account_id, 'acc-1');
+        assert.equal(embeddings[0].customer_knowledge_id, consolidated[0].id);
+        assert.equal(embeddings[0].embedding_status, 'pending');
+        assert.equal(embeddings[0].embedding_version, 1);
+        assert.equal(embeddings[0].embedding_hash, buildEmbeddingHash(consolidated[0].knowledge_value, consolidated[0].version));
       }
     },
     {
@@ -84,6 +93,11 @@ export function getWhatsappLearningConsolidatorTests() {
         assert.equal(consolidated[0].last_seen_at, second.created_at);
         assert.equal(consolidated[0].source_events.length, 2);
         assert.equal(consolidated[0].previous_value, 'aceito pagamento no boleto com prazo de 30 dias');
+        const embeddings = __dumpMemoryCustomerKnowledgeEmbeddingsForTests();
+        assert.equal(embeddings.length, 1);
+        assert.equal(embeddings[0].embedding_version, 2);
+        assert.equal(embeddings[0].embedding_status, 'pending');
+        assert.equal(embeddings[0].embedding_hash, buildEmbeddingHash(consolidated[0].knowledge_value, consolidated[0].version));
       }
     },
     {
@@ -155,6 +169,43 @@ export function getWhatsappLearningConsolidatorTests() {
         assert.equal(consolidated.version, 2);
         assert.equal(consolidated.updated_reason, 'append:reclamacao');
         assert.equal(consolidated.previous_value, 'reclamação: produto veio avariado');
+      }
+    },
+    {
+      name: 'embedding repo marca processamento, sucesso e falha com idempotencia',
+      run: async () => {
+        reset();
+        const created = await createPendingEmbedding({
+          accountId: 'acc-1',
+          customerKnowledgeId: 'ck-1',
+          embeddingProvider: 'disabled',
+          embeddingVersion: 1,
+          embeddingHash: 'hash-1',
+          embeddingMetadata: { account_id: 'acc-1' }
+        }, { accountId: 'acc-1' });
+        const duplicate = await createPendingEmbedding({
+          accountId: 'acc-1',
+          customerKnowledgeId: 'ck-1',
+          embeddingProvider: 'disabled',
+          embeddingVersion: 1,
+          embeddingHash: 'hash-1-updated',
+          embeddingMetadata: { account_id: 'acc-1', retry: true }
+        }, { accountId: 'acc-1' });
+        assert.equal(created.status, 'created');
+        assert.equal(duplicate.status, 'updated');
+        assert.equal(__dumpMemoryCustomerKnowledgeEmbeddingsForTests().length, 1);
+
+        const processing = await markEmbeddingProcessing({ accountId: 'acc-1', id: created.item.id, embeddingMetadata: { stage: 'processing' }, embeddingProvider: 'disabled', embeddingModel: null });
+        assert.equal(processing.embedding_status, 'processing');
+        assert.ok(processing.last_attempt_at);
+
+        const processed = await markEmbeddingProcessed({ accountId: 'acc-1', id: created.item.id, embeddingMetadata: { stage: 'processed' }, embeddingProvider: 'disabled', embeddingModel: null, embeddingDimensions: 0 });
+        assert.equal(processed.embedding_status, 'processed');
+        assert.ok(processed.processed_at);
+
+        const failed = await markEmbeddingFailed({ accountId: 'acc-1', id: created.item.id, errorMessage: 'forced failure', embeddingMetadata: { stage: 'failed' } });
+        assert.equal(failed.embedding_status, 'failed');
+        assert.equal(failed.error_message, 'forced failure');
       }
     }
   ];
