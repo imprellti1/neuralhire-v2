@@ -20,6 +20,7 @@ import { listPromocoes } from '../promocoes/promocoes.repository.js';
 import { listBatches } from '../legacy-import/legacy-import-staging.repository.js';
 import { getAiSalesInsights } from '../ai-sales/ai-sales.repository.js';
 import { runWhatsappLearningWorker as executeWhatsappLearningWorker } from '../whatsapp-learning/whatsapp-learning.service.js';
+import { executeWhatsappLearningWorker as executeWhatsappLearningCognitiveWorker } from '../whatsapp-learning/whatsapp-learning.executor.js';
 
 function isoNow() {
   return new Date().toISOString();
@@ -77,7 +78,8 @@ function canonicalJobLockKey(nome) {
     diretor_reuniao_executiva: 'diretor_reuniao_executiva',
     diretor_plano_acao: 'diretor_plano_acao',
     diretor_delegacao: 'diretor_delegacao',
-    whatsapp_learning_worker: 'whatsapp_learning_worker'
+    whatsapp_learning_worker: 'whatsapp_learning_worker',
+    whatsapp_learning_cognitive_worker: 'whatsapp_learning_cognitive_worker'
   })[nome] || nome;
 }
 
@@ -111,7 +113,8 @@ const JOB_HANDLERS = {
   diretor_reuniao_executiva: runDiretorReuniaoExecutivaJob,
   diretor_plano_acao: runDiretorPlanoAcaoJob,
   diretor_delegacao: runDiretorDelegacaoJob,
-  whatsapp_learning_worker: runWhatsappLearningWorker
+  whatsapp_learning_worker: runWhatsappLearningWorker,
+  whatsapp_learning_cognitive_worker: runWhatsappLearningCognitiveWorker
 };
 
 const TENANT_AWARE_JOB_NAMES = new Set(['clientes_enriquecimento_automatico', 'clientes_geolocalizacao_automatico', 'gerente_comercial_observacao', 'gerente_produtos_observacao', 'gerente_auditoria_observacao', 'gerente_administrativo_observacao', 'vendedor_ia_observacao', 'diretor_reuniao_executiva', 'diretor_plano_acao', 'whatsapp_learning_worker']);
@@ -1378,6 +1381,24 @@ export async function runWhatsappLearningWorker(context = {}) {
     return { ok: true, mode: 'tenant_fanout', accountIds, results };
   }
   return executeWhatsappLearningWorker({ ...context, job, accountId });
+}
+
+export async function runWhatsappLearningCognitiveWorker(context = {}) {
+  const accountId = context.accountId || getAccountIdFromContext(context);
+  const job = context.job || await resolveGlobalSystemJob('whatsapp_learning_cognitive_worker') || await upsertSystemJob({
+    nome: 'whatsapp_learning_cognitive_worker',
+    lock_key: canonicalJobLockKey('whatsapp_learning_cognitive_worker'),
+    account_id: null,
+    status: 'ativo',
+    last_run_at: isoNow(),
+    next_run_at: nextInMinutes(new Date(), 10)
+  }, { accountId: null });
+
+  if (!accountId) {
+    return { ok: true, skipped: true, reason: 'tenant_account_required', job };
+  }
+
+  return executeWhatsappLearningCognitiveWorker({ ...context, job, accountId, limit: Math.max(1, Number(context.limit) || 5) });
 }
 
 export async function listJobsOverview(context = {}) {

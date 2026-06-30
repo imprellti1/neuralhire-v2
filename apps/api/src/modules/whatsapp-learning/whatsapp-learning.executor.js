@@ -44,6 +44,7 @@ export async function executeWhatsappLearningWorker(context = {}) {
   const accountId = context.accountId || null;
   const limit = Math.max(1, Number(context.limit) || 5);
   const normalizedEvents = await listNormalizedLearningEvents({ accountId, limit });
+  const provider = String(process.env.COGNITIVE_PROVIDER || 'disabled').toLowerCase() || 'disabled';
   let processed = 0;
   let cognitivelyProcessed = 0;
   let failed = 0;
@@ -90,5 +91,5 @@ export async function executeWhatsappLearningWorker(context = {}) {
     }
   }
 
-  return { ok: true, processed, cognitivelyProcessed, failed, skipped, scanned: normalizedEvents.length };
+  return { ok: true, processed, cognitivelyProcessed, failed, skipped, ignored: skipped, scanned: normalizedEvents.length, provider };
 }

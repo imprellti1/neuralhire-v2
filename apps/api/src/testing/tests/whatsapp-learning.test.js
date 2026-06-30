@@ -12,6 +12,7 @@ import { __loadMemoryEvolutionForTests, __resetMemoryEvolutionForTests } from '.
 import { __dumpMemoryWhatsappLearningForTests, __resetMemoryWhatsappLearningForTests, createLearningEvent, updateLearningEvent } from '../../modules/whatsapp-learning/whatsapp-learning.repository.js';
 import { runWhatsappLearningWorker } from '../../modules/whatsapp-learning/whatsapp-learning.service.js';
 import { executeWhatsappLearningWorker } from '../../modules/whatsapp-learning/whatsapp-learning.executor.js';
+import { runWhatsappLearningCognitiveWorker } from '../../modules/jobs/jobs.scheduler.js';
 import { analyzeLearningEvent } from '../../modules/whatsapp-learning/cognitive-provider.js';
 import { buildMediaAttachment, generateMediaSha256 } from '../../modules/media-manager/media-manager.js';
 import { extractTextFromImage } from '../../modules/media-manager/ocr-provider.js';
@@ -354,12 +355,67 @@ export function getWhatsappLearningTests() {
         const result = await executeWhatsappLearningWorker({ accountId: 'acc-1', limit: 10 });
         assert.equal(result.processed, 1);
         assert.equal(result.cognitivelyProcessed, 1);
+        assert.equal(result.provider, 'disabled');
         const updated = __dumpMemoryWhatsappLearningForTests()[0];
         assert.equal(updated.status, 'processed');
         assert.equal(updated.metadata.custom, 'keep-me');
         assert.equal(updated.metadata.cognitive.status, 'disabled');
         assert.equal(updated.normalized_payload.cognitive.status, 'disabled');
         assert.equal(updated.normalized_payload.cognitive.provider, null);
+      }
+    },
+    {
+      name: 'job cognitivo respeita flag desligada e nao executa fan-out',
+      run: async () => {
+        reset();
+        const previousEnabled = process.env.COGNITIVE_WORKER_ENABLED;
+        const previousProvider = process.env.COGNITIVE_PROVIDER;
+        process.env.COGNITIVE_WORKER_ENABLED = 'false';
+        process.env.COGNITIVE_PROVIDER = 'disabled';
+        try {
+          const created = await createLearningEvent({
+            accountId: 'acc-1',
+            whatsappMessageId: 'msg-cognitive',
+            messageId: 'm-cognitive',
+            body: 'oi'
+          }, { accountId: 'acc-1' });
+          await updateLearningEvent(created.item.id, { status: 'normalized', normalized_text: 'oi', normalized_payload: { text: 'oi' } }, { accountId: 'acc-1' });
+          const result = await runWhatsappLearningCognitiveWorker({ accountId: 'acc-1', limit: 10 });
+          assert.equal(result.processed, 1);
+          assert.equal(result.ignored, 0);
+          assert.equal(result.provider, 'disabled');
+          const updated = __dumpMemoryWhatsappLearningForTests()[0];
+          assert.equal(updated.status, 'processed');
+        } finally {
+          process.env.COGNITIVE_WORKER_ENABLED = previousEnabled;
+          process.env.COGNITIVE_PROVIDER = previousProvider;
+        }
+      }
+    },
+    {
+      name: 'job cognitivo roda executor quando habilitado e mantém isolamento por tenant',
+      run: async () => {
+        reset();
+        const previousEnabled = process.env.COGNITIVE_WORKER_ENABLED;
+        const previousProvider = process.env.COGNITIVE_PROVIDER;
+        process.env.COGNITIVE_WORKER_ENABLED = 'true';
+        process.env.COGNITIVE_PROVIDER = 'disabled';
+        try {
+          await createLearningEvent({ accountId: 'acc-a', whatsappMessageId: 'msg-a', messageId: 'm-a', body: 'a' }, { accountId: 'acc-a' });
+          await createLearningEvent({ accountId: 'acc-b', whatsappMessageId: 'msg-b', messageId: 'm-b', body: 'b' }, { accountId: 'acc-b' });
+          await updateLearningEvent(__dumpMemoryWhatsappLearningForTests()[0].id, { status: 'normalized', normalized_text: 'a', normalized_payload: { text: 'a' } }, { accountId: 'acc-a' });
+          await updateLearningEvent(__dumpMemoryWhatsappLearningForTests()[1].id, { status: 'normalized', normalized_text: 'b', normalized_payload: { text: 'b' } }, { accountId: 'acc-b' });
+          const result = await runWhatsappLearningCognitiveWorker({ accountId: 'acc-a', limit: 10 });
+          assert.equal(result.ok, true);
+          assert.equal(result.processed, 1);
+          assert.equal(result.ignored, 0);
+          const items = __dumpMemoryWhatsappLearningForTests();
+          assert.equal(items.find((item) => item.account_id === 'acc-a').status, 'processed');
+          assert.equal(items.find((item) => item.account_id === 'acc-b').status, 'normalized');
+        } finally {
+          process.env.COGNITIVE_WORKER_ENABLED = previousEnabled;
+          process.env.COGNITIVE_PROVIDER = previousProvider;
+        }
       }
     },
     {

@@ -177,7 +177,7 @@ export function getJobsTests() {
         assert.equal(out.res.statusCode, 200);
         assert.equal(out.body.ok, true);
         assert.equal(Array.isArray(out.body.items), true);
-        assert.equal(out.body.items.length, 13);
+        assert.equal(out.body.items.length, 14);
         assert.equal(out.body.items.some((job) => job.nome === 'gerente_comercial_observacao'), true);
         assert.equal(out.body.items.some((job) => job.nome === 'vendedor_ia_observacao'), true);
         assert.equal(out.body.items.some((job) => job.nome === 'diretor_reuniao_executiva'), true);
@@ -189,7 +189,7 @@ export function getJobsTests() {
       name: 'bootstrap padrão inclui diretor reunião executiva',
       run: async () => {
         const defaults = getSystemJobDefaults();
-        assert.equal(defaults.length, 13);
+        assert.equal(defaults.length, 14);
         assert.equal(defaults.some((job) => job.nome === 'gerente_comercial_observacao'), true);
         assert.equal(defaults.some((job) => job.nome === 'vendedor_ia_observacao'), true);
         assert.equal(defaults.some((job) => job.nome === 'diretor_reuniao_executiva'), true);
@@ -199,19 +199,21 @@ export function getJobsTests() {
         const logs = [];
         await ensureDefaultSystemJobs(null, { logger: { info: (...args) => logs.push(args) } });
         const dump = __dumpSystemJobsForTests();
-        assert.equal(dump.jobs.length, 13);
+        assert.equal(dump.jobs.length, 14);
         assert.equal(dump.jobs.some((job) => job.nome === 'gerente_comercial_observacao'), true);
         assert.equal(dump.jobs.some((job) => job.nome === 'vendedor_ia_observacao'), true);
         assert.equal(dump.jobs.some((job) => job.nome === 'diretor_reuniao_executiva'), true);
         assert.equal(dump.jobs.some((job) => job.nome === 'diretor_plano_acao'), true);
         assert.equal(dump.jobs.some((job) => job.nome === 'whatsapp_learning_worker'), true);
+        assert.equal(dump.jobs.some((job) => job.nome === 'whatsapp_learning_cognitive_worker'), true);
+        assert.equal(dump.jobs.some((job) => job.metadata.cadence === 'every-10-minutes'), true);
         assert.equal(dump.jobs.some((job) => job.lock_key === 'diretor_reuniao_executiva'), true);
         assert.equal(dump.jobs.some((job) => job.lock_key === 'diretor_plano_acao'), true);
         assert.equal(logs.some(([message]) => message === 'system_jobs_bootstrap_started'), true);
         assert.equal(logs.some(([message]) => message === 'system_jobs_bootstrap_finished'), true);
         await ensureDefaultSystemJobs(null, { logger: { info: () => null } });
         const secondDump = __dumpSystemJobsForTests();
-        assert.equal(secondDump.jobs.length, 13);
+        assert.equal(secondDump.jobs.length, 14);
       }
     },
     {

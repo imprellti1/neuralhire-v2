@@ -1,7 +1,7 @@
 import { ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { logger } from '../../core/logger.js';
-import { listJobsOverview, runClientesEnriquecimentoJob, runClientesGeolocalizacaoJob, runDiretorDelegacaoJob, runDiretorPlanoAcaoJob, runDiretorReuniaoExecutivaJob, runGerenteAdministrativoObservacaoJob, runGerenteAuditoriaObservacaoJob, runGerenteComercialObservacaoJob, runGerenteProdutosObservacaoJob, runNotificacoesResumoSemanalJob, runRadarComercialJob, runWhatsappLearningWorker } from './jobs.scheduler.js';
+import { listJobsOverview, runClientesEnriquecimentoJob, runClientesGeolocalizacaoJob, runDiretorDelegacaoJob, runDiretorPlanoAcaoJob, runDiretorReuniaoExecutivaJob, runGerenteAdministrativoObservacaoJob, runGerenteAuditoriaObservacaoJob, runGerenteComercialObservacaoJob, runGerenteProdutosObservacaoJob, runNotificacoesResumoSemanalJob, runRadarComercialJob, runWhatsappLearningCognitiveWorker, runWhatsappLearningWorker } from './jobs.scheduler.js';
 import { getSystemJobById, listSystemJobRuns, listSystemJobRunsForJob, listSystemJobs } from './jobs.repository.js';
 
 function assertJobAdmin(context) {
@@ -66,7 +66,8 @@ async function resolveAdminJobForManualRun(context = {}) {
     'diretor-reuniao-executiva': 'diretor_reuniao_executiva',
     'diretor-plano-acao': 'diretor_plano_acao',
     'diretor-delegacao': 'diretor_delegacao',
-    'whatsapp-learning-worker': 'whatsapp_learning_worker'
+    'whatsapp-learning-worker': 'whatsapp_learning_worker',
+    'whatsapp-learning-cognitive-worker': 'whatsapp_learning_cognitive_worker'
   };
   const canonicalId = aliases[id] || normalizedId;
   const jobs = await listSystemJobs(null);
@@ -115,7 +116,8 @@ export async function runJobManualAdmin(context = {}) {
     diretor_reuniao_executiva: runDiretorReuniaoExecutivaJob,
     diretor_plano_acao: runDiretorPlanoAcaoJob,
     diretor_delegacao: runDiretorDelegacaoJob,
-    whatsapp_learning_worker: runWhatsappLearningWorker
+    whatsapp_learning_worker: runWhatsappLearningWorker,
+    whatsapp_learning_cognitive_worker: runWhatsappLearningCognitiveWorker
   };
   const runner = runners[job.nome];
   if (!runner) throw new NotFoundError('Job sem handler', { code: 'JOB_HANDLER_NOT_FOUND', domain: 'system-jobs' });
