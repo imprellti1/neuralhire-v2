@@ -164,9 +164,9 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .cliente360-relevant-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
     .cliente360-card-primary{min-height:100%;display:flex;flex-direction:column}
     .cliente360-card-primary .cliente360-card-body{flex:1}
+    .cliente360-column-right{display:flex;flex-direction:column;gap:24px;height:100%;grid-column:3;grid-row:1}
     .cliente360-card-enrichment{grid-column:2;grid-row:1}
-    .cliente360-card-address{grid-column:3;grid-row:1}
-    .cliente360-card-summary{grid-column:3;grid-row:2}
+    .cliente360-card-address,.cliente360-card-summary{width:100%}
     .cliente360-card-primary{grid-column:1;grid-row:1}
     .cliente360-card-map{display:grid;grid-column:1 / -1;grid-template-columns:minmax(0,1fr) minmax(420px,1.2fr);gap:18px;min-width:0;align-items:stretch}
     .cliente360-map-left{display:grid;align-content:start;gap:12px}
@@ -255,7 +255,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-shell .nho2-btn.secondary{background:#111a2e;color:#d9e4f7;border-color:#263655;box-shadow:none}
     .nho2d-shell .nho2-btn.ghost{background:transparent;color:#d9e4f7;border-color:rgba(148,163,184,.22);box-shadow:none}
     @media (max-width:1280px){.nho2d-title{font-size:28px}}
-    @media (max-width:1280px){.nho2d-dados-grid,.cliente360-relevant-grid{grid-template-columns:1fr}.cliente360-card-primary{min-height:0}.cliente360-card-enrichment,.cliente360-card-address,.cliente360-card-summary{grid-column:auto;grid-row:auto}.cliente360-card-map{grid-template-columns:1fr}.cliente360-map-frame{height:240px}}
+    @media (max-width:1280px){.nho2d-dados-grid,.cliente360-relevant-grid{grid-template-columns:1fr}.cliente360-card-primary{min-height:0}.cliente360-column-right{grid-column:auto;grid-row:auto;gap:16px;height:auto}.cliente360-card-enrichment,.cliente360-card-address,.cliente360-card-summary{grid-column:auto;grid-row:auto}.cliente360-card-map{grid-template-columns:1fr}.cliente360-map-frame{height:240px}}
     @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-dados-grid{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}.nho2d-kpi-grid{grid-template-columns:1fr}}
     `;
     document.head.appendChild(style);
@@ -763,26 +763,28 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
               ['Última atualização', formatDateFriendly(d?.enriquecimento_ultima_execucao)]
             ])}
           </article>
-        <article class="nho2d-card cliente360-card-address">
-            <h3>Endereço</h3>
-            ${cardFields([
-              ['Logradouro', d?.logradouro],
-              ['Número', d?.numero],
-              ['Bairro', d?.bairro],
-              ['CEP', d?.cep],
-              ['Cidade', d?.cidade],
-              ['UF', d?.uf]
-            ])}
-          </article>
-        <article class="nho2d-card cliente360-card-summary">
-            <h3>Resumo</h3>
-            ${cardFields([
-              ['Status do enriquecimento', enrichmentStatus],
-              ['Status da geolocalização', geolocationStatus],
-              ['Última sincronização', formatDateFriendly(d?.sincronizado_em || d?.updated_at || d?.updatedAt)],
-              ['Eventos na Timeline', timelineCount]
-            ])}
-          </article>
+        <div class="cliente360-column-right">
+          <article class="nho2d-card cliente360-card-address">
+              <h3>Endereço</h3>
+              ${cardFields([
+                ['Logradouro', d?.logradouro],
+                ['Número', d?.numero],
+                ['Bairro', d?.bairro],
+                ['CEP', d?.cep],
+                ['Cidade', d?.cidade],
+                ['UF', d?.uf]
+              ])}
+            </article>
+          <article class="nho2d-card cliente360-card-summary">
+              <h3>Resumo</h3>
+              ${cardFields([
+                ['Status do enriquecimento', enrichmentStatus],
+                ['Status da geolocalização', geolocationStatus],
+                ['Última sincronização', formatDateFriendly(d?.sincronizado_em || d?.updated_at || d?.updatedAt)],
+                ['Eventos na Timeline', timelineCount]
+              ])}
+            </article>
+        </div>
         <article class="nho2d-card cliente360-card-map" style="grid-column:1 / -1">
           <div class="cliente360-map-left">
             <div class="nho2d-header" style="margin-bottom:0">
