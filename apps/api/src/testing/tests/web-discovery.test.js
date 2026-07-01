@@ -204,6 +204,65 @@ export function getWebDiscoveryTests() {
       }
     },
     {
+      name: 'identifica site oficial com correspondência parcial entre nome fantasia e domínio',
+      run: async () => {
+        const previous = {
+          enabled: process.env.WEB_DISCOVERY_ENABLED,
+          providers: process.env.WEB_DISCOVERY_PROVIDERS,
+          tavily: process.env.TAVILY_API_KEY,
+          min: process.env.WEB_DISCOVERY_MIN_CONFIDENCE
+        };
+        process.env.WEB_DISCOVERY_ENABLED = 'true';
+        process.env.WEB_DISCOVERY_PROVIDERS = 'tavily,ddgs';
+        process.env.TAVILY_API_KEY = 'test-key';
+        process.env.WEB_DISCOVERY_MIN_CONFIDENCE = '0.8';
+        const previousFetch = globalThis.fetch;
+        globalThis.fetch = async (url) => {
+          if (String(url).includes('tavily.com')) {
+            return createFetchResponse({
+              ok: true,
+              status: 200,
+              body: {
+                results: [
+                  {
+                    title: 'Fortsul Atacado de Confecções',
+                    url: 'https://compreatacadofortsul.com.br',
+                    content: 'ATACADO DE CONFECCOES FORTSUL LTDA em Porto Alegre RS, site oficial.'
+                  }
+                ]
+              }
+            });
+          }
+          if (String(url).includes('duckduckgo.com')) return { ok: true, status: 200, text: async () => '' };
+          throw new Error(`Unexpected fetch: ${url}`);
+        };
+        try {
+          const app = createApiApp();
+          const cliente = await createCliente({
+            nome: 'Fortsul',
+            razao_social: 'ATACADO DE CONFECCOES FORTSUL LTDA',
+            logradouro: 'Rua do Comércio',
+            numero: '123',
+            cidade: 'Porto Alegre',
+            estado: 'RS',
+            documento: '12.345.678/0001-90'
+          }, { accountId: 'acc-1' });
+          const response = await call(app, { method: 'POST', url: `/clientes/${cliente.id}/web-discovery`, role: 'admin', accountId: 'acc-1' });
+          assert.equal(response.res.statusCode, 200);
+          assert.equal(response.body.data.found, true);
+          assert.equal(response.body.data.provider, 'tavily');
+          assert.equal(response.body.data.domain, 'compreatacadofortsul.com.br');
+          assert.equal(response.body.data.site, 'https://compreatacadofortsul.com.br');
+        } finally {
+          globalThis.fetch = previousFetch;
+          process.env.WEB_DISCOVERY_ENABLED = previous.enabled ?? '';
+          process.env.WEB_DISCOVERY_PROVIDERS = previous.providers ?? '';
+          process.env.TAVILY_API_KEY = previous.tavily ?? '';
+          process.env.WEB_DISCOVERY_MIN_CONFIDENCE = previous.min ?? '';
+        }
+      }
+    },
+    {
       name: 'dominio de rede social recebe penalidade',
       run: async () => {
         const previous = {

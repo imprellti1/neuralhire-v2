@@ -9,17 +9,45 @@ function normalize(value) { return String(value || '').trim(); }
 function normalizeDomain(url) {
   try { return new URL(url).hostname.replace(/^www\./i, '').toLowerCase(); } catch { return ''; }
 }
+function tokenize(value = '') {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(' ')
+    .map((item) => item.trim())
+    .filter((item) => item.length >= 3 && !['ltda', 'me', 'epp', 'sa', 's a', 'llc', 'site', 'www'].includes(item));
+}
+function getClientNameSignals(cliente = {}) {
+  return [
+    normalize(cliente.nome),
+    normalize(cliente.razao_social)
+  ].filter(Boolean);
+}
+function getClientLocationSignals(cliente = {}) {
+  return [
+    normalize(cliente.logradouro),
+    normalize(cliente.numero),
+    normalize(cliente.bairro),
+    normalize(cliente.cidade),
+    normalize(cliente.estado)
+  ].filter(Boolean);
+}
 function buildQueries(cliente = {}) {
   const city = normalize(cliente.cidade);
   const state = normalize(cliente.estado);
-  const name = normalize(cliente.razao_social || cliente.nome);
+  const fantasyName = normalize(cliente.nome);
+  const corporateName = normalize(cliente.razao_social);
   const cnpj = normalize(cliente.documento).replace(/\D/g, '');
   const cnpjFormatted = cnpj.length === 14 ? cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : '';
+  const street = [normalize(cliente.logradouro), normalize(cliente.numero), city, state].filter(Boolean).join(' ');
   return [
-    [name, city, state].filter(Boolean).join(' '),
-    [normalize(cliente.nome), city, state].filter(Boolean).join(' '),
-    [cnpjFormatted, city, state].filter(Boolean).join(' '),
-    [cnpj, city, state].filter(Boolean).join(' ')
+    [fantasyName, city, state, 'site'].filter(Boolean).join(' '),
+    [corporateName || fantasyName, city, state, 'site'].filter(Boolean).join(' '),
+    [fantasyName, street].filter(Boolean).join(' '),
+    [cnpjFormatted, corporateName || fantasyName].filter(Boolean).join(' '),
+    [cnpj, corporateName || fantasyName].filter(Boolean).join(' ')
   ].filter(Boolean);
 }
 function getEnvValue(key, fallback = '') {
@@ -30,14 +58,26 @@ function penalizeDomain(domain = '') {
   const bad = ['facebook.com', 'instagram.com', 'linkedin.com', 'google.com', 'maps.google.com', 'reclameaqui.com.br', 'econodata.com.br', 'cnpj.biz', 'casadosdados.com.br', 'empresascnpj.com', 'youtube.com', 'wa.me'];
   return bad.some((item) => domain.includes(item)) ? 0.35 : 0;
 }
+function countTokenMatches(source = '', target = '') {
+  const sourceTokens = tokenize(source);
+  if (!sourceTokens.length) return 0;
+  const targetValue = String(target || '').toLowerCase();
+  return sourceTokens.reduce((count, token) => count + (targetValue.includes(token) ? 1 : 0), 0);
+}
 function scoreCandidate(candidate, cliente, query) {
   const title = normalize(candidate.title).toLowerCase();
   const snippet = normalize(candidate.snippet).toLowerCase();
   const domain = normalizeDomain(candidate.url);
   if (!domain) return 0;
   let score = 0.35;
-  if (title.includes(normalize(cliente.razao_social || cliente.nome).toLowerCase()) || snippet.includes(normalize(cliente.razao_social || cliente.nome).toLowerCase())) score += 0.25;
-  if (title.includes(normalize(cliente.cidade).toLowerCase()) || snippet.includes(normalize(cliente.cidade).toLowerCase()) || title.includes(normalize(cliente.estado).toLowerCase()) || snippet.includes(normalize(cliente.estado).toLowerCase())) score += 0.2;
+  const nameSignals = getClientNameSignals(cliente);
+  const locationSignals = getClientLocationSignals(cliente);
+  const bestNameMatch = nameSignals.reduce((best, value) => Math.max(best, countTokenMatches(value, title) + countTokenMatches(value, snippet) + countTokenMatches(value, domain)), 0);
+  const bestLocationMatch = locationSignals.reduce((best, value) => Math.max(best, countTokenMatches(value, title) + countTokenMatches(value, snippet) + countTokenMatches(value, domain)), 0);
+  if (bestNameMatch > 0) score += Math.min(0.35, bestNameMatch * 0.12);
+  if (bestLocationMatch > 0) score += Math.min(0.2, bestLocationMatch * 0.08);
+  if (domain && nameSignals.some((value) => countTokenMatches(value, domain) > 0)) score += 0.2;
+  if (domain && locationSignals.some((value) => countTokenMatches(value, domain) > 0)) score += 0.05;
   if (query && (title.includes(query.toLowerCase()) || snippet.includes(query.toLowerCase()))) score += 0.05;
   score -= penalizeDomain(domain);
   return Math.max(0, Math.min(1, Number(score.toFixed(2))));
