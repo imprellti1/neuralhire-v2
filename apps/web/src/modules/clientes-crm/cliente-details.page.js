@@ -159,6 +159,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-tab{border:1px solid #243253;background:#10192d;color:#a7b6d4;border-radius:999px;padding:10px 14px;font-weight:700;cursor:pointer}
     .nho2d-tab.is-active{background:#2f6dff;color:#fff;box-shadow:0 10px 22px rgba(47,109,255,.28)}
     .nho2d-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);gap:16px}
+    .nho2d-dados-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:stretch}
     .nho2d-stack{display:grid;gap:14px}
     .nho2d-card{background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98));border:1px solid rgba(148,163,184,.18);border-radius:16px;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,.22)}
     .nho2d-card h3{margin:0 0 10px;font-size:16px;color:#f5f7fb}
@@ -241,19 +242,21 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-shell .nho2-btn.secondary{background:#111a2e;color:#d9e4f7;border-color:#263655;box-shadow:none}
     .nho2d-shell .nho2-btn.ghost{background:transparent;color:#d9e4f7;border-color:rgba(148,163,184,.22);box-shadow:none}
     @media (max-width:1280px){.nho2d-title{font-size:28px}}
-    @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}.nho2d-kpi-grid{grid-template-columns:1fr}}
+    @media (max-width:1280px){.nho2d-dados-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-dados-grid{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}.nho2d-kpi-grid{grid-template-columns:1fr}}
     `;
     document.head.appendChild(style);
   }
 
   function getTabLabel(key) {
+    if (key === 'geral') return 'Visão geral';
+    if (key === 'dados-relevantes') return 'Dados relevantes';
     if (key === 'comercial') return 'Comercial';
-    if (key === 'crm') return 'CRM';
-    if (key === 'enriquecimento') return 'Enriquecimento';
-    if (key === 'geolocalizacao') return 'Geolocalização';
+    if (key === 'alertas') return 'Alertas';
     if (key === 'timeline') return 'Timeline';
-    if (key === 'whatsapp') return 'WhatsApp';
-    return 'Geral';
+    if (key === 'segmentacao') return 'Segmentação';
+    if (key === 'radar') return 'Radar';
+    return 'Visão geral';
   }
 
   function getTimelineIcon(categoria) {
@@ -368,7 +371,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         <button id="nhcd-back" class="nho2-btn ghost">Voltar</button>
       </div>
       <div class="nho2d-tabs" role="tablist" aria-label="Detalhes do cliente">
-        ${['geral', 'comercial', 'crm', 'enriquecimento', 'geolocalizacao', 'timeline', 'whatsapp'].map((tab) => `<button class="nho2d-tab ${activeTab === tab ? 'is-active' : ''}" data-tab="${tab}" role="tab" aria-selected="${activeTab === tab ? 'true' : 'false'}">${getTabLabel(tab)}</button>`).join('')}
+        ${['geral', 'dados-relevantes', 'comercial', 'alertas', 'timeline', 'segmentacao', 'radar'].map((tab) => `<button class="nho2d-tab ${activeTab === tab ? 'is-active' : ''}" data-tab="${tab}" role="tab" aria-selected="${activeTab === tab ? 'true' : 'false'}">${getTabLabel(tab)}</button>`).join('')}
       </div>
     `;
   }
@@ -663,6 +666,111 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     `;
   }
 
+  function renderDadosRelevantes(d) {
+    const enrichmentStatus = safeValue(d?.enriquecimento_status ? String(d.enriquecimento_status).replace(/^./, (m) => m.toUpperCase()) : 'Pendente');
+    const geolocationStatus = safeValue(d?.geolocalizacao_status ? String(d.geolocalizacao_status).replace(/^./, (m) => m.toUpperCase()) : 'Pendente');
+    const hasCoordinates = Number.isFinite(Number(d?.latitude)) && Number.isFinite(Number(d?.longitude));
+    const iframeSrc = hasCoordinates ? `https://maps.google.com/maps?q=${d.latitude},${d.longitude}&z=15&output=embed` : '';
+    const timelineCount = Array.isArray(d?.timeline) ? d.timeline.length : 0;
+    const cardFields = (items) => `<dl class="nho2d-dl">${items.map(([label, value]) => `<dt class="nho2d-dt">${label}</dt><dd class="nho2d-dd">${safeValue(value)}</dd>`).join('')}</dl>`;
+    return `
+      <div class="nho2d-dados-grid">
+        <article class="nho2d-card">
+          <h3>Dados principais</h3>
+          ${editMode ? `
+            <div class="nho2d-header" style="margin-bottom:12px">
+              <div class="nho2d-sub">Controle explícito de edição para os dados principais do cliente.</div>
+              <div class="nho2d-actions">
+                <button id="nho2d-edit-cancel" class="nho2-btn secondary" ${editSaving ? 'disabled' : ''}>Cancelar</button>
+                <button id="nho2d-edit-save" class="nho2-btn" ${editSaving ? 'disabled' : ''}>${editSaving ? 'Salvando...' : 'Salvar'}</button>
+              </div>
+            </div>
+            ${editErrorMessage ? `<div class="nho2d-crm-empty" role="alert" style="margin-bottom:12px">${safeText(editErrorMessage, '')}</div>` : ''}
+            ${renderEditForm(d)}
+          ` : `
+            ${cardFields([
+              ['Cidade/UF', [d?.cidade, d?.uf].filter(Boolean).join(' / ') || '-'],
+              ['Status do cliente', d?.status || '-'],
+              ['Vendedor', d?.dadosCliente?.vendedor || '-'],
+              ['Documento', d?.dadosCliente?.documento || '-'],
+              ['Telefone', d?.dadosCliente?.telefone || '-'],
+              ['E-mail', d?.dadosCliente?.email || '-']
+            ])}
+            <div style="margin-top:14px"><button id="nho2d-edit-start" class="nho2-btn">Editar dados</button></div>
+          `}
+        </article>
+        <article class="nho2d-card">
+          <div class="nho2d-header" style="margin-bottom:12px">
+            <div>
+              <h3 style="margin:0 0 4px">Enriquecimento cadastral</h3>
+              <div class="nho2d-sub">Informações cadastrais consolidadas do cliente.</div>
+            </div>
+            <button id="nho2d-enrich" class="nho2-btn secondary" ${enrichmentLoading ? 'disabled' : ''}>${enrichmentLoading ? 'Enriquecendo dados...' : 'Atualizar enriquecimento'}</button>
+          </div>
+          ${cardFields([
+            ['Razão social', d?.razao_social],
+            ['Nome fantasia', d?.nome_fantasia],
+            ['Situação cadastral', d?.situacao_cadastral],
+            ['Data de abertura', d?.data_abertura ? formatDisplayDate(d.data_abertura) : 'Não informado'],
+            ['CNAE principal', d?.cnae_principal],
+            ['Natureza jurídica', d?.natureza_juridica],
+            ['Porte', d?.porte],
+            ['Capital social', d?.capital_social],
+            ['Fonte', d?.enriquecimento_fonte],
+            ['Última atualização', formatDateFriendly(d?.enriquecimento_ultima_execucao)]
+          ])}
+        </article>
+        <article class="nho2d-card">
+          <h3>Endereço</h3>
+          ${cardFields([
+            ['Logradouro', d?.logradouro],
+            ['Número', d?.numero],
+            ['Bairro', d?.bairro],
+            ['CEP', d?.cep],
+            ['Cidade', d?.cidade],
+            ['UF', d?.uf]
+          ])}
+        </article>
+        <article class="nho2d-card">
+          <h3>Contato</h3>
+          ${cardFields([
+            ['Telefone 1', d?.telefone],
+            ['Telefone 2', d?.telefone2],
+            ['E-mail', d?.email],
+            ['Site', d?.site]
+          ])}
+        </article>
+        <article class="nho2d-card">
+          <div class="nho2d-header" style="margin-bottom:12px">
+            <div>
+              <h3 style="margin:0 0 4px">Geolocalização</h3>
+              <div class="nho2d-sub">Consulta manual do endereço do cliente via Nominatim/OpenStreetMap.</div>
+            </div>
+            <button id="nho2d-geocode" class="nho2-btn secondary" ${geolocationLoading ? 'disabled' : ''}>${geolocationLoading ? 'Geolocalizando...' : 'Geolocalizar Cliente'}</button>
+          </div>
+          ${cardFields([
+            ['Latitude', d?.latitude],
+            ['Longitude', d?.longitude],
+            ['Google Maps', d?.google_maps_url ? `<a href="${d.google_maps_url}" target="_blank" rel="noreferrer">Abrir no Google Maps</a>` : 'Não informado'],
+            ['Place ID', d?.place_id],
+            ['Fonte', d?.geolocalizacao_fonte],
+            ['Última atualização', formatDateFriendly(d?.geolocalizacao_ultima_execucao)]
+          ])}
+          ${hasCoordinates ? `<div style="margin-top:14px"><iframe title="Mapa do cliente" src="${iframeSrc}" style="width:100%;height:260px;border:0;border-radius:12px" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>` : ''}
+        </article>
+        <article class="nho2d-card">
+          <h3>Resumo</h3>
+          ${cardFields([
+            ['Status do enriquecimento', enrichmentStatus],
+            ['Status da geolocalização', geolocationStatus],
+            ['Última sincronização', formatDateFriendly(d?.sincronizado_em || d?.updated_at || d?.updatedAt)],
+            ['Eventos na Timeline', timelineCount]
+          ])}
+        </article>
+      </div>
+    `;
+  }
+
   function renderEnriquecimento(d) {
     const status = safeValue(d?.enriquecimento_status ? String(d.enriquecimento_status).replace(/^./, (m) => m.toUpperCase()) : 'Pendente');
     return `
@@ -772,6 +880,17 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     `;
   }
 
+  function renderRadar() {
+    return `
+      <div class="nho2d-section">
+        <article class="nho2d-card">
+          <h3>Radar</h3>
+          <div class="nho2d-crm-empty">Use o Radar Comercial para análises consolidadas da carteira.</div>
+        </article>
+      </div>
+    `;
+  }
+
   function renderWhatsappConversationItem(conversation) {
     const active = String(whatsappActiveConversationId || '') === String(conversation?.id || '');
     const instanceType = String(conversation?.instance_type || 'operational');
@@ -821,12 +940,12 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     return `<section class="nho2d-shell">
       ${renderHeader(d)}
       ${activeTab === 'geral' ? renderGeral(d) : ''}
+      ${activeTab === 'dados-relevantes' ? renderDadosRelevantes(d) : ''}
       ${activeTab === 'comercial' ? renderComercial(d) : ''}
-      ${activeTab === 'crm' ? renderCrm(d) : ''}
-      ${activeTab === 'enriquecimento' ? renderEnriquecimento(d) : ''}
-      ${activeTab === 'geolocalizacao' ? renderGeolocalizacao(d) : ''}
+      ${activeTab === 'alertas' ? renderAlertas(d) : ''}
       ${activeTab === 'timeline' ? renderTimeline(d) : ''}
-      ${activeTab === 'whatsapp' ? renderWhatsapp(d) : ''}
+      ${activeTab === 'segmentacao' ? renderGeral(d) : ''}
+      ${activeTab === 'radar' ? renderRadar(d) : ''}
     </section>`;
   }
 

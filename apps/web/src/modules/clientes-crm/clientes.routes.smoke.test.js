@@ -211,8 +211,9 @@ test('clientes: detalhe 360 abre com abas e accordion de pedidos', async () => {
   setHash('#/clientes/c1');
   await flush(); await flush();
   assert.ok(document.querySelector('[data-tab="geral"]'));
+  assert.ok(document.querySelector('[data-tab="dados-relevantes"]'));
   assert.ok(document.querySelector('[data-tab="comercial"]'));
-  assert.ok(document.querySelector('[data-tab="crm"]'));
+  assert.ok(document.querySelector('[data-tab="alertas"]'));
   document.querySelector('[data-tab="comercial"]')?.click();
   await flush(); await flush();
   assert.match(document.body.textContent, /Últimos Pedidos/i);
@@ -222,9 +223,9 @@ test('clientes: detalhe 360 abre com abas e accordion de pedidos', async () => {
   document.querySelector('[data-toggle-pedido="p1"]')?.click();
   await flush(); await flush();
   assert.match(document.body.textContent, /Produto X/);
-  document.querySelector('[data-tab="crm"]')?.click();
+  document.querySelector('[data-tab="dados-relevantes"]')?.click();
   await flush(); await flush();
-  assert.match(document.body.textContent, /Nenhuma conversa registrada para este cliente/i);
+  assert.match(document.body.textContent, /Dados principais/i);
   document.querySelector('[data-tab="timeline"]')?.click();
   await flush(); await flush();
   assert.match(document.body.textContent, /Cliente cadastrado/i);

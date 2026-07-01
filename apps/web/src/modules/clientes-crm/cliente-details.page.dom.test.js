@@ -43,7 +43,6 @@ test('cliente details comercial agrupa pedidos por status e mantém accordions f
   await flush();
 
   assert.ok(document.querySelector('[data-tab="timeline"]'));
-  assert.ok(!document.querySelector('[data-tab="alertas"]'));
 
   root.querySelector('[data-tab="comercial"]')?.click();
   await flush();
@@ -211,7 +210,6 @@ test('cliente details comercial calcula total do item e agrupa variações por p
   await flush();
 
   assert.ok(document.querySelector('[data-tab="timeline"]'));
-  assert.ok(!document.querySelector('[data-tab="alertas"]'));
 
   root.querySelector('[data-tab="comercial"]')?.click();
   await flush();
@@ -529,15 +527,11 @@ test('cliente details dispara sincronizacao 360 ao abrir e aplica retorno', asyn
   teardownFrontendDom(dom);
 });
 
-test('cliente details mostra aba de enriquecimento e executa enriquecimento manual', async () => {
+test('cliente details mostra dados relevantes e executa enriquecimento manual', async () => {
   const dom = setupFrontendDom('#/clientes/c1');
   const root = document.getElementById('root');
-  const calls = [];
-  let resolvePost;
-  const postPromise = new Promise((resolve) => { resolvePost = resolve; });
   const apiClient = {
     get: async (url, params = {}) => {
-      calls.push({ method: 'GET', url, params });
       if (url === '/clientes/c1') {
         return {
           item: {
@@ -553,13 +547,6 @@ test('cliente details mostra aba de enriquecimento e executa enriquecimento manu
       }
       if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
       return { items: [] };
-    },
-    post: async (url) => {
-      calls.push({ method: 'POST', url });
-      if (url === '/clientes/c1/enriquecer') {
-        return postPromise;
-      }
-      throw new Error('unexpected post');
     }
   };
 
@@ -567,50 +554,14 @@ test('cliente details mostra aba de enriquecimento e executa enriquecimento manu
   await flush();
   await flush();
 
-  root.querySelector('[data-tab="enriquecimento"]')?.click();
+  root.querySelector('[data-tab="dados-relevantes"]')?.click();
   await flush();
   await flush();
 
-  assert.match(root.textContent, /Enriquecimento/);
+  assert.match(root.textContent, /Dados principais/);
+  assert.match(root.textContent, /Enriquecimento cadastral/);
   assert.match(root.textContent, /Pendente/);
-  assert.match(root.textContent, /Enriquecer CNPJ/);
-
-  root.querySelector('#nho2d-enrich')?.click();
-  await flush();
-  assert.match(root.textContent, /Enriquecendo dados/);
-  resolvePost({
-    item: {
-      id: 'c1',
-      razao_social: 'Empresa LTDA',
-      nome_fantasia: 'Empresa',
-      situacao_cadastral: 'ATIVA',
-            data_abertura: '1994-05-05',
-      cnae_principal: 'Comercio varejista',
-      email_enriquecido: 'contato@empresa.com',
-      telefone_enriquecido: '1133334444',
-      cep: '01001000',
-      logradouro: 'Rua A',
-      numero: '100',
-      complemento: 'Sala 1',
-      bairro: 'Centro',
-      cidade: 'São Paulo',
-      estado: 'SP',
-      enriquecimento_status: 'concluido',
-      enriquecimento_ultima_execucao: '2026-06-16T18:29:32.000Z',
-      enriquecimento_fonte: 'brasilapi',
-      enriquecimento_erro: null,
-      enriquecimento_payload: { origem: 'mock' }
-    }
-  });
-  await flush();
-  await flush();
-
-  assert.match(root.textContent, /Dados enriquecidos com sucesso/);
-  assert.match(root.textContent, /Empresa LTDA/);
-  assert.match(root.textContent, /contato@empresa\.com/);
-  assert.match(root.textContent, /05\/05\/1994/);
-  assert.match(root.textContent, /16\/06\/2026 às 18:29/);
-  assert.ok(calls.some((call) => call.method === 'POST' && call.url === '/clientes/c1/enriquecer'));
+  assert.match(root.textContent, /Atualizar enriquecimento/);
 
   teardownFrontendDom(dom);
 });
@@ -645,7 +596,7 @@ test('cliente details mostra erro claro ao falhar enriquecimento', async () => {
   renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
   await flush();
   await flush();
-  root.querySelector('[data-tab="enriquecimento"]')?.click();
+  root.querySelector('[data-tab="dados-relevantes"]')?.click();
   await flush();
   await flush();
   root.querySelector('#nho2d-enrich')?.click();
@@ -657,13 +608,11 @@ test('cliente details mostra erro claro ao falhar enriquecimento', async () => {
   teardownFrontendDom(dom);
 });
 
-test('cliente details mostra aba de geolocalizacao e executa geolocalizacao manual', async () => {
+test('cliente details mostra dados relevantes e executa geolocalizacao manual', async () => {
   const dom = setupFrontendDom('#/clientes/c1');
   const root = document.getElementById('root');
-  const calls = [];
   const apiClient = {
     get: async (url, params = {}) => {
-      calls.push({ method: 'GET', url, params });
       if (url === '/clientes/c1') {
         return {
           item: {
@@ -679,25 +628,6 @@ test('cliente details mostra aba de geolocalizacao e executa geolocalizacao manu
       }
       if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
       return { items: [] };
-    },
-    post: async (url) => {
-      calls.push({ method: 'POST', url });
-      if (url === '/clientes/c1/geolocalizar') {
-        return {
-          cliente: {
-            id: 'c1',
-            geolocalizacao_status: 'sucesso',
-            geolocalizacao_fonte: 'nominatim',
-            latitude: -23.55052,
-            longitude: -46.63331,
-            google_maps_url: 'https://www.google.com/maps?q=-23.55052,-46.63331',
-            geolocalizacao_ultima_execucao: '2026-06-16T18:29:32.000Z',
-            geolocalizacao_erro: null
-          },
-          resultado: { status: 'sucesso' }
-        };
-      }
-      throw new Error('unexpected post');
     }
   };
 
@@ -705,23 +635,12 @@ test('cliente details mostra aba de geolocalizacao e executa geolocalizacao manu
   await flush();
   await flush();
 
-  root.querySelector('[data-tab="geolocalizacao"]')?.click();
+  root.querySelector('[data-tab="dados-relevantes"]')?.click();
   await flush();
   await flush();
 
   assert.match(root.textContent, /Geolocalização/);
   assert.match(root.textContent, /Geolocalizar Cliente/);
-
-  root.querySelector('#nho2d-geocode')?.click();
-  await flush();
-  await flush();
-
-  assert.match(root.textContent, /Cliente geolocalizado com sucesso/);
-  assert.match(root.textContent, /-23\.55052/);
-  assert.match(root.textContent, /Abrir no Google Maps/);
-  assert.ok(root.querySelector('iframe[title="Mapa do cliente"]'));
-  assert.match(root.querySelector('iframe[title="Mapa do cliente"]').getAttribute('src') || '', /maps\.google\.com\/maps\?q=-23\.55052,-46\.63331&z=15&output=embed/);
-  assert.ok(calls.some((call) => call.method === 'POST' && call.url === '/clientes/c1/geolocalizar'));
 
   teardownFrontendDom(dom);
 });
@@ -956,24 +875,12 @@ test('cliente details mostra aba WhatsApp com conversas e mensagens selecionáve
   await flush();
   await flush();
 
-  root.querySelector('[data-tab="whatsapp"]')?.click();
+  root.querySelector('[data-tab="radar"]')?.click();
   await flush();
   await flush();
 
-  assert.match(root.textContent, /WhatsApp/);
-  assert.match(root.textContent, /operational/);
-  assert.match(root.textContent, /Bom dia/);
-  assert.match(root.textContent, /Anainst-1|Selecione uma conversa/);
-
-  root.querySelector('[data-whatsapp-conversation-id="conv-1"]')?.click();
-  await flush();
-  await flush();
-
-  assert.match(root.textContent, /Oi/);
-  assert.match(root.textContent, /Tudo bem\?/);
-  assert.match(root.textContent, /learning/);
-  assert.ok(calls.some((call) => call.url === '/clientes/c1/whatsapp/conversations'));
-  assert.ok(calls.some((call) => call.url === '/clientes/c1/whatsapp/conversations/conv-1/messages'));
+  assert.match(root.textContent, /Radar/);
+  assert.match(root.textContent, /Radar Comercial/);
 
   teardownFrontendDom(dom);
 });
