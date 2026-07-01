@@ -122,6 +122,45 @@ function buildGoogleMapsSearchUrl(cliente = {}) {
   return null;
 }
 
+function normalizeDigitalEnrichmentPayload(payload = {}) {
+  const safeObject = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
+  const safeArray = (value) => (Array.isArray(value) ? value.filter((item) => String(item || '').trim()) : []);
+  const contacts = safeObject(payload.contacts);
+  const social = safeObject(payload.social);
+  const company = safeObject(payload.company);
+  const commercial = safeObject(payload.commercial);
+  return {
+    contacts: {
+      emails: safeArray(contacts.emails),
+      phones: safeArray(contacts.phones),
+      whatsapp: safeArray(contacts.whatsapp)
+    },
+    social: {
+      instagram: safeArray(social.instagram),
+      facebook: safeArray(social.facebook),
+      linkedin: safeArray(social.linkedin),
+      youtube: safeArray(social.youtube),
+      tiktok: safeArray(social.tiktok)
+    },
+    company: {
+      description: String(company.description || '').trim(),
+      segment: String(company.segment || '').trim(),
+      categories: safeArray(company.categories),
+      brands: safeArray(company.brands),
+      business_hours: String(company.business_hours || '').trim(),
+      address: String(company.address || '').trim()
+    },
+    commercial: {
+      has_ecommerce: Boolean(commercial.has_ecommerce),
+      has_catalog: Boolean(commercial.has_catalog),
+      product_links: safeArray(commercial.product_links),
+      marketplaces: safeArray(commercial.marketplaces)
+    },
+    sources: Array.isArray(payload.sources) ? payload.sources : [],
+    confidence: safeObject(payload.confidence)
+  };
+}
+
 export function mapClienteDetailsData({ cliente = null, pedidos = [], clienteId, timeline = [] }) {
   const normalizedCliente = cliente && String(cliente?.id || '') === String(clienteId || '') ? cliente : null;
   const normalizedPedidos = Array.isArray(pedidos) ? pedidos : [];
@@ -191,6 +230,9 @@ export function mapClienteDetailsData({ cliente = null, pedidos = [], clienteId,
     enriquecimento_fonte: normalizedCliente?.enriquecimento_fonte || null,
     enriquecimento_erro: normalizedCliente?.enriquecimento_erro || null,
     enriquecimento_payload: normalizedCliente?.enriquecimento_payload || {},
+    digital_enrichment_status: normalizedCliente?.digital_enrichment_status || null,
+    digital_enrichment_updated_at: normalizedCliente?.digital_enrichment_updated_at || null,
+    digital_enrichment_payload: normalizeDigitalEnrichmentPayload(normalizedCliente?.digital_enrichment_payload || {}),
     dadosCliente: { empresa: normalizedCliente?.empresa, razaoSocial: normalizedCliente?.razao_social, contato: normalizedCliente?.nome_contato || normalizedCliente?.nome, telefone: normalizedCliente?.telefone, email: normalizedCliente?.email, documento: normalizedCliente?.documento || normalizedCliente?.cnpj || normalizedCliente?.cpf, cidade: normalizedCliente?.cidade, uf: normalizedCliente?.estado || normalizedCliente?.uf, status: normalizeStatus(normalizedCliente?.status), dataCadastro, vendedor: normalizedCliente?.vendedor || normalizedCliente?.responsavel_comercial || normalizedCliente?.vendedor_nome || '' },
     kpis: { faturamentoTotal, totalPedidos, ticketMedio, ultimaCompra: pedidosComData[0]?._billingDate || pedidosComData[0]?._fallbackDate || null, ultimaCompraLabel: getFriendlyLastPurchaseLabel(pedidosComData[0]?._billingDate || pedidosComData[0]?._fallbackDate || null) },
     ultimosPedidos,

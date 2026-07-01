@@ -694,6 +694,13 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     const timelineCount = Array.isArray(d?.timeline) ? d.timeline.length : 0;
     const cardFields = (items) => `<dl class="nho2d-dl">${items.map(([label, value]) => `<dt class="nho2d-dt">${label}</dt><dd class="nho2d-dd">${safeValue(value)}</dd>`).join('')}</dl>`;
     const hasSite = Boolean(String(d?.site || '').trim());
+    const enrichment = d?.digital_enrichment_payload && typeof d.digital_enrichment_payload === 'object' ? d.digital_enrichment_payload : {};
+    const contacts = enrichment.contacts || {};
+    const social = enrichment.social || {};
+    const company = enrichment.company || {};
+    const commercial = enrichment.commercial || {};
+    const lastDigitalUpdate = d?.digital_enrichment_updated_at || null;
+    const socialLine = (items) => (Array.isArray(items) ? items.map((item) => `<a href="${item}" target="_blank" rel="noreferrer">${safeText(item)}</a>`).join('<br/>') : '-');
     const renderPrincipalFields = () => {
       if (editMode) {
         return `<div class="nho2d-single-col">
@@ -751,22 +758,27 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         <article class="nho2d-card cliente360-card-enrichment">
             <div class="nho2d-header" style="margin-bottom:12px">
               <div>
-                <h3 style="margin:0 0 4px">Enriquecimento cadastral</h3>
-                <div class="nho2d-sub">Informações cadastrais consolidadas do cliente.</div>
+                <h3 style="margin:0 0 4px">Presença Digital</h3>
+                <div class="nho2d-sub">Site descoberto, contatos e sinais comerciais coletados do site oficial.</div>
               </div>
-              <button id="nho2d-enrich" class="nho2-btn secondary" ${enrichmentLoading ? 'disabled' : ''}>${enrichmentLoading ? 'Enriquecendo dados...' : 'Atualizar enriquecimento'}</button>
+              <button id="nho2d-enrich" class="nho2-btn secondary" ${enrichmentLoading ? 'disabled' : ''}>${enrichmentLoading ? 'Enriquecendo digitalmente...' : 'Enriquecer digitalmente'}</button>
             </div>
             ${cardFields([
-              ['Razão social', d?.razao_social],
-              ['Nome fantasia', d?.nome_fantasia],
-              ['Situação cadastral', d?.situacao_cadastral],
-              ['Data de abertura', d?.data_abertura ? formatDisplayDate(d.data_abertura) : 'Não informado'],
-              ['CNAE principal', d?.cnae_principal],
-              ['Natureza jurídica', d?.natureza_juridica],
-              ['Porte', d?.porte],
-              ['Capital social', d?.capital_social],
-              ['Fonte', d?.enriquecimento_fonte],
-              ['Última atualização', formatDateFriendly(d?.enriquecimento_ultima_execucao)]
+              ['Site', hasSite ? `<a href="${d.site}" target="_blank" rel="noreferrer">${d.site}</a>` : '-'],
+              ['E-mails', Array.isArray(contacts.emails) && contacts.emails.length ? contacts.emails.join('<br/>') : '-'],
+              ['Telefones', Array.isArray(contacts.phones) && contacts.phones.length ? contacts.phones.join('<br/>') : '-'],
+              ['WhatsApp', Array.isArray(contacts.whatsapp) && contacts.whatsapp.length ? contacts.whatsapp.join('<br/>') : '-'],
+              ['Instagram', socialLine(social.instagram)],
+              ['Facebook', socialLine(social.facebook)],
+              ['LinkedIn', socialLine(social.linkedin)],
+              ['YouTube', socialLine(social.youtube)],
+              ['TikTok', socialLine(social.tiktok)],
+              ['Resumo da empresa', company.description || '-'],
+              ['Categorias', Array.isArray(company.categories) && company.categories.length ? company.categories.join(', ') : '-'],
+              ['Marcas', Array.isArray(company.brands) && company.brands.length ? company.brands.join(', ') : '-'],
+              ['E-commerce', commercial.has_ecommerce ? 'Sim' : 'Não'],
+              ['Catálogo online', commercial.has_catalog ? 'Sim' : 'Não'],
+              ['Última atualização do enriquecimento digital', lastDigitalUpdate ? formatDateFriendly(lastDigitalUpdate) : 'Não informado']
             ])}
           </article>
         <div class="cliente360-column-right">

@@ -28,6 +28,80 @@ async function call(app, { method, url, role, accountId, body }) {
 export function getWebDiscoveryTests() {
   return [
     {
+      name: 'enriquecimento digital extrai contatos e redes sociais do HTML simulado',
+      run: async () => {
+        const previous = {
+          enabled: process.env.WEB_DISCOVERY_ENABLED,
+          providers: process.env.WEB_DISCOVERY_PROVIDERS,
+          tavily: process.env.TAVILY_API_KEY,
+          min: process.env.WEB_DISCOVERY_MIN_CONFIDENCE
+        };
+        process.env.WEB_DISCOVERY_ENABLED = 'true';
+        process.env.WEB_DISCOVERY_PROVIDERS = 'tavily,ddgs';
+        process.env.TAVILY_API_KEY = 'test-key';
+        process.env.WEB_DISCOVERY_MIN_CONFIDENCE = '0.8';
+        const previousFetch = globalThis.fetch;
+        const calls = [];
+        globalThis.fetch = async (url) => {
+          calls.push(String(url));
+          if (String(url).includes('tavily.com')) return createFetchResponse({ ok: true, status: 200, body: { results: [{ title: 'Cliente Digital', url: 'https://cliente-digital.com.br', content: 'Cliente Digital em Curitiba PR' }] } });
+          if (String(url).includes('duckduckgo.com')) return { ok: true, status: 200, text: async () => '' };
+          if (String(url).includes('cliente-digital.com.br')) {
+            return createFetchResponse({
+              ok: true,
+              status: 200,
+              body: `
+                <html><head><title>Cliente Digital</title></head><body>
+                  <p>Fale conosco: contato@cliente-digital.com.br | (41) 3333-2222 | WhatsApp (41) 99999-8888</p>
+                  <a href="/sobre">Sobre</a>
+                  <a href="https://instagram.com/cliente.digital">Instagram</a>
+                  <a href="https://facebook.com/cliente.digital">Facebook</a>
+                  <a href="https://www.linkedin.com/company/cliente-digital">LinkedIn</a>
+                  <a href="https://youtube.com/@cliente-digital">YouTube</a>
+                  <a href="https://www.tiktok.com/@cliente.digital">TikTok</a>
+                  <a href="https://marketplace.externo.com/produto-x">Externo</a>
+                  <a href="/catalogo/produto-x">Produto X</a>
+                  <p>Temos catálogo online, loja virtual e atendimento de segunda a sexta.</p>
+                  <p>Segmento moda, categorias roupas e acessórios, marcas Nike e Adidas.</p>
+                </body></html>`
+            });
+          }
+          throw new Error(`Unexpected fetch: ${url}`);
+        };
+        try {
+          const app = createApiApp();
+          const cliente = await createCliente({ nome: 'Cliente Digital', cidade: 'Curitiba', estado: 'PR' }, { accountId: 'acc-1' });
+          const response = await call(app, { method: 'POST', url: `/clientes/${cliente.id}/web-discovery`, role: 'admin', accountId: 'acc-1' });
+          assert.equal(response.res.statusCode, 200);
+          assert.equal(response.body.data.found, true);
+          assert.equal(response.body.data.payload.contacts.emails.includes('contato@cliente-digital.com.br'), true);
+          assert.equal(response.body.data.payload.contacts.phones.some((item) => item.includes('3333-2222')), true);
+          assert.equal(response.body.data.payload.social.instagram.length > 0, true);
+          assert.equal(response.body.data.payload.social.facebook.length > 0, true);
+          assert.equal(response.body.data.payload.social.linkedin.length > 0, true);
+          assert.equal(response.body.data.payload.social.youtube.length > 0, true);
+          assert.equal(response.body.data.payload.social.tiktok.length > 0, true);
+          assert.equal(response.body.data.payload.commercial.has_catalog, true);
+          assert.equal(response.body.data.payload.commercial.has_ecommerce, true);
+          assert.ok(calls.some((item) => item.includes('/sobre')));
+          assert.ok(!calls.some((item) => item.includes('marketplace.externo.com')));
+          const clienteDetalhe = await call(app, { method: 'GET', url: `/clientes/${cliente.id}`, role: 'admin', accountId: 'acc-1' });
+          assert.equal(clienteDetalhe.body.item.digital_enrichment_payload.contacts.emails.includes('contato@cliente-digital.com.br'), true);
+          assert.equal(clienteDetalhe.body.item.digital_enrichment_status, 'concluido');
+        } finally {
+          globalThis.fetch = previousFetch;
+          if (previous.enabled === undefined) delete process.env.WEB_DISCOVERY_ENABLED;
+          else process.env.WEB_DISCOVERY_ENABLED = previous.enabled;
+          if (previous.providers === undefined) delete process.env.WEB_DISCOVERY_PROVIDERS;
+          else process.env.WEB_DISCOVERY_PROVIDERS = previous.providers;
+          if (previous.tavily === undefined) delete process.env.TAVILY_API_KEY;
+          else process.env.TAVILY_API_KEY = previous.tavily;
+          if (previous.min === undefined) delete process.env.WEB_DISCOVERY_MIN_CONFIDENCE;
+          else process.env.WEB_DISCOVERY_MIN_CONFIDENCE = previous.min;
+        }
+      }
+    },
+    {
       name: 'POST /clientes/:id/web-discovery retorna erro controlado quando desabilitado',
       run: async () => {
         const previous = process.env.WEB_DISCOVERY_ENABLED;
@@ -98,6 +172,7 @@ export function getWebDiscoveryTests() {
         const previousFetch = globalThis.fetch;
         globalThis.fetch = async (url) => {
           if (String(url).includes('tavily.com')) return createFetchResponse({ ok: true, status: 200, body: { results: [{ title: 'Cliente Discovery', url: 'https://cliente-discovery.com.br', content: 'Cliente Discovery em Curitiba PR' }] } });
+          if (String(url).includes('duckduckgo.com')) return { ok: true, status: 200, text: async () => '' };
           throw new Error(`Unexpected fetch: ${url}`);
         };
         try {

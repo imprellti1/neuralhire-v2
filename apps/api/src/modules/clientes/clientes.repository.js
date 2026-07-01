@@ -104,6 +104,13 @@ function sanitizeClienteUpdatePayload(payload = {}) {
   }, {});
 }
 
+function normalizeJsonPayload(value, fallback = {}) {
+  if (value === undefined) return fallback;
+  if (value === null) return null;
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  return fallback;
+}
+
 function computeCommercialStatusFromDays(daysSinceLastPurchase) {
   if (!Number.isFinite(daysSinceLastPurchase)) return 'sem_pedido';
   if (daysSinceLastPurchase <= 60) return 'ativo';
@@ -539,7 +546,10 @@ export async function updateCliente(id, data, options = {}) {
     ...(data.cep !== undefined ? { cep: data.cep || null } : {}),
     ...(data.tags !== undefined ? { tags: Array.isArray(data.tags) ? data.tags : [] } : {}),
     ...(data.ativo !== undefined ? { ativo: typeof data.ativo === 'boolean' ? data.ativo : current.ativo } : {}),
-    ...(data.metadata !== undefined ? { metadata: data.metadata || {} } : {})
+    ...(data.metadata !== undefined ? { metadata: data.metadata || {} } : {}),
+    ...(data.digital_enrichment_payload !== undefined ? { digital_enrichment_payload: normalizeJsonPayload(data.digital_enrichment_payload, {}) } : {}),
+    ...(data.digital_enrichment_status !== undefined ? { digital_enrichment_status: data.digital_enrichment_status || null } : {}),
+    ...(data.digital_enrichment_updated_at !== undefined ? { digital_enrichment_updated_at: data.digital_enrichment_updated_at || null } : {})
   };
   if (role === 'sales') next.vendedor_id = vendedor?.id || getClienteScopeId(current) || null;
   else if (data.vendedor_id !== undefined) next.vendedor_id = data.vendedor_id || null;
@@ -566,6 +576,9 @@ export async function updateCliente(id, data, options = {}) {
       tags: next.tags,
       ativo: next.ativo,
       metadata: normalizeClienteMetadata(next.metadata),
+      digital_enrichment_payload: normalizeJsonPayload(next.digital_enrichment_payload ?? current.digital_enrichment_payload ?? {}, {}),
+      digital_enrichment_status: next.digital_enrichment_status ?? current.digital_enrichment_status ?? null,
+      digital_enrichment_updated_at: next.digital_enrichment_updated_at ?? current.digital_enrichment_updated_at ?? null,
       vendedor_id: next.vendedor_id,
       updated_at: new Date().toISOString()
     };
