@@ -122,7 +122,7 @@ function getProdutoResumo(item = {}) {
 
 export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   const state = createClienteDetailsState();
-  let activeTab = 'geral';
+  let activeTab = 'dados-relevantes';
   let enrichmentLoading = false;
   let geolocationLoading = false;
   let scoreLoading = false;
@@ -267,7 +267,6 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     if (key === 'comercial') return 'Comercial';
     if (key === 'alertas') return 'Alertas';
     if (key === 'timeline') return 'Timeline';
-    if (key === 'segmentacao') return 'Segmentação';
     if (key === 'radar') return 'Radar';
     return 'Visão geral';
   }
@@ -390,7 +389,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         <button id="nhcd-back" class="nho2-btn ghost">Voltar</button>
       </div>
       <div class="nho2d-tabs" role="tablist" aria-label="Detalhes do cliente">
-        ${['geral', 'dados-relevantes', 'comercial', 'alertas', 'timeline', 'segmentacao', 'radar'].map((tab) => `<button class="nho2d-tab ${activeTab === tab ? 'is-active' : ''}" data-tab="${tab}" role="tab" aria-selected="${activeTab === tab ? 'true' : 'false'}">${getTabLabel(tab)}</button>`).join('')}
+        ${['dados-relevantes', 'geral', 'comercial', 'alertas', 'timeline', 'radar'].map((tab) => `<button class="nho2d-tab ${activeTab === tab ? 'is-active' : ''}" data-tab="${tab}" role="tab" aria-selected="${activeTab === tab ? 'true' : 'false'}">${getTabLabel(tab)}</button>`).join('')}
       </div>
     `;
   }
@@ -982,7 +981,6 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       ${activeTab === 'comercial' ? renderComercial(d) : ''}
       ${activeTab === 'alertas' ? renderAlertas(d) : ''}
       ${activeTab === 'timeline' ? renderTimeline(d) : ''}
-      ${activeTab === 'segmentacao' ? renderGeral(d) : ''}
       ${activeTab === 'radar' ? renderRadar(d) : ''}
     </section>`;
   }
@@ -1078,7 +1076,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       }
     }
     root.querySelectorAll('[data-tab]').forEach((button) => {
-      button.onclick = () => { activeTab = button.getAttribute('data-tab') || 'geral'; render(); };
+      button.onclick = () => { activeTab = button.getAttribute('data-tab') || 'dados-relevantes'; render(); };
     });
     const enrichBtn = root.querySelector('#nho2d-enrich');
     if (enrichBtn) {

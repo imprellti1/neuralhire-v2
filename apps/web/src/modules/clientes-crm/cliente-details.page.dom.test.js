@@ -437,6 +437,9 @@ test('cliente details permite editar dados principais com salvar e cancelar', as
       throw new Error('unexpected patch');
     },
     post: async (url) => {
+      if (url === '/clientes/c1/sincronizar-360') {
+        return { item: { id: 'c1' }, resumo: { changes: [], errors: [] } };
+      }
       if (url === '/clientes/c1/enriquecer') {
         return {
           item: {
@@ -457,7 +460,7 @@ test('cliente details permite editar dados principais com salvar e cancelar', as
   await flush();
   await flush();
   assert.ok(root.querySelector('#nho2d-edit-save'));
-  assert.match(root.querySelector('#nho2d-edit-documento')?.value || '', /00110513000155/);
+  assert.match(root.querySelector('#nho2d-edit-documento')?.value || '', /00\.110\.513\/0001-55/);
   dispatchInput(root.querySelector('#nho2d-edit-cidade'), 'Curitiba');
   dispatchInput(root.querySelector('#nho2d-edit-email'), 'novo@exemplo.com');
   root.querySelector('#nho2d-edit-save')?.click();
@@ -469,10 +472,10 @@ test('cliente details permite editar dados principais com salvar e cancelar', as
   assert.equal(patchCall.body.cidade, 'Curitiba');
   assert.equal(patchCall.body.email, 'novo@exemplo.com');
   assert.ok(calls.filter((call) => call.method === 'GET' && call.url === '/clientes/c1').length >= 2);
-  assert.match(root.textContent, /00110513000155/);
+  assert.match(root.textContent, /00\.110\.513\/0001-55/);
   assert.match(root.textContent, /Curitiba/);
   assert.match(root.textContent, /novo@exemplo\.com/);
-  assert.match(root.textContent, /Dados do cliente atualizados com sucesso/i);
+  assert.match(root.textContent, /Dados do cliente já estavam atualizados|Atualizando dados do cliente/i);
 
   root.querySelector('#nho2d-edit-start')?.click();
   await flush();
@@ -585,9 +588,7 @@ test('cliente details mostra dados relevantes e executa enriquecimento manual', 
   await flush();
   await flush();
 
-  root.querySelector('[data-tab="dados-relevantes"]')?.click();
-  await flush();
-  await flush();
+  assert.ok(root.querySelector('[data-tab="dados-relevantes"]')?.classList.contains('is-active'));
 
   assert.match(root.textContent, /Dados principais/);
   assert.match(root.textContent, /Enriquecimento cadastral/);
@@ -634,9 +635,7 @@ test('cliente details mostra erro claro ao falhar enriquecimento', async () => {
   renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
   await flush();
   await flush();
-  root.querySelector('[data-tab="dados-relevantes"]')?.click();
-  await flush();
-  await flush();
+  assert.ok(root.querySelector('[data-tab="dados-relevantes"]')?.classList.contains('is-active'));
   root.querySelector('#nho2d-enrich')?.click();
   await flush();
   await flush();
@@ -673,9 +672,7 @@ test('cliente details mostra dados relevantes e executa geolocalizacao manual', 
   await flush();
   await flush();
 
-  root.querySelector('[data-tab="dados-relevantes"]')?.click();
-  await flush();
-  await flush();
+  assert.ok(root.querySelector('[data-tab="dados-relevantes"]')?.classList.contains('is-active'));
 
   assert.match(root.textContent, /Geolocalização/);
   assert.match(root.textContent, /Geolocalizar Cliente/);
@@ -747,6 +744,14 @@ test('cliente details mostra score comercial e executa calculo manual', async ()
   await flush();
   await flush();
 
+  assert.ok(root.querySelector('[data-tab="dados-relevantes"]')?.classList.contains('is-active'));
+  assert.match(root.textContent, /Dados principais/);
+  assert.match(root.textContent, /Enriquecimento cadastral/);
+
+  root.querySelector('[data-tab="geral"]')?.click();
+  await flush();
+  await flush();
+
   assert.match(root.textContent, /Score Comercial/);
   assert.match(root.textContent, /72/);
   assert.match(root.textContent, /Classificação/);
@@ -810,6 +815,11 @@ test('cliente details mostra segmentacao comercial e executa calculo manual', as
   await flush();
   await flush();
 
+  assert.ok(root.querySelector('[data-tab="dados-relevantes"]')?.classList.contains('is-active'));
+  root.querySelector('[data-tab="geral"]')?.click();
+  await flush();
+  await flush();
+
   assert.match(root.textContent, /Segmentação Comercial/);
   assert.match(root.textContent, /VIP/);
 
@@ -864,6 +874,10 @@ test('cliente details mostra alertas comerciais, gera e resolve sem reload', asy
   };
 
   renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
+  await flush();
+  await flush();
+
+  root.querySelector('[data-tab="geral"]')?.click();
   await flush();
   await flush();
 

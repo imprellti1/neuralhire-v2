@@ -214,6 +214,9 @@ test('clientes: detalhe 360 abre com abas e accordion de pedidos', async () => {
   assert.ok(document.querySelector('[data-tab="dados-relevantes"]'));
   assert.ok(document.querySelector('[data-tab="comercial"]'));
   assert.ok(document.querySelector('[data-tab="alertas"]'));
+  assert.equal(document.querySelector('[data-tab="segmentacao"]'), null);
+  assert.ok(document.querySelector('[data-tab="dados-relevantes"]')?.classList.contains('is-active'));
+  assert.match(document.body.textContent, /Dados principais/i);
   document.querySelector('[data-tab="comercial"]')?.click();
   await flush(); await flush();
   assert.match(document.body.textContent, /Últimos Pedidos/i);
