@@ -160,12 +160,17 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-tab{border:1px solid #243253;background:#10192d;color:#a7b6d4;border-radius:999px;padding:10px 14px;font-weight:700;cursor:pointer}
     .nho2d-tab.is-active{background:#2f6dff;color:#fff;box-shadow:0 10px 22px rgba(47,109,255,.28)}
     .nho2d-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);gap:16px}
-    .nho2d-dados-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px;align-items:start}
-    .cliente360-relevant-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px;align-items:start}
-    .cliente360-card-primary{min-height:100%}
-    .cliente360-right-column{display:grid;gap:16px;min-width:0;align-self:stretch}
-    .cliente360-card-map{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,420px);gap:14px;min-width:0;align-items:start}
-    .cliente360-map-frame{width:100%;height:220px;border:0;border-radius:12px;overflow:hidden;display:block}
+    .nho2d-dados-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+    .cliente360-relevant-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+    .cliente360-card-primary{min-height:100%;display:flex;flex-direction:column}
+    .cliente360-card-primary .cliente360-card-body{flex:1}
+    .cliente360-card-enrichment{grid-column:2;grid-row:1}
+    .cliente360-card-address{grid-column:3;grid-row:1}
+    .cliente360-card-summary{grid-column:3;grid-row:2}
+    .cliente360-card-primary{grid-column:1;grid-row:1}
+    .cliente360-card-map{display:grid;grid-column:1 / -1;grid-template-columns:minmax(0,1fr) minmax(420px,1.2fr);gap:18px;min-width:0;align-items:stretch}
+    .cliente360-map-left{display:grid;align-content:start;gap:12px}
+    .cliente360-map-frame{width:100%;height:240px;border:0;border-radius:12px;overflow:hidden;display:block;min-height:220px}
     .nho2d-single-col{display:grid;grid-template-columns:1fr;gap:10px}
     .nho2d-stack{display:grid;gap:14px}
     .nho2d-card{background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98));border:1px solid rgba(148,163,184,.18);border-radius:16px;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,.22)}
@@ -250,7 +255,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-shell .nho2-btn.secondary{background:#111a2e;color:#d9e4f7;border-color:#263655;box-shadow:none}
     .nho2d-shell .nho2-btn.ghost{background:transparent;color:#d9e4f7;border-color:rgba(148,163,184,.22);box-shadow:none}
     @media (max-width:1280px){.nho2d-title{font-size:28px}}
-    @media (max-width:1280px){.nho2d-dados-grid,.cliente360-relevant-grid{grid-template-columns:1fr}.cliente360-card-primary{min-height:0}.cliente360-card-map{grid-template-columns:1fr}.cliente360-map-frame{height:240px}}
+    @media (max-width:1280px){.nho2d-dados-grid,.cliente360-relevant-grid{grid-template-columns:1fr}.cliente360-card-primary{min-height:0}.cliente360-card-enrichment,.cliente360-card-address,.cliente360-card-summary{grid-column:auto;grid-row:auto}.cliente360-card-map{grid-template-columns:1fr}.cliente360-map-frame{height:240px}}
     @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-dados-grid{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}.nho2d-kpi-grid{grid-template-columns:1fr}}
     `;
     document.head.appendChild(style);
@@ -720,6 +725,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       <div class="cliente360-relevant-grid nho2d-dados-grid">
         <article class="nho2d-card cliente360-card-primary">
           <h3>Dados principais</h3>
+          <div class="cliente360-card-body">
           ${editMode ? `
             <div class="nho2d-header" style="margin-bottom:12px">
               <div class="nho2d-sub">Controle explícito de edição para os dados principais do cliente.</div>
@@ -734,9 +740,9 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
             ${renderPrincipalFields()}
             <div style="margin-top:14px"><button id="nho2d-edit-start" class="nho2-btn">Editar dados</button></div>
           `}
+          </div>
         </article>
-        <div class="cliente360-right-column">
-          <article class="nho2d-card">
+        <article class="nho2d-card cliente360-card-enrichment">
             <div class="nho2d-header" style="margin-bottom:12px">
               <div>
                 <h3 style="margin:0 0 4px">Enriquecimento cadastral</h3>
@@ -757,7 +763,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
               ['Última atualização', formatDateFriendly(d?.enriquecimento_ultima_execucao)]
             ])}
           </article>
-          <article class="nho2d-card">
+        <article class="nho2d-card cliente360-card-address">
             <h3>Endereço</h3>
             ${cardFields([
               ['Logradouro', d?.logradouro],
@@ -768,7 +774,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
               ['UF', d?.uf]
             ])}
           </article>
-          <article class="nho2d-card">
+        <article class="nho2d-card cliente360-card-summary">
             <h3>Resumo</h3>
             ${cardFields([
               ['Status do enriquecimento', enrichmentStatus],
@@ -777,10 +783,9 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
               ['Eventos na Timeline', timelineCount]
             ])}
           </article>
-        </div>
         <article class="nho2d-card cliente360-card-map" style="grid-column:1 / -1">
-          <div>
-            <div class="nho2d-header" style="margin-bottom:12px">
+          <div class="cliente360-map-left">
+            <div class="nho2d-header" style="margin-bottom:0">
               <div>
                 <h3 style="margin:0 0 4px">Geolocalização</h3>
                 <div class="nho2d-sub">Consulta manual do endereço do cliente via Nominatim/OpenStreetMap.</div>
@@ -796,7 +801,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
               ['Última atualização', formatDateFriendly(d?.geolocalizacao_ultima_execucao)]
             ])}
           </div>
-          <div style="min-width:0;overflow:hidden;border-radius:12px">${hasCoordinates ? `<iframe title="Mapa do cliente" src="${iframeSrc}" class="cliente360-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>` : '<div class="nho2d-crm-empty" style="height:220px;display:flex;align-items:center;justify-content:center">Sem coordenadas para exibir o mapa.</div>'}</div>
+          <div style="min-width:0;overflow:hidden;border-radius:12px;height:100%">${hasCoordinates ? `<iframe title="Mapa do cliente" src="${iframeSrc}" class="cliente360-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>` : '<div class="nho2d-crm-empty" style="height:240px;display:flex;align-items:center;justify-content:center">Sem coordenadas para exibir o mapa.</div>'}</div>
         </article>
       </div>
     `;
