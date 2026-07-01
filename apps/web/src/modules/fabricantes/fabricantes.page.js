@@ -2,6 +2,7 @@ import { createFabricantesState } from './fabricantes.state.js';
 import { deleteCondicaoPagamento, deleteFabricanteVendedor, fetchCondicoesPagamento, fetchFabricanteData, fetchFabricanteVendedores, fetchFabricantesData, lookupCnpj, saveCondicaoPagamento, saveFabricante, saveFabricanteVendedor, saveFabricanteVendedores, uploadFabricanteLogo } from './fabricantes.service.js';
 import { mapFabricantesData } from './fabricantes.mapper.js';
 import { fetchVendedoresData } from '../vendedores/vendedores.service.js';
+import { formatCnpj, onlyDigits } from '../../utils/br-formatters.js';
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -22,21 +23,6 @@ function parseBrlInput(value) {
 function formatCurrencyFromNumber(value) {
   const num = Number(value);
   return Number.isFinite(num) ? brl(num) : '';
-}
-
-function onlyDigits(value) {
-  return String(value || '').replace(/\D/g, '');
-}
-
-function formatCnpj(value) {
-  const digits = onlyDigits(value).slice(0, 14);
-  const parts = [digits.slice(0, 2), digits.slice(2, 5), digits.slice(5, 8), digits.slice(8, 12), digits.slice(12, 14)];
-  return [parts[0], parts[1], parts[2], parts[3], parts[4]].filter(Boolean).reduce((acc, part, index) => {
-    if (index === 0) return part;
-    if (index === 1 || index === 2) return `${acc}.${part}`;
-    if (index === 3) return `${acc}/${part}`;
-    return `${acc}-${part}`;
-  }, '');
 }
 
 function parsePaymentCondition(value) {

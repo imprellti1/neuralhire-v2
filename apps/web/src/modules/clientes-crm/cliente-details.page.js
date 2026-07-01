@@ -1,6 +1,7 @@
 import { createClienteDetailsState } from './cliente-details.state.js';
 import { atualizarCliente, calcularScoreCliente, calcularSegmentacaoCliente, enriquecerCliente, fetchAlertasCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, fetchWhatsappConversationMessagesCliente, fetchWhatsappConversationsCliente, gerarAlertasCliente, geolocalizarCliente, resolverAlertaCliente, sincronizarCliente360 } from './cliente-details.service.js';
 import { fetchClienteTimeline } from './cliente-timeline.service.js';
+import { formatCnpj } from '../../utils/br-formatters.js';
 
 function fmtCurrency(v) { return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
 function fmtDate(v) {
@@ -159,11 +160,14 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-tab{border:1px solid #243253;background:#10192d;color:#a7b6d4;border-radius:999px;padding:10px 14px;font-weight:700;cursor:pointer}
     .nho2d-tab.is-active{background:#2f6dff;color:#fff;box-shadow:0 10px 22px rgba(47,109,255,.28)}
     .nho2d-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);gap:16px}
-    .nho2d-dados-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:stretch}
+    .nho2d-dados-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(0,max-content);gap:16px;align-items:start}
+    .nho2d-card-principal{grid-row:span 2}
+    .nho2d-single-col{display:grid;grid-template-columns:1fr;gap:10px}
     .nho2d-stack{display:grid;gap:14px}
     .nho2d-card{background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98));border:1px solid rgba(148,163,184,.18);border-radius:16px;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,.22)}
     .nho2d-card h3{margin:0 0 10px;font-size:16px;color:#f5f7fb}
     .nho2d-dl{display:grid;grid-template-columns:160px minmax(0,1fr);gap:10px 14px;margin:0}
+    .nho2d-dl-single{grid-template-columns:170px minmax(0,1fr)}
     .nho2d-dt{color:#93a4c7;font-weight:600}
     .nho2d-dd{margin:0;color:#e7eefb}
     .nho2d-right{text-align:right}
@@ -242,7 +246,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-shell .nho2-btn.secondary{background:#111a2e;color:#d9e4f7;border-color:#263655;box-shadow:none}
     .nho2d-shell .nho2-btn.ghost{background:transparent;color:#d9e4f7;border-color:rgba(148,163,184,.22);box-shadow:none}
     @media (max-width:1280px){.nho2d-title{font-size:28px}}
-    @media (max-width:1280px){.nho2d-dados-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:1280px){.nho2d-dados-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.nho2d-card-principal{grid-row:auto}}
     @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-dados-grid{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}.nho2d-kpi-grid{grid-template-columns:1fr}}
     `;
     document.head.appendChild(style);
@@ -290,6 +294,10 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     return `<label class="nho2d-edit-field" for="${id}"><span class="nho2d-edit-label">${label}</span><input id="${id}" class="nho2d-edit-input" type="${type}" value="${safeText(value, '')}" ${extra}></label>`;
   }
 
+  function renderEditSelect(id, label, value, options) {
+    return `<label class="nho2d-edit-field" for="${id}"><span class="nho2d-edit-label">${label}</span><select id="${id}" class="nho2d-edit-input">${options.map((option) => `<option value="${option.value}" ${String(value || '') === option.value ? 'selected' : ''}>${option.label}</option>`).join('')}</select></label>`;
+  }
+
   function renderEditForm(d) {
     if (!editForm) editForm = buildEditForm(d);
     return `
@@ -325,7 +333,9 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       vendedor_id: String(data?.dadosCliente?.vendedor_id || data?.vendedor_id || '').trim(),
       documento: String(data?.dadosCliente?.documento || data?.documento || '').trim(),
       telefone: String(data?.dadosCliente?.telefone || data?.telefone || '').trim(),
+      telefone2: String(data?.telefone2 || data?.telefone_secundario || '').trim(),
       email: String(data?.dadosCliente?.email || data?.email || '').trim(),
+      site: String(data?.site || '').trim(),
       razao_social: String(data?.razao_social || data?.nomeEmpresa || '').trim()
     };
   }
@@ -673,9 +683,38 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     const iframeSrc = hasCoordinates ? `https://maps.google.com/maps?q=${d.latitude},${d.longitude}&z=15&output=embed` : '';
     const timelineCount = Array.isArray(d?.timeline) ? d.timeline.length : 0;
     const cardFields = (items) => `<dl class="nho2d-dl">${items.map(([label, value]) => `<dt class="nho2d-dt">${label}</dt><dd class="nho2d-dd">${safeValue(value)}</dd>`).join('')}</dl>`;
+    const renderPrincipalFields = () => {
+      if (editMode) {
+        return `<div class="nho2d-single-col">
+          ${renderEditField('nho2d-edit-cidade', 'Cidade', editForm?.cidade || '')}
+          ${renderEditField('nho2d-edit-estado', 'UF', editForm?.estado || '', 'text', 'maxlength="2"')}
+          ${renderEditSelect('nho2d-edit-status', 'Status do cliente', editForm?.status, [
+            { value: 'ativo', label: 'ativo' },
+            { value: 'inativo', label: 'inativo' },
+            { value: 'prospect', label: 'prospect' }
+          ])}
+          ${renderEditField('nho2d-edit-vendedor', 'Vendedor', editForm?.vendedor_id || '')}
+          ${renderEditField('nho2d-edit-documento', 'Documento (CNPJ)', formatCnpj(editForm?.documento || d?.dadosCliente?.documento || ''), 'text', 'disabled')}
+          ${renderEditField('nho2d-edit-telefone', 'Telefone', editForm?.telefone || '')}
+          ${renderEditField('nho2d-edit-telefone2', 'Telefone secundário', editForm?.telefone2 || '')}
+          ${renderEditField('nho2d-edit-email', 'E-mail', editForm?.email || '', 'email')}
+          ${renderEditField('nho2d-edit-site', 'Site', editForm?.site || '')}
+        </div>`;
+      }
+      return `<dl class="nho2d-dl nho2d-dl-single">${[
+        ['Cidade/UF', [d?.cidade, d?.uf].filter(Boolean).join(' / ') || '-'],
+        ['Status do cliente', d?.status || '-'],
+        ['Vendedor', d?.dadosCliente?.vendedor || '-'],
+        ['Documento (CNPJ)', formatCnpj(d?.dadosCliente?.documento || '') || '-'],
+        ['Telefone', d?.dadosCliente?.telefone || '-'],
+        ['Telefone secundário', d?.telefone2 || d?.telefone_secundario || '-'],
+        ['E-mail', d?.dadosCliente?.email || '-'],
+        ['Site', d?.site || '-']
+      ].map(([label, value]) => `<dt class="nho2d-dt">${label}</dt><dd class="nho2d-dd">${safeValue(value)}</dd>`).join('')}</dl>`;
+    };
     return `
       <div class="nho2d-dados-grid">
-        <article class="nho2d-card">
+        <article class="nho2d-card nho2d-card-principal">
           <h3>Dados principais</h3>
           ${editMode ? `
             <div class="nho2d-header" style="margin-bottom:12px">
@@ -686,16 +725,9 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
               </div>
             </div>
             ${editErrorMessage ? `<div class="nho2d-crm-empty" role="alert" style="margin-bottom:12px">${safeText(editErrorMessage, '')}</div>` : ''}
-            ${renderEditForm(d)}
+            ${renderPrincipalFields()}
           ` : `
-            ${cardFields([
-              ['Cidade/UF', [d?.cidade, d?.uf].filter(Boolean).join(' / ') || '-'],
-              ['Status do cliente', d?.status || '-'],
-              ['Vendedor', d?.dadosCliente?.vendedor || '-'],
-              ['Documento', d?.dadosCliente?.documento || '-'],
-              ['Telefone', d?.dadosCliente?.telefone || '-'],
-              ['E-mail', d?.dadosCliente?.email || '-']
-            ])}
+            ${renderPrincipalFields()}
             <div style="margin-top:14px"><button id="nho2d-edit-start" class="nho2-btn">Editar dados</button></div>
           `}
         </article>
@@ -993,7 +1025,9 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       bindEditInput('#nho2d-edit-vendedor', 'vendedor_id');
       bindEditInput('#nho2d-edit-documento', 'documento');
       bindEditInput('#nho2d-edit-telefone', 'telefone');
+      bindEditInput('#nho2d-edit-telefone2', 'telefone2');
       bindEditInput('#nho2d-edit-email', 'email');
+      bindEditInput('#nho2d-edit-site', 'site');
       bindEditInput('#nho2d-edit-razao-social', 'razao_social');
       const statusInput = root.querySelector('#nho2d-edit-status');
       if (statusInput) {
@@ -1018,7 +1052,9 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
               vendedor_id: String(editForm.vendedor_id || '').trim() || null,
               documento: String(editForm.documento || '').trim() || null,
               telefone: String(editForm.telefone || '').trim() || null,
-              email: String(editForm.email || '').trim() || null
+              telefone2: String(editForm.telefone2 || '').trim() || null,
+              email: String(editForm.email || '').trim() || null,
+              site: String(editForm.site || '').trim() || null
             };
             await atualizarCliente(apiClient, clienteId, payload);
             state.data = await fetchClienteDetailsData(apiClient, clienteId);

@@ -411,8 +411,9 @@ test('cliente details permite editar dados principais com salvar e cancelar', as
     created_at: '2026-05-01T00:00:00.000Z',
     status: 'ativo',
     vendedor_nome: 'Vendedor 1',
-    documento: '00.000.000/0001-00',
+    documento: '00110513000155',
     telefone: '(11) 99999-9999',
+    telefone2: '(11) 98888-8888',
     email: 'a@a.com'
   };
   const apiClient = {
@@ -445,6 +446,8 @@ test('cliente details permite editar dados principais com salvar e cancelar', as
   await flush();
   await flush();
   assert.ok(root.querySelector('#nho2d-edit-save'));
+  assert.equal(root.querySelector('#nho2d-edit-documento')?.disabled, true);
+  assert.match(root.querySelector('#nho2d-edit-documento')?.value || '', /00\.110\.513\/0001-55/);
   dispatchInput(root.querySelector('#nho2d-edit-cidade'), 'Curitiba');
   dispatchInput(root.querySelector('#nho2d-edit-email'), 'novo@exemplo.com');
   root.querySelector('#nho2d-edit-save')?.click();
@@ -456,6 +459,7 @@ test('cliente details permite editar dados principais com salvar e cancelar', as
   assert.equal(patchCall.body.cidade, 'Curitiba');
   assert.equal(patchCall.body.email, 'novo@exemplo.com');
   assert.ok(calls.filter((call) => call.method === 'GET' && call.url === '/clientes/c1').length >= 2);
+  assert.match(root.textContent, /00\.110\.513\/0001-55/);
   assert.match(root.textContent, /Curitiba/);
   assert.match(root.textContent, /novo@exemplo\.com/);
   assert.match(root.textContent, /Dados do cliente atualizados com sucesso/i);
