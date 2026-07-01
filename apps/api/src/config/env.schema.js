@@ -14,6 +14,11 @@ export const envSchema = {
   COGNITIVE_PROVIDER: { required: false, defaultValue: 'disabled' },
   EMBEDDING_WORKER_ENABLED: { required: false, defaultValue: 'false', allowed: ['true', 'false'] },
   EMBEDDING_PROVIDER: { required: false, defaultValue: 'disabled' },
+  WEB_DISCOVERY_ENABLED: { required: false, defaultValue: 'false', allowed: ['true', 'false'] },
+  WEB_DISCOVERY_PROVIDERS: { required: false, defaultValue: 'brave,tavily' },
+  BRAVE_SEARCH_API_KEY: { required: false, defaultValue: '' },
+  TAVILY_API_KEY: { required: false, defaultValue: '' },
+  WEB_DISCOVERY_MIN_CONFIDENCE: { required: false, defaultValue: '0.85', type: 'number' },
   ASAAS_ENV: { required: false, defaultValue: 'sandbox', allowed: ['sandbox', 'production'] },
   ASAAS_API_KEY: { required: false, defaultValue: '' },
   ASAAS_ALLOW_PRODUCTION: { required: false, defaultValue: 'false', allowed: ['true', 'false'] }

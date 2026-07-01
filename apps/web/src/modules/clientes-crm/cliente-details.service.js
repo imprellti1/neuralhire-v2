@@ -27,6 +27,10 @@ export async function sincronizarCliente360(apiClient, clienteId) {
   return apiClient.post(`/clientes/${clienteId}/sincronizar-360`);
 }
 
+export async function discoverClienteWebsite(apiClient, clienteId) {
+  return apiClient.post(`/clientes/${clienteId}/web-discovery`);
+}
+
 export async function enriquecerCliente(apiClient, clienteId) {
   return apiClient.post(`/clientes/${clienteId}/enriquecer`);
 }

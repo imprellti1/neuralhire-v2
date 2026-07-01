@@ -1,5 +1,5 @@
 import { createClienteDetailsState } from './cliente-details.state.js';
-import { atualizarCliente, calcularScoreCliente, calcularSegmentacaoCliente, enriquecerCliente, fetchAlertasCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, fetchWhatsappConversationMessagesCliente, fetchWhatsappConversationsCliente, gerarAlertasCliente, geolocalizarCliente, resolverAlertaCliente, sincronizarCliente360 } from './cliente-details.service.js';
+import { atualizarCliente, calcularScoreCliente, calcularSegmentacaoCliente, discoverClienteWebsite, enriquecerCliente, fetchAlertasCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, fetchWhatsappConversationMessagesCliente, fetchWhatsappConversationsCliente, gerarAlertasCliente, geolocalizarCliente, resolverAlertaCliente, sincronizarCliente360 } from './cliente-details.service.js';
 import { fetchClienteTimeline } from './cliente-timeline.service.js';
 import { formatCnpj } from '../../utils/br-formatters.js';
 
@@ -135,6 +135,8 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   let whatsappActiveConversationId = null;
   let syncLoading = false;
   let syncMessage = '';
+  let webDiscoveryLoading = false;
+  let webDiscoveryMessage = '';
   let editMode = false;
   let editSaving = false;
   let editErrorMessage = '';
@@ -691,6 +693,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     const iframeSrc = hasCoordinates ? `https://maps.google.com/maps?q=${d.latitude},${d.longitude}&z=15&output=embed` : '';
     const timelineCount = Array.isArray(d?.timeline) ? d.timeline.length : 0;
     const cardFields = (items) => `<dl class="nho2d-dl">${items.map(([label, value]) => `<dt class="nho2d-dt">${label}</dt><dd class="nho2d-dd">${safeValue(value)}</dd>`).join('')}</dl>`;
+    const hasSite = Boolean(String(d?.site || '').trim());
     const renderPrincipalFields = () => {
       if (editMode) {
         return `<div class="nho2d-single-col">
@@ -717,7 +720,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         ['Telefone', d?.dadosCliente?.telefone || '-'],
         ['Telefone secundário', d?.telefone2 || d?.telefone_secundario || '-'],
         ['E-mail', d?.dadosCliente?.email || '-'],
-        ['Site', d?.site || '-']
+        ['Site', hasSite ? `<a href="${d.site}" target="_blank" rel="noreferrer">${d.site}</a>` : '-']
       ].map(([label, value]) => `<dt class="nho2d-dt">${label}</dt><dd class="nho2d-dd">${safeValue(value)}</dd>`).join('')}</dl>`;
     };
     return `
@@ -737,7 +740,11 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
             ${renderPrincipalFields()}
           ` : `
             ${renderPrincipalFields()}
-            <div style="margin-top:14px"><button id="nho2d-edit-start" class="nho2-btn">Editar dados</button></div>
+            <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+              <button id="nho2d-edit-start" class="nho2-btn">Editar dados</button>
+              ${hasSite ? '' : `<button id="nho2d-web-discovery" class="nho2-btn secondary" ${webDiscoveryLoading ? 'disabled' : ''}>${webDiscoveryLoading ? 'Descobrindo...' : 'Descobrir site'}</button>`}
+            </div>
+            ${webDiscoveryMessage ? `<div class="nho2d-crm-empty" style="margin-top:12px">${safeText(webDiscoveryMessage, '')}</div>` : ''}
           `}
           </div>
         </article>
@@ -1118,6 +1125,30 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         }
       };
     }
+    const webDiscoveryBtn = root.querySelector('#nho2d-web-discovery');
+    if (webDiscoveryBtn) {
+      webDiscoveryBtn.onclick = async () => {
+        webDiscoveryLoading = true;
+        webDiscoveryMessage = 'Descobrindo site oficial...';
+        render();
+        try {
+          const response = await discoverClienteWebsite(apiClient, clienteId);
+          const result = response?.data || response || {};
+          if (result?.found && result?.site) {
+            state.data = { ...state.data, site: result.site };
+            webDiscoveryMessage = result.source === 'existing' ? 'O cliente já tinha site cadastrado.' : 'Site oficial descoberto com sucesso.';
+          } else {
+            webDiscoveryMessage = 'Nenhum site confiável foi identificado.';
+          }
+          state.data = await fetchClienteDetailsData(apiClient, clienteId);
+        } catch (error) {
+          webDiscoveryMessage = error?.body?.error?.message || error?.message || 'Falha ao descobrir site.';
+        } finally {
+          webDiscoveryLoading = false;
+          render();
+        }
+      };
+    }
     const scoreBtn = root.querySelector('#nho2d-score');
     if (scoreBtn) {
       scoreBtn.onclick = async () => {
@@ -1273,9 +1304,11 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     state.loading = true;
     state.error = false;
     state.notFound = false;
-    syncLoading = false;
-    syncMessage = '';
-    render();
+      syncLoading = false;
+      syncMessage = '';
+      webDiscoveryLoading = false;
+      webDiscoveryMessage = '';
+      render();
     try {
       state.data = await fetchClienteDetailsData(apiClient, clienteId);
       if (!state?.data?.id) state.notFound = true;
