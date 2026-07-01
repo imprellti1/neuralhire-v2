@@ -635,7 +635,8 @@ export function getPromocoesTests() {
         __resetMemoryPromocoesForTests();
         const app = createApiApp();
         const produto = await createProduto({ nome: 'Produto Promo', preco: 100, variacoes: [{ id: 'v1', produto_id: 'produto-1', account_id: 'acc-promo', preco: 80, ativo: true }] }, { accountId: 'acc-promo' });
-        const created = await call(app, { method: 'POST', url: '/promocoes', accountId: 'acc-promo', body: { produto_id: produto.id, nome: 'Black Friday', percentual_desconto: 10, data_inicio: '2026-06-01', data_fim: '2026-06-30', aplicar_em_todas_variacoes: true } });
+        const today = todayDateOnly();
+        const created = await call(app, { method: 'POST', url: '/promocoes', accountId: 'acc-promo', body: { produto_id: produto.id, nome: 'Black Friday', percentual_desconto: 10, data_inicio: today, data_fim: today, aplicar_em_todas_variacoes: true } });
         assert.equal(created.res.statusCode, 200);
         assert.equal(created.body.item.ativaAgora, true);
         const list = await call(app, { method: 'GET', url: `/produtos/${produto.id}/promocoes`, accountId: 'acc-promo' });
@@ -794,6 +795,7 @@ export function getPromocoesTests() {
       name: 'rejeita variacao sem estoque e aceita variação com estoque',
       run: async () => {
         __resetMemoryProdutosForTests();
+        __resetMemoryProductEditorForTests();
         __resetMemoryPromocoesForTests();
         const app = createApiApp();
         const produto = {

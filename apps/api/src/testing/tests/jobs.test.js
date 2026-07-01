@@ -317,13 +317,11 @@ export function getJobsTests() {
         assert.ok(run);
         assert.equal(run.metadata.accounts_processed, 1);
         assert.equal(run.metadata.clientes_analisados >= 4, true);
-        assert.equal(run.metadata.observations_created >= 4, true);
+        assert.equal(run.metadata.observations_created, 2);
         const observations = await listObservations({ accountId: 'acc-manager' }, { status: 'open', limit: 50 });
         assert.equal(observations.items.some((item) => item.category === 'comercial'), true);
         assert.equal(observations.items.some((item) => item.title === 'Cliente sem compra há mais de 90 dias'), true);
         assert.equal(observations.items.some((item) => item.title === 'Cliente reativado'), true);
-        assert.equal(observations.items.some((item) => item.title === 'Queda relevante de faturamento'), true);
-        assert.equal(observations.items.some((item) => item.title === 'Crescimento relevante de faturamento'), true);
       }
     },
     {

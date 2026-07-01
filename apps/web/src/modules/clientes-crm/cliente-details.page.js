@@ -160,78 +160,78 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-tab.is-active{background:#2f6dff;color:#fff;box-shadow:0 10px 22px rgba(47,109,255,.28)}
     .nho2d-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);gap:16px}
     .nho2d-stack{display:grid;gap:14px}
-    .nho2d-card{background:#f6f8fc;border:1px solid #dfe7f3;border-radius:16px;padding:20px;box-shadow:0 10px 24px rgba(4,10,20,.18)}
-    .nho2d-card h3{margin:0 0 10px;font-size:16px;color:#0e1726}
+    .nho2d-card{background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98));border:1px solid rgba(148,163,184,.18);border-radius:16px;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,.22)}
+    .nho2d-card h3{margin:0 0 10px;font-size:16px;color:#f5f7fb}
     .nho2d-dl{display:grid;grid-template-columns:160px minmax(0,1fr);gap:10px 14px;margin:0}
-    .nho2d-dt{color:#5e6f93;font-weight:600}
-    .nho2d-dd{margin:0;color:#1d2e4f}
+    .nho2d-dt{color:#93a4c7;font-weight:600}
+    .nho2d-dd{margin:0;color:#e7eefb}
     .nho2d-right{text-align:right}
     .nho2d-table-wrap{overflow:auto}
     .nho2d-table{width:100%;border-collapse:separate;border-spacing:0}
-    .nho2d-table th{background:#f2f6ff;color:#284276;text-align:left;font-size:13px;padding:10px 12px}
-    .nho2d-table td{padding:12px;border-top:1px solid #e8eef8;color:#23355c;vertical-align:top}
-    .nho2d-table tbody tr:nth-child(even){background:#fcfdff}
-    .nho2d-table tbody tr:hover{background:#f7faff}
-    .nho2d-empty{padding:16px 6px;color:#5b6c90}
+    .nho2d-table th{background:rgba(255,255,255,.03);color:#a9bbd8;text-align:left;font-size:13px;padding:10px 12px}
+    .nho2d-table td{padding:12px;border-top:1px solid rgba(148,163,184,.12);color:#e7eefb;vertical-align:top}
+    .nho2d-table tbody tr:nth-child(even){background:rgba(255,255,255,.015)}
+    .nho2d-table tbody tr:hover{background:rgba(79,140,255,.08)}
+    .nho2d-empty{padding:16px 6px;color:#93a4c7}
     .nho2d-kpi-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-    .nho2d-kpi{border:1px solid #e5ecf8;border-radius:12px;padding:12px;background:#f9fbff}
-    .nho2d-kpi-label{color:#5e6f93;font-size:12px}
-    .nho2d-kpi-value{margin-top:4px;color:#183a86;font-size:18px;font-weight:700}
+    .nho2d-kpi{border:1px solid rgba(148,163,184,.16);border-radius:12px;padding:12px;background:rgba(255,255,255,.03)}
+    .nho2d-kpi-label{color:#93a4c7;font-size:12px}
+    .nho2d-kpi-value{margin-top:4px;color:#f5f7fb;font-size:18px;font-weight:700}
     .nho2d-section{display:grid;gap:14px}
-    .nho2d-accordion{border:1px solid #e5ecf8;border-radius:14px;overflow:hidden;background:#fff}
+    .nho2d-accordion{border:1px solid rgba(148,163,184,.16);border-radius:14px;overflow:hidden;background:rgba(255,255,255,.02)}
     .nho2d-accordion-head{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;background:transparent;border:0;cursor:pointer;text-align:left}
-    .nho2d-accordion-head:hover{background:#f7faff}
+    .nho2d-accordion-head:hover{background:rgba(79,140,255,.08)}
     .nho2d-accordion-title{display:grid;gap:4px;min-width:0}
-    .nho2d-accordion-title strong{font-size:15px;color:#10264b}
-    .nho2d-accordion-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;color:#5e6f93;font-size:13px}
-    .nho2d-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#eef4ff;color:#2d57b8;border:1px solid #d8e5ff}
+    .nho2d-accordion-title strong{font-size:15px;color:#f5f7fb}
+    .nho2d-accordion-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;color:#93a4c7;font-size:13px}
+    .nho2d-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:rgba(47,109,255,.18);color:#cfe0ff;border:1px solid rgba(79,140,255,.24)}
     .nho2d-accordion-body{padding:0 18px 16px}
     .nho2d-chevron{transition:transform .2s ease;color:#5e6f93}
     .nho2d-accordion.is-open .nho2d-chevron{transform:rotate(180deg)}
     .nho2d-item-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
-    .nho2d-item-note{font-size:12px;color:#62759a}
-    .nho2d-mini-loading{padding:10px 0;color:#62759a;font-size:13px}
-    .nho2d-crm-empty{padding:18px;border:1px dashed #d5e0f3;border-radius:12px;color:#5b6c90;background:#fbfcff}
+    .nho2d-item-note{font-size:12px;color:#93a4c7}
+    .nho2d-mini-loading{padding:10px 0;color:#93a4c7;font-size:13px}
+    .nho2d-crm-empty{padding:18px;border:1px dashed rgba(148,163,184,.2);border-radius:12px;color:#b8c6e0;background:rgba(255,255,255,.02)}
     .nho2d-actions{display:flex;gap:8px;flex-wrap:wrap}
     .nho2d-edit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
     .nho2d-edit-field{display:grid;gap:6px}
-    .nho2d-edit-label{font-size:12px;font-weight:700;color:#5e6f93}
-    .nho2d-edit-input{width:100%;border:1px solid #dbe4f2;border-radius:10px;padding:10px 12px;font:inherit;color:#10264b;background:#fff}
-    .nho2d-edit-input:focus{outline:2px solid #c4d6ff;outline-offset:1px;border-color:#9cb8ff}
+    .nho2d-edit-label{font-size:12px;font-weight:700;color:#93a4c7}
+    .nho2d-edit-input{width:100%;border:1px solid rgba(148,163,184,.22);border-radius:10px;padding:10px 12px;font:inherit;color:#e7eefb;background:#0b1628}
+    .nho2d-edit-input:focus{outline:2px solid rgba(79,140,255,.28);outline-offset:1px;border-color:#5b8cff}
     .nho2d-whatsapp{display:grid;grid-template-columns:minmax(260px,340px) minmax(0,1fr);gap:14px;min-height:520px}
     .nho2d-whatsapp-list{display:grid;gap:10px}
-    .nho2d-whatsapp-item{border:1px solid #e5ecf8;border-radius:12px;padding:14px;background:#fbfdff;cursor:pointer;display:grid;gap:6px;text-align:left}
-    .nho2d-whatsapp-item.is-active{border-color:#95b2ff;background:#eef4ff}
+    .nho2d-whatsapp-item{border:1px solid rgba(148,163,184,.16);border-radius:12px;padding:14px;background:rgba(255,255,255,.02);cursor:pointer;display:grid;gap:6px;text-align:left}
+    .nho2d-whatsapp-item.is-active{border-color:rgba(79,140,255,.5);background:rgba(47,109,255,.14)}
     .nho2d-whatsapp-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
-    .nho2d-whatsapp-title{font-weight:700;color:#10264b}
-    .nho2d-whatsapp-meta{color:#62759a;font-size:12px;display:flex;flex-wrap:wrap;gap:8px}
-    .nho2d-whatsapp-preview{color:#46587a;font-size:13px;line-height:1.4}
+    .nho2d-whatsapp-title{font-weight:700;color:#f5f7fb}
+    .nho2d-whatsapp-meta{color:#93a4c7;font-size:12px;display:flex;flex-wrap:wrap;gap:8px}
+    .nho2d-whatsapp-preview{color:#c0cce3;font-size:13px;line-height:1.4}
     .nho2d-whatsapp-thread{display:grid;gap:10px}
-    .nho2d-whatsapp-msg{max-width:78%;padding:12px 14px;border-radius:14px;border:1px solid #dde7f6;background:#f8fbff;display:grid;gap:4px}
-    .nho2d-whatsapp-msg.is-inbound{margin-right:auto;background:#fff}
-    .nho2d-whatsapp-msg.is-outbound{margin-left:auto;background:#eaf2ff;border-color:#c9dbff}
-    .nho2d-whatsapp-msg-meta{color:#64748b;font-size:12px}
+    .nho2d-whatsapp-msg{max-width:78%;padding:12px 14px;border-radius:14px;border:1px solid rgba(148,163,184,.16);background:rgba(255,255,255,.03);display:grid;gap:4px}
+    .nho2d-whatsapp-msg.is-inbound{margin-right:auto;background:rgba(255,255,255,.02)}
+    .nho2d-whatsapp-msg.is-outbound{margin-left:auto;background:rgba(47,109,255,.12);border-color:rgba(79,140,255,.24)}
+    .nho2d-whatsapp-msg-meta{color:#93a4c7;font-size:12px}
     .nho2d-alert-card{display:grid;gap:12px}
     .nho2d-alert-list{display:grid;gap:10px}
-    .nho2d-alert-item{border:1px solid #e5ecf8;border-radius:12px;padding:14px;background:#fbfdff;display:grid;gap:8px}
+    .nho2d-alert-item{border:1px solid rgba(148,163,184,.16);border-radius:12px;padding:14px;background:rgba(255,255,255,.02);display:grid;gap:8px}
     .nho2d-alert-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
-    .nho2d-alert-title{font-weight:700;color:#10264b}
-    .nho2d-alert-desc{color:#5e6f93;font-size:13px;line-height:1.45}
+    .nho2d-alert-title{font-weight:700;color:#f5f7fb}
+    .nho2d-alert-desc{color:#b8c6e0;font-size:13px;line-height:1.45}
     .nho2d-alert-actions{display:flex;gap:8px;flex-wrap:wrap}
     .nho2d-timeline-list{display:grid;gap:12px}
-    .nho2d-timeline-item{display:flex;gap:12px;padding:14px;border:1px solid #e5ecf8;border-radius:12px;background:#fbfdff}
-    .nho2d-timeline-icon{width:34px;height:34px;border-radius:999px;background:#eef4ff;color:#2450b8;display:flex;align-items:center;justify-content:center;font-weight:800;flex:0 0 auto}
+    .nho2d-timeline-item{display:flex;gap:12px;padding:14px;border:1px solid rgba(148,163,184,.16);border-radius:12px;background:rgba(255,255,255,.02)}
+    .nho2d-timeline-icon{width:34px;height:34px;border-radius:999px;background:rgba(47,109,255,.18);color:#cfe0ff;display:flex;align-items:center;justify-content:center;font-weight:800;flex:0 0 auto}
     .nho2d-timeline-body{min-width:0;display:grid;gap:4px}
-    .nho2d-timeline-title{font-weight:700;color:#10264b}
-    .nho2d-timeline-desc{color:#5e6f93;font-size:13px;line-height:1.45}
-    .nho2d-timeline-meta{color:#7b88a6;font-size:12px}
+    .nho2d-timeline-title{font-weight:700;color:#f5f7fb}
+    .nho2d-timeline-desc{color:#b8c6e0;font-size:13px;line-height:1.45}
+    .nho2d-timeline-meta{color:#93a4c7;font-size:12px}
     .nho2d-group-summary{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
     .nho2d-group-body{padding:0 18px 16px}
     .nho2d-group-empty{padding:0 18px 16px;color:#62759a}
     .nho2d-product-row{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;background:transparent;border:0;cursor:pointer;text-align:left}
     .nho2d-product-row:hover{background:#f7faff}
-    .nho2d-product-name{min-width:0;font-weight:700;color:#10264b}
-    .nho2d-product-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;color:#5e6f93;font-size:13px}
+    .nho2d-product-name{min-width:0;font-weight:700;color:#f5f7fb}
+    .nho2d-product-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;color:#93a4c7;font-size:13px}
     .nho2d-variation-panel{padding:0 18px 16px}
     .nho2d-variation-note{font-size:12px;color:#62759a;margin-top:4px}
     .nho2d-sync{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:#15213a;border:1px solid #253556;color:#b9c8e6;font-size:12px;font-weight:700}
@@ -239,6 +239,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-shell .nho2d-badge{background:#18243d;color:#dbe6ff;border-color:#273454}
     .nho2d-shell .nho2-btn{background:#2f6dff;color:#fff;border:1px solid #366fff;box-shadow:0 10px 20px rgba(47,109,255,.20)}
     .nho2d-shell .nho2-btn.secondary{background:#111a2e;color:#d9e4f7;border-color:#263655;box-shadow:none}
+    .nho2d-shell .nho2-btn.ghost{background:transparent;color:#d9e4f7;border-color:rgba(148,163,184,.22);box-shadow:none}
     @media (max-width:1280px){.nho2d-title{font-size:28px}}
     @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}.nho2d-kpi-grid{grid-template-columns:1fr}}
     `;
@@ -364,7 +365,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
             ${d?.dataCadastro ? `<span><strong>Cadastrado em:</strong> ${fmtDate(d.dataCadastro)}</span>` : ''}
           </div>
         </div>
-        <button id="nhcd-back" class="nho2-btn" style="background:#fff;color:#1f56dc">Voltar</button>
+        <button id="nhcd-back" class="nho2-btn ghost">Voltar</button>
       </div>
       <div class="nho2d-tabs" role="tablist" aria-label="Detalhes do cliente">
         ${['geral', 'comercial', 'crm', 'enriquecimento', 'geolocalizacao', 'timeline', 'whatsapp'].map((tab) => `<button class="nho2d-tab ${activeTab === tab ? 'is-active' : ''}" data-tab="${tab}" role="tab" aria-selected="${activeTab === tab ? 'true' : 'false'}">${getTabLabel(tab)}</button>`).join('')}
@@ -664,7 +665,6 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
 
   function renderEnriquecimento(d) {
     const status = safeValue(d?.enriquecimento_status ? String(d.enriquecimento_status).replace(/^./, (m) => m.toUpperCase()) : 'Pendente');
-    const payloadText = d?.enriquecimento_payload && Object.keys(d.enriquecimento_payload || {}).length ? JSON.stringify(d.enriquecimento_payload, null, 2) : '';
     return `
       <div class="nho2d-section">
         <article class="nho2d-card">
@@ -712,7 +712,6 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
             <dt class="nho2d-dt">Estado</dt><dd class="nho2d-dd">${safeValue(d?.uf)}</dd>
           </dl>
         </article>
-        ${d?.enriquecimento_payload && Object.keys(d.enriquecimento_payload || {}).length ? `<article class="nho2d-card"><h3>Payload bruto</h3><pre style="white-space:pre-wrap;word-break:break-word;margin:0">${safeText(payloadText, '')}</pre></article>` : ''}
       </div>
     `;
   }
