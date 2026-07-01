@@ -1129,86 +1129,97 @@ async function analyzeAdministrativeTenant({ accountId, context }) {
 }
 
 export async function runNotificacoesResumoSemanalJob(context = {}) {
-  const accountId = getAccountIdFromContext(context);
-  const startedAt = Date.now();
   const job = context.job || await resolveGlobalSystemJob('notificacoes_resumo_semanal') || await upsertSystemJob({ nome: 'notificacoes_resumo_semanal', lock_key: canonicalJobLockKey('notificacoes_resumo_semanal'), account_id: null, status: 'ativo', last_run_at: isoNow(), next_run_at: nextInMinutes(new Date(), 60 * 24 * 7) }, { accountId: null });
-  const periodEndDate = new Date();
-  const periodStartDate = new Date(periodEndDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const periodStart = periodStartDate.toISOString();
-  const periodEnd = periodEndDate.toISOString();
-  const baseNotification = { type: 'weekly_summary', sent: false, skipped: false, to: null, periodStart, periodEnd };
-  let metadata = { notification: { ...baseNotification } };
-
-  try {
-    const [runsResult, clientesResult] = await Promise.all([
-      listSystemJobRuns(accountId, { startedAfter: periodStart }),
-      listClientes({ page: 1, limit: 5000, ativo: true }, { accountId, context })
-    ]);
-    const runs = Array.isArray(runsResult) ? runsResult : [];
-    const clientes = Array.isArray(clientesResult?.items) ? clientesResult.items : [];
-    const summary = {
-      clientes_enriquecidos: runs.filter((run) => run.nome === 'clientes_enriquecimento_automatico' && Number(run.success_count || 0) > 0).length,
-      clientes_geolocalizados: runs.filter((run) => run.nome === 'clientes_geolocalizacao_automatico' && Number(run.success_count || 0) > 0).length,
-      erros_enriquecimento: runs.filter((run) => run.nome === 'clientes_enriquecimento_automatico' && Number(run.error_count || 0) > 0).length,
-      erros_geolocalizacao: runs.filter((run) => run.nome === 'clientes_geolocalizacao_automatico' && Number(run.error_count || 0) > 0).length,
-      clientes_situacao_irregular: clientes.filter((cliente) => cliente?.situacao_cadastral && !isSituacaoAtiva(cliente.situacao_cadastral)).length,
-      fila_enriquecimento_restante: countQueueRemainingByCandidates(clientes, 'enrichment'),
-      fila_geolocalizacao_restante: countQueueRemainingByCandidates(clientes, 'geolocation')
-    };
-
-    try {
-      const sent = await sendWeeklySummaryNotification({ accountId, summary, periodStart, periodEnd, jobRunId: null });
-      metadata.notification = { ...metadata.notification, sent: Boolean(sent?.sent), skipped: Boolean(sent?.skipped), to: sent?.to || null };
-      if (sent?.reason === 'recipient_missing') metadata.notification_skipped = true;
-    } catch (error) {
-      metadata.notification.sent = false;
-      metadata.notification.error = error?.message || String(error);
-      console.error('[jobs.scheduler] notification_error', { type: 'weekly_summary', account_id: accountId, message: error?.message || String(error) });
-    }
-
-    await recordSystemJobRun({
-      job_id: job.id,
-      account_id: accountId,
-      nome: job.nome,
-      status: 'success',
-      started_at: new Date(startedAt).toISOString(),
-      finished_at: isoNow(),
-      duration_ms: Date.now() - startedAt,
-      processed_count: 0,
-      success_count: 0,
-      error_count: 0,
-      metadata,
-      error: null
-    }, { accountId }).catch((error) => {
-      logJobError('recordSystemJobRun', error, { accountId, lockKey: job.lock_key, requestId: context.requestId || null });
-      return null;
+  const tenantAccountIds = await listTenantAccountIds();
+  if (!tenantAccountIds.length) {
+    const nextRunAt = nextInMinutes(new Date(), 60 * 24 * 7);
+    await updateSystemJobSchedule({ id: job.id, jobKey: job.nome }, { status: 'ativo', last_error: null, next_run_at: nextRunAt, locked_at: null, locked_by: null, last_run_at: isoNow() }, { accountId: null }).catch((error) => {
+      logJobError('updateSystemJobSchedule', error, { accountId: null, lockKey: job.lock_key, requestId: context.requestId || null });
     });
-
-    await releaseSystemJobLock(job.lock_key, { locked_at: null, locked_by: null }).catch((error) => {
-      logJobError('releaseSystemJobLock', error, { accountId, lockKey: job.lock_key, requestId: context.requestId || null });
-      return null;
-    });
-    await updateSystemJobSchedule({ id: job.id, jobKey: job.nome }, { status: 'ativo', last_success_at: isoNow(), last_error: null, next_run_at: new Date(periodEndDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(), locked_at: null, locked_by: null, last_run_at: isoNow() }, { accountId: null });
-  } catch (error) {
-    await recordSystemJobRun({
-      job_id: job.id,
-      account_id: accountId,
-      nome: job.nome,
-      status: 'error',
-      started_at: new Date(startedAt).toISOString(),
-      finished_at: isoNow(),
-      duration_ms: Date.now() - startedAt,
-      processed_count: 0,
-      success_count: 0,
-      error_count: 1,
-      metadata,
-      error: error?.message || String(error)
-    }, { accountId }).catch(() => null);
-    await releaseSystemJobLock(job.lock_key, { locked_at: null, locked_by: null }).catch(() => null);
-    throw error;
+    return { ok: true, job, accountIds: [], skipped: true, reason: 'no_tenants' };
   }
 
-  return { ok: true, job };
+  const results = [];
+  for (const accountId of tenantAccountIds) {
+    const startedAt = Date.now();
+    const periodEndDate = new Date();
+    const periodStartDate = new Date(periodEndDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const periodStart = periodStartDate.toISOString();
+    const periodEnd = periodEndDate.toISOString();
+    const baseNotification = { type: 'weekly_summary', sent: false, skipped: false, to: null, periodStart, periodEnd };
+    let metadata = { notification: { ...baseNotification } };
+
+    try {
+      const [runsResult, clientesResult] = await Promise.all([
+        listSystemJobRuns(accountId, { startedAfter: periodStart }),
+        listClientes({ page: 1, limit: 5000, ativo: true }, { accountId, context })
+      ]);
+      const runs = Array.isArray(runsResult) ? runsResult : [];
+      const clientes = Array.isArray(clientesResult?.items) ? clientesResult.items : [];
+      const summary = {
+        clientes_enriquecidos: runs.filter((run) => run.nome === 'clientes_enriquecimento_automatico' && Number(run.success_count || 0) > 0).length,
+        clientes_geolocalizados: runs.filter((run) => run.nome === 'clientes_geolocalizacao_automatico' && Number(run.success_count || 0) > 0).length,
+        erros_enriquecimento: runs.filter((run) => run.nome === 'clientes_enriquecimento_automatico' && Number(run.error_count || 0) > 0).length,
+        erros_geolocalizacao: runs.filter((run) => run.nome === 'clientes_geolocalizacao_automatico' && Number(run.error_count || 0) > 0).length,
+        clientes_situacao_irregular: clientes.filter((cliente) => cliente?.situacao_cadastral && !isSituacaoAtiva(cliente.situacao_cadastral)).length,
+        fila_enriquecimento_restante: countQueueRemainingByCandidates(clientes, 'enrichment'),
+        fila_geolocalizacao_restante: countQueueRemainingByCandidates(clientes, 'geolocation')
+      };
+
+      try {
+        const sent = await sendWeeklySummaryNotification({ accountId, summary, periodStart, periodEnd, jobRunId: null });
+        metadata.notification = { ...metadata.notification, sent: Boolean(sent?.sent), skipped: Boolean(sent?.skipped), to: sent?.to || null };
+        if (sent?.reason === 'recipient_missing') metadata.notification_skipped = true;
+      } catch (error) {
+        metadata.notification.sent = false;
+        metadata.notification.error = error?.message || String(error);
+        console.error('[jobs.scheduler] notification_error', { type: 'weekly_summary', account_id: accountId, message: error?.message || String(error) });
+      }
+
+      await recordSystemJobRun({
+        job_id: job.id,
+        account_id: accountId,
+        nome: job.nome,
+        status: 'success',
+        started_at: new Date(startedAt).toISOString(),
+        finished_at: isoNow(),
+        duration_ms: Date.now() - startedAt,
+        processed_count: 0,
+        success_count: 0,
+        error_count: 0,
+        metadata,
+        error: null
+      }, { accountId }).catch((error) => {
+        logJobError('recordSystemJobRun', error, { accountId, lockKey: job.lock_key, requestId: context.requestId || null });
+        return null;
+      });
+
+      results.push({ accountId, ok: true, summary });
+    } catch (error) {
+      await recordSystemJobRun({
+        job_id: job.id,
+        account_id: accountId,
+        nome: job.nome,
+        status: 'error',
+        started_at: new Date(startedAt).toISOString(),
+        finished_at: isoNow(),
+        duration_ms: Date.now() - startedAt,
+        processed_count: 0,
+        success_count: 0,
+        error_count: 1,
+        metadata,
+        error: error?.message || String(error)
+      }, { accountId }).catch(() => null);
+      results.push({ accountId, ok: false, error: error?.message || String(error) });
+    }
+  }
+
+  await releaseSystemJobLock(job.lock_key, { locked_at: null, locked_by: null }).catch((error) => {
+    logJobError('releaseSystemJobLock', error, { accountId: null, lockKey: job.lock_key, requestId: context.requestId || null });
+    return null;
+  });
+  await updateSystemJobSchedule({ id: job.id, jobKey: job.nome }, { status: 'ativo', last_success_at: isoNow(), last_error: null, next_run_at: nextInMinutes(new Date(), 60 * 24 * 7), locked_at: null, locked_by: null, last_run_at: isoNow() }, { accountId: null });
+  return { ok: true, job, accountIds: tenantAccountIds, results };
 }
 
 export async function runGerenteComercialObservacaoJob(context = {}) {

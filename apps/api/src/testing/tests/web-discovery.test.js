@@ -253,6 +253,8 @@ export function getWebDiscoveryTests() {
           assert.equal(response.body.data.provider, 'tavily');
           assert.equal(response.body.data.domain, 'compreatacadofortsul.com.br');
           assert.equal(response.body.data.site, 'https://compreatacadofortsul.com.br');
+          const clienteDetalhe = await call(app, { method: 'GET', url: `/clientes/${cliente.id}`, role: 'admin', accountId: 'acc-1' });
+          assert.equal(clienteDetalhe.body.item.site, 'https://compreatacadofortsul.com.br');
         } finally {
           globalThis.fetch = previousFetch;
           process.env.WEB_DISCOVERY_ENABLED = previous.enabled ?? '';

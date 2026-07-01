@@ -1003,6 +1003,36 @@ export function getJobsTests() {
       }
     },
     {
+      name: 'POST /jobs/notificacoes-resumo-semanal/run fan-out sem tenant reage com segurança',
+      run: async () => {
+        __resetSystemJobsForTests();
+        __resetMemoryClientesForTests();
+        const previousEmail = process.env.JOB_NOTIFICATIONS_EMAIL;
+        process.env.JOB_NOTIFICATIONS_EMAIL = 'alerts@neuralhire.test';
+        try {
+          const app = createApiApp();
+          await createCliente({ nome: 'Cliente Global', documento: '12345678000190', situacao_cadastral: 'Inativa', latitude: null, longitude: null }, { accountId: 'acc-notify-global' });
+          const job = await upsertSystemJob({ nome: 'notificacoes_resumo_semanal', lock_key: 'notificacoes:resumo-semanal', account_id: null, status: 'ativo', next_run_at: '2026-06-17T11:00:00.000Z' }, { accountId: null });
+          const out = await call(app, { method: 'POST', url: `/jobs/${job.id}/run`, role: 'admin', accountId: 'acc-notify-global' });
+          assert.equal(out.res.statusCode, 202);
+          let dump = __dumpSystemJobsForTests();
+          for (let attempt = 0; attempt < 40 && dump.runs.length === 0; attempt += 1) {
+            await wait(25);
+            dump = __dumpSystemJobsForTests();
+          }
+          const run = dump.runs.find((item) => item.nome === 'notificacoes_resumo_semanal');
+          assert.ok(run);
+          assert.equal(run.status, 'success');
+          assert.equal(run.account_id, 'acc-notify-global');
+          assert.equal(run.metadata.notification.type, 'weekly_summary');
+          assert.equal(dump.jobs.find((item) => item.nome === 'notificacoes_resumo_semanal')?.status, 'ativo');
+          assert.equal(String(dump.jobs.find((item) => item.nome === 'notificacoes_resumo_semanal')?.next_run_at || '').length > 0, true);
+        } finally {
+          process.env.JOB_NOTIFICATIONS_EMAIL = previousEmail;
+        }
+      }
+    },
+    {
       name: 'POST /jobs/notificacoes-resumo-semanal/run não falha sem destinatário e registra skip',
       run: async () => {
         __resetSystemJobsForTests();

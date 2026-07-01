@@ -1134,13 +1134,13 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         try {
           const response = await discoverClienteWebsite(apiClient, clienteId);
           const result = response?.data || response || {};
+          state.data = await fetchClienteDetailsData(apiClient, clienteId);
           if (result?.found && result?.site) {
             state.data = { ...state.data, site: result.site };
             webDiscoveryMessage = result.source === 'existing' ? 'O cliente já tinha site cadastrado.' : 'Site oficial descoberto com sucesso.';
           } else {
             webDiscoveryMessage = 'Nenhum site confiável foi identificado.';
           }
-          state.data = await fetchClienteDetailsData(apiClient, clienteId);
         } catch (error) {
           webDiscoveryMessage = error?.body?.error?.message || error?.message || 'Falha ao descobrir site.';
         } finally {
