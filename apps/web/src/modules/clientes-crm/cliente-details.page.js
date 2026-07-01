@@ -160,8 +160,11 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-tab{border:1px solid #243253;background:#10192d;color:#a7b6d4;border-radius:999px;padding:10px 14px;font-weight:700;cursor:pointer}
     .nho2d-tab.is-active{background:#2f6dff;color:#fff;box-shadow:0 10px 22px rgba(47,109,255,.28)}
     .nho2d-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);gap:16px}
-    .nho2d-dados-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(0,max-content);gap:16px;align-items:start}
-    .nho2d-card-principal{grid-row:span 2}
+    .nho2d-dados-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:auto auto;gap:16px;align-items:start}
+    .cliente360-relevant-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:auto auto;gap:16px;align-items:start}
+    .cliente360-card-primary{grid-column:1;grid-row:1 / span 2}
+    .cliente360-card-map{display:grid;gap:14px;min-width:0}
+    .cliente360-map-frame{width:100%;height:220px;border:0;border-radius:12px;overflow:hidden;display:block}
     .nho2d-single-col{display:grid;grid-template-columns:1fr;gap:10px}
     .nho2d-stack{display:grid;gap:14px}
     .nho2d-card{background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98));border:1px solid rgba(148,163,184,.18);border-radius:16px;padding:20px;box-shadow:0 8px 24px rgba(0,0,0,.22)}
@@ -246,7 +249,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-shell .nho2-btn.secondary{background:#111a2e;color:#d9e4f7;border-color:#263655;box-shadow:none}
     .nho2d-shell .nho2-btn.ghost{background:transparent;color:#d9e4f7;border-color:rgba(148,163,184,.22);box-shadow:none}
     @media (max-width:1280px){.nho2d-title{font-size:28px}}
-    @media (max-width:1280px){.nho2d-dados-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.nho2d-card-principal{grid-row:auto}}
+    @media (max-width:1280px){.nho2d-dados-grid,.cliente360-relevant-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.cliente360-card-primary{grid-column:auto;grid-row:auto}}
     @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-dados-grid{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}.nho2d-kpi-grid{grid-template-columns:1fr}}
     `;
     document.head.appendChild(style);
@@ -694,7 +697,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
             { value: 'prospect', label: 'prospect' }
           ])}
           ${renderEditField('nho2d-edit-vendedor', 'Vendedor', editForm?.vendedor_id || '')}
-          ${renderEditField('nho2d-edit-documento', 'Documento (CNPJ)', formatCnpj(editForm?.documento || d?.dadosCliente?.documento || ''), 'text', 'disabled')}
+          ${renderEditField('nho2d-edit-documento', 'Documento (CNPJ)', formatCnpj(editForm?.documento || d?.dadosCliente?.documento || ''), 'text', 'disabled readonly')}
           ${renderEditField('nho2d-edit-telefone', 'Telefone', editForm?.telefone || '')}
           ${renderEditField('nho2d-edit-telefone2', 'Telefone secundário', editForm?.telefone2 || '')}
           ${renderEditField('nho2d-edit-email', 'E-mail', editForm?.email || '', 'email')}
@@ -713,8 +716,8 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       ].map(([label, value]) => `<dt class="nho2d-dt">${label}</dt><dd class="nho2d-dd">${safeValue(value)}</dd>`).join('')}</dl>`;
     };
     return `
-      <div class="nho2d-dados-grid">
-        <article class="nho2d-card nho2d-card-principal">
+      <div class="cliente360-relevant-grid nho2d-dados-grid">
+        <article class="nho2d-card cliente360-card-primary">
           <h3>Dados principais</h3>
           ${editMode ? `
             <div class="nho2d-header" style="margin-bottom:12px">
@@ -731,7 +734,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
             <div style="margin-top:14px"><button id="nho2d-edit-start" class="nho2-btn">Editar dados</button></div>
           `}
         </article>
-        <article class="nho2d-card">
+        <article class="nho2d-card" style="grid-column:2;grid-row:1">
           <div class="nho2d-header" style="margin-bottom:12px">
             <div>
               <h3 style="margin:0 0 4px">Enriquecimento cadastral</h3>
@@ -752,7 +755,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
             ['Última atualização', formatDateFriendly(d?.enriquecimento_ultima_execucao)]
           ])}
         </article>
-        <article class="nho2d-card">
+        <article class="nho2d-card" style="grid-column:3;grid-row:1">
           <h3>Endereço</h3>
           ${cardFields([
             ['Logradouro', d?.logradouro],
@@ -763,16 +766,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
             ['UF', d?.uf]
           ])}
         </article>
-        <article class="nho2d-card">
-          <h3>Contato</h3>
-          ${cardFields([
-            ['Telefone 1', d?.telefone],
-            ['Telefone 2', d?.telefone2],
-            ['E-mail', d?.email],
-            ['Site', d?.site]
-          ])}
-        </article>
-        <article class="nho2d-card">
+        <article class="nho2d-card cliente360-card-map" style="grid-column:2;grid-row:2">
           <div class="nho2d-header" style="margin-bottom:12px">
             <div>
               <h3 style="margin:0 0 4px">Geolocalização</h3>
@@ -788,9 +782,9 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
             ['Fonte', d?.geolocalizacao_fonte],
             ['Última atualização', formatDateFriendly(d?.geolocalizacao_ultima_execucao)]
           ])}
-          ${hasCoordinates ? `<div style="margin-top:14px"><iframe title="Mapa do cliente" src="${iframeSrc}" style="width:100%;height:260px;border:0;border-radius:12px" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>` : ''}
+          ${hasCoordinates ? `<div style="margin-top:0;overflow:hidden;border-radius:12px"><iframe title="Mapa do cliente" src="${iframeSrc}" class="cliente360-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>` : ''}
         </article>
-        <article class="nho2d-card">
+        <article class="nho2d-card" style="grid-column:3;grid-row:2">
           <h3>Resumo</h3>
           ${cardFields([
             ['Status do enriquecimento', enrichmentStatus],

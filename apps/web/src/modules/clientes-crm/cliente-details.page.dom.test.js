@@ -543,6 +543,11 @@ test('cliente details mostra dados relevantes e executa enriquecimento manual', 
             empresa: 'Cliente A',
             cidade: 'São Paulo',
             estado: 'SP',
+            documento: '00110513000155',
+            telefone: '(11) 99999-9999',
+            telefone2: '(11) 98888-8888',
+            email: 'contato@clientea.com.br',
+            site: 'https://clientea.com.br',
             created_at: '2026-05-01T00:00:00.000Z',
             status: 'ativo',
             enriquecimento_status: 'pendente'
@@ -563,9 +568,15 @@ test('cliente details mostra dados relevantes e executa enriquecimento manual', 
   await flush();
 
   assert.match(root.textContent, /Dados principais/);
+  assert.doesNotMatch(root.textContent, /Contato/i);
+  assert.match(root.textContent, /Telefone/);
+  assert.match(root.textContent, /E-mail/);
+  assert.match(root.textContent, /Site/);
+  assert.match(root.textContent, /00\.110\.513\/0001-55/);
   assert.match(root.textContent, /Enriquecimento cadastral/);
   assert.match(root.textContent, /Pendente/);
   assert.match(root.textContent, /Atualizar enriquecimento/);
+  assert.match(root.textContent, /Resumo/);
 
   teardownFrontendDom(dom);
 });
