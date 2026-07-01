@@ -803,7 +803,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
             ${cardFields([
               ['Latitude', d?.latitude],
               ['Longitude', d?.longitude],
-              ['Google Maps', d?.google_maps_url ? `<a href="${d.google_maps_url}" target="_blank" rel="noreferrer">Abrir no Google Maps</a>` : 'Não informado'],
+              ['Google Maps', d?.google_maps_link ? `<a href="${d.google_maps_link}" target="_blank" rel="noreferrer">Abrir no Google Maps</a>` : d?.google_maps_url ? `<a href="${d.google_maps_url}" target="_blank" rel="noreferrer">Abrir no Google Maps</a>` : 'Não informado'],
               ['Place ID', d?.place_id],
               ['Fonte', d?.geolocalizacao_fonte],
               ['Última atualização', formatDateFriendly(d?.geolocalizacao_ultima_execucao)]
@@ -889,7 +889,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
             <dt class="nho2d-dt">Latitude</dt><dd class="nho2d-dd">${safeValue(d?.latitude)}</dd>
             <dt class="nho2d-dt">Longitude</dt><dd class="nho2d-dd">${safeValue(d?.longitude)}</dd>
             <dt class="nho2d-dt">Última execução</dt><dd class="nho2d-dd">${formatDateFriendly(d?.geolocalizacao_ultima_execucao)}</dd>
-            <dt class="nho2d-dt">Google Maps</dt><dd class="nho2d-dd">${d?.google_maps_url ? `<a href="${d.google_maps_url}" target="_blank" rel="noreferrer">Abrir no Google Maps</a>` : 'Não informado'}</dd>
+            <dt class="nho2d-dt">Google Maps</dt><dd class="nho2d-dd">${d?.google_maps_link ? `<a href="${d.google_maps_link}" target="_blank" rel="noreferrer">Abrir no Google Maps</a>` : d?.google_maps_url ? `<a href="${d.google_maps_url}" target="_blank" rel="noreferrer">Abrir no Google Maps</a>` : 'Não informado'}</dd>
             <dt class="nho2d-dt">Erro</dt><dd class="nho2d-dd">${safeValue(d?.geolocalizacao_erro)}</dd>
           </dl>
         </article>

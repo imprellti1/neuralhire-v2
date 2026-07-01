@@ -96,6 +96,32 @@ function getFriendlyLastPurchaseLabel(value) {
   return `Há ${diffDays} dias`;
 }
 
+function buildGoogleMapsSearchUrl(cliente = {}) {
+  const latitude = Number(cliente?.latitude);
+  const longitude = Number(cliente?.longitude);
+  const hasCoordinates = Number.isFinite(latitude) && Number.isFinite(longitude);
+
+  const parts = (...values) => values.map((value) => String(value || '').trim()).filter(Boolean);
+  const addressParts = parts(cliente?.logradouro, cliente?.numero, cliente?.complemento, cliente?.bairro, cliente?.cidade, cliente?.estado || cliente?.uf);
+  const addressCoreParts = parts(cliente?.logradouro, cliente?.numero, cliente?.cidade, cliente?.estado || cliente?.uf);
+  const preferredQueries = [
+    parts(cliente?.nome_fantasia, cliente?.logradouro, cliente?.numero, cliente?.cidade, cliente?.estado || cliente?.uf),
+    parts(cliente?.razao_social, cliente?.logradouro, cliente?.numero, cliente?.cidade, cliente?.estado || cliente?.uf),
+    addressParts.length ? addressParts : addressCoreParts
+  ].filter((queryParts) => queryParts.length);
+
+  const query = preferredQueries[0];
+  if (query && query.length) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query.join(' '))}`;
+  }
+
+  if (hasCoordinates) {
+    return `https://www.google.com/maps?q=${latitude},${longitude}`;
+  }
+
+  return null;
+}
+
 export function mapClienteDetailsData({ cliente = null, pedidos = [], clienteId, timeline = [] }) {
   const normalizedCliente = cliente && String(cliente?.id || '') === String(clienteId || '') ? cliente : null;
   const normalizedPedidos = Array.isArray(pedidos) ? pedidos : [];
@@ -142,6 +168,7 @@ export function mapClienteDetailsData({ cliente = null, pedidos = [], clienteId,
     latitude: normalizedCliente?.latitude ?? null,
     longitude: normalizedCliente?.longitude ?? null,
     google_maps_url: normalizedCliente?.google_maps_url || null,
+    google_maps_link: buildGoogleMapsSearchUrl(normalizedCliente),
     google_place_id: normalizedCliente?.google_place_id || null,
     geolocalizacao_status: normalizedCliente?.geolocalizacao_status || null,
     geolocalizacao_ultima_execucao: normalizedCliente?.geolocalizacao_ultima_execucao || null,
