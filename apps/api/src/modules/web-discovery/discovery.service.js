@@ -1,8 +1,8 @@
 import { BadRequestError, ValidationError } from '../../core/errors.js';
-import { env } from '../../config/env.js';
 import { registrarEventoTimeline } from '../clientes/clientes.timeline.service.js';
 import { getClienteById, updateCliente } from '../clientes/clientes.repository.js';
 import { searchBraveWebDiscovery } from './providers/brave.provider.js';
+import { searchDdgsWebDiscovery } from './providers/ddgs.provider.js';
 import { searchTavilyWebDiscovery } from './providers/tavily.provider.js';
 
 function normalize(value) { return String(value || '').trim(); }
@@ -21,6 +21,10 @@ function buildQueries(cliente = {}) {
     [cnpjFormatted, city, state].filter(Boolean).join(' '),
     [cnpj, city, state].filter(Boolean).join(' ')
   ].filter(Boolean);
+}
+function getEnvValue(key, fallback = '') {
+  const value = process.env[key];
+  return value === undefined || value === null ? fallback : value;
 }
 function penalizeDomain(domain = '') {
   const bad = ['facebook.com', 'instagram.com', 'linkedin.com', 'google.com', 'maps.google.com', 'reclameaqui.com.br', 'econodata.com.br', 'cnpj.biz', 'casadosdados.com.br', 'empresascnpj.com', 'youtube.com', 'wa.me'];
@@ -47,44 +51,53 @@ async function runProviders(query, providers, context) {
   const results = [];
   for (const provider of providers) {
     if (provider === 'brave') {
-      const response = await searchBraveWebDiscovery(query, { apiKey: env.BRAVE_SEARCH_API_KEY, fetchImpl: context.fetchImpl });
+      const response = await searchBraveWebDiscovery(query, { apiKey: getEnvValue('BRAVE_SEARCH_API_KEY'), fetchImpl: context.fetchImpl });
       results.push(...(response.items || []).map((item) => normalizeResult(item, 'brave', query, context.cliente)));
     } else if (provider === 'tavily') {
-      const response = await searchTavilyWebDiscovery(query, { apiKey: env.TAVILY_API_KEY, fetchImpl: context.fetchImpl });
+      const response = await searchTavilyWebDiscovery(query, { apiKey: getEnvValue('TAVILY_API_KEY'), fetchImpl: context.fetchImpl });
       results.push(...(response.items || []).map((item) => normalizeResult(item, 'tavily', query, context.cliente)));
+    } else if (provider === 'ddgs') {
+      const response = await searchDdgsWebDiscovery(query, { fetchImpl: context.fetchImpl });
+      results.push(...(response.items || []).map((item) => normalizeResult(item, 'ddgs', query, context.cliente)));
     }
   }
   return results.sort((a, b) => b.confidence - a.confidence);
 }
 function getProviders() {
-  return String(env.WEB_DISCOVERY_PROVIDERS || '').split(',').map((item) => item.trim().toLowerCase()).filter(Boolean);
+  return String(getEnvValue('WEB_DISCOVERY_PROVIDERS', '')).split(',').map((item) => item.trim().toLowerCase()).filter(Boolean);
 }
 function assertEnabled() {
-  if (String(env.WEB_DISCOVERY_ENABLED || 'false').toLowerCase() !== 'true') throw new BadRequestError('Web discovery desabilitado', { domain: 'clientes-crm', code: 'WEB_DISCOVERY_DISABLED' });
+  if (String(getEnvValue('WEB_DISCOVERY_ENABLED', 'false')).toLowerCase() !== 'true') throw new BadRequestError('Web discovery desabilitado', { domain: 'clientes-crm', code: 'WEB_DISCOVERY_DISABLED' });
 }
 function assertKeysForEnabled(providers) {
   const missing = [];
-  if (providers.includes('brave') && !String(env.BRAVE_SEARCH_API_KEY || '').trim()) missing.push('BRAVE_SEARCH_API_KEY');
-  if (providers.includes('tavily') && !String(env.TAVILY_API_KEY || '').trim()) missing.push('TAVILY_API_KEY');
+  if (providers.includes('tavily') && !String(getEnvValue('TAVILY_API_KEY')).trim()) missing.push('TAVILY_API_KEY');
   if (missing.length) throw new ValidationError('Chaves de API ausentes para web discovery', { domain: 'clientes-crm', details: { missing } });
 }
 export async function discoverClienteWebsite({ clienteId, accountId, force = false, fetchImpl } = {}) {
   if (!clienteId) throw new ValidationError('clienteId obrigatorio', { domain: 'clientes-crm' });
-  assertEnabled();
   const cliente = await getClienteById(clienteId, { accountId });
-  if (normalize(cliente.site)) {
-    return { found: true, source: 'existing', site: cliente.site, domain: normalizeDomain(cliente.site), provider: 'existing', confidence: 1, candidates: [] };
+  const existingSite = normalize(cliente.site || cliente.website);
+  if (existingSite) {
+    return { found: true, source: 'existing', site: existingSite, domain: normalizeDomain(existingSite), provider: 'existing', confidence: 1, candidates: [] };
   }
+  assertEnabled();
   const providers = getProviders();
   assertKeysForEnabled(providers);
   const queries = buildQueries(cliente);
   const candidates = [];
+  const orderedProviders = ['tavily', 'ddgs', ...providers.filter((provider) => provider !== 'tavily' && provider !== 'ddgs')];
   for (const query of queries) {
-    const results = await runProviders(query, providers, { fetchImpl, cliente });
-    candidates.push(...results.map((item) => ({ ...item, query })));
+    for (const provider of orderedProviders) {
+      const results = await runProviders(query, [provider], { fetchImpl, cliente });
+      candidates.push(...results.map((item) => ({ ...item, query })));
+      const bestCandidate = candidates.sort((a, b) => b.confidence - a.confidence)[0] || null;
+      const minConfidence = Number(getEnvValue('WEB_DISCOVERY_MIN_CONFIDENCE', '0.85'));
+      if (bestCandidate && bestCandidate.confidence >= minConfidence) break;
+    }
   }
   const best = candidates.sort((a, b) => b.confidence - a.confidence)[0] || null;
-  const minConfidence = Number(env.WEB_DISCOVERY_MIN_CONFIDENCE || 0.85);
+  const minConfidence = Number(getEnvValue('WEB_DISCOVERY_MIN_CONFIDENCE', '0.85'));
   if (!best || best.confidence < minConfidence) {
     await registrarEventoTimeline({ tipo: 'web_discovery_not_found', categoria: 'web_discovery', titulo: 'Site nao encontrado', descricao: 'Nenhum site oficial confiavel foi identificado.', metadata: { query: queries[0] || null, candidates: candidates.slice(0, 10) } }, { accountId, clienteId }).catch(() => null);
     return { found: false, site: null, domain: null, provider: null, confidence: best?.confidence || 0, candidates: candidates.slice(0, 10) };

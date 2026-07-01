@@ -2,6 +2,7 @@ import { defineModule } from '../core/module-contract.js';
 import { registerHealthRoutes } from './health/health.routes.js';
 import { registerSystemRoutes } from './system/system.routes.js';
 import { registerClientesRoutes } from './clientes/clientes.routes.js';
+import { registerWebDiscoveryRoutes } from './web-discovery/web-discovery.routes.js';
 import { registerJobsRoutes } from './jobs/jobs.routes.js';
 import { clientesModule } from './clientes/clientes.module.js';
 import { clientesRadarModule } from './clientes/clientes.radar.module.js';
@@ -107,7 +108,7 @@ export const registeredModules = [
 export function registerModules(router, options = {}) {
   registerHealthRoutes(router); registerSystemRoutes(router, { registeredModules, globalMiddlewares: options.globalMiddlewares || [] });
   registerJobsRoutes(router);
-  registerClientesRoutes(router); registerProdutosRoutes(router); registerProdutosImportRoutes(router); registerPedidosRoutes(router); registerAnalyticsRoutes(router);
+  registerClientesRoutes(router); registerWebDiscoveryRoutes(router); registerProdutosRoutes(router); registerProdutosImportRoutes(router); registerPedidosRoutes(router); registerAnalyticsRoutes(router);
   registerPriceTableImportRoutes(router);
   registerClientesImportRoutes(router);
   registerPedidosImportRoutes(router);
