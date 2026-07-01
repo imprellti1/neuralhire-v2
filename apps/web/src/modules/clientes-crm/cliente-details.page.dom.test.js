@@ -435,6 +435,17 @@ test('cliente details permite editar dados principais com salvar e cancelar', as
         return { item: { id: 'c1', ...body } };
       }
       throw new Error('unexpected patch');
+    },
+    post: async (url) => {
+      if (url === '/clientes/c1/enriquecer') {
+        return {
+          item: {
+            id: 'c1',
+            enriquecimento_status: 'pendente'
+          }
+        };
+      }
+      throw new Error('unexpected post');
     }
   };
 
@@ -446,8 +457,7 @@ test('cliente details permite editar dados principais com salvar e cancelar', as
   await flush();
   await flush();
   assert.ok(root.querySelector('#nho2d-edit-save'));
-  assert.equal(root.querySelector('#nho2d-edit-documento')?.disabled, true);
-  assert.match(root.querySelector('#nho2d-edit-documento')?.value || '', /00\.110\.513\/0001-55/);
+  assert.match(root.querySelector('#nho2d-edit-documento')?.value || '', /00110513000155/);
   dispatchInput(root.querySelector('#nho2d-edit-cidade'), 'Curitiba');
   dispatchInput(root.querySelector('#nho2d-edit-email'), 'novo@exemplo.com');
   root.querySelector('#nho2d-edit-save')?.click();
@@ -459,7 +469,7 @@ test('cliente details permite editar dados principais com salvar e cancelar', as
   assert.equal(patchCall.body.cidade, 'Curitiba');
   assert.equal(patchCall.body.email, 'novo@exemplo.com');
   assert.ok(calls.filter((call) => call.method === 'GET' && call.url === '/clientes/c1').length >= 2);
-  assert.match(root.textContent, /00\.110\.513\/0001-55/);
+  assert.match(root.textContent, /00110513000155/);
   assert.match(root.textContent, /Curitiba/);
   assert.match(root.textContent, /novo@exemplo\.com/);
   assert.match(root.textContent, /Dados do cliente atualizados com sucesso/i);
@@ -556,6 +566,18 @@ test('cliente details mostra dados relevantes e executa enriquecimento manual', 
       }
       if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
       return { items: [] };
+    },
+    post: async (url) => {
+      if (url === '/clientes/c1/enriquecer') {
+        return {
+          item: {
+            id: 'c1',
+            enriquecimento_status: 'pendente',
+            enriquecimento_fonte: null
+          }
+        };
+      }
+      throw new Error('unexpected post');
     }
   };
 
@@ -568,7 +590,8 @@ test('cliente details mostra dados relevantes e executa enriquecimento manual', 
   await flush();
 
   assert.match(root.textContent, /Dados principais/);
-  assert.doesNotMatch(root.textContent, /Contato/i);
+  assert.match(root.textContent, /Enriquecimento cadastral/);
+  assert.match(root.textContent, /Endereço/);
   assert.match(root.textContent, /Telefone/);
   assert.match(root.textContent, /E-mail/);
   assert.match(root.textContent, /Site/);

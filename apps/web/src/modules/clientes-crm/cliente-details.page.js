@@ -160,10 +160,11 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-tab{border:1px solid #243253;background:#10192d;color:#a7b6d4;border-radius:999px;padding:10px 14px;font-weight:700;cursor:pointer}
     .nho2d-tab.is-active{background:#2f6dff;color:#fff;box-shadow:0 10px 22px rgba(47,109,255,.28)}
     .nho2d-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);gap:16px}
-    .nho2d-dados-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:auto auto;gap:16px;align-items:start}
-    .cliente360-relevant-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:auto auto;gap:16px;align-items:start}
-    .cliente360-card-primary{grid-column:1;grid-row:1 / span 2}
-    .cliente360-card-map{display:grid;gap:14px;min-width:0}
+    .nho2d-dados-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px;align-items:start}
+    .cliente360-relevant-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px;align-items:start}
+    .cliente360-card-primary{min-height:100%}
+    .cliente360-right-column{display:grid;gap:16px;min-width:0;align-self:stretch}
+    .cliente360-card-map{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,420px);gap:14px;min-width:0;align-items:start}
     .cliente360-map-frame{width:100%;height:220px;border:0;border-radius:12px;overflow:hidden;display:block}
     .nho2d-single-col{display:grid;grid-template-columns:1fr;gap:10px}
     .nho2d-stack{display:grid;gap:14px}
@@ -249,7 +250,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-shell .nho2-btn.secondary{background:#111a2e;color:#d9e4f7;border-color:#263655;box-shadow:none}
     .nho2d-shell .nho2-btn.ghost{background:transparent;color:#d9e4f7;border-color:rgba(148,163,184,.22);box-shadow:none}
     @media (max-width:1280px){.nho2d-title{font-size:28px}}
-    @media (max-width:1280px){.nho2d-dados-grid,.cliente360-relevant-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.cliente360-card-primary{grid-column:auto;grid-row:auto}}
+    @media (max-width:1280px){.nho2d-dados-grid,.cliente360-relevant-grid{grid-template-columns:1fr}.cliente360-card-primary{min-height:0}.cliente360-card-map{grid-template-columns:1fr}.cliente360-map-frame{height:240px}}
     @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-dados-grid{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}.nho2d-kpi-grid{grid-template-columns:1fr}}
     `;
     document.head.appendChild(style);
@@ -734,64 +735,68 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
             <div style="margin-top:14px"><button id="nho2d-edit-start" class="nho2-btn">Editar dados</button></div>
           `}
         </article>
-        <article class="nho2d-card" style="grid-column:2;grid-row:1">
-          <div class="nho2d-header" style="margin-bottom:12px">
-            <div>
-              <h3 style="margin:0 0 4px">Enriquecimento cadastral</h3>
-              <div class="nho2d-sub">Informações cadastrais consolidadas do cliente.</div>
+        <div class="cliente360-right-column">
+          <article class="nho2d-card">
+            <div class="nho2d-header" style="margin-bottom:12px">
+              <div>
+                <h3 style="margin:0 0 4px">Enriquecimento cadastral</h3>
+                <div class="nho2d-sub">Informações cadastrais consolidadas do cliente.</div>
+              </div>
+              <button id="nho2d-enrich" class="nho2-btn secondary" ${enrichmentLoading ? 'disabled' : ''}>${enrichmentLoading ? 'Enriquecendo dados...' : 'Atualizar enriquecimento'}</button>
             </div>
-            <button id="nho2d-enrich" class="nho2-btn secondary" ${enrichmentLoading ? 'disabled' : ''}>${enrichmentLoading ? 'Enriquecendo dados...' : 'Atualizar enriquecimento'}</button>
-          </div>
-          ${cardFields([
-            ['Razão social', d?.razao_social],
-            ['Nome fantasia', d?.nome_fantasia],
-            ['Situação cadastral', d?.situacao_cadastral],
-            ['Data de abertura', d?.data_abertura ? formatDisplayDate(d.data_abertura) : 'Não informado'],
-            ['CNAE principal', d?.cnae_principal],
-            ['Natureza jurídica', d?.natureza_juridica],
-            ['Porte', d?.porte],
-            ['Capital social', d?.capital_social],
-            ['Fonte', d?.enriquecimento_fonte],
-            ['Última atualização', formatDateFriendly(d?.enriquecimento_ultima_execucao)]
-          ])}
-        </article>
-        <article class="nho2d-card" style="grid-column:3;grid-row:1">
-          <h3>Endereço</h3>
-          ${cardFields([
-            ['Logradouro', d?.logradouro],
-            ['Número', d?.numero],
-            ['Bairro', d?.bairro],
-            ['CEP', d?.cep],
-            ['Cidade', d?.cidade],
-            ['UF', d?.uf]
-          ])}
-        </article>
-        <article class="nho2d-card cliente360-card-map" style="grid-column:2;grid-row:2">
-          <div class="nho2d-header" style="margin-bottom:12px">
-            <div>
-              <h3 style="margin:0 0 4px">Geolocalização</h3>
-              <div class="nho2d-sub">Consulta manual do endereço do cliente via Nominatim/OpenStreetMap.</div>
+            ${cardFields([
+              ['Razão social', d?.razao_social],
+              ['Nome fantasia', d?.nome_fantasia],
+              ['Situação cadastral', d?.situacao_cadastral],
+              ['Data de abertura', d?.data_abertura ? formatDisplayDate(d.data_abertura) : 'Não informado'],
+              ['CNAE principal', d?.cnae_principal],
+              ['Natureza jurídica', d?.natureza_juridica],
+              ['Porte', d?.porte],
+              ['Capital social', d?.capital_social],
+              ['Fonte', d?.enriquecimento_fonte],
+              ['Última atualização', formatDateFriendly(d?.enriquecimento_ultima_execucao)]
+            ])}
+          </article>
+          <article class="nho2d-card">
+            <h3>Endereço</h3>
+            ${cardFields([
+              ['Logradouro', d?.logradouro],
+              ['Número', d?.numero],
+              ['Bairro', d?.bairro],
+              ['CEP', d?.cep],
+              ['Cidade', d?.cidade],
+              ['UF', d?.uf]
+            ])}
+          </article>
+          <article class="nho2d-card">
+            <h3>Resumo</h3>
+            ${cardFields([
+              ['Status do enriquecimento', enrichmentStatus],
+              ['Status da geolocalização', geolocationStatus],
+              ['Última sincronização', formatDateFriendly(d?.sincronizado_em || d?.updated_at || d?.updatedAt)],
+              ['Eventos na Timeline', timelineCount]
+            ])}
+          </article>
+        </div>
+        <article class="nho2d-card cliente360-card-map" style="grid-column:1 / -1">
+          <div>
+            <div class="nho2d-header" style="margin-bottom:12px">
+              <div>
+                <h3 style="margin:0 0 4px">Geolocalização</h3>
+                <div class="nho2d-sub">Consulta manual do endereço do cliente via Nominatim/OpenStreetMap.</div>
+              </div>
+              <button id="nho2d-geocode" class="nho2-btn secondary" ${geolocationLoading ? 'disabled' : ''}>${geolocationLoading ? 'Geolocalizando...' : 'Geolocalizar Cliente'}</button>
             </div>
-            <button id="nho2d-geocode" class="nho2-btn secondary" ${geolocationLoading ? 'disabled' : ''}>${geolocationLoading ? 'Geolocalizando...' : 'Geolocalizar Cliente'}</button>
+            ${cardFields([
+              ['Latitude', d?.latitude],
+              ['Longitude', d?.longitude],
+              ['Google Maps', d?.google_maps_url ? `<a href="${d.google_maps_url}" target="_blank" rel="noreferrer">Abrir no Google Maps</a>` : 'Não informado'],
+              ['Place ID', d?.place_id],
+              ['Fonte', d?.geolocalizacao_fonte],
+              ['Última atualização', formatDateFriendly(d?.geolocalizacao_ultima_execucao)]
+            ])}
           </div>
-          ${cardFields([
-            ['Latitude', d?.latitude],
-            ['Longitude', d?.longitude],
-            ['Google Maps', d?.google_maps_url ? `<a href="${d.google_maps_url}" target="_blank" rel="noreferrer">Abrir no Google Maps</a>` : 'Não informado'],
-            ['Place ID', d?.place_id],
-            ['Fonte', d?.geolocalizacao_fonte],
-            ['Última atualização', formatDateFriendly(d?.geolocalizacao_ultima_execucao)]
-          ])}
-          ${hasCoordinates ? `<div style="margin-top:0;overflow:hidden;border-radius:12px"><iframe title="Mapa do cliente" src="${iframeSrc}" class="cliente360-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>` : ''}
-        </article>
-        <article class="nho2d-card" style="grid-column:3;grid-row:2">
-          <h3>Resumo</h3>
-          ${cardFields([
-            ['Status do enriquecimento', enrichmentStatus],
-            ['Status da geolocalização', geolocationStatus],
-            ['Última sincronização', formatDateFriendly(d?.sincronizado_em || d?.updated_at || d?.updatedAt)],
-            ['Eventos na Timeline', timelineCount]
-          ])}
+          <div style="min-width:0;overflow:hidden;border-radius:12px">${hasCoordinates ? `<iframe title="Mapa do cliente" src="${iframeSrc}" class="cliente360-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>` : '<div class="nho2d-crm-empty" style="height:220px;display:flex;align-items:center;justify-content:center">Sem coordenadas para exibir o mapa.</div>'}</div>
         </article>
       </div>
     `;
