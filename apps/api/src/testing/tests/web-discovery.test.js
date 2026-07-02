@@ -126,37 +126,85 @@ export function getWebDiscoveryTests() {
       }
     },
     {
-      name: 'cliente com site existente não chama provider',
+      name: 'cliente com site existente não chama provider, mas enriquece usando o site cadastrado',
       run: async () => {
         __resetMemoryTimelineForTests();
         __resetClientesTimelineForTests();
         const previous = {
           enabled: process.env.WEB_DISCOVERY_ENABLED,
           providers: process.env.WEB_DISCOVERY_PROVIDERS,
-          brave: process.env.BRAVE_SEARCH_API_KEY
+          tavily: process.env.TAVILY_API_KEY,
+          min: process.env.WEB_DISCOVERY_MIN_CONFIDENCE
         };
         process.env.WEB_DISCOVERY_ENABLED = 'true';
         process.env.WEB_DISCOVERY_PROVIDERS = 'tavily,ddgs';
-        process.env.BRAVE_SEARCH_API_KEY = 'test-key';
+        process.env.TAVILY_API_KEY = 'test-key';
+        process.env.WEB_DISCOVERY_MIN_CONFIDENCE = '0.8';
         const calls = [];
         const previousFetch = globalThis.fetch;
-        globalThis.fetch = async (...args) => { calls.push(args[0]); return createFetchResponse({ ok: true, status: 200, body: { web: { results: [] }, results: [] } }); };
+        globalThis.fetch = async (url) => {
+          calls.push(String(url));
+          if (String(url).includes('tavily.com') || String(url).includes('duckduckgo.com')) {
+            throw new Error(`Discovery provider should not be called: ${url}`);
+          }
+          if (String(url).includes('exemplo.com')) {
+            return createFetchResponse({
+              ok: true,
+              status: 200,
+              body: `
+                <html><head><title>Exemplo Comercio</title></head><body>
+                  <p>Fale com a gente pelo WhatsApp (11) 98888-7777 ou no email contato@exemplo.com</p>
+                  <a href="https://instagram.com/exemplo.oficial">Instagram</a>
+                  <a href="https://facebook.com/exemplo.oficial">Facebook</a>
+                  <a href="/checkout">Checkout</a>
+                  <a href="/carrinho">Carrinho</a>
+                  <p>Loja virtual com checkout, carrinho e finalizacao da compra.</p>
+                </body></html>`
+            });
+          }
+          if (String(url).includes('/sobre') || String(url).includes('/checkout') || String(url).includes('/carrinho')) {
+            return createFetchResponse({
+              ok: true,
+              status: 200,
+              body: `
+                <html><head><title>Exemplo Comercio</title></head><body>
+                  <p>WhatsApp (11) 98888-7777</p>
+                  <a href="https://instagram.com/exemplo.oficial">Instagram</a>
+                  <a href="https://facebook.com/exemplo.oficial">Facebook</a>
+                  <p>Checkout e carrinho disponiveis.</p>
+                </body></html>`
+            });
+          }
+          throw new Error(`Unexpected fetch: ${url}`);
+        };
         try {
           const app = createApiApp();
           const cliente = await createCliente({ nome: 'Cliente Discovery', cidade: 'Curitiba', estado: 'PR', site: 'https://exemplo.com' }, { accountId: 'acc-1' });
           const response = await call(app, { method: 'POST', url: `/clientes/${cliente.id}/web-discovery`, role: 'admin', accountId: 'acc-1' });
           assert.equal(response.res.statusCode, 200);
           assert.equal(response.body.data.found, true);
+          assert.equal(response.body.data.site, 'https://exemplo.com');
           assert.equal(response.body.data.provider, 'existing');
-          assert.equal(calls.length, 0);
+          assert.ok(calls.some((item) => item === 'https://exemplo.com'));
+          assert.equal(calls.some((item) => item.includes('tavily.com') || item.includes('duckduckgo.com')), false);
+          assert.equal(response.body.data.payload.social.instagram.length > 0, true);
+          assert.equal(response.body.data.payload.social.facebook.length > 0, true);
+          assert.equal(response.body.data.payload.contacts.whatsapp.length > 0, true);
+          assert.equal(response.body.data.payload.commercial.has_ecommerce, true);
+          const clienteDetalhe = await call(app, { method: 'GET', url: `/clientes/${cliente.id}`, role: 'admin', accountId: 'acc-1' });
+          assert.equal(clienteDetalhe.body.item.site, 'https://exemplo.com');
+          assert.equal(clienteDetalhe.body.item.digital_enrichment_status, 'concluido');
+          assert.equal(clienteDetalhe.body.item.digital_enrichment_payload.social.instagram.length > 0, true);
         } finally {
           globalThis.fetch = previousFetch;
           if (previous.enabled === undefined) delete process.env.WEB_DISCOVERY_ENABLED;
           else process.env.WEB_DISCOVERY_ENABLED = previous.enabled;
           if (previous.providers === undefined) delete process.env.WEB_DISCOVERY_PROVIDERS;
           else process.env.WEB_DISCOVERY_PROVIDERS = previous.providers;
-          if (previous.brave === undefined) delete process.env.BRAVE_SEARCH_API_KEY;
-          else process.env.BRAVE_SEARCH_API_KEY = previous.brave;
+          if (previous.tavily === undefined) delete process.env.TAVILY_API_KEY;
+          else process.env.TAVILY_API_KEY = previous.tavily;
+          if (previous.min === undefined) delete process.env.WEB_DISCOVERY_MIN_CONFIDENCE;
+          else process.env.WEB_DISCOVERY_MIN_CONFIDENCE = previous.min;
         }
       }
     },
