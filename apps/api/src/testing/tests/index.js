@@ -70,6 +70,7 @@ const suiteSpecs = [
   ['Analytics Periods', './analytics-periods.test.js', 'getAnalyticsPeriodsTests'],
   ['Analytics Tenant', './analytics-tenant.test.js', 'getAnalyticsTenantTests'],
   ['Analytics Date Validation', './analytics-date-validation.test.js', 'getAnalyticsDateValidationTests'],
+  ['Analytics Repository', './analytics-repository.test.js', 'getAnalyticsRepositoryTests'],
   ['Commercial Ownership', './commercial-ownership.test.js', 'getCommercialOwnershipTests'],
   ['Interest Leads Create', './interest-leads-create.test.js', 'getInterestLeadsCreateTests'],
   ['Interest Leads Validation', './interest-leads-validation.test.js', 'getInterestLeadsValidationTests'],
