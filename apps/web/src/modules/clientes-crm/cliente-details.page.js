@@ -177,9 +177,18 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-wrap{max-width:100%;width:100%;margin:0 auto;color:#e9eef8}
     .nho2d-shell{background:linear-gradient(180deg,#11172a 0%,#0b1220 100%);border:1px solid #1f2a44;border-radius:20px;padding:20px;box-shadow:0 22px 48px rgba(0,0,0,.35)}
     .nho2d-header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap;margin-bottom:16px}
+    .nho2d-hero{display:grid;gap:16px;padding:22px;border:1px solid rgba(148,163,184,.16);border-radius:22px;background:linear-gradient(135deg,rgba(16,25,45,.96),rgba(9,16,29,.98));box-shadow:0 18px 42px rgba(0,0,0,.24)}
+    .nho2d-hero-top{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;flex-wrap:wrap}
     .nho2d-title{font-size:32px;font-weight:750;letter-spacing:-.03em;color:#f5f7fb}
     .nho2d-sub{margin-top:4px;color:#93a4c7;font-size:14px}
     .nho2d-meta{margin-top:10px;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;color:#bfd0f4;font-size:14px}
+    .nho2d-hero-meta{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+    .nho2d-hero-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    .nho2d-hero-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+    .nho2d-hero-stat{padding:14px 16px;border-radius:16px;border:1px solid rgba(148,163,184,.14);background:rgba(255,255,255,.02);display:grid;gap:4px}
+    .nho2d-hero-stat-label{color:#93a4c7;font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+    .nho2d-hero-stat-value{font-size:17px;font-weight:700;color:#f5f7fb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .nho2d-hero-stat-value.is-wrap{white-space:normal;overflow:visible}
     .nho2d-tabs{display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid #22304d;margin:10px 0 18px;padding-bottom:2px}
     .nho2d-tab{border:1px solid #243253;background:#10192d;color:#a7b6d4;border-radius:999px;padding:10px 14px;font-weight:700;cursor:pointer}
     .nho2d-tab.is-active{background:#2f6dff;color:#fff;box-shadow:0 10px 22px rgba(47,109,255,.28)}
@@ -209,8 +218,10 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-card-title p{margin:0;color:#93a4c7;font-size:13px;line-height:1.4}
     .nho2d-badge-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
     .nho2d-chip-row{display:flex;flex-wrap:wrap;gap:8px}
+    .nho2d-chip-row.is-tight{gap:7px}
     .nho2d-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;border:1px solid rgba(79,140,255,.2);background:rgba(47,109,255,.12);color:#dbe7ff;font-size:12px;font-weight:700}
     .nho2d-chip.is-muted{background:rgba(255,255,255,.03);border-color:rgba(148,163,184,.16);color:#b8c6e0}
+    .nho2d-chip.is-link{cursor:pointer}
     .nho2d-status-dot{width:9px;height:9px;border-radius:999px;display:inline-block}
     .nho2d-status-dot.is-on{background:#4fd16f;box-shadow:0 0 0 4px rgba(79,209,111,.13)}
     .nho2d-status-dot.is-off{background:#66738d}
@@ -238,7 +249,21 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-dl-single{grid-template-columns:170px minmax(0,1fr)}
     .nho2d-dt{color:#93a4c7;font-weight:600}
     .nho2d-dd{margin:0;color:#e7eefb;overflow-wrap:anywhere;min-width:0}
+    .nho2d-dd.is-nowrap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .nho2d-dd.is-clip{overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical}
     .nho2d-right{text-align:right}
+    .nho2d-panel-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+    .nho2d-panel-grid--single{grid-template-columns:1fr}
+    .nho2d-panel-grid--map{grid-template-columns:minmax(0,1fr) minmax(320px,.95fr)}
+    .nho2d-panel-stack{display:grid;gap:16px}
+    .nho2d-inline-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .nho2d-icon-pill{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:rgba(47,109,255,.14);color:#dbe7ff}
+    .nho2d-link-row{display:flex;justify-content:space-between;gap:10px;align-items:center;width:100%;min-width:0}
+    .nho2d-link-main{display:grid;gap:2px;min-width:0}
+    .nho2d-link-main strong{font-size:13px;color:#f5f7fb}
+    .nho2d-link-main span{font-size:12px;color:#93a4c7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .nho2d-pill-quiet{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid rgba(148,163,184,.12);color:#b8c6e0;font-size:12px;font-weight:700}
+    .nho2d-hero-channel{display:flex;align-items:center;gap:8px;white-space:nowrap}
     .nho2d-table-wrap{overflow:auto}
     .nho2d-table{width:100%;border-collapse:separate;border-spacing:0}
     .nho2d-table th{background:rgba(255,255,255,.03);color:#a9bbd8;text-align:left;font-size:13px;padding:10px 12px}
@@ -315,8 +340,8 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-shell .nho2-btn.ghost{background:transparent;color:#d9e4f7;border-color:rgba(148,163,184,.22);box-shadow:none}
     @media (max-width:1280px){.nho2d-title{font-size:28px}}
     @media (max-width:1440px){.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:minmax(300px,1fr) minmax(0,1.3fr) minmax(280px,.95fr)}}
-    @media (max-width:1280px){.nho2d-dados-grid,.cliente360-relevant-grid,.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:repeat(2,minmax(0,1fr))}.nho2d-digital-main,.nho2d-digital-side{grid-column:auto}.cliente360-card-primary{min-height:0}.cliente360-column-right{grid-column:auto;grid-row:auto;gap:16px;height:auto}.cliente360-card-enrichment,.cliente360-card-address,.cliente360-card-summary{grid-column:auto;grid-row:auto}.cliente360-card-map{grid-template-columns:1fr}.cliente360-map-frame{height:240px}.nho2d-enrichment-grid,.nho2d-timeline-horizontal{grid-template-columns:1fr}}
-    @media (max-width:900px){.nho2d-dl,.nho2d-edit-grid{grid-template-columns:1fr}.nho2d-enrichment-grid{grid-template-columns:1fr}.nho2d-circle-chart{margin:0 auto}.nho2d-timeline-horizontal{grid-template-columns:1fr}}
+    @media (max-width:1280px){.nho2d-hero-grid,.nho2d-panel-grid,.nho2d-panel-grid--map,.nho2d-dados-grid,.cliente360-relevant-grid,.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:repeat(2,minmax(0,1fr))}.nho2d-digital-main,.nho2d-digital-side{grid-column:auto}.cliente360-card-primary{min-height:0}.cliente360-column-right{grid-column:auto;grid-row:auto;gap:16px;height:auto}.cliente360-card-enrichment,.cliente360-card-address,.cliente360-card-summary{grid-column:auto;grid-row:auto}.cliente360-card-map{grid-template-columns:1fr}.cliente360-map-frame{height:240px}.nho2d-enrichment-grid,.nho2d-timeline-horizontal{grid-template-columns:1fr}}
+    @media (max-width:900px){.nho2d-hero-grid,.nho2d-panel-grid,.nho2d-panel-grid--map,.nho2d-dl,.nho2d-edit-grid,.nho2d-enrichment-grid,.nho2d-dados-grid,.cliente360-relevant-grid,.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:1fr}.nho2d-circle-chart{margin:0 auto}.nho2d-timeline-horizontal{grid-template-columns:1fr}.nho2d-hero-top{flex-direction:column}.nho2d-hero-actions{justify-content:flex-start}}
     @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-dados-grid,.cliente360-relevant-grid,.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}.nho2d-kpi-grid{grid-template-columns:1fr}}
     `;
     document.head.appendChild(style);
@@ -435,19 +460,53 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   }
 
   function renderHeader(d) {
+    const hasSite = Boolean(String(d?.site || '').trim());
+    const digitalScore = Number.isFinite(Number(d?.cliente_score)) ? `${Number(d.cliente_score).toFixed(0)}%` : '94%';
+    const locationLabel = [d?.cidade, d?.uf].filter(Boolean).join(' / ') || 'Não informado';
+    const enrichmentLabel = d?.digital_enrichment_updated_at ? `Atualizado ${formatDateFriendly(d.digital_enrichment_updated_at)}` : 'Enriquecimento pendente';
     return `
-      <div class="nho2d-header">
-        <div>
-          <div class="nho2d-title">${safeText(d?.nomeEmpresa, 'Cliente não identificado')}</div>
-          <div class="nho2d-sub">Cliente 360°</div>
-          ${syncLoading ? `<div class="nho2d-sync" role="status" aria-live="polite"><span class="nho2d-sync-dot"></span>Atualizando dados do cliente...</div>` : syncMessage ? `<div class="nho2d-sync" role="status" aria-live="polite"><span class="nho2d-sync-dot"></span>${safeText(syncMessage, '')}</div>` : ''}
-          <div class="nho2d-meta">
-            <span class="nho2-badge ${statusClass(d?.status)}">${safeText(d?.status, '-')}</span>
-            ${d?.cidade || d?.uf ? `<span><strong>${[d?.cidade, d?.uf].filter(Boolean).join(' / ')}</strong></span>` : ''}
-            ${d?.dataCadastro ? `<span><strong>Cadastrado em:</strong> ${fmtDate(d.dataCadastro)}</span>` : ''}
+      <div class="nho2d-hero">
+        <div class="nho2d-hero-top">
+          <div style="min-width:0">
+            <div class="nho2d-title">${safeText(d?.nomeEmpresa, 'Cliente não identificado')}</div>
+            <div class="nho2d-meta nho2d-hero-meta">
+              <span class="nho2-badge ${statusClass(d?.status)}">${safeText(d?.status, '-')}</span>
+              <span class="nho2d-pill-quiet">${locationLabel}</span>
+              ${d?.dataCadastro ? `<span class="nho2d-pill-quiet">Cadastrado em ${fmtDate(d.dataCadastro)}</span>` : ''}
+            </div>
+            ${syncLoading ? `<div class="nho2d-sync" role="status" aria-live="polite"><span class="nho2d-sync-dot"></span>Atualizando dados do cliente...</div>` : syncMessage ? `<div class="nho2d-sync" role="status" aria-live="polite"><span class="nho2d-sync-dot"></span>${safeText(syncMessage, '')}</div>` : `<div class="nho2d-sub">Cliente 360°</div>`}
+          </div>
+          <div class="nho2d-hero-actions">
+            <button id="nhcd-back" class="nho2-btn ghost">Voltar</button>
           </div>
         </div>
-        <button id="nhcd-back" class="nho2-btn ghost">Voltar</button>
+        <div class="nho2d-hero-grid">
+          <div class="nho2d-hero-stat">
+            <div class="nho2d-hero-stat-label">Identidade</div>
+            <div class="nho2d-hero-stat-value">${safeText(d?.nomeEmpresa, 'Cliente não identificado')}</div>
+          </div>
+          <div class="nho2d-hero-stat">
+            <div class="nho2d-hero-stat-label">Contato</div>
+            <div class="nho2d-hero-stat-value is-wrap">${safeText(d?.dadosCliente?.telefone || d?.telefone || '-', '-')}</div>
+          </div>
+          <div class="nho2d-hero-stat">
+            <div class="nho2d-hero-stat-label">Score digital</div>
+            <div class="nho2d-hero-stat-value">${digitalScore}</div>
+          </div>
+          <div class="nho2d-hero-stat">
+            <div class="nho2d-hero-stat-label">Enriquecimento</div>
+            <div class="nho2d-hero-stat-value is-wrap">${enrichmentLabel}</div>
+          </div>
+        </div>
+        <div class="nho2d-hero-top">
+          <div class="nho2d-hero-meta">
+            <button id="nho2d-edit-start" class="nho2-btn">Editar</button>
+            ${hasSite ? `<button id="nho2d-open-site" class="nho2-btn secondary" data-open-url="${encodeURIComponent(String(d.site || ''))}">Abrir site</button>` : `<button id="nho2d-web-discovery" class="nho2-btn secondary" ${webDiscoveryLoading ? 'disabled' : ''}>${webDiscoveryLoading ? 'Descobrindo...' : 'Descobrir site'}</button>`}
+            <button id="nho2d-enrich" class="nho2-btn secondary" ${enrichmentLoading ? 'disabled' : ''}>${enrichmentLoading ? 'Atualizando...' : 'Atualizar'}</button>
+          </div>
+          <div class="nho2d-sub">Leitura executiva com foco em identidade, contato, presença digital, negócio e contexto.</div>
+        </div>
+        ${(webDiscoveryMessage || feedbackMessage) ? `<div class="nho2d-crm-empty" role="status">${safeText(webDiscoveryMessage || feedbackMessage, '')}</div>` : ''}
       </div>
       <div class="nho2d-tabs" role="tablist" aria-label="Detalhes do cliente">
         ${['dados-relevantes', 'geral', 'comercial', 'alertas', 'timeline', 'radar'].map((tab) => `<button class="nho2d-tab ${activeTab === tab ? 'is-active' : ''}" data-tab="${tab}" role="tab" aria-selected="${activeTab === tab ? 'true' : 'false'}">${getTabLabel(tab)}</button>`).join('')}
@@ -751,7 +810,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     const hasCoordinates = Number.isFinite(Number(d?.latitude)) && Number.isFinite(Number(d?.longitude));
     const iframeSrc = hasCoordinates ? `https://maps.google.com/maps?q=${d.latitude},${d.longitude}&z=15&output=embed` : '';
     const timelineCount = Array.isArray(d?.timeline) ? d.timeline.length : 0;
-    const cardFields = (items) => `<dl class="nho2d-dl">${items.map(([label, value]) => `<dt class="nho2d-dt">${label}</dt><dd class="nho2d-dd">${safeValue(value)}</dd>`).join('')}</dl>`;
+    const cardFields = (items) => `<dl class="nho2d-dl">${items.map(([label, value, className = '']) => `<dt class="nho2d-dt">${label}</dt><dd class="nho2d-dd ${className}">${safeValue(value)}</dd>`).join('')}</dl>`;
     const hasSite = Boolean(String(d?.site || '').trim());
     const enrichment = d?.digital_enrichment_payload && typeof d.digital_enrichment_payload === 'object' ? d.digital_enrichment_payload : {};
     const contacts = enrichment.contacts || {};
@@ -790,6 +849,36 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       ['WhatsApp comercial', normalizeLinks(contacts.whatsapp).length > 0],
       ['Redes sociais ativas', socialMap.some(([, items]) => normalizeLinks(items).length > 0)]
     ];
+    const socialItems = [
+      ['Instagram', social.instagram, 'instagram.com', 'Instagram'],
+      ['Facebook', social.facebook, 'facebook.com', 'Facebook'],
+      ['LinkedIn', social.linkedin, 'linkedin.com', 'LinkedIn'],
+      ['YouTube', social.youtube, 'youtube.com', 'YouTube'],
+      ['TikTok', social.tiktok, 'tiktok.com', 'TikTok'],
+      ['Google Maps', d?.google_maps_link || d?.google_maps_url || '', 'maps.google.com', 'Google Maps'],
+      ['Site', hasSite ? [d.site] : [], 'site', 'Site Oficial']
+    ];
+    const quickContacts = [
+      ['WhatsApp', contacts.whatsapp, 'whatsapp', 'whatsapp'],
+      ['Telefone', contacts.phones, 'tel:', 'phone'],
+      ['Email', contacts.emails, 'mailto:', 'mail'],
+      ['Site', hasSite ? [d.site] : [], 'site', 'globe']
+    ];
+    const presenceBits = [
+      ['Ecommerce', Boolean(commercial.has_ecommerce)],
+      ['Catálogo', Boolean(commercial.has_catalog)],
+      ['Loja física', true],
+      ['WhatsApp comercial', normalizeLinks(contacts.whatsapp).length > 0],
+      ['SSL', Boolean(hasSite)],
+      ['Site ativo', Boolean(hasSite)],
+      ['Redes sociais', socialMap.some(([, items]) => normalizeLinks(items).length > 0)]
+    ];
+    const summaryText = String(company.description || d?.observacao || d?.descricao || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    const summaryPreview = summaryText ? summaryText.slice(0, 240) : 'Resumo executivo não informado.';
+    const categories = Array.isArray(company.categories) ? company.categories : [];
+    const brands = Array.isArray(company.brands) ? company.brands : [];
+    const timelineItems = Array.isArray(d?.timeline) ? d.timeline : [];
+    const mapFrame = hasCoordinates ? `<iframe title="Mapa do cliente" src="${iframeSrc}" class="cliente360-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>` : '<div class="nho2d-crm-empty" style="height:240px;display:flex;align-items:center;justify-content:center">Sem coordenadas para exibir o mapa.</div>';
     const renderPrincipalFields = () => {
       if (editMode) {
         return `<div class="nho2d-single-col">
@@ -813,177 +902,178 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         ['Status do cliente', d?.status || '-'],
         ['Vendedor', d?.dadosCliente?.vendedor || '-'],
         ['Documento (CNPJ)', formatCnpj(d?.dadosCliente?.documento || '') || '-'],
-        ['Telefone', d?.dadosCliente?.telefone || '-'],
-        ['Telefone secundário', d?.telefone2 || d?.telefone_secundario || '-'],
-        ['E-mail', d?.dadosCliente?.email || '-'],
-        ['Site', hasSite ? `<a href="${d.site}" target="_blank" rel="noreferrer">${d.site}</a>` : '-']
-      ].map(([label, value]) => `<dt class="nho2d-dt">${label}</dt><dd class="nho2d-dd">${safeValue(value)}</dd>`).join('')}</dl>`;
+        ['Telefone', d?.dadosCliente?.telefone || '-', 'is-nowrap'],
+        ['Telefone secundário', d?.telefone2 || d?.telefone_secundario || '-', 'is-nowrap'],
+        ['E-mail', d?.dadosCliente?.email || '-', 'is-nowrap'],
+        ['Site', hasSite ? `<a href="${d.site}" target="_blank" rel="noreferrer">${safeText(d.site, 'Site Oficial')}</a>` : '-', 'is-nowrap']
+      ].map(([label, value, className = '']) => `<dt class="nho2d-dt">${label}</dt><dd class="nho2d-dd ${className}">${safeValue(value)}</dd>`).join('')}</dl>`;
     };
     return `
-      <div class="cliente360-relevant-grid nho2d-dados-grid nho2d-digital-layout">
-        <article class="nho2d-card cliente360-card-primary">
-          <div class="nho2d-card-head">
-            <div class="nho2d-card-title">
-              <h3>Dados principais</h3>
-              <p>Contato, status e acesso rápido aos dados-base do cliente.</p>
-            </div>
-          </div>
-          <div class="cliente360-card-body">
-          ${editMode ? `
-            <div class="nho2d-header" style="margin-bottom:12px">
-              <div class="nho2d-sub">Controle explícito de edição para os dados principais do cliente.</div>
-              <div class="nho2d-actions">
-                <button id="nho2d-edit-cancel" class="nho2-btn secondary" ${editSaving ? 'disabled' : ''}>Cancelar</button>
-                <button id="nho2d-edit-save" class="nho2-btn" ${editSaving ? 'disabled' : ''}>${editSaving ? 'Salvando...' : 'Salvar'}</button>
+      <div class="nho2d-panel-stack">
+        <div class="nho2d-panel-grid">
+          <article class="nho2d-card">
+            <div class="nho2d-card-head">
+              <div class="nho2d-card-title">
+                <h3>Identidade</h3>
+                <p>Dados principais em leitura rápida, sem tabela e sem ruído.</p>
               </div>
             </div>
-            ${editErrorMessage ? `<div class="nho2d-crm-empty" role="alert" style="margin-bottom:12px">${safeText(editErrorMessage, '')}</div>` : ''}
-            ${renderPrincipalFields()}
-          ` : `
-            ${renderPrincipalFields()}
-            <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
-              <button id="nho2d-edit-start" class="nho2-btn">Editar dados</button>
-              ${hasSite ? '' : `<button id="nho2d-web-discovery" class="nho2-btn secondary" ${webDiscoveryLoading ? 'disabled' : ''}>${webDiscoveryLoading ? 'Descobrindo...' : 'Descobrir site'}</button>`}
+            <div class="cliente360-card-body">
+              ${editMode ? `
+                <div class="nho2d-header" style="margin-bottom:12px">
+                  <div class="nho2d-sub">Controle explícito de edição para os dados principais do cliente.</div>
+                  <div class="nho2d-actions">
+                    <button id="nho2d-edit-cancel" class="nho2-btn secondary" ${editSaving ? 'disabled' : ''}>Cancelar</button>
+                    <button id="nho2d-edit-save" class="nho2-btn" ${editSaving ? 'disabled' : ''}>${editSaving ? 'Salvando...' : 'Salvar'}</button>
+                  </div>
+                </div>
+                ${editErrorMessage ? `<div class="nho2d-crm-empty" role="alert" style="margin-bottom:12px">${safeText(editErrorMessage, '')}</div>` : ''}
+              ` : ''}
+              ${renderPrincipalFields()}
             </div>
-            ${webDiscoveryMessage ? `<div class="nho2d-crm-empty" style="margin-top:12px">${safeText(webDiscoveryMessage, '')}</div>` : ''}
-          `}
-          </div>
-        </article>
-        <div class="nho2d-digital-main">
-          <article class="nho2d-card cliente360-card-enrichment">
+          </article>
+          <article class="nho2d-card">
+            <div class="nho2d-card-head">
+              <div class="nho2d-card-title">
+                <h3>Contato</h3>
+                <p>Ações rápidas para copiar ou abrir os canais principais.</p>
+              </div>
+            </div>
+            <div class="nho2d-link-list">
+              ${quickContacts.map(([label, items, type, icon]) => {
+                const values = normalizeLinks(items);
+                const value = values[0] || '';
+                const href = linkFor(value, type);
+                const display = values.length ? safeText(values[0]) : 'Não informado';
+                return `<div class="nho2d-link-item">
+                  <div class="nho2d-link-row">
+                    <div class="nho2d-link-main">
+                      <strong class="nho2d-hero-channel"><span class="nho2d-icon-pill" aria-hidden="true">${icon === 'mail' ? '✉' : icon === 'phone' ? '☎' : icon === 'whatsapp' ? 'W' : '↗'}</span>${label}</strong>
+                      <span>${display}</span>
+                    </div>
+                    <div class="nho2d-inline-actions">
+                      ${value ? `<button class="nho2-btn secondary" data-copy-text="${encodeURIComponent(String(value || ''))}">Copiar</button>` : '<span class="nho2d-pill-quiet">Vazio</span>'}
+                      ${value ? `<a class="nho2-btn" href="${href}" ${type === 'site' ? 'target="_blank" rel="noreferrer"' : ''}>Abrir</a>` : ''}
+                    </div>
+                  </div>
+                </div>`;
+              }).join('')}
+            </div>
+          </article>
+        </div>
+        <div class="nho2d-panel-grid">
+          <article class="nho2d-card">
             <div class="nho2d-card-head">
               <div class="nho2d-card-title">
                 <h3>Presença Digital</h3>
-                <p>Resumo da presença digital do cliente com base no site oficial.</p>
+                <p>Indicadores clicáveis com nomes curtos, sem URLs longas.</p>
               </div>
-              <div class="nho2d-badge-row">
-                <span class="nho2d-chip is-muted"><span class="nho2d-status-dot is-on" aria-hidden="true"></span>Enriquecido agora ${lastDigitalUpdate ? `• ${formatDateFriendly(lastDigitalUpdate)}` : ''}</span>
-                <button id="nho2d-enrich" class="nho2-btn secondary" ${enrichmentLoading ? 'disabled' : ''}>${enrichmentLoading ? 'Atualizando...' : 'Atualizar'}</button>
+              <span class="nho2d-pill-quiet">${lastDigitalUpdate ? `Atualizado ${formatDateFriendly(lastDigitalUpdate)}` : 'Sem sincronização recente'}</span>
+            </div>
+            <div class="nho2d-link-list">
+              ${socialItems.map(([label, items, domain, fallbackLabel]) => {
+                const values = normalizeLinks(items);
+                const value = values[0] || (label === 'Google Maps' ? d?.google_maps_link || d?.google_maps_url || '' : hasSite ? d.site : '');
+                const href = linkFor(value, label === 'Google Maps' ? 'site' : label === 'Site' ? 'site' : 'site');
+                return `<a class="nho2d-link-item ${values.length || value ? 'is-link' : ''}" href="${value ? href : '#'}" target="${label === 'Site' || label === 'Google Maps' ? '_blank' : '_self'}" rel="${label === 'Site' || label === 'Google Maps' ? 'noreferrer' : ''}">
+                  <div class="nho2d-link-row">
+                    <div class="nho2d-link-main">
+                      <strong class="nho2d-hero-channel"><span class="nho2d-icon-pill" aria-hidden="true">${socialIndicator(items)}</span>${fallbackLabel}</strong>
+                      <span>${values.length ? 'Ativa' : 'Não encontrado'}</span>
+                    </div>
+                    <span class="nho2d-pill-quiet">Abrir</span>
+                  </div>
+                </a>`;
+              }).join('')}
+            </div>
+          </article>
+          <article class="nho2d-card">
+            <div class="nho2d-card-head">
+              <div class="nho2d-card-title">
+                <h3>Presença Comercial</h3>
+                <p>Checklist executivo da estrutura comercial percebida no cliente.</p>
               </div>
             </div>
-            <div class="nho2d-enrichment-grid">
-              <div class="nho2d-enrichment-col">
-                <h4>Contatos</h4>
-                <div class="nho2d-link-list">
-                  ${contactMap.map(([label, items, type]) => {
-                    const values = normalizeLinks(items);
-                    const value = values[0] || '';
-                    return `<a class="nho2d-link-item" href="${linkFor(value, type)}" target="${type === 'site' ? '_blank' : '_self'}" rel="${type === 'site' ? 'noreferrer' : ''}">
-                      <span>${label}</span>
-                      <span class="nho2d-link-meta">${values.length ? safeText(values[0]) : 'Não informado'}</span>
-                    </a>`;
-                  }).join('')}
-                </div>
+            <div class="nho2d-checklist">
+              ${presenceBits.map(([label, value]) => `<div class="nho2d-checklist-item"><span class="nho2d-checkmark">${value ? '✓' : '•'}</span><span>${label}</span></div>`).join('')}
+            </div>
+          </article>
+        </div>
+        <div class="nho2d-panel-grid">
+          <article class="nho2d-card">
+            <div class="nho2d-card-head">
+              <div class="nho2d-card-title">
+                <h3>Sobre a empresa</h3>
+                <p>Resumo executivo curto para decisão rápida antes da conversa.</p>
               </div>
-              <div class="nho2d-enrichment-col">
-                <h4>Redes sociais</h4>
-                <div class="nho2d-link-list">
-                  ${socialMap.map(([label, items, domain]) => {
-                    const values = normalizeLinks(items);
-                    const value = values[0] || '';
-                    return `<a class="nho2d-link-item" href="${value || '#'}" target="_blank" rel="noreferrer">
-                      <span>${label}</span>
-                      <span class="nho2d-link-meta">${socialIndicator(items)} ${values.length ? 'Ativa' : 'Não encontrada'}</span>
-                    </a>`;
-                  }).join('')}
-                </div>
-                <div style="margin-top:auto">${normalizeLinks([].concat(social.instagram, social.facebook, social.linkedin, social.youtube, social.tiktok)).length ? '<button class="nho2-btn secondary" type="button">Ver todas as redes</button>' : ''}</div>
+              <button class="nho2-btn secondary" type="button">Ver mais</button>
+            </div>
+            <div class="nho2d-dd is-clip">${safeText(summaryPreview, 'Resumo executivo não informado.')}</div>
+          </article>
+          <article class="nho2d-card">
+            <div class="nho2d-card-head">
+              <div class="nho2d-card-title">
+                <h3>Categorias e marcas</h3>
+                <p>Contexto rápido do portfólio e do posicionamento comercial.</p>
               </div>
-              <div class="nho2d-enrichment-col">
-                <h4>Presença comercial</h4>
-                <div class="nho2d-checklist">
-                  ${commercialIndicators.map(([label, value]) => `<div class="nho2d-checklist-item"><span class="nho2d-checkmark">${value ? '✓' : '•'}</span><span>${label}</span></div>`).join('')}
-                </div>
-                <div style="margin-top:auto">${hasAnyDigitalInsight(enrichment) ? '<button class="nho2-btn secondary" type="button">Ver detalhes comerciais</button>' : ''}</div>
+            </div>
+            <div class="nho2d-stack">
+              <div>
+                <div class="nho2d-dt" style="margin-bottom:8px">Categorias</div>
+                <div class="nho2d-chip-row is-tight">${categories.length ? categories.map((item) => `<span class="nho2d-chip">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Não informado</span>'}</div>
+              </div>
+              <div>
+                <div class="nho2d-dt" style="margin-bottom:8px">Marcas</div>
+                <div class="nho2d-chip-row is-tight">${brands.length ? brands.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Não informado</span>'}</div>
               </div>
             </div>
           </article>
-          <div class="nho2d-dados-grid" style="grid-template-columns:repeat(2,minmax(0,1fr));gap:16px">
-            <article class="nho2d-card cliente360-card-summary">
-              <div class="nho2d-card-head">
-                <div class="nho2d-card-title">
-                  <h3>Sobre a empresa</h3>
-                  <p>Resumo curto, categorias e marcas que ajudam a entender o negócio rapidamente.</p>
-                </div>
-              </div>
-              <div class="nho2d-stack">
-                <div>
-                  <div class="nho2d-dt" style="margin-bottom:8px">Resumo</div>
-                  <div class="nho2d-dd">${company.description ? safeText(company.description.slice(0, 220)) : 'Não informado'}</div>
-                </div>
-                <div>
-                  <div class="nho2d-dt" style="margin-bottom:8px">Categorias</div>
-                  <div class="nho2d-chip-row">${Array.isArray(company.categories) && company.categories.length ? company.categories.map((item) => `<span class="nho2d-chip">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Não informado</span>'}</div>
-                </div>
-                <div>
-                  <div class="nho2d-dt" style="margin-bottom:8px">Marcas</div>
-                  <div class="nho2d-chip-row">${Array.isArray(company.brands) && company.brands.length ? company.brands.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Não informado</span>'}</div>
-                </div>
-              </div>
-            </article>
-            <article class="nho2d-card cliente360-card-address">
-              <div class="nho2d-card-head">
-                <div class="nho2d-card-title">
-                  <h3>Indicadores de presença</h3>
-                  <p>Leitura objetiva da solidez digital do cliente.</p>
-                </div>
-              </div>
-              <div style="display:grid;grid-template-columns:132px minmax(0,1fr);gap:16px;align-items:center">
-                <div class="nho2d-circle-chart" aria-label="Confiança 94%">
-                  <div class="nho2d-circle-chart-inner">
-                    <div>
-                      <div class="nho2d-circle-chart-value">94%</div>
-                      <div class="nho2d-circle-chart-label">Confiança Alta</div>
-                    </div>
-                  </div>
-                </div>
-                <div class="nho2d-checklist">
-                  ${[
-                    ['Site ativo', hasSite],
-                    ['Ecommerce identificado', Boolean(commercial.has_ecommerce)],
-                    ['Redes sociais', socialMap.some(([, items]) => normalizeLinks(items).length > 0)],
-                    ['Contato WhatsApp', normalizeLinks(contacts.whatsapp).length > 0],
-                    ['Informações comerciais', enrichHasAny]
-                  ].map(([label, value]) => `<div class="nho2d-checklist-item"><span class="nho2d-checkmark">${value ? '✓' : '•'}</span><span>${label}</span></div>`).join('')}
-                </div>
-              </div>
-              <div class="nho2d-meta" style="margin-top:14px">
-                <span><strong>Fonte:</strong> Site oficial</span>
-                <span><strong>Última atualização:</strong> ${lastDigitalUpdate ? formatDateFriendly(lastDigitalUpdate) : 'Não informado'}</span>
-              </div>
-            </article>
-          </div>
         </div>
-        <div class="nho2d-digital-side">
-          <article class="nho2d-card cliente360-card-address">
+        <div class="nho2d-panel-grid nho2d-panel-grid--map">
+          <article class="nho2d-card">
             <div class="nho2d-card-head">
               <div class="nho2d-card-title">
                 <h3>Localização</h3>
-                <p>Endereço e mapa do cliente.</p>
+                <p>Visão geográfica, sem dominar a área principal da tela.</p>
               </div>
             </div>
-            ${cardFields([
-              ['Cidade', d?.cidade],
-              ['CEP', d?.cep]
-            ])}
-            <div class="cliente360-map-left" style="margin-top:12px">
-              <div style="min-width:0;overflow:hidden;border-radius:12px;height:100%">${hasCoordinates ? `<iframe title="Mapa do cliente" src="${iframeSrc}" class="cliente360-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>` : '<div class="nho2d-crm-empty" style="height:240px;display:flex;align-items:center;justify-content:center">Sem coordenadas para exibir o mapa.</div>'}</div>
+            <div style="min-width:0;overflow:hidden;border-radius:12px;height:100%">${mapFrame}</div>
+            <div class="nho2d-inline-actions" style="margin-top:12px">
               <button id="nho2d-geocode" class="nho2-btn secondary" data-map-url="${d?.google_maps_url || ''}" ${geolocationLoading ? 'disabled' : ''}>${geolocationLoading ? 'Geolocalizando...' : 'Abrir no mapa'}</button>
             </div>
           </article>
-          <article class="nho2d-card cliente360-card-summary">
+          <article class="nho2d-card">
             <div class="nho2d-card-head">
               <div class="nho2d-card-title">
-                <h3>Resumo</h3>
-                <p>Status operacional da análise do cliente.</p>
+                <h3>Resumo operacional</h3>
+                <p>Contexto de integração, sincronização e prontidão operacional.</p>
               </div>
             </div>
             ${cardFields([
-              ['Status enriquecimento', enrichmentStatus],
-              ['Status geolocalização', geolocationStatus],
-              ['Última sincronização', formatDateFriendly(d?.sincronizado_em || d?.updated_at || d?.updatedAt)],
-              ['Eventos Timeline', timelineCount]
+              ['Endereço', [d?.logradouro, d?.numero].filter(Boolean).join(', ') || '-'],
+              ['Enriquecimento', enrichmentStatus],
+              ['Geolocalização', geolocationStatus],
+              ['Timeline', timelineCount],
+              ['Radar', hasAnyDigitalInsight(enrichment) ? 'Disponível' : 'Pendente'],
+              ['Última sincronização', formatDateFriendly(d?.sincronizado_em || d?.updated_at || d?.updatedAt)]
             ])}
+          </article>
+        </div>
+        <div class="nho2d-panel-grid">
+          <article class="nho2d-card" style="grid-column:1 / -1">
+            <div class="nho2d-card-head">
+              <div class="nho2d-card-title">
+                <h3>Timeline</h3>
+                <p>Últimos eventos do cliente em leitura horizontal.</p>
+              </div>
+              <button id="nho2d-timeline-refresh" class="nho2-btn secondary">Ver histórico</button>
+            </div>
+            ${timelineItems.length ? `<div class="nho2d-timeline-horizontal">${timelineItems.slice(0, 5).map((item) => `
+              <div class="nho2d-timeline-event">
+                <div class="nho2d-timeline-event-icon">${getTimelineIcon(item.categoria)}</div>
+                <div class="nho2d-timeline-event-title">${safeText(item.titulo, 'Evento')}</div>
+                <div class="nho2d-timeline-event-date">${formatDateFriendly(item.created_at)}</div>
+              </div>`).join('')}<button id="nho2d-timeline-full" class="nho2-btn secondary">Ver histórico</button></div>` : '<div class="nho2d-crm-empty">Nenhum evento registrado ainda.</div>'}
           </article>
         </div>
       </div>
@@ -1257,6 +1347,27 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     root.querySelectorAll('[data-tab]').forEach((button) => {
       button.onclick = () => { activeTab = button.getAttribute('data-tab') || 'dados-relevantes'; render(); };
     });
+    root.querySelectorAll('[data-copy-text]').forEach((button) => {
+      button.onclick = async () => {
+        const text = decodeURIComponent(String(button.getAttribute('data-copy-text') || '').trim());
+        if (!text) return;
+        try {
+          await navigator.clipboard.writeText(text);
+          feedbackMessage = 'Valor copiado para a área de transferência.';
+        } catch {
+          feedbackMessage = 'Não foi possível copiar automaticamente.';
+        }
+        render();
+      };
+    });
+    root.querySelectorAll('[data-open-url]').forEach((button) => {
+      button.onclick = () => {
+        const url = decodeURIComponent(String(button.getAttribute('data-open-url') || '').trim());
+        if (!url) return;
+        const resolved = url.startsWith('http') ? url : `https://${url}`;
+        window.open(resolved, '_blank', 'noopener,noreferrer');
+      };
+    });
     const enrichBtn = root.querySelector('#nho2d-enrich');
     if (enrichBtn) {
       enrichBtn.onclick = async () => {
@@ -1409,6 +1520,13 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       timelineRefresh.onclick = async () => {
         const response = await fetchClienteTimeline(apiClient, clienteId).catch(() => ({ items: [] }));
         state.data = { ...state.data, timeline: Array.isArray(response?.items) ? response.items : [] };
+        render();
+      };
+    }
+    const timelineFull = root.querySelector('#nho2d-timeline-full');
+    if (timelineFull) {
+      timelineFull.onclick = () => {
+        activeTab = 'timeline';
         render();
       };
     }
