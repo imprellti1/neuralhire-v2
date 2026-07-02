@@ -125,10 +125,18 @@ function buildGoogleMapsSearchUrl(cliente = {}) {
 function normalizeDigitalEnrichmentPayload(payload = {}) {
   const safeObject = (value) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {});
   const safeArray = (value) => (Array.isArray(value) ? value.filter((item) => String(item || '').trim()) : []);
+  const safePriceRanges = (value) => (Array.isArray(value) ? value.map((item) => ({
+    category: String(item?.category || '').trim(),
+    min_price: Number.isFinite(Number(item?.min_price)) ? Number(item.min_price) : null,
+    max_price: Number.isFinite(Number(item?.max_price)) ? Number(item.max_price) : null,
+    avg_price: Number.isFinite(Number(item?.avg_price)) ? Number(item.avg_price) : null,
+    sample_count: Number.isFinite(Number(item?.sample_count)) ? Number(item.sample_count) : 0
+  })).filter((item) => item.category) : []);
   const contacts = safeObject(payload.contacts);
   const social = safeObject(payload.social);
   const company = safeObject(payload.company);
   const commercial = safeObject(payload.commercial);
+  const commercialProfile = safeObject(payload.commercial_profile);
   return {
     contacts: {
       emails: safeArray(contacts.emails),
@@ -149,6 +157,18 @@ function normalizeDigitalEnrichmentPayload(payload = {}) {
       brands: safeArray(company.brands),
       business_hours: String(company.business_hours || '').trim(),
       address: String(company.address || '').trim()
+    },
+    commercial_profile: {
+      ecommerce: {
+        categories: safeArray(commercialProfile?.ecommerce?.categories),
+        brands: safeArray(commercialProfile?.ecommerce?.brands),
+        price_ranges_by_category: safePriceRanges(commercialProfile?.ecommerce?.price_ranges_by_category)
+      },
+      instagram: {
+        categories: safeArray(commercialProfile?.instagram?.categories),
+        brands: safeArray(commercialProfile?.instagram?.brands),
+        price_ranges_by_category: safePriceRanges(commercialProfile?.instagram?.price_ranges_by_category)
+      }
     },
     commercial: {
       has_ecommerce: Boolean(commercial.has_ecommerce),

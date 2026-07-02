@@ -615,6 +615,18 @@ test('cliente details mostra presença digital e executa web discovery manual', 
               contacts: { emails: ['contato@clientea.com.br'], phones: ['(11) 99999-9999'], whatsapp: ['(11) 99999-9999'] },
               social: { instagram: ['https://instagram.com/clientea'] },
               company: { description: 'Empresa de moda', categories: ['roupas'], brands: ['Marca X'] },
+              commercial_profile: {
+                ecommerce: {
+                  categories: ['cama', 'banho'],
+                  brands: ['Marca X'],
+                  price_ranges_by_category: [{ category: 'cama', min_price: 99.9, max_price: 219.9, avg_price: 159.9, sample_count: 2 }]
+                },
+                instagram: {
+                  categories: ['decoração'],
+                  brands: ['Marca Y'],
+                  price_ranges_by_category: [{ category: 'decoração', min_price: 49.9, max_price: 49.9, avg_price: 49.9, sample_count: 1 }]
+                }
+              },
               commercial: { has_ecommerce: true, has_catalog: true }
             }
           }
@@ -650,12 +662,15 @@ test('cliente details mostra presença digital e executa web discovery manual', 
 
   assert.match(root.textContent, /Dados principais/);
   assert.match(root.textContent, /Presença Digital/);
+  assert.match(root.textContent, /Categorias e preços - Ecommerce/);
+  assert.match(root.textContent, /Categorias e marcas - Instagram/);
   assert.match(root.textContent, /Endereço/);
   assert.match(root.textContent, /Telefone/);
   assert.match(root.textContent, /E-mail/);
   assert.match(root.textContent, /Site/);
   assert.match(root.textContent, /contato@clientea.com.br/);
   assert.match(root.textContent, /Instagram/);
+  assert.match(root.textContent, /cama/);
   assert.doesNotMatch(root.textContent, /Facebook/);
   assert.doesNotMatch(root.textContent, /LinkedIn/);
   assert.doesNotMatch(root.textContent, /YouTube/);
@@ -811,6 +826,46 @@ test('cliente details mostra erro claro ao falhar web discovery', async () => {
   await flush();
 
   assert.match(root.textContent, /BrasilAPI retornou status 404/);
+
+  teardownFrontendDom(dom);
+});
+
+test('cliente details usa fallback legado para categorias e marcas no ecommerce', async () => {
+  const dom = setupFrontendDom('#/clientes/c1');
+  const root = document.getElementById('root');
+  const apiClient = {
+    get: async (url, params = {}) => {
+      if (url === '/clientes/c1') {
+        return {
+          item: {
+            id: 'c1',
+            empresa: 'Cliente Legado',
+            cidade: 'São Paulo',
+            estado: 'SP',
+            created_at: '2026-05-01T00:00:00.000Z',
+            status: 'ativo',
+            digital_enrichment_payload: {
+              company: { categories: ['roupas'], brands: ['Marca Legado'] },
+              commercial: { has_ecommerce: true, has_catalog: true }
+            }
+          }
+        };
+      }
+      if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
+      if (url === '/clientes/c1/timeline') return { items: [] };
+      return { items: [] };
+    }
+  };
+
+  renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
+  await flush();
+  await flush();
+
+  const ecommerceCard = Array.from(root.querySelectorAll('.nho2d-card')).find((card) => card.textContent.includes('Categorias e preços - Ecommerce'));
+  assert.ok(ecommerceCard);
+  assert.match(ecommerceCard.textContent, /roupas/);
+  assert.match(ecommerceCard.textContent, /Marca Legado/);
+  assert.doesNotMatch(ecommerceCard.textContent, /Não informado/);
 
   teardownFrontendDom(dom);
 });

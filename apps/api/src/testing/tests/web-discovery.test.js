@@ -71,6 +71,7 @@ export function getWebDiscoveryTests() {
                   <p>Temos catálogo online, loja virtual, carrinho de compras, checkout e atendimento de segunda a sexta.</p>
                   <button>Comprar</button>
                   <span>À vista ou em até 10x</span>
+                  <p>Produto X por R$ 219,90 e Produto Y por 189,90.</p>
                   <p>Segmento moda, categorias roupas e acessórios, marcas Nike e Adidas.</p>
                 </body></html>`
             });
@@ -92,6 +93,11 @@ export function getWebDiscoveryTests() {
           assert.equal(response.body.data.payload.social.tiktok.length > 0, true);
           assert.equal(response.body.data.payload.commercial.has_catalog, true);
           assert.equal(response.body.data.payload.commercial.has_ecommerce, true);
+          assert.equal(Array.isArray(response.body.data.payload.commercial_profile.ecommerce.categories), true);
+          assert.equal(Array.isArray(response.body.data.payload.commercial_profile.ecommerce.price_ranges_by_category), true);
+          assert.equal(response.body.data.payload.commercial_profile.ecommerce.categories.length > 0, true);
+          assert.equal(response.body.data.payload.commercial_profile.ecommerce.price_ranges_by_category.length > 0, true);
+          assert.equal(response.body.data.payload.commercial_profile.ecommerce.price_ranges_by_category[0].sample_count > 0, true);
           assert.ok(calls.some((item) => item.includes('/sobre')));
           assert.ok(!calls.some((item) => item.includes('marketplace.externo.com')));
           const clienteDetalhe = await call(app, { method: 'GET', url: `/clientes/${cliente.id}`, role: 'admin', accountId: 'acc-1' });

@@ -123,6 +123,40 @@ function getProdutoResumo(item = {}) {
 function normalizeLinks(value = []) {
   return (Array.isArray(value) ? value : [value]).map((item) => String(item || '').trim()).filter(Boolean);
 }
+function normalizePriceRanges(value = []) {
+  return (Array.isArray(value) ? value : []).map((item) => ({
+    category: String(item?.category || '').trim(),
+    min_price: Number.isFinite(Number(item?.min_price)) ? Number(item.min_price) : null,
+    max_price: Number.isFinite(Number(item?.max_price)) ? Number(item.max_price) : null,
+    avg_price: Number.isFinite(Number(item?.avg_price)) ? Number(item.avg_price) : null,
+    sample_count: Number.isFinite(Number(item?.sample_count)) ? Number(item.sample_count) : 0
+  })).filter((item) => item.category);
+}
+function extractCommercialProfile(enrichment = {}) {
+  const company = enrichment?.company || {};
+  const commercialProfile = enrichment?.commercial_profile || {};
+  const legacyCategories = Array.isArray(company.categories) ? company.categories : [];
+  const legacyBrands = Array.isArray(company.brands) ? company.brands : [];
+  return {
+    ecommerce: {
+      categories: normalizeLinks(commercialProfile?.ecommerce?.categories?.length ? commercialProfile.ecommerce.categories : legacyCategories),
+      brands: normalizeLinks(commercialProfile?.ecommerce?.brands?.length ? commercialProfile.ecommerce.brands : legacyBrands),
+      price_ranges_by_category: normalizePriceRanges(commercialProfile?.ecommerce?.price_ranges_by_category)
+    },
+    instagram: {
+      categories: normalizeLinks(commercialProfile?.instagram?.categories),
+      brands: normalizeLinks(commercialProfile?.instagram?.brands),
+      price_ranges_by_category: normalizePriceRanges(commercialProfile?.instagram?.price_ranges_by_category)
+    }
+  };
+}
+function formatPriceRange(item = {}) {
+  const min = Number.isFinite(Number(item.min_price)) ? Number(item.min_price) : null;
+  const max = Number.isFinite(Number(item.max_price)) ? Number(item.max_price) : null;
+  const avg = Number.isFinite(Number(item.avg_price)) ? Number(item.avg_price) : null;
+  const fmt = (value) => (value === null ? '—' : value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
+  return `${item.category}: ${fmt(min)} ${max !== null && max !== min ? `até ${fmt(max)}` : ''}${avg !== null ? ` | média ${fmt(avg)}` : ''} (${Number(item.sample_count || 0)})`.trim();
+}
 
 function inferEcommercePresence(commercial = {}) {
   if (commercial.has_ecommerce) return true;
@@ -899,8 +933,13 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     const summaryText = String(company.description || d?.observacao || d?.descricao || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
     const summaryPreview = summaryText || 'Resumo executivo não informado.';
     const summaryClamped = Boolean(summaryText && !summaryExpanded);
-    const categories = Array.isArray(company.categories) ? company.categories : [];
-    const brands = Array.isArray(company.brands) ? company.brands : [];
+    const commercialProfile = extractCommercialProfile(enrichment);
+    const ecommerceCategories = commercialProfile.ecommerce.categories;
+    const ecommerceBrands = commercialProfile.ecommerce.brands;
+    const ecommercePriceRanges = commercialProfile.ecommerce.price_ranges_by_category;
+    const instagramCategories = commercialProfile.instagram.categories;
+    const instagramBrands = commercialProfile.instagram.brands;
+    const instagramPriceRanges = commercialProfile.instagram.price_ranges_by_category;
     const timelineItems = Array.isArray(d?.timeline) ? d.timeline : [];
     const mapFrame = hasCoordinates ? `<iframe title="Mapa do cliente" src="${iframeSrc}" class="cliente360-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>` : '<div class="nho2d-crm-empty" style="height:240px;display:flex;align-items:center;justify-content:center">Sem coordenadas para exibir o mapa.</div>';
     const renderPrincipalFields = () => {
@@ -1046,18 +1085,44 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
             <article class="nho2d-card">
               <div class="nho2d-card-head">
                 <div class="nho2d-card-title">
-                  <h3>Categorias e marcas</h3>
-                  <p>Contexto rápido do portfólio e do posicionamento comercial.</p>
+                  <h3>Categorias e preços - Ecommerce</h3>
+                  <p>Leitura do catálogo, marcas e faixas de preço percebidas no site.</p>
                 </div>
               </div>
               <div class="nho2d-stack">
                 <div>
                   <div class="nho2d-dt" style="margin-bottom:8px">Categorias</div>
-                  <div class="nho2d-chip-row is-tight">${categories.length ? categories.map((item) => `<span class="nho2d-chip">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Não informado</span>'}</div>
+                  <div class="nho2d-chip-row is-tight">${ecommerceCategories.length ? ecommerceCategories.map((item) => `<span class="nho2d-chip">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Sem categorias inferidas</span>'}</div>
                 </div>
                 <div>
                   <div class="nho2d-dt" style="margin-bottom:8px">Marcas</div>
-                  <div class="nho2d-chip-row is-tight">${brands.length ? brands.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Não informado</span>'}</div>
+                  <div class="nho2d-chip-row is-tight">${ecommerceBrands.length ? ecommerceBrands.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Sem marcas inferidas</span>'}</div>
+                </div>
+                <div>
+                  <div class="nho2d-dt" style="margin-bottom:8px">Média / faixa de preço por categoria</div>
+                  <div class="nho2d-stack">${ecommercePriceRanges.length ? ecommercePriceRanges.map((item) => `<div class="nho2d-crm-empty">${safeText(formatPriceRange(item))}</div>`).join('') : '<div class="nho2d-crm-empty">Nenhum preço detectado no Ecommerce.</div>'}</div>
+                </div>
+              </div>
+            </article>
+            <article class="nho2d-card">
+              <div class="nho2d-card-head">
+                <div class="nho2d-card-title">
+                  <h3>Categorias e marcas - Instagram</h3>
+                  <p>Leitura por bio, legenda, hashtags e menções disponíveis no payload.</p>
+                </div>
+              </div>
+              <div class="nho2d-stack">
+                <div>
+                  <div class="nho2d-dt" style="margin-bottom:8px">Categorias</div>
+                  <div class="nho2d-chip-row is-tight">${instagramCategories.length ? instagramCategories.map((item) => `<span class="nho2d-chip">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Sem categorias inferidas</span>'}</div>
+                </div>
+                <div>
+                  <div class="nho2d-dt" style="margin-bottom:8px">Marcas</div>
+                  <div class="nho2d-chip-row is-tight">${instagramBrands.length ? instagramBrands.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Sem marcas inferidas</span>'}</div>
+                </div>
+                <div>
+                  <div class="nho2d-dt" style="margin-bottom:8px">Preços identificados</div>
+                  <div class="nho2d-stack">${instagramPriceRanges.length ? instagramPriceRanges.map((item) => `<div class="nho2d-crm-empty">${safeText(formatPriceRange(item))}</div>`).join('') : '<div class="nho2d-crm-empty">Sem preços explícitos no Instagram.</div>'}</div>
                 </div>
               </div>
             </article>

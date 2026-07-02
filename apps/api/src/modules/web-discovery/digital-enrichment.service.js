@@ -38,6 +38,88 @@ function uniquePush(list, value) {
   if (!text || list.includes(text)) return;
   list.push(text);
 }
+function normalizeList(values = []) {
+  return Array.from(new Set((Array.isArray(values) ? values : [values]).map((item) => normalize(item)).filter(Boolean)));
+}
+function normalizeMoneyValue(value) {
+  const text = String(value || '').trim().replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '');
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+function extractPriceMentions(text = '') {
+  const matches = [];
+  const regex = /(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:,\d{2}))/gi;
+  for (const match of String(text || '').matchAll(regex)) {
+    const value = normalizeMoneyValue(match[1]);
+    if (Number.isFinite(value)) matches.push(value);
+  }
+  return matches;
+}
+function inferCategories(text = '') {
+  const source = String(text || '').toLowerCase();
+  const entries = [
+    ['cama', ['cama', 'jogo de cama', 'colcha', 'edredom', 'lençol', 'lencol', 'coberdrom', 'travesseiro', 'fronha']],
+    ['mesa', ['mesa', 'jogo americano', 'guardanapo', 'toalha de mesa']],
+    ['banho', ['banho', 'toalha', 'tapete de banho', 'banheiro']],
+    ['decoração', ['decoração', 'decoracao', 'decor', 'almofada', 'manta', 'cortina', 'enxoval']],
+    ['roupas', ['roupas', 'vestido', 'camisa', 'calça', 'calca', 'moda']],
+    ['acessórios', ['acessórios', 'acessorios', 'bolsa', 'cinto', 'brinco']],
+    ['calçados', ['calçados', 'calcados', 'tênis', 'tenis', 'sapato']],
+    ['serviços', ['serviços', 'servicos']]
+  ];
+  return Array.from(new Set(entries.filter(([, terms]) => terms.some((term) => source.includes(term))).map(([category]) => category)));
+}
+function inferBrands(text = '') {
+  const source = String(text || '');
+  return Array.from(new Set((source.match(/\b[A-Z][A-Za-z0-9&.-]{2,}\b/g) || []).filter((item) => !['instagram', 'facebook', 'whatsapp', 'produto', 'catálogo', 'catalogo', 'loja'].includes(item.toLowerCase())))).slice(0, 20);
+}
+function inferCategoryForPrice(text = '') {
+  const categories = inferCategories(text);
+  return categories[0] || 'Geral';
+}
+function buildPriceRangesByCategory(entries = []) {
+  const map = new Map();
+  for (const entry of entries) {
+    const category = normalize(entry.category) || 'Geral';
+    const value = Number(entry.price);
+    if (!Number.isFinite(value)) continue;
+    const current = map.get(category) || { category, min_price: null, max_price: null, sum: 0, sample_count: 0 };
+    current.min_price = current.min_price === null ? value : Math.min(current.min_price, value);
+    current.max_price = current.max_price === null ? value : Math.max(current.max_price, value);
+    current.sum += value;
+    current.sample_count += 1;
+    map.set(category, current);
+  }
+  return Array.from(map.values()).map((item) => ({
+    category: item.category,
+    min_price: item.min_price,
+    max_price: item.max_price,
+    avg_price: item.sample_count ? Number((item.sum / item.sample_count).toFixed(2)) : null,
+    sample_count: item.sample_count
+  }));
+}
+function buildCommercialProfile({ text = '', html = '', socialText = '' } = {}) {
+  const ecommerceText = `${text} ${html}`;
+  const instagramText = `${socialText} ${text}`;
+  const ecommerceCategories = inferCategories(ecommerceText);
+  const ecommerceBrands = inferBrands(ecommerceText);
+  const ecommercePrices = extractPriceMentions(ecommerceText).map((price) => ({ category: inferCategoryForPrice(ecommerceText), price }));
+  const instagramCategories = inferCategories(instagramText);
+  const instagramBrands = inferBrands(instagramText);
+  const instagramPrices = extractPriceMentions(instagramText).map((price) => ({ category: inferCategoryForPrice(instagramText), price }));
+  return {
+    ecommerce: {
+      categories: normalizeList(ecommerceCategories),
+      brands: normalizeList(ecommerceBrands),
+      price_ranges_by_category: buildPriceRangesByCategory(ecommercePrices)
+    },
+    instagram: {
+      categories: normalizeList(instagramCategories),
+      brands: normalizeList(instagramBrands),
+      price_ranges_by_category: buildPriceRangesByCategory(instagramPrices)
+    }
+  };
+}
 function hasEcommerceSignals({ text = '', html = '', url = '' } = {}) {
   const source = `${text} ${html} ${url}`.toLowerCase();
   return [
@@ -53,6 +135,10 @@ function createEmptyPayload(site = '') {
     contacts: { emails: [], phones: [], whatsapp: [] },
     social: { instagram: [], facebook: [], linkedin: [], youtube: [], tiktok: [] },
     company: { description: '', segment: '', categories: [], brands: [], business_hours: '', address: '' },
+    commercial_profile: {
+      ecommerce: { categories: [], brands: [], price_ranges_by_category: [] },
+      instagram: { categories: [], brands: [], price_ranges_by_category: [] }
+    },
     commercial: { has_ecommerce: false, has_catalog: false, product_links: [], marketplaces: [] },
     sources: [],
     confidence: { site: site ? 100 : 0, emails: 0, phones: 0, social: 0, company: 0, commercial: 0 }
@@ -85,6 +171,18 @@ function mergePayload(base, next) {
       has_catalog: Boolean(base?.commercial?.has_catalog || next?.commercial?.has_catalog),
       product_links: Array.from(new Set([...(base?.commercial?.product_links || []), ...(next?.commercial?.product_links || [])])),
       marketplaces: Array.from(new Set([...(base?.commercial?.marketplaces || []), ...(next?.commercial?.marketplaces || [])]))
+    },
+    commercial_profile: {
+      ecommerce: {
+        categories: Array.from(new Set([...(base?.commercial_profile?.ecommerce?.categories || []), ...(next?.commercial_profile?.ecommerce?.categories || [])])),
+        brands: Array.from(new Set([...(base?.commercial_profile?.ecommerce?.brands || []), ...(next?.commercial_profile?.ecommerce?.brands || [])])),
+        price_ranges_by_category: [...(base?.commercial_profile?.ecommerce?.price_ranges_by_category || []), ...(next?.commercial_profile?.ecommerce?.price_ranges_by_category || [])]
+      },
+      instagram: {
+        categories: Array.from(new Set([...(base?.commercial_profile?.instagram?.categories || []), ...(next?.commercial_profile?.instagram?.categories || [])])),
+        brands: Array.from(new Set([...(base?.commercial_profile?.instagram?.brands || []), ...(next?.commercial_profile?.instagram?.brands || [])])),
+        price_ranges_by_category: [...(base?.commercial_profile?.instagram?.price_ranges_by_category || []), ...(next?.commercial_profile?.instagram?.price_ranges_by_category || [])]
+      }
     },
     sources: Array.from(new Set([...(base?.sources || []), ...(next?.sources || [])])),
     confidence: {
@@ -231,6 +329,7 @@ function buildStructuredPayloadFromPage({ url, html, text, title }) {
   const hasEcommerce = hasEcommerceSignals({ text, html, url }) || /carrinho|checkout|comprar agora|adicionar ao carrinho|finalizar compra/i.test(text);
   const hasCatalog = /cat[aá]logo|produtos|cole[cç][aã]o|linha de produtos/i.test(text) || hasEcommerce;
   const marketplaces = Array.from(new Set((text.match(/\b(?:Mercado Livre|Shopee|Amazon|Magazine Luiza)\b/gi) || []).map((item) => item.trim())));
+  const commercialProfile = buildCommercialProfile({ text, html, socialText: text });
   return {
     contacts: { emails, phones, whatsapp: phones.filter((item) => /whats|9\d{4}[-\s]?\d{4}/i.test(item)) },
     social: socials,
@@ -248,6 +347,7 @@ function buildStructuredPayloadFromPage({ url, html, text, title }) {
       product_links: Array.from(new Set(Array.from(html.matchAll(/href=["']([^"']+)["']/gi)).map((item) => ensureUrl(item[1], origin)).filter((item) => item && !isExternalLink(item, origin) && /produto|categoria|collection|catalog|buy|comprar|checkout|cart/i.test(item)))).slice(0, 20),
       marketplaces
     },
+    commercial_profile: commercialProfile,
     sources: [{ url, title: title || null }]
   };
 }
@@ -294,6 +394,8 @@ export async function enrichClienteWebsite({ clienteId, accountId, fetchImpl, fo
       Object.assign(payload.social, merged.social);
       Object.assign(payload.company, merged.company);
       Object.assign(payload.commercial, merged.commercial);
+      Object.assign(payload.commercial_profile.ecommerce, merged.commercial_profile.ecommerce);
+      Object.assign(payload.commercial_profile.instagram, merged.commercial_profile.instagram);
       payload.sources = merged.sources;
       payload.confidence = merged.confidence;
       if (!normalizedSite && page.ok) normalizedSite = target;
