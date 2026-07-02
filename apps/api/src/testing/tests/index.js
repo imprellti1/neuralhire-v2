@@ -22,6 +22,7 @@ const suiteSpecs = [
   ['Public Routes', './public-routes.test.js', 'getPublicRouteTests'],
   ['CORS', './cors.test.js', 'getCorsTests'],
   ['Payload Limit', './payload-limit.test.js', 'getPayloadLimitTests'],
+  ['Database Adapter', '../../database/database.adapter.test.js', 'getDatabaseAdapterTests'],
   ['Scopes', './scopes.test.js', 'getScopesTests'],
   ['Clientes Repository', './clientes-repository.test.js', 'getClientesRepositoryTests'],
   ['Clientes Update', './clientes-update.test.js', 'getClientesUpdateTests'],
