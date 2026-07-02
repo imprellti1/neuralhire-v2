@@ -54,6 +54,10 @@ export function getAnalyticsRepositoryTests() {
       run: async () => {
         const db = createDatabaseMock();
         const repo = __createAnalyticsRepositoryForTests(db);
+        db.responses.push([{ total_pedidos: 2, total_faturado: 400, ticket_medio: 200 }]);
+        db.responses.push([{ status: 'aprovado', total: 2 }]);
+        db.responses.push([{ total: 1 }]);
+        db.responses.push([{ total: 2 }]);
         db.responses.push([
           { produto_id: 'p-2', produto_nome: 'B', quantidade_vendida: 3, total_vendido: 300, pedidos: 2 },
           { produto_id: 'p-1', produto_nome: 'A', quantidade_vendida: 1, total_vendido: 100, pedidos: 1 }

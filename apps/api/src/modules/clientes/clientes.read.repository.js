@@ -1,17 +1,35 @@
-import {
-  getClienteById,
-  getClientesRepositoryMode,
-  listClientePedidos as legacyListClientePedidos,
-  listClientePedidoItens as legacyListClientePedidoItens
-} from './clientes.repository.legacy.js';
+import { BaseRepository } from '../../database/base.repository.js';
+import { database } from '../../database/database.adapter.js';
+import { ForbiddenError, NotFoundError } from '../../core/errors.js';
+import { ClientesReadQueries } from '../../database/queries/clientes-read.queries.js';
 
-export class ClientesReadRepository {
+function normalizePedidoIds(pedidoIds = []) {
+  return [...new Set((Array.isArray(pedidoIds) ? pedidoIds : [pedidoIds]).map((id) => String(id || '').trim()).filter(Boolean))];
+}
+
+function assertAccountId(accountId) {
+  if (!accountId) {
+    throw new ForbiddenError('Contexto de tenant obrigatorio', { code: 'TENANT_REQUIRED', domain: 'clientes-crm' });
+  }
+}
+
+export class ClientesReadRepository extends BaseRepository {
+  constructor(databaseAdapter) {
+    super(databaseAdapter, { logContext: 'clientes-read' });
+  }
+
   getById(id, options = {}) {
-    return getClienteById(id, options);
+    assertAccountId(options.accountId || null);
+    return this.one(ClientesReadQueries.getById(), [options.accountId || null, id]).catch((error) => {
+      if (error?.code === 'DATABASE_NOT_ONE') {
+        throw new NotFoundError('Cliente nao encontrado', { code: 'CLIENTE_NOT_FOUND', domain: 'clientes-crm' });
+      }
+      throw error;
+    });
   }
 
   getDetails(id, options = {}) {
-    return getClienteById(id, options);
+    return this.getById(id, options);
   }
 
   findByDocument(documento, options = {}) {
@@ -19,36 +37,28 @@ export class ClientesReadRepository {
   }
 
   async getDetailsByDocument(documento, options = {}) {
-    const repositoryMode = getClientesRepositoryMode();
     const accountId = options.accountId || null;
-    if (repositoryMode.mode === 'supabase') {
-      const cliente = await this._listByDocumentSupabase(documento, accountId, options);
-      return cliente;
+    assertAccountId(accountId);
+    try {
+      return await this.one(ClientesReadQueries.getByDocument(), [accountId, documento]);
+    } catch (error) {
+      if (error?.code === 'DATABASE_NOT_ONE') return null;
+      throw error;
     }
-    const cliente = await this._listByDocumentMemory(documento, accountId, options);
-    return cliente;
-  }
-
-  async _listByDocumentSupabase(documento, accountId, options) {
-    const { getSupabaseClient } = await import('../../database/supabase.client.js');
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase.from('clientes').select('*').eq('account_id', accountId).eq('documento', documento).maybeSingle();
-    if (error) throw error;
-    return data;
-  }
-
-  async _listByDocumentMemory(documento, accountId) {
-    const { __dumpMemoryClientes } = await import('./clientes.repository.legacy.js');
-    return __dumpMemoryClientes().find((item) => item.account_id === accountId && String(item.documento || '') === String(documento || '')) || null;
   }
 
   listClientePedidos(accountId, clienteId) {
-    return legacyListClientePedidos(accountId, clienteId);
+    assertAccountId(accountId);
+    return this.many(ClientesReadQueries.listPedidosByCliente(), [accountId, clienteId]);
   }
 
   listClientePedidoItens(accountId, pedidoIds = [], pedidosFallback = []) {
-    return legacyListClientePedidoItens(accountId, pedidoIds, pedidosFallback);
+    assertAccountId(accountId);
+    void pedidosFallback;
+    const ids = normalizePedidoIds(pedidoIds);
+    if (!ids.length) return [];
+    return this.many(ClientesReadQueries.listPedidoItensByPedidos(), [accountId, ids]);
   }
 }
 
-export const clientesReadRepository = new ClientesReadRepository();
+export const clientesReadRepository = new ClientesReadRepository(database);
