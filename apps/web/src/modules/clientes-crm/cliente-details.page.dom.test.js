@@ -624,6 +624,9 @@ test('cliente details mostra presença digital e executa web discovery manual', 
     },
     post: async (url) => {
       calls.push({ method: 'POST', url });
+      if (url === '/clientes/c1/sincronizar-360') {
+        return { item: { id: 'c1' }, resumo: { changes: [], errors: [] } };
+      }
       if (url === '/clientes/c1/web-discovery') {
         return {
           data: {
@@ -651,10 +654,10 @@ test('cliente details mostra presença digital e executa web discovery manual', 
   assert.match(root.textContent, /Site/);
   assert.match(root.textContent, /contato@clientea.com.br/);
   assert.match(root.textContent, /Instagram/);
-  assert.match(root.textContent, /Sim/);
+  assert.match(root.textContent, /Ativa/);
   assert.match(root.textContent, /00\.110\.513\/0001-55/);
   assert.match(root.textContent, /Pendente/);
-  assert.match(root.textContent, /Enriquecer digitalmente/);
+  assert.match(root.textContent, /Atualizar/);
   assert.match(root.textContent, /Resumo/);
   root.querySelector('#nho2d-enrich')?.click();
   await flush();
@@ -716,6 +719,10 @@ test('cliente details mostra erro claro ao falhar web discovery', async () => {
 test('cliente details mostra dados relevantes e executa geolocalizacao manual', async () => {
   const dom = setupFrontendDom('#/clientes/c1');
   const root = document.getElementById('root');
+  const opened = [];
+  const originalOpen = window.open;
+  window.open = (...args) => { opened.push(args); return null; };
+  const calls = [];
   const apiClient = {
     get: async (url, params = {}) => {
       if (url === '/clientes/c1') {
@@ -733,19 +740,87 @@ test('cliente details mostra dados relevantes e executa geolocalizacao manual', 
       }
       if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
       return { items: [] };
+    },
+    post: async (url) => {
+      calls.push(url);
+      if (url === '/clientes/c1/sincronizar-360') {
+        return { item: { id: 'c1' }, resumo: { changes: [], errors: [] } };
+      }
+      if (url === '/clientes/c1/geolocalizar') {
+        return { cliente: { id: 'c1' }, resultado: { status: 'sucesso' } };
+      }
+      return { item: { id: 'c1' }, resumo: { changes: [], errors: [] } };
     }
   };
 
-  renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
-  await flush();
-  await flush();
+  try {
+    renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
+    await flush();
+    await flush();
 
-  assert.ok(root.querySelector('[data-tab="dados-relevantes"]')?.classList.contains('is-active'));
+    assert.ok(root.querySelector('[data-tab="dados-relevantes"]')?.classList.contains('is-active'));
 
-  assert.match(root.textContent, /Geolocalização/);
-  assert.match(root.textContent, /Geolocalizar Cliente/);
+    assert.match(root.textContent, /Localização/);
+    assert.match(root.textContent, /Abrir no mapa/);
+    root.querySelector('#nho2d-geocode')?.click();
+    await flush();
+    await flush();
+    assert.equal(opened.length, 0);
+    assert.ok(calls.includes('/clientes/c1/geolocalizar'));
+  } finally {
+    window.open = originalOpen;
+    teardownFrontendDom(dom);
+  }
+});
 
-  teardownFrontendDom(dom);
+test('cliente details abre URL de mapa em nova aba quando disponível', async () => {
+  const dom = setupFrontendDom('#/clientes/c1');
+  const root = document.getElementById('root');
+  const opened = [];
+  const originalOpen = window.open;
+  window.open = (...args) => { opened.push(args); return null; };
+  const apiClient = {
+    get: async (url, params = {}) => {
+      if (url === '/clientes/c1') {
+        return {
+          item: {
+            id: 'c1',
+            empresa: 'Cliente A',
+            cidade: 'São Paulo',
+            estado: 'SP',
+            created_at: '2026-05-01T00:00:00.000Z',
+            status: 'ativo',
+            google_maps_url: 'https://maps.google.com/?q=Cliente+A'
+          }
+        };
+      }
+      if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
+      return { items: [] };
+    },
+    post: async (url) => {
+      if (url === '/clientes/c1/sincronizar-360') {
+        return { item: { id: 'c1' }, resumo: { changes: [], errors: [] } };
+      }
+      return { item: { id: 'c1' }, resumo: { changes: [], errors: [] } };
+    }
+  };
+
+  try {
+    renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
+    await flush();
+    await flush();
+
+    root.querySelector('#nho2d-geocode')?.click();
+    await flush();
+    await flush();
+
+    assert.equal(opened.length, 1);
+    assert.equal(opened[0][0], 'https://maps.google.com/?q=Cliente+A');
+    assert.equal(opened[0][1], '_blank');
+  } finally {
+    window.open = originalOpen;
+    teardownFrontendDom(dom);
+  }
 });
 
 test('cliente details mostra score comercial e executa calculo manual', async () => {
