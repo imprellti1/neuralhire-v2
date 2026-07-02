@@ -51,7 +51,7 @@ function formatMoney(value) {
 }
 function extractPriceMentions(text = '') {
   const matches = [];
-  const regex = /(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:,\d{2}))/gi;
+  const regex = /(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:[.,]\d{1,2})?)/gi;
   for (const match of String(text || '').matchAll(regex)) {
     const value = normalizeMoneyValue(match[1]);
     if (Number.isFinite(value)) matches.push(value);
@@ -102,6 +102,94 @@ function extractProductCandidates(html = '', text = '', url = '') {
     blocks.push({ html: blockHtml, text: blockText, url });
   }
   return blocks.slice(0, 40);
+}
+function safeParseJson(text = '') {
+  try { return JSON.parse(text); } catch { return null; }
+}
+function collectJsonLdObjects(html = '') {
+  const objects = [];
+  for (const match of String(html || '').matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+    const parsed = safeParseJson((match[1] || '').trim());
+    if (Array.isArray(parsed)) objects.push(...parsed.filter(Boolean));
+    else if (parsed) objects.push(parsed);
+  }
+  return objects;
+}
+function collectEmbeddedStateObjects(html = '') {
+  const objects = [];
+  const patterns = [
+    /<script[^>]*id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i,
+    /window\.__INITIAL_STATE__\s*=\s*([^;]+);/i,
+    /window\.__NUXT__\s*=\s*([^;]+);/i
+  ];
+  for (const pattern of patterns) {
+    const match = String(html || '').match(pattern);
+    if (!match) continue;
+    const parsed = safeParseJson((match[1] || '').trim());
+    if (parsed) objects.push(parsed);
+  }
+  return objects;
+}
+function flattenObjectValues(value, depth = 0, result = []) {
+  if (value === null || value === undefined || depth > 5) return result;
+  if (typeof value === 'string') {
+    const text = value.trim();
+    if (text) result.push(text);
+    return result;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) flattenObjectValues(item, depth + 1, result);
+    return result;
+  }
+  if (typeof value === 'object') {
+    for (const item of Object.values(value)) flattenObjectValues(item, depth + 1, result);
+  }
+  return result;
+}
+function inferProductsFromStructuredData(html = '', origin = '', fallbackText = '') {
+  const products = [];
+  const sources = [...collectJsonLdObjects(html), ...collectEmbeddedStateObjects(html)];
+  for (const root of sources) {
+    const values = flattenObjectValues(root);
+    const joined = values.join(' ');
+    if (!joined) continue;
+    const productNodes = [];
+    const visit = (node) => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) return node.forEach(visit);
+      const type = String(node['@type'] || node.type || '').toLowerCase();
+      if (type.includes('product') || node.name || node.price || node.offers) productNodes.push(node);
+      for (const child of Object.values(node)) visit(child);
+    };
+    visit(root);
+    for (const node of productNodes) {
+      const name = normalize(node.name || node.title);
+      const offers = Array.isArray(node.offers) ? node.offers[0] : node.offers || {};
+      const price = normalizeMoneyValue(offers.price ?? node.price ?? '');
+      const category = normalize(node.category || node.productCategory || inferCategoryFromText(`${name} ${joined} ${fallbackText}`));
+      const brandValue = node.brand && typeof node.brand === 'object' ? node.brand.name : node.brand;
+      const brands = inferBrands(`${brandValue || ''} ${joined}`);
+      const image = Array.isArray(node.image) ? node.image[0] : node.image;
+      products.push({
+        name: name || 'Produto',
+        brand: normalize(brandValue) || brands[0] || '',
+        category: category || 'Geral',
+        price: Number.isFinite(price) ? price : null,
+        url: ensureUrl(node.url || offers.url || '', origin),
+        image: ensureUrl(image || '', origin),
+        availability: normalize(offers.availability || node.availability || '')
+      });
+    }
+  }
+  return products.filter((item) => item.name || item.brand || item.price !== null).slice(0, 40);
+}
+function collectSearchableTextParts(html = '', text = '') {
+  const parts = [String(text || '')];
+  for (const match of String(html || '').matchAll(/<meta[^>]+(?:name|property)=["']([^"']+)["'][^>]+content=["']([^"']+)["'][^>]*>/gi)) {
+    const key = String(match[1] || '').toLowerCase();
+    if (/description|keywords|title|og:description|og:title|twitter:description|twitter:title/.test(key)) parts.push(match[2] || '');
+  }
+  return parts.join(' ');
 }
 function extractProductName(blockText = '') {
   const heading = (String(blockText || '').match(/^(?:.*?)([A-Z][^•|–-]{4,80}?)(?:\s+R\$|\s+\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\s+comprar|\s+adicionar|$)/) || [])[1];
@@ -158,11 +246,20 @@ function buildPriceRangesByCategory(entries = []) {
     sample_count: item.sample_count
   }));
 }
+function buildCommercialIntelligence({ ecommerceCategories = [], ecommerceBrands = [], ecommerceStatistics = {} } = {}) {
+  return {
+    positioning: { source: 'deterministic' },
+    catalog: { categories: ecommerceCategories, brands: ecommerceBrands },
+    pricing: { average_price: ecommerceStatistics.average_price, min_price: ecommerceStatistics.min_price, max_price: ecommerceStatistics.max_price },
+    strengths: ecommerceStatistics.products_count ? ['Catálogo comercial identificado.'] : [],
+    opportunities: ecommerceStatistics.products_count ? [] : ['Ampliar estrutura de catálogo para enriquecer o site.']
+  };
+}
 function buildCommercialProfile({ text = '', html = '', socialText = '' } = {}) {
-  const ecommerceText = `${text} ${html}`;
+  const ecommerceText = collectSearchableTextParts(html, text);
   const instagramText = `${socialText} ${text}`;
   const ecommerceProducts = [];
-  const ecommerceProductBlocks = extractProductCandidates(html, text);
+  const ecommerceProductBlocks = [...extractProductCandidates(html, text), ...inferProductsFromStructuredData(html, '', text).map((item) => ({ html: '', text: `${item.name} ${item.brand} ${item.category} ${item.price ?? ''}`, url: item.url || '' }))];
   for (const block of ecommerceProductBlocks) {
     const blockPrices = extractPriceMentions(block.text);
     if (!blockPrices.length) continue;
@@ -190,6 +287,7 @@ function buildCommercialProfile({ text = '', html = '', socialText = '' } = {}) 
   const instagramPrices = extractPriceMentions(instagramText).map((price) => ({ category: inferCategoryForPrice(instagramText), price }));
   const instagramPriceRanges = buildPriceRangesByCategory(instagramPrices);
   const instagramStatistics = buildPriceStatistics(instagramPrices.map((item) => ({ ...item, name: 'Instagram' })));
+  const commercialIntelligence = buildCommercialIntelligence({ ecommerceCategories, ecommerceBrands, ecommerceStatistics });
   return {
     ecommerce: {
       products: ecommerceProducts,
@@ -217,13 +315,7 @@ function buildCommercialProfile({ text = '', html = '', socialText = '' } = {}) 
       statistics: instagramStatistics,
       insights: buildInsights({ source: 'instagram', categories: instagramCategories, brands: instagramBrands, statistics: instagramStatistics, hasInstagram: true })
     },
-    commercial_intelligence: {
-      positioning: { source: 'deterministic' },
-      catalog: { categories: ecommerceCategories, brands: ecommerceBrands },
-      pricing: { average_price: ecommerceStatistics.average_price, min_price: ecommerceStatistics.min_price, max_price: ecommerceStatistics.max_price },
-      strengths: ecommerceStatistics.products_count ? ['Catálogo comercial identificado.'] : [],
-      opportunities: ecommerceStatistics.products_count ? [] : ['Ampliar estrutura de catálogo para enriquecer o site.']
-    }
+    commercial_intelligence: commercialIntelligence
   };
 }
 function hasEcommerceSignals({ text = '', html = '', url = '' } = {}) {
@@ -243,7 +335,8 @@ function createEmptyPayload(site = '') {
     company: { description: '', segment: '', categories: [], brands: [], business_hours: '', address: '' },
     commercial_profile: {
       ecommerce: { products: [], categories: [], brands: [], price_ranges_by_category: [], statistics: {}, insights: [] },
-      instagram: { profile: {}, products: [], categories: [], brands: [], hashtags: [], price_ranges_by_category: [], statistics: {}, insights: [] }
+      instagram: { profile: {}, products: [], categories: [], brands: [], hashtags: [], price_ranges_by_category: [], statistics: {}, insights: [] },
+      commercial_intelligence: { positioning: {}, catalog: {}, pricing: {}, strengths: [], opportunities: [] }
     },
     commercial_intelligence: { positioning: {}, catalog: {}, pricing: {}, strengths: [], opportunities: [] },
     commercial: { has_ecommerce: false, has_catalog: false, product_links: [], marketplaces: [] },
@@ -297,6 +390,13 @@ function mergePayload(base, next) {
         price_ranges_by_category: [...(base?.commercial_profile?.instagram?.price_ranges_by_category || []), ...(next?.commercial_profile?.instagram?.price_ranges_by_category || [])],
         statistics: next?.commercial_profile?.instagram?.statistics || base?.commercial_profile?.instagram?.statistics || {},
         insights: Array.from(new Set([...(base?.commercial_profile?.instagram?.insights || []), ...(next?.commercial_profile?.instagram?.insights || [])]))
+      },
+      commercial_intelligence: {
+        positioning: next?.commercial_profile?.commercial_intelligence?.positioning || base?.commercial_profile?.commercial_intelligence?.positioning || {},
+        catalog: next?.commercial_profile?.commercial_intelligence?.catalog || base?.commercial_profile?.commercial_intelligence?.catalog || {},
+        pricing: next?.commercial_profile?.commercial_intelligence?.pricing || base?.commercial_profile?.commercial_intelligence?.pricing || {},
+        strengths: Array.from(new Set([...(base?.commercial_profile?.commercial_intelligence?.strengths || []), ...(next?.commercial_profile?.commercial_intelligence?.strengths || [])])),
+        opportunities: Array.from(new Set([...(base?.commercial_profile?.commercial_intelligence?.opportunities || []), ...(next?.commercial_profile?.commercial_intelligence?.opportunities || [])]))
       }
     },
     commercial_intelligence: {
@@ -445,13 +545,22 @@ function buildStructuredPayloadFromPage({ url, html, text, title }) {
   const emails = extractEmails(`${text} ${html}`);
   const phones = extractPhones(text);
   const socials = extractSocialLinks(html, origin);
-  const segment = /atacado|varejo|ind[uú]stria|moda|confec|servi[cç]os|distribuidora|restaurante/i.test(text) ? (text.match(/atacado|varejo|ind[uú]stria|moda|confec|servi[cç]os|distribuidora|restaurante/i)?.[0] || '') : '';
-  const categories = Array.from(new Set((text.match(/\b(?:roupas|calçados|acessórios|eletrônicos|cosméticos|alimentos|bebidas|móveis|serviços)\b/gi) || []).map((item) => item.toLowerCase())));
-  const brands = Array.from(new Set((text.match(/\b(?:Nike|Adidas|Puma|Samsung|Apple|LG|Nike)\b/gi) || [])));
+  const structuredProducts = inferProductsFromStructuredData(html, origin, text);
+  const searchableText = collectSearchableTextParts(html, text);
+  const segment = /atacado|varejo|ind[uú]stria|moda|confec|servi[cç]os|distribuidora|restaurante/i.test(searchableText) ? (searchableText.match(/atacado|varejo|ind[uú]stria|moda|confec|servi[cç]os|distribuidora|restaurante/i)?.[0] || '') : '';
+  const categories = Array.from(new Set([
+    ...(searchableText.match(/\b(?:roupas|calçados|acessórios|eletrônicos|cosméticos|alimentos|bebidas|móveis|serviços|cama|mesa|banho|decoração|decoracao)\b/gi) || []).map((item) => item.toLowerCase()),
+    ...structuredProducts.map((item) => item.category).filter(Boolean)
+  ]));
+  const brands = Array.from(new Set([
+    ...(searchableText.match(/\b(?:Nike|Adidas|Puma|Samsung|Apple|LG|Buddemeyer|Lavive|Karsten|Altenburg|Appel|Lepper|Santista|Artex|Döhler|Dohler|Kacyumara|Hedrons|Sultan)\b/gi) || []),
+    ...structuredProducts.map((item) => item.brand).filter(Boolean)
+  ]));
   const hasEcommerce = hasEcommerceSignals({ text, html, url }) || /carrinho|checkout|comprar agora|adicionar ao carrinho|finalizar compra/i.test(text);
   const hasCatalog = /cat[aá]logo|produtos|cole[cç][aã]o|linha de produtos/i.test(text) || hasEcommerce;
   const marketplaces = Array.from(new Set((text.match(/\b(?:Mercado Livre|Shopee|Amazon|Magazine Luiza)\b/gi) || []).map((item) => item.trim())));
   const commercialProfile = buildCommercialProfile({ text, html, socialText: text });
+  const commercialIntelligence = commercialProfile.commercial_intelligence || buildCommercialIntelligence({ ecommerceCategories: commercialProfile.ecommerce.categories, ecommerceBrands: commercialProfile.ecommerce.brands, ecommerceStatistics: commercialProfile.ecommerce.statistics });
   return {
     contacts: { emails, phones, whatsapp: phones.filter((item) => /whats|9\d{4}[-\s]?\d{4}/i.test(item)) },
     social: socials,
@@ -469,7 +578,8 @@ function buildStructuredPayloadFromPage({ url, html, text, title }) {
       product_links: Array.from(new Set(Array.from(html.matchAll(/href=["']([^"']+)["']/gi)).map((item) => ensureUrl(item[1], origin)).filter((item) => item && !isExternalLink(item, origin) && /produto|categoria|collection|catalog|buy|comprar|checkout|cart/i.test(item)))).slice(0, 20),
       marketplaces
     },
-    commercial_profile: commercialProfile,
+    commercial_profile: { ...commercialProfile, commercial_intelligence: commercialIntelligence },
+    commercial_intelligence: commercialIntelligence,
     sources: [{ url, title: title || null }]
   };
 }
@@ -511,6 +621,17 @@ export async function enrichClienteWebsite({ clienteId, accountId, fetchImpl, fo
       const page = await fetchPageContent(target, { fetchImpl });
       if (!page.ok) continue;
       const pagePayload = buildStructuredPayloadFromPage({ url: target, html: page.html, text: page.text, title: page.title });
+      if (String(getEnvValue('WEB_DISCOVERY_DEBUG', 'false')).toLowerCase() === 'true') {
+        console.info('[web-discovery]', JSON.stringify({
+          target,
+          htmlLength: page.html.length,
+          textLength: page.text.length,
+          products: pagePayload?.commercial_profile?.ecommerce?.products?.length || 0,
+          prices: pagePayload?.commercial_profile?.ecommerce?.price_ranges_by_category?.length || 0,
+          categories: pagePayload?.commercial_profile?.ecommerce?.categories || [],
+          brands: pagePayload?.commercial_profile?.ecommerce?.brands || []
+        }));
+      }
       const merged = mergePayload(payload, pagePayload);
       Object.assign(payload.contacts, merged.contacts);
       Object.assign(payload.social, merged.social);
@@ -518,12 +639,24 @@ export async function enrichClienteWebsite({ clienteId, accountId, fetchImpl, fo
       Object.assign(payload.commercial, merged.commercial);
       Object.assign(payload.commercial_profile.ecommerce, merged.commercial_profile.ecommerce);
       Object.assign(payload.commercial_profile.instagram, merged.commercial_profile.instagram);
+      Object.assign(payload.commercial_profile.commercial_intelligence, merged.commercial_profile.commercial_intelligence);
+      Object.assign(payload.commercial_intelligence, merged.commercial_intelligence);
       payload.sources = merged.sources;
       payload.confidence = merged.confidence;
       if (!normalizedSite && page.ok) normalizedSite = target;
     } catch {
       continue;
     }
+  }
+
+  if (String(getEnvValue('WEB_DISCOVERY_DEBUG', 'false')).toLowerCase() === 'true') {
+    console.info('[web-discovery]', JSON.stringify({
+      commercialProfileExists: !!payload.commercial_profile,
+      ecommerceProductsCount: payload.commercial_profile?.ecommerce?.products?.length ?? 0,
+      ecommerceCategories: payload.commercial_profile?.ecommerce?.categories ?? [],
+      ecommerceBrands: payload.commercial_profile?.ecommerce?.brands ?? [],
+      instagramCategories: payload.commercial_profile?.instagram?.categories ?? []
+    }));
   }
 
   const updated = await updateCliente(clienteId, {
