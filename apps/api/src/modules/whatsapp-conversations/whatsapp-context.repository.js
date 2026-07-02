@@ -56,7 +56,12 @@ export async function getWhatsappConversationContext(conversationId, options = {
     throw error;
   }
 
-  const persisted = await getPersistedCustomerMemory(conversation.cliente_id, { accountId, context: options.context });
+  let persisted = null;
+  try {
+    persisted = await getPersistedCustomerMemory(conversation.cliente_id, { accountId, context: options.context });
+  } catch (error) {
+    if (error?.code !== 'DATABASE_ERROR' && error?.code !== 'ECONNREFUSED') throw error;
+  }
   const memory = persisted?.memory || normalizeMemory(await buildCustomerMemory(conversation.cliente_id, { accountId, context: options.context }));
   if (!persisted?.memory) {
     // Rebuild automatically when we had to compute the memory on demand.

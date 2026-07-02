@@ -2,6 +2,8 @@ import { assertEqual } from '../assert.js';
 import {
   __resetMemoryClientesForTests,
   createCliente,
+  getClienteById,
+  updateCliente,
   getClientesRepositoryMode,
   listClientes
 } from '../../modules/clientes/clientes.repository.js';
@@ -51,6 +53,34 @@ export function getClientesRepositoryTests() {
 
         const bySearch = await listClientes({ search: 'inativa@x.com' }, { accountId });
         assertEqual(bySearch.total, 1, 'search deveria filtrar email');
+      }
+    },
+    {
+      name: 'getClienteById retorna detalhes e update preserva enrichment',
+      run: async () => {
+        __resetMemoryClientesForTests();
+        const created = await createCliente({
+          nome: 'Cliente Detalhe',
+          documento: '12345678000190'
+        }, { accountId });
+
+        await updateCliente(created.id, {
+          digital_enrichment_status: 'concluido',
+          digital_enrichment_payload: { source: 'seed' }
+        }, { accountId });
+
+        const found = await getClienteById(created.id, { accountId });
+        assertEqual(found.nome, 'Cliente Detalhe', 'nome esperado');
+        assertEqual(found.digital_enrichment_status, 'concluido', 'status de enrichment esperado');
+
+        const updated = await updateCliente(created.id, {
+          email: 'novo@cliente.com',
+          digital_enrichment_payload: { source: 'update', social: { instagram: ['@cliente'] } },
+          digital_enrichment_status: 'concluido'
+        }, { accountId });
+
+        assertEqual(updated.email, 'novo@cliente.com', 'email atualizado');
+        assertEqual(updated.digital_enrichment_payload.social.instagram[0], '@cliente', 'payload de enrichment preservado');
       }
     }
   ];

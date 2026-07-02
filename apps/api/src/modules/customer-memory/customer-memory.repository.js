@@ -118,6 +118,7 @@ class CustomerMemoryRepository extends BaseRepository {
       );
     } catch (error) {
       if (error?.code === 'DATABASE_NOT_ONE') return null;
+      if (error?.code === 'ECONNREFUSED' || error?.cause?.code === 'ECONNREFUSED') return null;
       throw new DatabaseError('Falha ao ler memoria do cliente', { details: error });
     }
   }
@@ -185,7 +186,11 @@ export async function getCustomerMemory(clienteId, options = {}) {
   const persisted = await getPersistedCustomerMemory(clienteId, { accountId, context: options.context });
   if (persisted?.memory) return persisted.memory;
   const memory = await buildCustomerMemory(clienteId, { accountId, context: options.context });
-  await resolveRepository().saveMemory(accountId, clienteId, memory);
+  try {
+    await resolveRepository().saveMemory(accountId, clienteId, memory);
+  } catch (error) {
+    if (error?.code !== 'ECONNREFUSED' && error?.cause?.code !== 'ECONNREFUSED') throw error;
+  }
   return memory;
 }
 
@@ -206,7 +211,11 @@ export async function rebuildCustomerMemory(clienteId, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
   const memory = await buildCustomerMemory(clienteId, { accountId, context: options.context });
-  await resolveRepository().saveMemory(accountId, clienteId, memory);
+  try {
+    await resolveRepository().saveMemory(accountId, clienteId, memory);
+  } catch (error) {
+    if (error?.code !== 'ECONNREFUSED' && error?.cause?.code !== 'ECONNREFUSED') throw error;
+  }
   return memory;
 }
 
