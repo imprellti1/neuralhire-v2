@@ -60,7 +60,7 @@ function injectAppStyles() {
   if (document.getElementById('nh-app-style')) return;
   const style = document.createElement('style');
   style.id = 'nh-app-style';
-  style.textContent = `:root{--bg:#07111f;--bg-2:#0d1a2e;--bg-soft:#11233d;--panel:#0f1b2f;--panel-2:#12243d;--text:#e7eefb;--muted:#91a4c4;--line:rgba(148,163,184,.18);--brand:#4f8cff;--brand-soft:rgba(79,140,255,.16);--ok:#34d399;--warn:#fbbf24;--danger:#f87171;--shadow:0 18px 42px rgba(0,0,0,.25)}*{box-sizing:border-box}body{margin:0;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;color:var(--text);background:radial-gradient(1100px 600px at 85% -15%,rgba(79,140,255,.22) 0%,rgba(79,140,255,0) 60%),radial-gradient(800px 500px at 10% 0%,rgba(20,184,166,.12) 0%,rgba(20,184,166,0) 55%),linear-gradient(180deg,var(--bg) 0%,#0a1628 100%)}body.nh-shell-active{overflow:hidden}.nh-shell{display:grid;grid-template-columns:280px minmax(0,1fr);height:100vh;overflow:hidden}.nh-sidebar{height:100vh;overflow-y:auto;overscroll-behavior:contain;padding:22px 16px;border-right:1px solid var(--line);background:linear-gradient(180deg,rgba(12,22,39,.96),rgba(9,17,31,.92));backdrop-filter:blur(12px)}.nh-brand{padding:14px 15px;border-radius:18px;background:linear-gradient(135deg,#13294b,#2457d6);color:#fff;font-weight:800;letter-spacing:.02em;box-shadow:var(--shadow)}.nh-brand small{display:block;font-weight:500;opacity:.82;margin-top:4px}.nh-nav{margin-top:18px;display:grid;gap:10px}.nh-menu-group{display:grid;gap:8px;padding:8px 0 2px}.nh-menu-heading{font-size:11px;color:#8ea3c5;text-transform:uppercase;letter-spacing:.1em;padding:6px 10px 2px}.nh-menu-item{display:block;padding:11px 13px;border-radius:14px;color:#d7e4f8;text-decoration:none;font-weight:600;border:1px solid transparent;transition:.2s background,.2s color,.2s transform,.2s border-color}.nh-menu-item:hover{background:rgba(79,140,255,.12);border-color:rgba(79,140,255,.18);transform:translateY(-1px)}.nh-menu-item.is-active{background:linear-gradient(135deg,rgba(79,140,255,.22),rgba(79,140,255,.12));color:#fff;border-color:rgba(79,140,255,.32);box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}.nh-main{height:100vh;overflow-y:auto;overscroll-behavior:contain;padding:0 24px 28px;min-width:0}.nh-content{max-width:1360px;width:100%;min-height:100%;margin:0 auto;padding-top:24px;padding-bottom:24px}.nh-content :where(section,article,.nh-panel,.nh-card,.nh-box,.nhf-panel,.nhv-panel,.nha-panel,.nhc-panel,.npi2-card,.nhp-panel,.nhpr-card,.nhpd-panel,.nhpc-card,.npe-panel,.nha-modal-card,.nhf-modal,.nhv-modal,.nhp-modal,.npi2-card,.nha-panel,.nha-modal-card,.nha-detail,.nhpc-modal,.npi2-card,.npi2-note){color:var(--text)}.nh-login-shell{min-height:100vh;display:grid;place-items:center;padding:24px}.nh-login-shell .nh-content{max-width:100%;margin:0;padding:0}.nh-shell-active .nh-content :where(.nh-panel,.nh-card,.nh-box,.nhf-panel,.nhv-panel,.nha-panel,.nhc-panel,.npi2-card,.nhp-panel,.nhpr-card,.nhpd-panel,.nhpc-card,.npe-panel,.nha-modal-card,.nhf-modal,.nhv-modal,.nhp-modal,.nhpc-modal,section[style*="background:#fff"],article[style*="background:#fff"]){background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98));border-color:var(--line);box-shadow:var(--shadow)}.nh-shell-active .nh-content :where(input,select,textarea){background:#0b1628;color:var(--text);border-color:rgba(148,163,184,.22)}.nh-shell-active .nh-content :where(table){color:var(--text)}.nh-shell-active .nh-content :where(th){background:rgba(255,255,255,.03);color:#a9bbd8}.nh-shell-active .nh-content :where(td){border-color:rgba(148,163,184,.12)}@media (max-width:1280px){.nh-shell{grid-template-columns:240px minmax(0,1fr)}.nh-main{padding:0 20px 24px}.nh-content{padding-top:20px}}@media (max-width:1024px){.nh-shell{grid-template-columns:1fr;height:auto;min-height:100vh}.nh-sidebar{display:none}.nh-main{height:auto;min-height:100vh;overflow-y:visible;padding:0 12px 20px}.nh-content{padding-top:12px;padding-bottom:12px}}`;
+  style.textContent = `:root{--bg:#07111f;--bg-2:#0d1a2e;--bg-soft:#11233d;--panel:#0f1b2f;--panel-2:#12243d;--text:#e7eefb;--muted:#91a4c4;--line:rgba(148,163,184,.18);--brand:#4f8cff;--brand-soft:rgba(79,140,255,.16);--ok:#34d399;--warn:#fbbf24;--danger:#f87171;--shadow:0 18px 42px rgba(0,0,0,.25)}*{box-sizing:border-box}body{margin:0;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;color:var(--text);background:radial-gradient(1100px 600px at 85% -15%,rgba(79,140,255,.22) 0%,rgba(79,140,255,0) 60%),radial-gradient(800px 500px at 10% 0%,rgba(20,184,166,.12) 0%,rgba(20,184,166,0) 55%),linear-gradient(180deg,var(--bg) 0%,#0a1628 100%)}body.nh-shell-active{overflow:hidden}.nh-shell{display:grid;grid-template-columns:280px minmax(0,1fr);height:100vh;overflow:hidden;position:relative}.nh-shell--immersive{grid-template-columns:1fr}.nh-sidebar{height:100vh;overflow-y:auto;overscroll-behavior:contain;padding:22px 16px;border-right:1px solid var(--line);background:linear-gradient(180deg,rgba(12,22,39,.96),rgba(9,17,31,.92));backdrop-filter:blur(12px)}.nh-shell--immersive .nh-sidebar{position:fixed;inset:0 auto 0 0;width:min(360px,88vw);transform:translateX(-104%);transition:transform .22s ease,box-shadow .22s ease;z-index:60;box-shadow:0 24px 60px rgba(0,0,0,.38)}.nh-shell--immersive.is-sidebar-open .nh-sidebar{transform:translateX(0)}.nh-shell-backdrop{display:none;position:fixed;inset:0;background:rgba(4,10,20,.56);backdrop-filter:blur(2px);z-index:50}.nh-shell--immersive.is-sidebar-open .nh-shell-backdrop{display:block}.nh-brand{padding:14px 15px;border-radius:18px;background:linear-gradient(135deg,#13294b,#2457d6);color:#fff;font-weight:800;letter-spacing:.02em;box-shadow:var(--shadow)}.nh-brand small{display:block;font-weight:500;opacity:.82;margin-top:4px}.nh-nav{margin-top:18px;display:grid;gap:10px}.nh-menu-group{display:grid;gap:8px;padding:8px 0 2px}.nh-menu-heading{font-size:11px;color:#8ea3c5;text-transform:uppercase;letter-spacing:.1em;padding:6px 10px 2px}.nh-menu-item{display:block;padding:11px 13px;border-radius:14px;color:#d7e4f8;text-decoration:none;font-weight:600;border:1px solid transparent;transition:.2s background,.2s color,.2s transform,.2s border-color}.nh-menu-item:hover{background:rgba(79,140,255,.12);border-color:rgba(79,140,255,.18);transform:translateY(-1px)}.nh-menu-item.is-active{background:linear-gradient(135deg,rgba(79,140,255,.22),rgba(79,140,255,.12));color:#fff;border-color:rgba(79,140,255,.32);box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}.nh-shell--immersive .nh-menu-item{touch-action:manipulation}.nh-main{height:100vh;overflow-y:auto;overscroll-behavior:contain;padding:0 24px 28px;min-width:0}.nh-shell--immersive .nh-main{width:100vw;max-width:100vw;padding:0}.nh-content{max-width:1360px;width:100%;min-height:100%;margin:0 auto;padding-top:24px;padding-bottom:24px}.nh-shell--immersive .nh-content{max-width:none;width:100vw;padding-top:18px;padding-bottom:20px}.nh-content :where(section,article,.nh-panel,.nh-card,.nh-box,.nhf-panel,.nhv-panel,.nha-panel,.nhc-panel,.npi2-card,.nhp-panel,.nhpr-card,.nhpd-panel,.nhpc-card,.npe-panel,.nha-modal-card,.nhf-modal,.nhv-modal,.nhp-modal,.npi2-card,.nha-panel,.nha-modal-card,.nha-detail,.nhpc-modal,.npi2-card,.npi2-note){color:var(--text)}.nh-login-shell{min-height:100vh;display:grid;place-items:center;padding:24px}.nh-login-shell .nh-content{max-width:100%;margin:0;padding:0}.nh-shell-active .nh-content :where(.nh-panel,.nh-card,.nh-box,.nhf-panel,.nhv-panel,.nha-panel,.nhc-panel,.npi2-card,.nhp-panel,.nhpr-card,.nhpd-panel,.nhpc-card,.npe-panel,.nha-modal-card,.nhf-modal,.nhv-modal,.nhp-modal,.nhpc-modal,section[style*="background:#fff"],article[style*="background:#fff"]){background:linear-gradient(180deg,rgba(15,27,47,.96),rgba(11,21,37,.98));border-color:var(--line);box-shadow:var(--shadow)}.nh-shell-active .nh-content :where(input,select,textarea){background:#0b1628;color:var(--text);border-color:rgba(148,163,184,.22)}.nh-shell-active .nh-content :where(table){color:var(--text)}.nh-shell-active .nh-content :where(th){background:rgba(255,255,255,.03);color:#a9bbd8}.nh-shell-active .nh-content :where(td){border-color:rgba(148,163,184,.12)}.nh-shell-toggle{position:fixed;top:16px;left:16px;z-index:70;display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:999px;border:1px solid rgba(148,163,184,.22);background:rgba(9,17,31,.82);color:#eef4ff;backdrop-filter:blur(10px);box-shadow:0 14px 32px rgba(0,0,0,.24)}.nh-shell-toggle:hover{background:rgba(17,31,54,.92)}@media (max-width:1280px){.nh-shell{grid-template-columns:240px minmax(0,1fr)}.nh-main{padding:0 20px 24px}.nh-content{padding-top:20px}}@media (max-width:1024px){.nh-shell{grid-template-columns:1fr;height:auto;min-height:100vh}.nh-sidebar{display:none}.nh-main{height:auto;min-height:100vh;overflow-y:visible;padding:0 12px 20px}.nh-content{padding-top:12px;padding-bottom:12px}.nh-shell--immersive .nh-main{padding:0}.nh-shell-toggle{top:12px;left:12px}}`;
   document.head.appendChild(style);
 }
 
@@ -148,7 +148,7 @@ const menuSections = [
 function createLayout() {
   const root = document.createElement('div');
   root.className = 'nh-shell';
-  root.innerHTML = `<aside class="nh-sidebar"><div class="nh-brand">NeuralHire v2<small>Cockpit Executivo</small></div><nav class="nh-nav">${menuSections.map((section) => `<div class="nh-menu-group"><div class="nh-menu-heading">${section.title}</div>${section.items.map(([route, label]) => `<a class="nh-menu-item" data-route="${route}" href="${route}">${label}</a>`).join('')}</div>`).join('')}</nav></aside><main class="nh-main"><section class="nh-content" id="app-content"></section></main>`;
+  root.innerHTML = `<div class="nh-shell-backdrop" data-shell-backdrop aria-hidden="true"></div><aside class="nh-sidebar"><div class="nh-brand">NeuralHire v2<small>Cockpit Executivo</small></div><nav class="nh-nav">${menuSections.map((section) => `<div class="nh-menu-group"><div class="nh-menu-heading">${section.title}</div>${section.items.map(([route, label]) => `<a class="nh-menu-item" data-route="${route}" href="${route}">${label}</a>`).join('')}</div>`).join('')}</nav></aside><main class="nh-main"><button class="nh-shell-toggle" type="button" aria-label="Abrir menu" aria-expanded="false" data-shell-toggle>☰ Menu</button><section class="nh-content" id="app-content"></section></main>`;
   return root;
 }
 
@@ -163,6 +163,10 @@ function setActiveMenu(route) {
   document.querySelectorAll('.nh-menu-item').forEach((el) => {
     el.classList.toggle('is-active', el.getAttribute('data-route') === route);
   });
+}
+
+function isImmersiveRoute(path) {
+  return String(path || '').startsWith('#/clientes/') && String(path || '') !== '#/clientes/novo';
 }
 
 function parseHashRoute(hash) {
@@ -358,6 +362,9 @@ export function bootstrapWebApp() {
       document.body.innerHTML = '';
       document.body.appendChild(layout);
     }
+    const immersiveRoute = isImmersiveRoute(route);
+    layout.classList.toggle('nh-shell--immersive', immersiveRoute);
+    layout.classList.remove('is-sidebar-open');
     document.body.classList.add('nh-shell-active');
 
     const content = document.getElementById('app-content');
@@ -376,6 +383,28 @@ export function bootstrapWebApp() {
       : routePath;
     setActiveMenu(activeRoute);
     console.info('page_render_started', { route, activeRoute });
+
+    const shellToggle = layout.querySelector('[data-shell-toggle]');
+    const backdrop = layout.querySelector('[data-shell-backdrop]');
+    const closeSidebar = () => {
+      layout.classList.remove('is-sidebar-open');
+      if (shellToggle) shellToggle.setAttribute('aria-expanded', 'false');
+    };
+    if (shellToggle) {
+      shellToggle.style.display = immersiveRoute ? 'inline-flex' : 'none';
+      shellToggle.setAttribute('aria-expanded', String(layout.classList.contains('is-sidebar-open')));
+      shellToggle.onclick = immersiveRoute
+        ? () => {
+            const isOpen = layout.classList.toggle('is-sidebar-open');
+            shellToggle.setAttribute('aria-expanded', String(isOpen));
+          }
+        : null;
+    }
+    if (backdrop) backdrop.onclick = closeSidebar;
+    layout.querySelectorAll('.nh-menu-item').forEach((item) => {
+      item.onclick = immersiveRoute ? () => closeSidebar() : null;
+    });
+    if (!immersiveRoute) closeSidebar();
 
     if (routePath === '#/clientes') return renderClientesPage(content, { apiClient: api });
     if (routePath === '#/clientes/radar') return renderClientesRadarPage(content, { apiClient: api });

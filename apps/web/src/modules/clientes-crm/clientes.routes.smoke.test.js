@@ -234,3 +234,32 @@ test('clientes: detalhe 360 abre com abas e accordion de pedidos', async () => {
   assert.match(document.body.textContent, /Cliente cadastrado/i);
   teardownFrontendDom(dom);
 });
+
+test('clientes: detalhe 360 aciona layout imersivo e drawer', async () => {
+  const dom = setupFrontendDom('#/clientes');
+  mockAuthenticatedSession();
+  installFetchMock({
+    'GET /clientes': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 10 } }),
+    'GET /clientes/c1': () => ({ item: { id: 'c1', empresa: 'Cliente A', cidade: 'São Paulo', estado: 'SP', created_at: '2026-05-01T00:00:00.000Z', status: 'ativo' } }),
+    'GET /clientes/c1/timeline': () => ({ items: [] }),
+    'GET /pedidos': () => ({ items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } })
+  });
+
+  bootstrapWebApp();
+  await flush(); await flush();
+  setHash('#/clientes/c1');
+  await flush(); await flush();
+
+  const layout = document.querySelector('.nh-shell');
+  assert.ok(layout?.classList.contains('nh-shell--immersive'));
+  assert.ok(document.querySelector('[data-shell-toggle]'));
+
+  document.querySelector('[data-shell-toggle]')?.click();
+  await flush();
+  assert.ok(layout?.classList.contains('is-sidebar-open'));
+  document.querySelector('[data-shell-backdrop]')?.click();
+  await flush();
+  assert.equal(layout?.classList.contains('is-sidebar-open'), false);
+
+  teardownFrontendDom(dom);
+});
