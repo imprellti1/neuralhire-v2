@@ -11,7 +11,14 @@ function parseBody(res) {
 }
 
 function createFetchResponse({ ok, status, body }) {
-  return { ok, status, headers: { get: () => 'application/json' }, json: async () => body, text: async () => JSON.stringify(body) };
+  const isTextBody = typeof body === 'string';
+  return {
+    ok,
+    status,
+    headers: { get: () => (isTextBody ? 'text/html' : 'application/json') },
+    json: async () => body,
+    text: async () => (isTextBody ? body : JSON.stringify(body))
+  };
 }
 
 async function call(app, { method, url, role, accountId, body }) {
@@ -52,7 +59,7 @@ export function getWebDiscoveryTests() {
               status: 200,
               body: `
                 <html><head><title>Cliente Digital</title></head><body>
-                  <p>Fale conosco: contato@cliente-digital.com.br | (41) 3333-2222 | WhatsApp (41) 99999-8888</p>
+                  <p>Fale conosco: <a href="mailto:contato@cliente-digital.com.br">contato@cliente-digital.com.br</a> | (41) 3333-2222 | WhatsApp (41) 99999-8888</p>
                   <a href="/sobre">Sobre</a>
                   <a href="https://instagram.com/cliente.digital">Instagram</a>
                   <a href="https://facebook.com/cliente.digital">Facebook</a>
@@ -61,7 +68,7 @@ export function getWebDiscoveryTests() {
                   <a href="https://www.tiktok.com/@cliente.digital">TikTok</a>
                   <a href="https://marketplace.externo.com/produto-x">Externo</a>
                   <a href="/catalogo/produto-x">Produto X</a>
-                  <p>Temos catálogo online, loja virtual e atendimento de segunda a sexta.</p>
+                  <p>Temos catálogo online, loja virtual, carrinho de compras, checkout e atendimento de segunda a sexta.</p>
                   <p>Segmento moda, categorias roupas e acessórios, marcas Nike e Adidas.</p>
                 </body></html>`
             });

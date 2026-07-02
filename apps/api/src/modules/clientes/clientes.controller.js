@@ -2,6 +2,7 @@ import { getAccountIdFromContext } from '../../core/tenant-context.js';
 import { NotFoundError, ValidationError } from '../../core/errors.js';
 import { applyOwnerFilter, canAccessAllTenantData } from '../../core/commercial-scope.js';
 import { calcularScoreComercialCliente, createCliente, enrichClienteByCnpj, geolocalizarCliente, getClienteById, getClientesRepositoryMode, listClientes, updateCliente } from './clientes.repository.js';
+import { enrichClienteWebsite } from '../web-discovery/digital-enrichment.service.js';
 import { recalcularSegmentacaoCliente } from './clientes.segmentacao.service.js';
 import { gerarAlertasCliente, listAlertasCliente, resolverAlertaCliente } from './clientes.alerts.service.js';
 import { listarTimelineCliente, registrarEventoTimeline } from './clientes.timeline.service.js';
@@ -47,6 +48,9 @@ function pickClienteSnapshot(cliente = {}) {
     enriquecimento_fonte: cliente.enriquecimento_fonte || null,
     enriquecimento_ultima_execucao: cliente.enriquecimento_ultima_execucao || null,
     enriquecimento_erro: cliente.enriquecimento_erro || null,
+    digital_enrichment_status: cliente.digital_enrichment_status || null,
+    digital_enrichment_updated_at: cliente.digital_enrichment_updated_at || null,
+    digital_enrichment_payload: cliente.digital_enrichment_payload || {},
     geolocalizacao_status: cliente.geolocalizacao_status || null,
     geolocalizacao_fonte: cliente.geolocalizacao_fonte || null,
     geolocalizacao_ultima_execucao: cliente.geolocalizacao_ultima_execucao || null,
@@ -220,6 +224,28 @@ export async function enrichClienteHandler(context = {}) {
   }
 }
 
+export async function enrichDigitalClienteHandler(context = {}) {
+  const accountId = getAccountIdFromContext(context);
+  const id = String(context?.params?.id || '').trim();
+  if (!id) throw new ValidationError('Parametro id obrigatorio', { code: 'VALIDATION_ERROR', domain: 'clientes-crm' });
+  try {
+    const result = await enrichClienteWebsite({ accountId, clienteId: id, fetchImpl: context.fetchImpl, force: true });
+    await registrarEventoTimelineComLog(context, {
+      tipo: 'digital_enrichment_completed',
+      categoria: 'enriquecimento',
+      titulo: 'Presença digital enriquecida',
+      descricao: 'O site e os dados digitais do cliente foram coletados.',
+      referencia_id: id,
+      metadata: { cliente_id: id, site: result?.site || null }
+    }, { accountId, clienteId: id });
+    await recordAuditLog(context, { modulo: 'clientes', entidade: 'cliente', entidade_id: id, acao: 'enriquecimento_digital', descricao: 'Cliente enriquecido digitalmente', status: 'success', sucesso: true, metadata: { cliente_id: id, site: result?.site || null } }).catch(() => null);
+    return { ok: true, repositoryMode: getClientesRepositoryMode(), ...result, item: result?.cliente || null };
+  } catch (error) {
+    await recordAuditLog(context, { modulo: 'clientes', entidade: 'cliente', entidade_id: id, acao: 'enriquecimento_digital', descricao: 'Falha ao enriquecer digitalmente cliente', status: 'failed', sucesso: false, erro_codigo: error?.code || 'INTERNAL_SERVER_ERROR', erro_mensagem: error?.message || 'Erro ao enriquecer digitalmente cliente' }).catch(() => null);
+    throw error;
+  }
+}
+
 export async function geolocalizarClienteHandler(context = {}) {
   const accountId = getAccountIdFromContext(context);
   const id = String(context?.params?.id || '').trim();
@@ -284,6 +310,16 @@ async function registrarSincronizacaoTimeline(context, clienteId, beforeSnapshot
       descricao: afterSnapshot.geolocalizacao_status === 'erro' ? 'A sincronização registrou um erro de geolocalização.' : 'A geolocalização do cliente foi executada.',
       referencia_id: clienteId,
       metadata: { cliente_id: clienteId, before: beforeSnapshot.geolocalizacao_status || null, after: afterSnapshot.geolocalizacao_status || null, erro: afterSnapshot.geolocalizacao_erro || null }
+    }, { accountId, clienteId });
+  }
+  if (beforeSnapshot.digital_enrichment_status !== afterSnapshot.digital_enrichment_status || beforeSnapshot.digital_enrichment_updated_at !== afterSnapshot.digital_enrichment_updated_at) {
+    await registrarEventoTimelineComLog(context, {
+      tipo: 'digital_enrichment_completed',
+      categoria: 'enriquecimento',
+      titulo: 'Presença digital enriquecida',
+      descricao: 'O perfil digital do cliente foi atualizado.',
+      referencia_id: clienteId,
+      metadata: { cliente_id: clienteId, status: afterSnapshot.digital_enrichment_status || null }
     }, { accountId, clienteId });
   }
 }

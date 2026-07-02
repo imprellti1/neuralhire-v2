@@ -304,6 +304,49 @@ test('cliente details timeline mostra eventos e estado vazio sem quebrar', async
   teardownFrontendDom(domEmpty);
 });
 
+test('cliente details exibe Descobrir site quando o site está vazio e vira link quando existe', async () => {
+  const dom = setupFrontendDom('#/clientes/c1');
+  const root = document.getElementById('root');
+  const apiClient = {
+    get: async (url, params = {}) => {
+      if (url === '/clientes/c1') return { item: { id: 'c1', empresa: 'Cliente Site', cidade: 'Curitiba', estado: 'PR', created_at: '2026-05-01T00:00:00.000Z', status: 'ativo', site: '' } };
+      if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
+      if (url === '/clientes/c1/timeline') return { items: [] };
+      return { items: [] };
+    }
+  };
+
+  renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
+  await flush();
+  await flush();
+  root.querySelector('[data-tab="dados-relevantes"]')?.click();
+  await flush();
+  await flush();
+  assert.ok(root.querySelector('#nho2d-web-discovery'));
+  assert.ok(!root.textContent.includes('http'));
+
+  teardownFrontendDom(dom);
+
+  const dom2 = setupFrontendDom('#/clientes/c1');
+  const root2 = document.getElementById('root');
+  renderClienteDetailsPage(root2, {
+    apiClient: {
+      get: async (url, params = {}) => {
+        if (url === '/clientes/c1') return { item: { id: 'c1', empresa: 'Cliente Site', cidade: 'Curitiba', estado: 'PR', created_at: '2026-05-01T00:00:00.000Z', status: 'ativo', site: 'https://cliente.site' } };
+        if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
+        if (url === '/clientes/c1/timeline') return { items: [] };
+        return { items: [] };
+      }
+    },
+    clienteId: 'c1'
+  });
+  await flush();
+  await flush();
+  assert.ok(root2.querySelector('a[href="https://cliente.site"]'));
+  assert.ok(!root2.querySelector('#nho2d-web-discovery'));
+  teardownFrontendDom(dom2);
+});
+
 test('cliente details comercial atualiza valor do pedido e resumo do grupo quando itens chegam sob demanda', async () => {
   const dom = setupFrontendDom('#/clientes/c1');
   const root = document.getElementById('root');
@@ -544,7 +587,7 @@ test('cliente details dispara sincronizacao 360 ao abrir e aplica retorno', asyn
   teardownFrontendDom(dom);
 });
 
-test('cliente details mostra dados relevantes e executa enriquecimento manual', async () => {
+test('cliente details mostra presença digital e executa enriquecimento manual', async () => {
   const dom = setupFrontendDom('#/clientes/c1');
   const root = document.getElementById('root');
   const apiClient = {
@@ -563,7 +606,13 @@ test('cliente details mostra dados relevantes e executa enriquecimento manual', 
             site: 'https://clientea.com.br',
             created_at: '2026-05-01T00:00:00.000Z',
             status: 'ativo',
-            enriquecimento_status: 'pendente'
+            digital_enrichment_status: 'pendente',
+            digital_enrichment_payload: {
+              contacts: { emails: ['contato@clientea.com.br'], phones: ['(11) 99999-9999'], whatsapp: ['(11) 99999-9999'] },
+              social: { instagram: ['https://instagram.com/clientea'] },
+              company: { description: 'Empresa de moda', categories: ['roupas'], brands: ['Marca X'] },
+              commercial: { has_ecommerce: true, has_catalog: true }
+            }
           }
         };
       }
@@ -591,15 +640,17 @@ test('cliente details mostra dados relevantes e executa enriquecimento manual', 
   assert.ok(root.querySelector('[data-tab="dados-relevantes"]')?.classList.contains('is-active'));
 
   assert.match(root.textContent, /Dados principais/);
-  assert.match(root.textContent, /Enriquecimento cadastral/);
+  assert.match(root.textContent, /Presença Digital/);
   assert.match(root.textContent, /Endereço/);
   assert.match(root.textContent, /Telefone/);
   assert.match(root.textContent, /E-mail/);
   assert.match(root.textContent, /Site/);
+  assert.match(root.textContent, /contato@clientea.com.br/);
+  assert.match(root.textContent, /Instagram/);
+  assert.match(root.textContent, /Sim/);
   assert.match(root.textContent, /00\.110\.513\/0001-55/);
-  assert.match(root.textContent, /Enriquecimento cadastral/);
   assert.match(root.textContent, /Pendente/);
-  assert.match(root.textContent, /Atualizar enriquecimento/);
+  assert.match(root.textContent, /Enriquecer digitalmente/);
   assert.match(root.textContent, /Resumo/);
 
   teardownFrontendDom(dom);
@@ -716,6 +767,9 @@ test('cliente details mostra score comercial e executa calculo manual', async ()
     },
     post: async (url) => {
       calls.push({ method: 'POST', url });
+      if (url === '/clientes/c1/sincronizar-360') {
+        return { item: { id: 'c1' }, resumo: { changes: [], errors: [] } };
+      }
       if (url === '/clientes/c1/calcular-score') {
         return {
           cliente: {
@@ -746,7 +800,7 @@ test('cliente details mostra score comercial e executa calculo manual', async ()
 
   assert.ok(root.querySelector('[data-tab="dados-relevantes"]')?.classList.contains('is-active'));
   assert.match(root.textContent, /Dados principais/);
-  assert.match(root.textContent, /Enriquecimento cadastral/);
+  assert.match(root.textContent, /Presença Digital/);
 
   root.querySelector('[data-tab="geral"]')?.click();
   await flush();
