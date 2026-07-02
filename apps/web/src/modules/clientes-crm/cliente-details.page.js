@@ -198,7 +198,8 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:minmax(320px,1fr) minmax(0,1.55fr) minmax(320px,.95fr)}
     .nho2d-digital-main{display:grid;gap:16px;grid-column:2}
     .nho2d-digital-side{display:grid;gap:16px;grid-column:3}
-    .cliente360-relevant-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+    .cliente360-relevant-grid{column-count:auto;column-width:520px;column-gap:16px}
+    .cliente360-relevant-grid > .nho2d-card{break-inside:avoid;display:inline-block;width:100%;margin-bottom:16px}
     .cliente360-card-primary,.cliente360-card-enrichment,.cliente360-card-address,.cliente360-card-summary,.nho2d-card{min-width:0}
     .cliente360-card-primary{min-height:100%;display:flex;flex-direction:column}
     .cliente360-card-primary .cliente360-card-body{flex:1}
@@ -341,9 +342,9 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-shell .nho2-btn.secondary{background:#111a2e;color:#d9e4f7;border-color:#263655;box-shadow:none}
     .nho2d-shell .nho2-btn.ghost{background:transparent;color:#d9e4f7;border-color:rgba(148,163,184,.22);box-shadow:none}
     @media (max-width:1440px){.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:minmax(300px,1fr) minmax(0,1.3fr) minmax(280px,.95fr)}}
-    @media (max-width:1280px){.nho2d-title{font-size:28px}.nho2d-hero-grid,.nho2d-dados-grid,.cliente360-relevant-grid,.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:repeat(2,minmax(0,1fr))}.nho2d-digital-main,.nho2d-digital-side{grid-column:auto}.cliente360-card-primary{min-height:0}.cliente360-column-right{grid-column:auto;grid-row:auto;gap:16px;height:auto}.cliente360-card-enrichment,.cliente360-card-address,.cliente360-card-summary{grid-column:auto;grid-row:auto}.cliente360-card-map{grid-template-columns:1fr}.cliente360-map-frame{height:240px}.nho2d-enrichment-grid,.nho2d-timeline-horizontal{grid-template-columns:1fr}}
-    @media (max-width:900px){.nho2d-hero-grid,.nho2d-panel-grid,.nho2d-panel-grid--map,.nho2d-dl,.nho2d-edit-grid,.nho2d-enrichment-grid,.nho2d-dados-grid,.cliente360-relevant-grid,.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:1fr}.nho2d-circle-chart{margin:0 auto}.nho2d-timeline-horizontal{grid-template-columns:1fr}.nho2d-hero-top{flex-direction:column}.nho2d-hero-actions{justify-content:flex-start}}
-    @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-dados-grid,.cliente360-relevant-grid,.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}.nho2d-kpi-grid{grid-template-columns:1fr}}
+    @media (max-width:1280px){.nho2d-title{font-size:28px}.nho2d-hero-grid,.nho2d-dados-grid,.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:repeat(2,minmax(0,1fr))}.nho2d-digital-main,.nho2d-digital-side{grid-column:auto}.cliente360-card-primary{min-height:0}.cliente360-column-right{grid-column:auto;grid-row:auto;gap:16px;height:auto}.cliente360-card-enrichment,.cliente360-card-address,.cliente360-card-summary{grid-column:auto;grid-row:auto}.cliente360-card-map{grid-template-columns:1fr}.cliente360-map-frame{height:240px}.cliente360-relevant-grid{column-width:420px}.nho2d-enrichment-grid,.nho2d-timeline-horizontal{grid-template-columns:1fr}}
+    @media (max-width:900px){.nho2d-hero-grid,.nho2d-panel-grid,.nho2d-panel-grid--map,.nho2d-dl,.nho2d-edit-grid,.nho2d-enrichment-grid,.nho2d-dados-grid,.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:1fr}.cliente360-relevant-grid{column-count:1;column-width:auto}.nho2d-circle-chart{margin:0 auto}.nho2d-timeline-horizontal{grid-template-columns:1fr}.nho2d-hero-top{flex-direction:column}.nho2d-hero-actions{justify-content:flex-start}}
+    @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-dados-grid,.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}.nho2d-kpi-grid{grid-template-columns:1fr}.cliente360-relevant-grid{column-width:360px}}
     `;
     document.head.appendChild(style);
   }
