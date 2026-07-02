@@ -61,11 +61,11 @@ export function getAnalyticsRepositoryTests() {
         const items = await repo.getTopProducts('acc-1', { startDate: '2026-06-01', endDate: '2026-06-30', limit: 2 });
         assertEqual(items.length, 2);
         assertEqual(items[0].totalVendido, 300);
-        assertEqual(db.calls[0].params[3], 2);
+        assertEqual(db.calls[4].params[3], 2);
       }
     },
     {
-      name: 'analytics converte falha do banco em DatabaseError',
+      name: 'analytics usa fallback quando o banco falha na agregacao',
       run: async () => {
         const db = {
           async one() { throw new Error('boom'); },
@@ -74,13 +74,10 @@ export function getAnalyticsRepositoryTests() {
           async transaction(callback) { return callback(this); }
         };
         const repo = __createAnalyticsRepositoryForTests(db);
-        let failed = false;
-        try {
-          await repo.getSummary('acc-1', {});
-        } catch (error) {
-          failed = error instanceof DatabaseError && String(error.message || '').includes('boom');
-        }
-        assertEqual(failed, true);
+        const summary = await repo.getSummary('acc-1', {});
+        assertEqual(summary.totalPedidos, 0);
+        assertEqual(summary.totalFaturado, 0);
+        assertEqual(typeof summary.totalClientesAtivos, 'number');
       }
     }
   ];

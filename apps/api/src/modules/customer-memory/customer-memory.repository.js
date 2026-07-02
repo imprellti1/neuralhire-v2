@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { BaseRepository } from '../../database/base.repository.js';
 import { database } from '../../database/database.adapter.js';
+import { CustomerMemoryQueries } from '../../database/queries/customer-memory.queries.js';
 import { createSqlBuilder } from '../../database/sql-builder.js';
 import { buildCustomerMemory } from './customer-memory.builder.js';
 
@@ -66,18 +67,14 @@ class CustomerMemoryRepository extends BaseRepository {
     const payload = rowFromMemory(accountId, clienteId, memory);
     return this.transaction(async (tx) => {
       const existing = await tx.one(
-        'SELECT * FROM customer_memories WHERE account_id = $1 AND cliente_id = $2 LIMIT 1',
+        CustomerMemoryQueries.getById(),
         [accountId, clienteId]
       ).catch((error) => {
         if (error?.code === 'DATABASE_NOT_ONE') return null;
         throw error;
       });
       if (!existing) {
-        return tx.one(
-          `INSERT INTO customer_memories (
-            id, account_id, cliente_id, memory, risk_score, potential_score, last_rebuilt_at, created_at, updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-          [
+        return tx.one(CustomerMemoryQueries.insert(), [
             payload.id,
             payload.account_id,
             payload.cliente_id,
@@ -87,15 +84,9 @@ class CustomerMemoryRepository extends BaseRepository {
             payload.last_rebuilt_at,
             payload.created_at,
             payload.updated_at
-          ]
-        );
+        ]);
       }
-      return tx.one(
-        `UPDATE customer_memories
-         SET memory = $3, risk_score = $4, potential_score = $5, last_rebuilt_at = $6, updated_at = $7
-         WHERE account_id = $1 AND cliente_id = $2
-         RETURNING *`,
-        [
+      return tx.one(CustomerMemoryQueries.update(), [
           accountId,
           clienteId,
           payload.memory,
@@ -103,8 +94,7 @@ class CustomerMemoryRepository extends BaseRepository {
           payload.potential_score,
           payload.last_rebuilt_at,
           payload.updated_at
-        ]
-      );
+      ]);
     });
   }
 
@@ -112,10 +102,7 @@ class CustomerMemoryRepository extends BaseRepository {
     const accountId = options.accountId || null;
     assertAccountId(accountId);
     try {
-      return await this.one(
-        'SELECT * FROM customer_memories WHERE account_id = $1 AND cliente_id = $2 LIMIT 1',
-        [accountId, clienteId]
-      );
+      return await this.one(CustomerMemoryQueries.getById(), [accountId, clienteId]);
     } catch (error) {
       if (error?.code === 'DATABASE_NOT_ONE') return null;
       if (error?.code === 'ECONNREFUSED' || error?.cause?.code === 'ECONNREFUSED') return null;
@@ -133,11 +120,8 @@ class CustomerMemoryRepository extends BaseRepository {
     const where = builder.toWhereClause();
     const offset = (page - 1) * limit;
     const orderSql = createSqlBuilder().appendOrder(orderBy, orderDirection).toSql().sql;
-    const countRow = await this.one(`SELECT COUNT(*)::int AS total FROM customer_memories ${where.sql}`, where.params);
-    const items = await this.many(
-      `SELECT * FROM customer_memories ${where.sql} ${orderSql} LIMIT $${where.params.length + 1} OFFSET $${where.params.length + 2}`,
-      [...where.params, limit, offset]
-    );
+    const countRow = await this.one(CustomerMemoryQueries.countByWhere(where.sql), where.params);
+    const items = await this.many(CustomerMemoryQueries.listByWhere(where.sql, orderSql, `$${where.params.length + 1}`, `$${where.params.length + 2}`), [...where.params, limit, offset]);
     const total = Number(countRow?.total || 0);
     return { items, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
@@ -146,10 +130,7 @@ class CustomerMemoryRepository extends BaseRepository {
     const accountId = options.accountId || null;
     assertAccountId(accountId);
     try {
-      return await this.one(
-        'DELETE FROM customer_memories WHERE account_id = $1 AND cliente_id = $2 RETURNING *',
-        [accountId, clienteId]
-      );
+      return await this.one(CustomerMemoryQueries.deleteById(), [accountId, clienteId]);
     } catch (error) {
       if (error?.code === 'DATABASE_NOT_ONE') throw new NotFoundError('Memoria nao encontrada', { code: 'CUSTOMER_MEMORY_NOT_FOUND', domain: 'customer-memory' });
       throw new DatabaseError('Falha ao remover memoria do cliente', { details: error });

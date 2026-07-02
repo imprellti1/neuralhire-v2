@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestError, DatabaseError, NotFoundError } from '../../core/errors.js';
 import { database } from '../../database/database.adapter.js';
+import { IaMemoriasQueries } from '../../database/queries/ia-memorias.queries.js';
 
 const validTipos = new Set(['regra_negocio', 'decisao_tecnica', 'ponto_retomada', 'bug_corrigido', 'arquitetura', 'roadmap', 'comercial', 'operacional', 'prompt', 'observacao']);
 const validStatus = new Set(['ativa', 'arquivada']);
@@ -131,12 +132,9 @@ export async function listIaMemorias(filters = {}, options = {}) {
   const db = resolveDatabase();
   try {
     const { whereSql, params } = buildWhere(effective, options.accountId);
-    const countRow = await db.one(`SELECT COUNT(*)::int AS total FROM ia_memorias WHERE ${whereSql}`, params);
+    const countRow = await db.one(IaMemoriasQueries.countByWhere(whereSql), params);
     const offset = (page - 1) * limit;
-    const items = await db.many(
-      `SELECT * FROM ia_memorias WHERE ${whereSql} ORDER BY updated_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-      [...params, limit, offset]
-    );
+    const items = await db.many(IaMemoriasQueries.listByWhere(whereSql, `$${params.length + 1}`, `$${params.length + 2}`), [...params, limit, offset]);
     const total = Number(countRow?.total || 0);
     return { items, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
   } catch (error) {
@@ -152,7 +150,7 @@ export async function getIaMemoriaById(id, options = {}) {
   assertAccountId(options.accountId);
   const db = resolveDatabase();
   try {
-    const data = await db.one('SELECT * FROM ia_memorias WHERE account_id = $1 AND id = $2 LIMIT 1', [options.accountId, id]);
+    const data = await db.one(IaMemoriasQueries.getById(), [options.accountId, id]);
     if (!data) throw new NotFoundError('Memoria nao encontrada');
     return data;
   } catch (error) {
@@ -167,13 +165,7 @@ export async function createIaMemoria(data = {}, options = {}) {
   const row = rowFromInput(data, options);
   const db = resolveDatabase();
   try {
-    return await db.one(
-      `INSERT INTO ia_memorias (
-        id, account_id, tipo, titulo, conteudo, tags, prioridade, origem, modulo, status, metadata, created_at, updated_at
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
-      ) RETURNING *`,
-      [
+    return await db.one(IaMemoriasQueries.insert(), [
         row.id,
         row.account_id,
         row.tipo,
@@ -187,8 +179,7 @@ export async function createIaMemoria(data = {}, options = {}) {
         row.metadata,
         row.created_at,
         row.updated_at
-      ]
-    );
+    ]);
   } catch (error) {
     throw error instanceof DatabaseError ? error : new DatabaseError('Falha ao criar memoria', { details: error });
   }
@@ -220,10 +211,7 @@ export async function updateIaMemoria(id, data = {}, options = {}) {
   addSet('updated_at', new Date().toISOString());
 
   try {
-    const updated = await db.one(
-      `UPDATE ia_memorias SET ${sets.join(', ')} WHERE account_id = $1 AND id = $2 RETURNING *`,
-      params
-    );
+    const updated = await db.one(IaMemoriasQueries.update(sets.join(', ')), params);
     if (!updated) throw new NotFoundError('Memoria nao encontrada');
     return updated;
   } catch (error) {

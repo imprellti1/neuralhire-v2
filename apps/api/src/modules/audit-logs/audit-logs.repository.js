@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { ForbiddenError, NotFoundError, DatabaseError } from '../../core/errors.js';
 import { database } from '../../database/database.adapter.js';
+import { AuditLogsQueries } from '../../database/queries/audit-logs.queries.js';
 
 const memoryAuditLogs = [];
 let databaseOverride = null;
@@ -76,12 +77,9 @@ export async function listAuditLogs(filters = {}, options = {}) {
 
   const { whereSql, params } = buildWhere(filters, accountId);
   try {
-    const countRow = await db.one(`SELECT COUNT(*)::int AS total FROM system_audit_logs WHERE ${whereSql}`, params);
+    const countRow = await db.one(AuditLogsQueries.countByWhere(whereSql), params);
     const offset = (page - 1) * limit;
-    const items = await db.many(
-      `SELECT * FROM system_audit_logs WHERE ${whereSql} ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-      [...params, limit, offset]
-    );
+    const items = await db.many(AuditLogsQueries.listByWhere(whereSql, `$${params.length + 1}`, `$${params.length + 2}`), [...params, limit, offset]);
     const total = Number(countRow?.total || 0);
     return { items, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
   } catch (error) {
@@ -138,10 +136,7 @@ export async function getAuditLogById(id, options = {}) {
   if (!db) throw new NotFoundError('Log nao encontrado', { code: 'AUDIT_LOG_NOT_FOUND', domain: 'system-audit' });
   let data;
   try {
-    const row = await db.query(
-      'SELECT * FROM system_audit_logs WHERE account_id = $1 AND id = $2 LIMIT 1',
-      [accountId, id]
-    );
+    const row = await db.query(AuditLogsQueries.getById(), [accountId, id]);
     data = Array.isArray(row) ? row[0] : row;
   } catch (error) {
     if (error?.code !== 'ECONNREFUSED' && error?.code !== 'DATABASE_ERROR') throw error;
@@ -173,15 +168,7 @@ export async function createAuditLog(row = {}, options = {}) {
     created_at: row.created_at || new Date().toISOString()
   };
   try {
-    const inserted = await db.one(
-      `INSERT INTO system_audit_logs (
-      id, account_id, modulo, entidade, entidade_id, acao, descricao, status,
-      user_id, user_email, user_nome, erro_codigo, erro_mensagem, created_at
-    ) VALUES (
-      $1, $2, $3, $4, $5, $6, $7, $8,
-      $9, $10, $11, $12, $13, $14
-    ) RETURNING *`,
-    [
+    const inserted = await db.one(AuditLogsQueries.insert(), [
       payload.id,
       payload.account_id,
       payload.modulo,
@@ -196,8 +183,7 @@ export async function createAuditLog(row = {}, options = {}) {
       payload.erro_codigo,
       payload.erro_mensagem,
       payload.created_at
-      ]
-    );
+    ]);
     return inserted;
   } catch (error) {
     if (error?.code !== 'ECONNREFUSED' && error?.code !== 'DATABASE_ERROR') throw error;

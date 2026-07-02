@@ -1,6 +1,7 @@
 import { ForbiddenError } from '../../core/errors.js';
 import { BaseRepository } from '../../database/base.repository.js';
 import { database } from '../../database/database.adapter.js';
+import { AnalyticsQueries } from '../../database/queries/analytics.queries.js';
 import { createSqlBuilder } from '../../database/sql-builder.js';
 
 const validStatuses = ['rascunho', 'enviado', 'aprovado', 'faturado', 'cancelado'];
@@ -87,37 +88,13 @@ async function fetchFallbackData(accountId, context) {
 async function loadAnalyticsData(repo, accountId, filters = {}, options = {}) {
   const period = normalizePeriodFilters(filters);
   const where = buildPedidoPeriodWhere(accountId, period);
-  try {
-    const [metrics, statusRows, customersRow, productsRow] = await Promise.all([
-      repo.one(
-        `SELECT
-          COUNT(*)::int AS total_pedidos,
-          COALESCE(SUM(total), 0)::numeric AS total_faturado,
-          COALESCE(AVG(total), 0)::numeric AS ticket_medio
-         FROM pedidos
-         ${where.sql ? `${where.sql}` : ''}`,
-        where.params
-      ),
-      repo.many(
-        `SELECT status, COUNT(*)::int AS total
-         FROM pedidos
-         ${where.sql ? `${where.sql}` : ''}
-         GROUP BY status`,
-        where.params
-      ),
-      repo.one(
-        `SELECT COUNT(*)::int AS total
-         FROM clientes
-         WHERE account_id = $1 AND COALESCE(ativo, true) = true`,
-        [accountId]
-      ),
-      repo.one(
-        `SELECT COUNT(*)::int AS total
-         FROM produtos
-         WHERE account_id = $1 AND COALESCE(ativo, true) = true`,
-        [accountId]
-      )
-    ]);
+    try {
+      const [metrics, statusRows, customersRow, productsRow] = await Promise.all([
+        repo.one(AnalyticsQueries.summary(where.sql), where.params),
+        repo.many(AnalyticsQueries.statusCounts(where.sql), where.params),
+        repo.one(AnalyticsQueries.totalCustomers(), [accountId]),
+        repo.one(AnalyticsQueries.totalProducts(), [accountId])
+      ]);
     return {
       period,
       metrics,
@@ -179,19 +156,7 @@ class AnalyticsRepository extends BaseRepository {
     const period = loaded.period;
     const where = buildPedidoPeriodWhere(accountId, period, 'ped');
     return this.many(
-      `SELECT
-         pi.produto_id,
-         COALESCE(pi.produto_nome, p.nome) AS produto_nome,
-         COALESCE(SUM(pi.quantidade), 0)::numeric AS quantidade_vendida,
-         COALESCE(SUM(pi.total), 0)::numeric AS total_vendido,
-         COUNT(DISTINCT pi.pedido_id)::int AS pedidos
-       FROM pedido_itens pi
-       INNER JOIN pedidos ped ON ped.id = pi.pedido_id
-       LEFT JOIN produtos p ON p.id = pi.produto_id AND p.account_id = ped.account_id
-       ${where.sql ? `${where.sql}` : ''}
-       GROUP BY pi.produto_id, COALESCE(pi.produto_nome, p.nome)
-       ORDER BY total_vendido DESC, produto_nome ASC
-       LIMIT $${where.params.length + 1}`,
+      AnalyticsQueries.topProducts(where.sql, `$${where.params.length + 1}`),
       [...where.params, period.limit]
     ).then((rows) => rows.map((row) => ({
       produto_id: row.produto_id,
@@ -222,17 +187,7 @@ class AnalyticsRepository extends BaseRepository {
     const period = loaded.period;
     const where = buildPedidoPeriodWhere(accountId, period, 'ped');
     return this.many(
-      `SELECT
-         ped.cliente_id,
-         c.nome AS cliente_nome,
-         COUNT(*)::int AS pedidos,
-         COALESCE(SUM(ped.total), 0)::numeric AS total_comprado
-       FROM pedidos ped
-       LEFT JOIN clientes c ON c.id = ped.cliente_id AND c.account_id = ped.account_id
-       ${where.sql ? `${where.sql}` : ''}
-       GROUP BY ped.cliente_id, c.nome
-       ORDER BY total_comprado DESC, cliente_nome ASC
-       LIMIT $${where.params.length + 1}`,
+      AnalyticsQueries.topCustomers(where.sql, `$${where.params.length + 1}`),
       [...where.params, period.limit]
     ).then((rows) => rows.map((row) => ({
       cliente_id: row.cliente_id,
@@ -262,14 +217,7 @@ class AnalyticsRepository extends BaseRepository {
     const period = loaded.period;
     const where = buildPedidoPeriodWhere(accountId, period);
     return this.many(
-      `SELECT
-         DATE_TRUNC('day', created_at)::date AS date,
-         COUNT(*)::int AS pedidos,
-         COALESCE(SUM(total), 0)::numeric AS total
-       FROM pedidos
-       ${where.sql ? `${where.sql}` : ''}
-       GROUP BY DATE_TRUNC('day', created_at)::date
-       ORDER BY date ASC`,
+      AnalyticsQueries.salesTimeline(where.sql),
       where.params
     ).then((rows) => rows.map((row) => ({
       date: String(row.date),
