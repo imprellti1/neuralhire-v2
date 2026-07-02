@@ -23,6 +23,8 @@ const suiteSpecs = [
   ['CORS', './cors.test.js', 'getCorsTests'],
   ['Payload Limit', './payload-limit.test.js', 'getPayloadLimitTests'],
   ['Database Adapter', '../../database/database.adapter.test.js', 'getDatabaseAdapterTests'],
+  ['SQL Builder', '../../database/sql-builder.test.js', 'getSqlBuilderTests'],
+  ['Base Repository', '../../database/base.repository.test.js', 'getBaseRepositoryTests'],
   ['Scopes', './scopes.test.js', 'getScopesTests'],
   ['Clientes Repository', './clientes-repository.test.js', 'getClientesRepositoryTests'],
   ['Clientes Update', './clientes-update.test.js', 'getClientesUpdateTests'],
