@@ -132,21 +132,57 @@ function normalizePriceRanges(value = []) {
     sample_count: Number.isFinite(Number(item?.sample_count)) ? Number(item.sample_count) : 0
   })).filter((item) => item.category);
 }
+function normalizeProducts(value = []) {
+  return (Array.isArray(value) ? value : []).map((item) => ({
+    name: String(item?.name || '').trim(),
+    brand: String(item?.brand || '').trim(),
+    category: String(item?.category || '').trim() || 'Geral',
+    price: Number.isFinite(Number(item?.price)) ? Number(item.price) : null,
+    url: String(item?.url || '').trim(),
+    image: String(item?.image || '').trim(),
+    availability: String(item?.availability || '').trim()
+  })).filter((item) => item.name || item.brand || item.price !== null);
+}
+function normalizeStatistics(value = {}) {
+  return {
+    products_count: Number.isFinite(Number(value?.products_count)) ? Number(value.products_count) : 0,
+    categories_count: Number.isFinite(Number(value?.categories_count)) ? Number(value.categories_count) : 0,
+    brands_count: Number.isFinite(Number(value?.brands_count)) ? Number(value.brands_count) : 0,
+    average_price: Number.isFinite(Number(value?.average_price)) ? Number(value.average_price) : null,
+    min_price: Number.isFinite(Number(value?.min_price)) ? Number(value.min_price) : null,
+    max_price: Number.isFinite(Number(value?.max_price)) ? Number(value.max_price) : null
+  };
+}
 function extractCommercialProfile(enrichment = {}) {
   const company = enrichment?.company || {};
   const commercialProfile = enrichment?.commercial_profile || {};
+  const commercialIntelligence = enrichment?.commercial_intelligence || {};
   const legacyCategories = Array.isArray(company.categories) ? company.categories : [];
   const legacyBrands = Array.isArray(company.brands) ? company.brands : [];
   return {
     ecommerce: {
       categories: normalizeLinks(commercialProfile?.ecommerce?.categories?.length ? commercialProfile.ecommerce.categories : legacyCategories),
       brands: normalizeLinks(commercialProfile?.ecommerce?.brands?.length ? commercialProfile.ecommerce.brands : legacyBrands),
-      price_ranges_by_category: normalizePriceRanges(commercialProfile?.ecommerce?.price_ranges_by_category)
+      products: normalizeProducts(commercialProfile?.ecommerce?.products),
+      price_ranges_by_category: normalizePriceRanges(commercialProfile?.ecommerce?.price_ranges_by_category),
+      statistics: normalizeStatistics(commercialProfile?.ecommerce?.statistics),
+      insights: normalizeLinks(commercialProfile?.ecommerce?.insights)
     },
     instagram: {
       categories: normalizeLinks(commercialProfile?.instagram?.categories),
       brands: normalizeLinks(commercialProfile?.instagram?.brands),
-      price_ranges_by_category: normalizePriceRanges(commercialProfile?.instagram?.price_ranges_by_category)
+      hashtags: normalizeLinks(commercialProfile?.instagram?.hashtags),
+      products: normalizeProducts(commercialProfile?.instagram?.products),
+      price_ranges_by_category: normalizePriceRanges(commercialProfile?.instagram?.price_ranges_by_category),
+      statistics: normalizeStatistics(commercialProfile?.instagram?.statistics),
+      insights: normalizeLinks(commercialProfile?.instagram?.insights)
+    },
+    commercial_intelligence: {
+      positioning: commercialIntelligence?.positioning || {},
+      catalog: commercialIntelligence?.catalog || {},
+      pricing: commercialIntelligence?.pricing || {},
+      strengths: normalizeLinks(commercialIntelligence?.strengths),
+      opportunities: normalizeLinks(commercialIntelligence?.opportunities)
     }
   };
 }
@@ -936,10 +972,16 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     const commercialProfile = extractCommercialProfile(enrichment);
     const ecommerceCategories = commercialProfile.ecommerce.categories;
     const ecommerceBrands = commercialProfile.ecommerce.brands;
+    const ecommerceProducts = commercialProfile.ecommerce.products;
     const ecommercePriceRanges = commercialProfile.ecommerce.price_ranges_by_category;
+    const ecommerceStats = commercialProfile.ecommerce.statistics;
+    const ecommerceInsights = commercialProfile.ecommerce.insights;
     const instagramCategories = commercialProfile.instagram.categories;
     const instagramBrands = commercialProfile.instagram.brands;
+    const instagramHashtags = commercialProfile.instagram.hashtags;
     const instagramPriceRanges = commercialProfile.instagram.price_ranges_by_category;
+    const instagramStats = commercialProfile.instagram.statistics;
+    const instagramInsights = commercialProfile.instagram.insights;
     const timelineItems = Array.isArray(d?.timeline) ? d.timeline : [];
     const mapFrame = hasCoordinates ? `<iframe title="Mapa do cliente" src="${iframeSrc}" class="cliente360-map-frame" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>` : '<div class="nho2d-crm-empty" style="height:240px;display:flex;align-items:center;justify-content:center">Sem coordenadas para exibir o mapa.</div>';
     const renderPrincipalFields = () => {
@@ -1090,6 +1132,12 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
                 </div>
               </div>
               <div class="nho2d-stack">
+                <div class="nho2d-kpi-grid">
+                  <div class="nho2d-kpi"><div class="nho2d-kpi-label">Produtos detectados</div><div class="nho2d-kpi-value">${safeText(ecommerceStats.products_count, '0')}</div></div>
+                  <div class="nho2d-kpi"><div class="nho2d-kpi-label">Marcas</div><div class="nho2d-kpi-value">${safeText(ecommerceStats.brands_count, '0')}</div></div>
+                  <div class="nho2d-kpi"><div class="nho2d-kpi-label">Preço médio</div><div class="nho2d-kpi-value">${ecommerceStats.average_price !== null ? fmtCurrency(ecommerceStats.average_price) : '-'}</div></div>
+                  <div class="nho2d-kpi"><div class="nho2d-kpi-label">Categorias</div><div class="nho2d-kpi-value">${safeText(ecommerceStats.categories_count, '0')}</div></div>
+                </div>
                 <div>
                   <div class="nho2d-dt" style="margin-bottom:8px">Categorias</div>
                   <div class="nho2d-chip-row is-tight">${ecommerceCategories.length ? ecommerceCategories.map((item) => `<span class="nho2d-chip">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Sem categorias inferidas</span>'}</div>
@@ -1100,8 +1148,10 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
                 </div>
                 <div>
                   <div class="nho2d-dt" style="margin-bottom:8px">Média / faixa de preço por categoria</div>
-                  <div class="nho2d-stack">${ecommercePriceRanges.length ? ecommercePriceRanges.map((item) => `<div class="nho2d-crm-empty">${safeText(formatPriceRange(item))}</div>`).join('') : '<div class="nho2d-crm-empty">Nenhum preço detectado no Ecommerce.</div>'}</div>
+                  <div class="nho2d-table-wrap">${ecommercePriceRanges.length ? `<table class="nho2d-table"><thead><tr><th>Categoria</th><th>Média</th><th>Mínimo</th><th>Máximo</th><th>Amostras</th></tr></thead><tbody>${ecommercePriceRanges.map((item) => `<tr><td>${safeText(item.category)}</td><td>${item.avg_price !== null ? fmtCurrency(item.avg_price) : '-'}</td><td>${item.min_price !== null ? fmtCurrency(item.min_price) : '-'}</td><td>${item.max_price !== null ? fmtCurrency(item.max_price) : '-'}</td><td>${safeText(item.sample_count, '0')}</td></tr>`).join('')}</tbody></table>` : '<div class="nho2d-crm-empty">Nenhum preço detectado no Ecommerce.</div>'}</div>
                 </div>
+                ${ecommerceProducts.length ? `<div><div class="nho2d-dt" style="margin-bottom:8px">Produtos detectados</div><div class="nho2d-stack">${ecommerceProducts.slice(0, 6).map((item) => `<div class="nho2d-crm-empty"><strong>${safeText(item.name)}</strong><div class="nho2d-item-note">${safeText(item.brand || 'Sem marca')} • ${safeText(item.category || 'Geral')} • ${item.price !== null ? fmtCurrency(item.price) : 'Preço não informado'}</div></div>`).join('')}</div></div>` : ''}
+                ${ecommerceInsights.length ? `<div><div class="nho2d-dt" style="margin-bottom:8px">Insights</div><div class="nho2d-chip-row is-tight">${ecommerceInsights.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('')}</div></div>` : ''}
               </div>
             </article>
             <article class="nho2d-card">
@@ -1112,6 +1162,12 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
                 </div>
               </div>
               <div class="nho2d-stack">
+                <div class="nho2d-kpi-grid">
+                  <div class="nho2d-kpi"><div class="nho2d-kpi-label">Categorias</div><div class="nho2d-kpi-value">${safeText(instagramStats.categories_count, '0')}</div></div>
+                  <div class="nho2d-kpi"><div class="nho2d-kpi-label">Marcas</div><div class="nho2d-kpi-value">${safeText(instagramStats.brands_count, '0')}</div></div>
+                  <div class="nho2d-kpi"><div class="nho2d-kpi-label">Preço médio</div><div class="nho2d-kpi-value">${instagramStats.average_price !== null ? fmtCurrency(instagramStats.average_price) : '-'}</div></div>
+                  <div class="nho2d-kpi"><div class="nho2d-kpi-label">Posts com preço</div><div class="nho2d-kpi-value">${safeText(instagramStats.products_count, '0')}</div></div>
+                </div>
                 <div>
                   <div class="nho2d-dt" style="margin-bottom:8px">Categorias</div>
                   <div class="nho2d-chip-row is-tight">${instagramCategories.length ? instagramCategories.map((item) => `<span class="nho2d-chip">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Sem categorias inferidas</span>'}</div>
@@ -1121,9 +1177,14 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
                   <div class="nho2d-chip-row is-tight">${instagramBrands.length ? instagramBrands.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Sem marcas inferidas</span>'}</div>
                 </div>
                 <div>
-                  <div class="nho2d-dt" style="margin-bottom:8px">Preços identificados</div>
-                  <div class="nho2d-stack">${instagramPriceRanges.length ? instagramPriceRanges.map((item) => `<div class="nho2d-crm-empty">${safeText(formatPriceRange(item))}</div>`).join('') : '<div class="nho2d-crm-empty">Sem preços explícitos no Instagram.</div>'}</div>
+                  <div class="nho2d-dt" style="margin-bottom:8px">Hashtags</div>
+                  <div class="nho2d-chip-row is-tight">${instagramHashtags.length ? instagramHashtags.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Sem hashtags identificadas</span>'}</div>
                 </div>
+                <div>
+                  <div class="nho2d-dt" style="margin-bottom:8px">Preços identificados</div>
+                  <div class="nho2d-table-wrap">${instagramPriceRanges.length ? `<table class="nho2d-table"><thead><tr><th>Categoria</th><th>Média</th><th>Mínimo</th><th>Máximo</th><th>Amostras</th></tr></thead><tbody>${instagramPriceRanges.map((item) => `<tr><td>${safeText(item.category)}</td><td>${item.avg_price !== null ? fmtCurrency(item.avg_price) : '-'}</td><td>${item.min_price !== null ? fmtCurrency(item.min_price) : '-'}</td><td>${item.max_price !== null ? fmtCurrency(item.max_price) : '-'}</td><td>${safeText(item.sample_count, '0')}</td></tr>`).join('')}</tbody></table>` : '<div class="nho2d-crm-empty">Sem preços explícitos no Instagram.</div>'}</div>
+                </div>
+                ${instagramInsights.length ? `<div><div class="nho2d-dt" style="margin-bottom:8px">Insights</div><div class="nho2d-chip-row is-tight">${instagramInsights.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('')}</div></div>` : ''}
               </div>
             </article>
           </div>

@@ -617,16 +617,25 @@ test('cliente details mostra presença digital e executa web discovery manual', 
               company: { description: 'Empresa de moda', categories: ['roupas'], brands: ['Marca X'] },
               commercial_profile: {
                 ecommerce: {
+                  products: [
+                    { name: 'Jogo de cama Buddemeyer', brand: 'Buddemeyer', category: 'cama', price: 219.9, url: 'https://clientea.com.br/produto-x', image: '', availability: 'disponivel' }
+                  ],
                   categories: ['cama', 'banho'],
                   brands: ['Marca X'],
-                  price_ranges_by_category: [{ category: 'cama', min_price: 99.9, max_price: 219.9, avg_price: 159.9, sample_count: 2 }]
+                  price_ranges_by_category: [{ category: 'cama', min_price: 99.9, max_price: 219.9, avg_price: 159.9, sample_count: 2 }],
+                  statistics: { products_count: 1, categories_count: 2, brands_count: 1, average_price: 219.9, min_price: 219.9, max_price: 219.9 },
+                  insights: ['Ecommerce com produtos e preços detectados.']
                 },
                 instagram: {
+                  hashtags: ['#cama', '#banho'],
                   categories: ['decoração'],
                   brands: ['Marca Y'],
-                  price_ranges_by_category: [{ category: 'decoração', min_price: 49.9, max_price: 49.9, avg_price: 49.9, sample_count: 1 }]
+                  price_ranges_by_category: [{ category: 'decoração', min_price: 49.9, max_price: 49.9, avg_price: 49.9, sample_count: 1 }],
+                  statistics: { products_count: 1, categories_count: 1, brands_count: 1, average_price: 49.9, min_price: 49.9, max_price: 49.9 },
+                  insights: ['Instagram reforça categorias de Cama, Mesa e Banho.']
                 }
               },
+              commercial_intelligence: { strengths: ['Catálogo comercial identificado.'] },
               commercial: { has_ecommerce: true, has_catalog: true }
             }
           }
@@ -664,6 +673,9 @@ test('cliente details mostra presença digital e executa web discovery manual', 
   assert.match(root.textContent, /Presença Digital/);
   assert.match(root.textContent, /Categorias e preços - Ecommerce/);
   assert.match(root.textContent, /Categorias e marcas - Instagram/);
+  assert.match(root.textContent, /Produtos detectados/);
+  assert.match(root.textContent, /Preço médio/);
+  assert.match(root.textContent, /Insights/);
   assert.match(root.textContent, /Endereço/);
   assert.match(root.textContent, /Telefone/);
   assert.match(root.textContent, /E-mail/);
@@ -678,6 +690,7 @@ test('cliente details mostra presença digital e executa web discovery manual', 
   assert.match(root.textContent, /Site Oficial/);
   assert.equal(root.querySelectorAll('.nho2d-link-item.is-link').length >= 1, true);
   assert.ok(Array.from(root.querySelectorAll('.nho2d-link-item')).every((item) => !item.textContent.includes('Não encontrado')));
+  assert.ok(!root.textContent.includes('Sem categorias inferidas'));
   assert.match(root.textContent, /00\.110\.513\/0001-55/);
   assert.match(root.textContent, /Pendente/);
   assert.match(root.textContent, /Atualizar/);

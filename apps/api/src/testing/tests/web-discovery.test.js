@@ -68,6 +68,16 @@ export function getWebDiscoveryTests() {
                   <a href="https://www.tiktok.com/@cliente.digital">TikTok</a>
                   <a href="https://marketplace.externo.com/produto-x">Externo</a>
                   <a href="/catalogo/produto-x">Produto X</a>
+                  <article>
+                    <h2>Jogo de cama Buddemeyer 4 peças</h2>
+                    <p>R$ 219,90</p>
+                    <button>Comprar</button>
+                  </article>
+                  <article>
+                    <h2>Toalha Lavive premium</h2>
+                    <p>R$ 99,90</p>
+                    <button>Adicionar ao carrinho</button>
+                  </article>
                   <p>Temos catálogo online, loja virtual, carrinho de compras, checkout e atendimento de segunda a sexta.</p>
                   <button>Comprar</button>
                   <span>À vista ou em até 10x</span>
@@ -94,15 +104,72 @@ export function getWebDiscoveryTests() {
           assert.equal(response.body.data.payload.commercial.has_catalog, true);
           assert.equal(response.body.data.payload.commercial.has_ecommerce, true);
           assert.equal(Array.isArray(response.body.data.payload.commercial_profile.ecommerce.categories), true);
+          assert.equal(Array.isArray(response.body.data.payload.commercial_profile.ecommerce.products), true);
           assert.equal(Array.isArray(response.body.data.payload.commercial_profile.ecommerce.price_ranges_by_category), true);
           assert.equal(response.body.data.payload.commercial_profile.ecommerce.categories.length > 0, true);
           assert.equal(response.body.data.payload.commercial_profile.ecommerce.price_ranges_by_category.length > 0, true);
           assert.equal(response.body.data.payload.commercial_profile.ecommerce.price_ranges_by_category[0].sample_count > 0, true);
+          assert.equal(response.body.data.payload.commercial_profile.ecommerce.categories.includes('cama'), true);
+          assert.equal(response.body.data.payload.commercial_profile.ecommerce.brands.some((item) => ['Buddemeyer', 'Lavive'].includes(item)), true);
+          assert.equal(response.body.data.payload.commercial_profile.ecommerce.statistics.products_count > 0, true);
+          assert.equal(response.body.data.payload.commercial_profile.ecommerce.statistics.average_price > 0, true);
+          assert.equal(response.body.data.payload.commercial_profile.ecommerce.insights.length > 0, true);
           assert.ok(calls.some((item) => item.includes('/sobre')));
           assert.ok(!calls.some((item) => item.includes('marketplace.externo.com')));
           const clienteDetalhe = await call(app, { method: 'GET', url: `/clientes/${cliente.id}`, role: 'admin', accountId: 'acc-1' });
           assert.equal(clienteDetalhe.body.item.digital_enrichment_payload.contacts.emails.includes('contato@cliente-digital.com.br'), true);
           assert.equal(clienteDetalhe.body.item.digital_enrichment_status, 'concluido');
+        } finally {
+          globalThis.fetch = previousFetch;
+          if (previous.enabled === undefined) delete process.env.WEB_DISCOVERY_ENABLED;
+          else process.env.WEB_DISCOVERY_ENABLED = previous.enabled;
+          if (previous.providers === undefined) delete process.env.WEB_DISCOVERY_PROVIDERS;
+          else process.env.WEB_DISCOVERY_PROVIDERS = previous.providers;
+          if (previous.tavily === undefined) delete process.env.TAVILY_API_KEY;
+          else process.env.TAVILY_API_KEY = previous.tavily;
+          if (previous.min === undefined) delete process.env.WEB_DISCOVERY_MIN_CONFIDENCE;
+          else process.env.WEB_DISCOVERY_MIN_CONFIDENCE = previous.min;
+        }
+      }
+    },
+    {
+      name: 'instagram bio e hashtags inferem categorias comerciais',
+      run: async () => {
+        const previous = {
+          enabled: process.env.WEB_DISCOVERY_ENABLED,
+          providers: process.env.WEB_DISCOVERY_PROVIDERS,
+          tavily: process.env.TAVILY_API_KEY,
+          min: process.env.WEB_DISCOVERY_MIN_CONFIDENCE
+        };
+        process.env.WEB_DISCOVERY_ENABLED = 'true';
+        process.env.WEB_DISCOVERY_PROVIDERS = 'tavily';
+        process.env.TAVILY_API_KEY = 'test-key';
+        process.env.WEB_DISCOVERY_MIN_CONFIDENCE = '0.8';
+        const previousFetch = globalThis.fetch;
+        globalThis.fetch = async (url) => {
+          if (String(url).includes('tavily.com')) return createFetchResponse({ ok: true, status: 200, body: { results: [{ title: 'Loja D Casa', url: 'https://lojadcasa.com.br', content: 'Loja D Casa em Curitiba PR' }] } });
+          if (String(url).includes('lojadcasa.com.br')) {
+            return createFetchResponse({
+              ok: true,
+              status: 200,
+              body: `
+                <html><head><title>Loja D Casa</title></head><body>
+                  <p>Loja D' Casa - Cama | Mesa | Banho</p>
+                  <a href="https://instagram.com/lojadcasaoficial">Instagram</a>
+                  <p>#cama #mesa #banho #decoracao</p>
+                </body></html>`
+            });
+          }
+          throw new Error(`Unexpected fetch: ${url}`);
+        };
+        try {
+          const app = createApiApp();
+          const cliente = await createCliente({ nome: 'Loja D Casa', cidade: 'Curitiba', estado: 'PR' }, { accountId: 'acc-1' });
+          const response = await call(app, { method: 'POST', url: `/clientes/${cliente.id}/web-discovery`, role: 'admin', accountId: 'acc-1' });
+          assert.equal(response.res.statusCode, 200);
+          assert.equal(response.body.data.payload.commercial_profile.instagram.categories.includes('cama'), true);
+          assert.equal(response.body.data.payload.commercial_profile.instagram.categories.includes('mesa'), true);
+          assert.equal(response.body.data.payload.commercial_profile.instagram.categories.includes('banho'), true);
         } finally {
           globalThis.fetch = previousFetch;
           if (previous.enabled === undefined) delete process.env.WEB_DISCOVERY_ENABLED;

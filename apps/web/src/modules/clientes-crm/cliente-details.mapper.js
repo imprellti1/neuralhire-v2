@@ -132,11 +132,29 @@ function normalizeDigitalEnrichmentPayload(payload = {}) {
     avg_price: Number.isFinite(Number(item?.avg_price)) ? Number(item.avg_price) : null,
     sample_count: Number.isFinite(Number(item?.sample_count)) ? Number(item.sample_count) : 0
   })).filter((item) => item.category) : []);
+  const safeProducts = (value) => (Array.isArray(value) ? value.map((item) => ({
+    name: String(item?.name || '').trim(),
+    brand: String(item?.brand || '').trim(),
+    category: String(item?.category || '').trim(),
+    price: Number.isFinite(Number(item?.price)) ? Number(item.price) : null,
+    url: String(item?.url || '').trim(),
+    image: String(item?.image || '').trim(),
+    availability: String(item?.availability || '').trim()
+  })).filter((item) => item.name || item.brand || item.price !== null) : []);
+  const safeStatistics = (value) => ({
+    products_count: Number.isFinite(Number(value?.products_count)) ? Number(value.products_count) : 0,
+    categories_count: Number.isFinite(Number(value?.categories_count)) ? Number(value.categories_count) : 0,
+    brands_count: Number.isFinite(Number(value?.brands_count)) ? Number(value.brands_count) : 0,
+    average_price: Number.isFinite(Number(value?.average_price)) ? Number(value.average_price) : null,
+    min_price: Number.isFinite(Number(value?.min_price)) ? Number(value.min_price) : null,
+    max_price: Number.isFinite(Number(value?.max_price)) ? Number(value.max_price) : null
+  });
   const contacts = safeObject(payload.contacts);
   const social = safeObject(payload.social);
   const company = safeObject(payload.company);
   const commercial = safeObject(payload.commercial);
   const commercialProfile = safeObject(payload.commercial_profile);
+  const commercialIntelligence = safeObject(payload.commercial_intelligence);
   return {
     contacts: {
       emails: safeArray(contacts.emails),
@@ -160,15 +178,30 @@ function normalizeDigitalEnrichmentPayload(payload = {}) {
     },
     commercial_profile: {
       ecommerce: {
+        products: safeProducts(commercialProfile?.ecommerce?.products),
         categories: safeArray(commercialProfile?.ecommerce?.categories),
         brands: safeArray(commercialProfile?.ecommerce?.brands),
-        price_ranges_by_category: safePriceRanges(commercialProfile?.ecommerce?.price_ranges_by_category)
+        price_ranges_by_category: safePriceRanges(commercialProfile?.ecommerce?.price_ranges_by_category),
+        statistics: safeStatistics(commercialProfile?.ecommerce?.statistics),
+        insights: safeArray(commercialProfile?.ecommerce?.insights)
       },
       instagram: {
+        profile: safeObject(commercialProfile?.instagram?.profile),
+        products: safeProducts(commercialProfile?.instagram?.products),
         categories: safeArray(commercialProfile?.instagram?.categories),
         brands: safeArray(commercialProfile?.instagram?.brands),
-        price_ranges_by_category: safePriceRanges(commercialProfile?.instagram?.price_ranges_by_category)
+        hashtags: safeArray(commercialProfile?.instagram?.hashtags),
+        price_ranges_by_category: safePriceRanges(commercialProfile?.instagram?.price_ranges_by_category),
+        statistics: safeStatistics(commercialProfile?.instagram?.statistics),
+        insights: safeArray(commercialProfile?.instagram?.insights)
       }
+    },
+    commercial_intelligence: {
+      positioning: safeObject(commercialIntelligence.positioning),
+      catalog: safeObject(commercialIntelligence.catalog),
+      pricing: safeObject(commercialIntelligence.pricing),
+      strengths: safeArray(commercialIntelligence.strengths),
+      opportunities: safeArray(commercialIntelligence.opportunities)
     },
     commercial: {
       has_ecommerce: Boolean(commercial.has_ecommerce),

@@ -46,6 +46,9 @@ function normalizeMoneyValue(value) {
   const parsed = Number(text);
   return Number.isFinite(parsed) ? parsed : null;
 }
+function formatMoney(value) {
+  return Number.isFinite(Number(value)) ? Number(value).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
+}
 function extractPriceMentions(text = '') {
   const matches = [];
   const regex = /(?:r\$\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{2})|\d+(?:,\d{2}))/gi;
@@ -71,11 +74,68 @@ function inferCategories(text = '') {
 }
 function inferBrands(text = '') {
   const source = String(text || '');
-  return Array.from(new Set((source.match(/\b[A-Z][A-Za-z0-9&.-]{2,}\b/g) || []).filter((item) => !['instagram', 'facebook', 'whatsapp', 'produto', 'catálogo', 'catalogo', 'loja'].includes(item.toLowerCase())))).slice(0, 20);
+  const known = ['Buddemeyer', 'Lavive', 'Karsten', 'Altenburg', 'Appel', 'Lepper', 'Santista', 'Artex', 'Döhler', 'Dohler', 'Kacyumara', 'Hedrons', 'Sultan'];
+  const hits = [];
+  for (const brand of known) {
+    if (new RegExp(`\\b${brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(source)) hits.push(brand);
+  }
+  const inferred = (source.match(/\b[A-Z][A-Za-z0-9&.-]{2,}\b/g) || []).filter((item) => !['instagram', 'facebook', 'whatsapp', 'produto', 'catálogo', 'catalogo', 'loja', 'comprar', 'adicionar'].includes(item.toLowerCase()));
+  return Array.from(new Set([...hits, ...inferred])).slice(0, 20);
 }
 function inferCategoryForPrice(text = '') {
   const categories = inferCategories(text);
   return categories[0] || 'Geral';
+}
+function inferCategoryFromText(text = '') {
+  return inferCategories(text)[0] || 'Geral';
+}
+function extractProductCandidates(html = '', text = '', url = '') {
+  const blocks = [];
+  const candidates = [
+    ...String(html || '').matchAll(/<(article|li|div|section)[^>]*>([\s\S]{0,1200}?)(?:<\/\1>)/gi)
+  ];
+  for (const match of candidates) {
+    const blockHtml = match[2] || '';
+    const blockText = extractTextFromHtml(blockHtml);
+    if (!blockText) continue;
+    if (!/R\$\s*\d|[\d.,]+\s*|comprar|carrinho|adicionar/i.test(blockText)) continue;
+    blocks.push({ html: blockHtml, text: blockText, url });
+  }
+  return blocks.slice(0, 40);
+}
+function extractProductName(blockText = '') {
+  const heading = (String(blockText || '').match(/^(?:.*?)([A-Z][^•|–-]{4,80}?)(?:\s+R\$|\s+\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\s+comprar|\s+adicionar|$)/) || [])[1];
+  if (heading) return heading.trim();
+  return String(blockText || '').split(/\s{2,}| \| | - /)[0].trim().slice(0, 120);
+}
+function buildPriceStatistics(entries = []) {
+  const values = entries.map((item) => Number(item.price)).filter((value) => Number.isFinite(value));
+  if (!values.length) return { products_count: 0, categories_count: 0, brands_count: 0, average_price: null, min_price: null, max_price: null };
+  const total = values.reduce((sum, value) => sum + value, 0);
+  return {
+    products_count: entries.length,
+    categories_count: new Set(entries.map((item) => item.category || 'Geral')).size,
+    brands_count: new Set(entries.map((item) => item.brand).filter(Boolean)).size,
+    average_price: Number((total / values.length).toFixed(2)),
+    min_price: Math.min(...values),
+    max_price: Math.max(...values)
+  };
+}
+function buildInsights({ source, categories = [], brands = [], statistics = {}, hasInstagram = false } = {}) {
+  const insights = [];
+  if (statistics.products_count > 0) insights.push('Ecommerce com produtos e preços detectados.');
+  if (categories.length) insights.push(`Categoria predominante: ${categories[0]}.`);
+  if (brands.length) insights.push(`Marcas identificadas: ${brands.slice(0, 2).join(', ')}.`);
+  if (Number.isFinite(Number(statistics.average_price))) insights.push(`Ticket médio estimado: ${formatMoney(statistics.average_price)}.`);
+  if (hasInstagram && categories.length) insights.push(`Instagram reforça categorias de ${categories.slice(0, 3).join(', ')}.`);
+  if (source === 'instagram' && !statistics.products_count) insights.push('Instagram sem preço explícito detectado.');
+  return Array.from(new Set(insights));
+}
+function extractInstagramProfile(text = '') {
+  const source = String(text || '');
+  const username = (source.match(/@([a-z0-9._]+)/i) || [])[1] || '';
+  const hashtags = Array.from(new Set((source.match(/#[\p{L}0-9_]+/gu) || []).map((item) => item.toLowerCase())));
+  return { username, hashtags };
 }
 function buildPriceRangesByCategory(entries = []) {
   const map = new Map();
@@ -101,22 +161,68 @@ function buildPriceRangesByCategory(entries = []) {
 function buildCommercialProfile({ text = '', html = '', socialText = '' } = {}) {
   const ecommerceText = `${text} ${html}`;
   const instagramText = `${socialText} ${text}`;
-  const ecommerceCategories = inferCategories(ecommerceText);
-  const ecommerceBrands = inferBrands(ecommerceText);
-  const ecommercePrices = extractPriceMentions(ecommerceText).map((price) => ({ category: inferCategoryForPrice(ecommerceText), price }));
+  const ecommerceProducts = [];
+  const ecommerceProductBlocks = extractProductCandidates(html, text);
+  for (const block of ecommerceProductBlocks) {
+    const blockPrices = extractPriceMentions(block.text);
+    if (!blockPrices.length) continue;
+    const productName = extractProductName(block.text);
+    const category = inferCategoryFromText(`${block.text} ${productName} ${block.url}`);
+    const brands = inferBrands(block.text);
+    ecommerceProducts.push({
+      name: productName || 'Produto',
+      brand: brands[0] || '',
+      category,
+      price: blockPrices[0],
+      url: block.url || '',
+      image: (block.html.match(/<img[^>]+src=["']([^"']+)["']/i) || [])[1] || '',
+      availability: /esgotado|indispon[ií]vel/i.test(block.text) ? 'indisponivel' : (/comprar|adicionar|carrinho/i.test(block.text) ? 'disponivel' : '')
+    });
+  }
+  const ecommerceCategories = Array.from(new Set([...inferCategories(ecommerceText), ...ecommerceProducts.map((item) => item.category).filter(Boolean)]));
+  const ecommerceBrands = Array.from(new Set([...inferBrands(ecommerceText), ...ecommerceProducts.map((item) => item.brand).filter(Boolean)]));
+  const ecommercePriceSeed = ecommerceProducts.length ? ecommerceProducts : extractPriceMentions(ecommerceText).map((price) => ({ category: inferCategoryForPrice(ecommerceText), price }));
+  const ecommercePriceRanges = buildPriceRangesByCategory(ecommercePriceSeed);
+  const ecommerceStatistics = buildPriceStatistics(ecommerceProducts.length ? ecommerceProducts : ecommercePriceSeed);
+  const instagramProfile = extractInstagramProfile(instagramText);
   const instagramCategories = inferCategories(instagramText);
   const instagramBrands = inferBrands(instagramText);
   const instagramPrices = extractPriceMentions(instagramText).map((price) => ({ category: inferCategoryForPrice(instagramText), price }));
+  const instagramPriceRanges = buildPriceRangesByCategory(instagramPrices);
+  const instagramStatistics = buildPriceStatistics(instagramPrices.map((item) => ({ ...item, name: 'Instagram' })));
   return {
     ecommerce: {
+      products: ecommerceProducts,
       categories: normalizeList(ecommerceCategories),
       brands: normalizeList(ecommerceBrands),
-      price_ranges_by_category: buildPriceRangesByCategory(ecommercePrices)
+      price_ranges_by_category: ecommercePriceRanges,
+      statistics: ecommerceStatistics,
+      insights: buildInsights({ source: 'ecommerce', categories: ecommerceCategories, brands: ecommerceBrands, statistics: ecommerceStatistics })
     },
     instagram: {
+      profile: instagramProfile,
+      products: instagramPrices.map((item, index) => ({
+        name: instagramProfile.username ? `Publicação ${index + 1}` : 'Publicação',
+        brand: instagramBrands[0] || '',
+        category: item.category,
+        price: item.price,
+        url: '',
+        image: '',
+        availability: ''
+      })),
       categories: normalizeList(instagramCategories),
       brands: normalizeList(instagramBrands),
-      price_ranges_by_category: buildPriceRangesByCategory(instagramPrices)
+      hashtags: instagramProfile.hashtags,
+      price_ranges_by_category: instagramPriceRanges,
+      statistics: instagramStatistics,
+      insights: buildInsights({ source: 'instagram', categories: instagramCategories, brands: instagramBrands, statistics: instagramStatistics, hasInstagram: true })
+    },
+    commercial_intelligence: {
+      positioning: { source: 'deterministic' },
+      catalog: { categories: ecommerceCategories, brands: ecommerceBrands },
+      pricing: { average_price: ecommerceStatistics.average_price, min_price: ecommerceStatistics.min_price, max_price: ecommerceStatistics.max_price },
+      strengths: ecommerceStatistics.products_count ? ['Catálogo comercial identificado.'] : [],
+      opportunities: ecommerceStatistics.products_count ? [] : ['Ampliar estrutura de catálogo para enriquecer o site.']
     }
   };
 }
@@ -136,9 +242,10 @@ function createEmptyPayload(site = '') {
     social: { instagram: [], facebook: [], linkedin: [], youtube: [], tiktok: [] },
     company: { description: '', segment: '', categories: [], brands: [], business_hours: '', address: '' },
     commercial_profile: {
-      ecommerce: { categories: [], brands: [], price_ranges_by_category: [] },
-      instagram: { categories: [], brands: [], price_ranges_by_category: [] }
+      ecommerce: { products: [], categories: [], brands: [], price_ranges_by_category: [], statistics: {}, insights: [] },
+      instagram: { profile: {}, products: [], categories: [], brands: [], hashtags: [], price_ranges_by_category: [], statistics: {}, insights: [] }
     },
+    commercial_intelligence: { positioning: {}, catalog: {}, pricing: {}, strengths: [], opportunities: [] },
     commercial: { has_ecommerce: false, has_catalog: false, product_links: [], marketplaces: [] },
     sources: [],
     confidence: { site: site ? 100 : 0, emails: 0, phones: 0, social: 0, company: 0, commercial: 0 }
@@ -174,15 +281,30 @@ function mergePayload(base, next) {
     },
     commercial_profile: {
       ecommerce: {
+        products: [...(base?.commercial_profile?.ecommerce?.products || []), ...(next?.commercial_profile?.ecommerce?.products || [])],
         categories: Array.from(new Set([...(base?.commercial_profile?.ecommerce?.categories || []), ...(next?.commercial_profile?.ecommerce?.categories || [])])),
         brands: Array.from(new Set([...(base?.commercial_profile?.ecommerce?.brands || []), ...(next?.commercial_profile?.ecommerce?.brands || [])])),
-        price_ranges_by_category: [...(base?.commercial_profile?.ecommerce?.price_ranges_by_category || []), ...(next?.commercial_profile?.ecommerce?.price_ranges_by_category || [])]
+        price_ranges_by_category: [...(base?.commercial_profile?.ecommerce?.price_ranges_by_category || []), ...(next?.commercial_profile?.ecommerce?.price_ranges_by_category || [])],
+        statistics: next?.commercial_profile?.ecommerce?.statistics || base?.commercial_profile?.ecommerce?.statistics || {},
+        insights: Array.from(new Set([...(base?.commercial_profile?.ecommerce?.insights || []), ...(next?.commercial_profile?.ecommerce?.insights || [])]))
       },
       instagram: {
+        profile: next?.commercial_profile?.instagram?.profile || base?.commercial_profile?.instagram?.profile || {},
+        products: [...(base?.commercial_profile?.instagram?.products || []), ...(next?.commercial_profile?.instagram?.products || [])],
         categories: Array.from(new Set([...(base?.commercial_profile?.instagram?.categories || []), ...(next?.commercial_profile?.instagram?.categories || [])])),
         brands: Array.from(new Set([...(base?.commercial_profile?.instagram?.brands || []), ...(next?.commercial_profile?.instagram?.brands || [])])),
-        price_ranges_by_category: [...(base?.commercial_profile?.instagram?.price_ranges_by_category || []), ...(next?.commercial_profile?.instagram?.price_ranges_by_category || [])]
+        hashtags: Array.from(new Set([...(base?.commercial_profile?.instagram?.hashtags || []), ...(next?.commercial_profile?.instagram?.hashtags || [])])),
+        price_ranges_by_category: [...(base?.commercial_profile?.instagram?.price_ranges_by_category || []), ...(next?.commercial_profile?.instagram?.price_ranges_by_category || [])],
+        statistics: next?.commercial_profile?.instagram?.statistics || base?.commercial_profile?.instagram?.statistics || {},
+        insights: Array.from(new Set([...(base?.commercial_profile?.instagram?.insights || []), ...(next?.commercial_profile?.instagram?.insights || [])]))
       }
+    },
+    commercial_intelligence: {
+      positioning: next?.commercial_intelligence?.positioning || base?.commercial_intelligence?.positioning || {},
+      catalog: next?.commercial_intelligence?.catalog || base?.commercial_intelligence?.catalog || {},
+      pricing: next?.commercial_intelligence?.pricing || base?.commercial_intelligence?.pricing || {},
+      strengths: Array.from(new Set([...(base?.commercial_intelligence?.strengths || []), ...(next?.commercial_intelligence?.strengths || [])])),
+      opportunities: Array.from(new Set([...(base?.commercial_intelligence?.opportunities || []), ...(next?.commercial_intelligence?.opportunities || [])]))
     },
     sources: Array.from(new Set([...(base?.sources || []), ...(next?.sources || [])])),
     confidence: {
@@ -220,7 +342,7 @@ async function discoverClienteWebsite({ clienteId, accountId, force = false, fet
   const queries = buildQueries(cliente);
   const candidates = [];
   for (const query of queries) {
-    for (const provider of ['tavily', 'ddgs']) {
+    for (const provider of providers.length ? providers : ['tavily', 'ddgs']) {
       const results = await runProviders(query, [provider], { fetchImpl, cliente });
       candidates.push(...results.map((item) => ({ ...item, query })));
       const bestCandidate = candidates.sort((a, b) => b.confidence - a.confidence)[0] || null;
