@@ -69,6 +69,8 @@ export function getWebDiscoveryTests() {
                   <a href="https://marketplace.externo.com/produto-x">Externo</a>
                   <a href="/catalogo/produto-x">Produto X</a>
                   <p>Temos catálogo online, loja virtual, carrinho de compras, checkout e atendimento de segunda a sexta.</p>
+                  <button>Comprar</button>
+                  <span>À vista ou em até 10x</span>
                   <p>Segmento moda, categorias roupas e acessórios, marcas Nike e Adidas.</p>
                 </body></html>`
             });

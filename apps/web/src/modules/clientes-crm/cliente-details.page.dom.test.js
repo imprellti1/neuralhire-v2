@@ -679,6 +679,51 @@ test('cliente details mostra presença digital e executa web discovery manual', 
   teardownFrontendDom(dom);
 });
 
+test('cliente details confirma ecommerce quando o payload traz sinais de compra', async () => {
+  const dom = setupFrontendDom('#/clientes/c1');
+  const root = document.getElementById('root');
+  const apiClient = {
+    get: async (url, params = {}) => {
+      if (url === '/clientes/c1') {
+        return {
+          item: {
+            id: 'c1',
+            empresa: 'Cliente Loja',
+            cidade: 'São Paulo',
+            estado: 'SP',
+            created_at: '2026-05-01T00:00:00.000Z',
+            status: 'ativo',
+            digital_enrichment_payload: {
+              contacts: {},
+              social: {},
+              company: {},
+              commercial: {
+                has_ecommerce: false,
+                has_catalog: true,
+                product_links: ['https://cliente-loja.com.br/produto-x', 'https://cliente-loja.com.br/carrinho'],
+                marketplaces: []
+              }
+            }
+          }
+        };
+      }
+      if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
+      return { items: [] };
+    }
+  };
+
+  renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
+  await flush();
+  await flush();
+
+  const comercialCard = Array.from(root.querySelectorAll('.nho2d-card')).find((card) => card.textContent.includes('Presença Comercial'));
+  assert.ok(comercialCard);
+  assert.match(comercialCard.textContent, /Ecommerce/);
+  assert.match(comercialCard.textContent, /✓/);
+
+  teardownFrontendDom(dom);
+});
+
 test('cliente details mostra estado vazio elegante quando nao ha canais digitais', async () => {
   const dom = setupFrontendDom('#/clientes/c1');
   const root = document.getElementById('root');

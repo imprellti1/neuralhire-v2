@@ -124,6 +124,24 @@ function normalizeLinks(value = []) {
   return (Array.isArray(value) ? value : [value]).map((item) => String(item || '').trim()).filter(Boolean);
 }
 
+function inferEcommercePresence(commercial = {}) {
+  if (commercial.has_ecommerce) return true;
+  const textSources = normalizeLinks([
+    commercial.has_catalog ? 'catalogo produtos' : '',
+    ...(commercial.product_links || []),
+    ...(commercial.marketplaces || [])
+  ]).join(' ').toLowerCase();
+  const evidence = [
+    /shopping_cart|cart|carrinho/i,
+    /checkout|finalizar compra|finalizar pedido/i,
+    /comprar|buy|adicionar ao carrinho|adicionar no carrinho/i,
+    /à vista|a vista|em até|em ate|parcelamento|parcelar/i,
+    /\bpreço\b|\bpreco\b|\bvalor\b/i,
+    /produto|produtos|product/i
+  ];
+  return evidence.some((pattern) => pattern.test(textSources));
+}
+
 function hasAnyDigitalInsight(enrichment = {}) {
   const contacts = enrichment.contacts || {};
   const social = enrichment.social || {};
@@ -240,7 +258,9 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-circle-chart-label{font-size:12px;color:#92a4c7;margin-top:4px}
     .nho2d-checklist{display:grid;gap:8px}
     .nho2d-checklist-item{display:flex;align-items:center;gap:10px;color:#dce7fb;font-size:13px}
-    .nho2d-checkmark{width:20px;height:20px;border-radius:999px;background:rgba(79,209,111,.15);display:inline-grid;place-items:center;color:#4fd16f;font-weight:900}
+    .nho2d-checkmark{width:20px;height:20px;border-radius:999px;background:rgba(148,163,184,.14);display:inline-grid;place-items:center;color:#93a4c7;font-weight:900}
+    .nho2d-checkmark.is-on{background:rgba(79,209,111,.15);color:#4fd16f}
+    .nho2d-checkmark.is-off{background:rgba(148,163,184,.14);color:#93a4c7}
     .nho2d-timeline-horizontal{display:grid;grid-template-columns:1.1fr repeat(5,minmax(130px,1fr)) auto;gap:14px;align-items:stretch}
     .nho2d-timeline-head{display:grid;gap:10px;align-content:start}
     .nho2d-timeline-event{display:grid;gap:8px;padding:14px;border:1px solid rgba(148,163,184,.14);border-radius:14px;background:rgba(255,255,255,.02)}
@@ -844,8 +864,9 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       return text;
     };
     const enrichHasAny = hasAnyDigitalInsight(enrichment);
+    const ecommerceConfirmed = inferEcommercePresence(commercial);
     const commercialIndicators = [
-      ['Ecommerce', commercial.has_ecommerce],
+      ['Ecommerce', ecommerceConfirmed],
       ['Catálogo online', commercial.has_catalog],
       ['Loja física', true],
       ['WhatsApp comercial', normalizeLinks(contacts.whatsapp).length > 0],
@@ -867,7 +888,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       ['Site', hasSite ? [d.site] : [], 'site', 'globe']
     ];
     const presenceBits = [
-      ['Ecommerce', Boolean(commercial.has_ecommerce)],
+      ['Ecommerce', ecommerceConfirmed],
       ['Catálogo', Boolean(commercial.has_catalog)],
       ['Loja física', true],
       ['WhatsApp comercial', normalizeLinks(contacts.whatsapp).length > 0],
@@ -1019,7 +1040,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
                 </div>
               </div>
               <div class="nho2d-checklist">
-                ${presenceBits.map(([label, value]) => `<div class="nho2d-checklist-item"><span class="nho2d-checkmark">${value ? '✓' : '•'}</span><span>${label}</span></div>`).join('')}
+                ${presenceBits.map(([label, value]) => `<div class="nho2d-checklist-item"><span class="nho2d-checkmark ${value ? 'is-on' : 'is-off'}">${value ? '✓' : '•'}</span><span>${label}</span></div>`).join('')}
               </div>
             </article>
             <article class="nho2d-card">

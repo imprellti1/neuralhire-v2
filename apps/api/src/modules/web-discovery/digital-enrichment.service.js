@@ -38,6 +38,16 @@ function uniquePush(list, value) {
   if (!text || list.includes(text)) return;
   list.push(text);
 }
+function hasEcommerceSignals({ text = '', html = '', url = '' } = {}) {
+  const source = `${text} ${html} ${url}`.toLowerCase();
+  return [
+    /shopping_cart|cart|carrinho/i,
+    /checkout|finalizar compra|finalizar pedido/i,
+    /comprar|buy|adicionar ao carrinho|adicionar no carrinho/i,
+    /à vista|a vista|em até|em ate|parcelamento|parcelar/i,
+    /\bpreço\b|\bpreco\b|\bvalor\b/i
+  ].some((pattern) => pattern.test(source));
+}
 function createEmptyPayload(site = '') {
   return {
     contacts: { emails: [], phones: [], whatsapp: [] },
@@ -218,7 +228,7 @@ function buildStructuredPayloadFromPage({ url, html, text, title }) {
   const segment = /atacado|varejo|ind[uú]stria|moda|confec|servi[cç]os|distribuidora|restaurante/i.test(text) ? (text.match(/atacado|varejo|ind[uú]stria|moda|confec|servi[cç]os|distribuidora|restaurante/i)?.[0] || '') : '';
   const categories = Array.from(new Set((text.match(/\b(?:roupas|calçados|acessórios|eletrônicos|cosméticos|alimentos|bebidas|móveis|serviços)\b/gi) || []).map((item) => item.toLowerCase())));
   const brands = Array.from(new Set((text.match(/\b(?:Nike|Adidas|Puma|Samsung|Apple|LG|Nike)\b/gi) || [])));
-  const hasEcommerce = /carrinho|checkout|comprar agora|adicionar ao carrinho|finalizar compra/i.test(text);
+  const hasEcommerce = hasEcommerceSignals({ text, html, url }) || /carrinho|checkout|comprar agora|adicionar ao carrinho|finalizar compra/i.test(text);
   const hasCatalog = /cat[aá]logo|produtos|cole[cç][aã]o|linha de produtos/i.test(text) || hasEcommerce;
   const marketplaces = Array.from(new Set((text.match(/\b(?:Mercado Livre|Shopee|Amazon|Magazine Luiza)\b/gi) || []).map((item) => item.trim())));
   return {
@@ -235,7 +245,7 @@ function buildStructuredPayloadFromPage({ url, html, text, title }) {
     commercial: {
       has_ecommerce: hasEcommerce,
       has_catalog: hasCatalog,
-      product_links: Array.from(new Set(Array.from(html.matchAll(/href=["']([^"']+)["']/gi)).map((item) => ensureUrl(item[1], origin)).filter((item) => item && !isExternalLink(item, origin) && /produto|categoria|collection|catalog/i.test(item)))).slice(0, 20),
+      product_links: Array.from(new Set(Array.from(html.matchAll(/href=["']([^"']+)["']/gi)).map((item) => ensureUrl(item[1], origin)).filter((item) => item && !isExternalLink(item, origin) && /produto|categoria|collection|catalog|buy|comprar|checkout|cart/i.test(item)))).slice(0, 20),
       marketplaces
     },
     sources: [{ url, title: title || null }]
