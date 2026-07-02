@@ -163,6 +163,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
   let editSaving = false;
   let editErrorMessage = '';
   let editForm = null;
+  let summaryExpanded = false;
   const groupAccordionState = new Map();
   const pedidoAccordionState = new Map();
   const pedidoItemDetails = new Map();
@@ -251,10 +252,11 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-dd{margin:0;color:#e7eefb;overflow-wrap:anywhere;min-width:0}
     .nho2d-dd.is-nowrap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .nho2d-dd.is-clip{overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical}
+    .nho2d-dd.is-clamped{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden;max-height:7.2em}
     .nho2d-right{text-align:right}
-    .nho2d-panel-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+    .nho2d-panel-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;align-items:start;grid-auto-flow:dense}
     .nho2d-panel-grid--single{grid-template-columns:1fr}
-    .nho2d-panel-grid--map{grid-template-columns:minmax(0,1fr) minmax(320px,.95fr)}
+    .nho2d-panel-grid--map{grid-template-columns:repeat(auto-fit,minmax(360px,1fr))}
     .nho2d-panel-stack{display:grid;gap:16px}
     .nho2d-inline-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
     .nho2d-icon-pill{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:rgba(47,109,255,.14);color:#dbe7ff}
@@ -338,9 +340,8 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-shell .nho2-btn{background:#2f6dff;color:#fff;border:1px solid #366fff;box-shadow:0 10px 20px rgba(47,109,255,.20)}
     .nho2d-shell .nho2-btn.secondary{background:#111a2e;color:#d9e4f7;border-color:#263655;box-shadow:none}
     .nho2d-shell .nho2-btn.ghost{background:transparent;color:#d9e4f7;border-color:rgba(148,163,184,.22);box-shadow:none}
-    @media (max-width:1280px){.nho2d-title{font-size:28px}}
     @media (max-width:1440px){.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:minmax(300px,1fr) minmax(0,1.3fr) minmax(280px,.95fr)}}
-    @media (max-width:1280px){.nho2d-hero-grid,.nho2d-panel-grid,.nho2d-panel-grid--map,.nho2d-dados-grid,.cliente360-relevant-grid,.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:repeat(2,minmax(0,1fr))}.nho2d-digital-main,.nho2d-digital-side{grid-column:auto}.cliente360-card-primary{min-height:0}.cliente360-column-right{grid-column:auto;grid-row:auto;gap:16px;height:auto}.cliente360-card-enrichment,.cliente360-card-address,.cliente360-card-summary{grid-column:auto;grid-row:auto}.cliente360-card-map{grid-template-columns:1fr}.cliente360-map-frame{height:240px}.nho2d-enrichment-grid,.nho2d-timeline-horizontal{grid-template-columns:1fr}}
+    @media (max-width:1280px){.nho2d-title{font-size:28px}.nho2d-hero-grid,.nho2d-dados-grid,.cliente360-relevant-grid,.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:repeat(2,minmax(0,1fr))}.nho2d-digital-main,.nho2d-digital-side{grid-column:auto}.cliente360-card-primary{min-height:0}.cliente360-column-right{grid-column:auto;grid-row:auto;gap:16px;height:auto}.cliente360-card-enrichment,.cliente360-card-address,.cliente360-card-summary{grid-column:auto;grid-row:auto}.cliente360-card-map{grid-template-columns:1fr}.cliente360-map-frame{height:240px}.nho2d-enrichment-grid,.nho2d-timeline-horizontal{grid-template-columns:1fr}}
     @media (max-width:900px){.nho2d-hero-grid,.nho2d-panel-grid,.nho2d-panel-grid--map,.nho2d-dl,.nho2d-edit-grid,.nho2d-enrichment-grid,.nho2d-dados-grid,.cliente360-relevant-grid,.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:1fr}.nho2d-circle-chart{margin:0 auto}.nho2d-timeline-horizontal{grid-template-columns:1fr}.nho2d-hero-top{flex-direction:column}.nho2d-hero-actions{justify-content:flex-start}}
     @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-dados-grid,.cliente360-relevant-grid,.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}.nho2d-kpi-grid{grid-template-columns:1fr}}
     `;
@@ -855,7 +856,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       ['LinkedIn', social.linkedin, 'linkedin.com', 'LinkedIn'],
       ['YouTube', social.youtube, 'youtube.com', 'YouTube'],
       ['TikTok', social.tiktok, 'tiktok.com', 'TikTok'],
-      ['Google Maps', d?.google_maps_link || d?.google_maps_url || '', 'maps.google.com', 'Google Maps'],
+      ['Google Maps', (d?.geolocalizacao_status || '').toLowerCase() === 'sucesso' && d?.google_maps_link ? [d.google_maps_link] : [], 'maps.google.com', 'Google Maps'],
       ['Site', hasSite ? [d.site] : [], 'site', 'Site Oficial']
     ];
     const quickContacts = [
@@ -874,7 +875,8 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
       ['Redes sociais', socialMap.some(([, items]) => normalizeLinks(items).length > 0)]
     ];
     const summaryText = String(company.description || d?.observacao || d?.descricao || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-    const summaryPreview = summaryText ? summaryText.slice(0, 240) : 'Resumo executivo não informado.';
+    const summaryPreview = summaryText || 'Resumo executivo não informado.';
+    const summaryClamped = Boolean(summaryText && !summaryExpanded);
     const categories = Array.isArray(company.categories) ? company.categories : [];
     const brands = Array.isArray(company.brands) ? company.brands : [];
     const timelineItems = Array.isArray(d?.timeline) ? d.timeline : [];
@@ -971,20 +973,30 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
               <span class="nho2d-pill-quiet">${lastDigitalUpdate ? `Atualizado ${formatDateFriendly(lastDigitalUpdate)}` : 'Sem sincronização recente'}</span>
             </div>
             <div class="nho2d-link-list">
-              ${socialItems.map(([label, items, domain, fallbackLabel]) => {
-                const values = normalizeLinks(items);
-                const value = values[0] || (label === 'Google Maps' ? d?.google_maps_link || d?.google_maps_url || '' : hasSite ? d.site : '');
-                const href = linkFor(value, label === 'Google Maps' ? 'site' : label === 'Site' ? 'site' : 'site');
-                return `<a class="nho2d-link-item ${values.length || value ? 'is-link' : ''}" href="${value ? href : '#'}" target="${label === 'Site' || label === 'Google Maps' ? '_blank' : '_self'}" rel="${label === 'Site' || label === 'Google Maps' ? 'noreferrer' : ''}">
-                  <div class="nho2d-link-row">
-                    <div class="nho2d-link-main">
-                      <strong class="nho2d-hero-channel"><span class="nho2d-icon-pill" aria-hidden="true">${socialIndicator(items)}</span>${fallbackLabel}</strong>
-                      <span>${values.length ? 'Ativa' : 'Não encontrado'}</span>
+              ${(() => {
+                const channels = [
+                  ['Instagram', normalizeLinks(social.instagram), 'instagram.com', 'Instagram'],
+                  ['Facebook', normalizeLinks(social.facebook), 'facebook.com', 'Facebook'],
+                  ['LinkedIn', normalizeLinks(social.linkedin), 'linkedin.com', 'LinkedIn'],
+                  ['YouTube', normalizeLinks(social.youtube), 'youtube.com', 'YouTube'],
+                  ['TikTok', normalizeLinks(social.tiktok), 'tiktok.com', 'TikTok'],
+                  ['Google Maps', normalizeLinks((d?.geolocalizacao_status || '').toLowerCase() === 'sucesso' && d?.google_maps_link ? [d.google_maps_link] : []), 'maps.google.com', 'Google Maps'],
+                  ['Site', normalizeLinks(hasSite ? [d.site] : []), 'site', 'Site Oficial']
+                ].filter(([, values]) => values.length > 0);
+                return channels.length ? channels.map(([label, values, domain, fallbackLabel]) => {
+                  const value = values[0];
+                  const href = linkFor(value, label === 'Google Maps' || label === 'Site' ? 'site' : 'site');
+                  return `<a class="nho2d-link-item is-link" href="${href}" target="${label === 'Site' || label === 'Google Maps' ? '_blank' : '_self'}" rel="${label === 'Site' || label === 'Google Maps' ? 'noreferrer' : ''}">
+                    <div class="nho2d-link-row">
+                      <div class="nho2d-link-main">
+                        <strong class="nho2d-hero-channel"><span class="nho2d-icon-pill" aria-hidden="true">${socialIndicator(values)}</span>${fallbackLabel}</strong>
+                        <span>${safeText(value)}</span>
+                      </div>
+                      <span class="nho2d-pill-quiet">Abrir</span>
                     </div>
-                    <span class="nho2d-pill-quiet">Abrir</span>
-                  </div>
-                </a>`;
-              }).join('')}
+                  </a>`;
+                }).join('') : '<div class="nho2d-digital-empty">Nenhum canal digital confirmado.</div>';
+              })()}
             </div>
           </article>
           <article class="nho2d-card">
@@ -1006,9 +1018,9 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
                 <h3>Sobre a empresa</h3>
                 <p>Resumo executivo curto para decisão rápida antes da conversa.</p>
               </div>
-              <button class="nho2-btn secondary" type="button">Ver mais</button>
+              ${summaryText ? `<button id="nho2d-summary-toggle" class="nho2-btn secondary" type="button">${summaryExpanded ? 'Ver menos' : 'Ver mais'}</button>` : ''}
             </div>
-            <div class="nho2d-dd is-clip">${safeText(summaryPreview, 'Resumo executivo não informado.')}</div>
+            <div class="nho2d-dd ${summaryClamped ? 'is-clamped' : ''}">${safeText(summaryPreview, 'Resumo executivo não informado.')}</div>
           </article>
           <article class="nho2d-card">
             <div class="nho2d-card-head">
@@ -1360,6 +1372,13 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
         render();
       };
     });
+    const summaryToggle = root.querySelector('#nho2d-summary-toggle');
+    if (summaryToggle) {
+      summaryToggle.onclick = () => {
+        summaryExpanded = !summaryExpanded;
+        render();
+      };
+    }
     root.querySelectorAll('[data-open-url]').forEach((button) => {
       button.onclick = () => {
         const url = decodeURIComponent(String(button.getAttribute('data-open-url') || '').trim());

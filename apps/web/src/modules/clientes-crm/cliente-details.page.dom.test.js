@@ -323,7 +323,9 @@ test('cliente details exibe Descobrir site quando o site está vazio e vira link
   await flush();
   await flush();
   assert.ok(root.querySelector('#nho2d-web-discovery'));
-  assert.ok(!root.textContent.includes('http'));
+  const siteCard = Array.from(root.querySelectorAll('.nho2d-card')).find((card) => card.textContent.includes('Contato'));
+  assert.ok(siteCard);
+  assert.ok(!siteCard.textContent.includes('http'));
 
   teardownFrontendDom(dom);
 
@@ -654,7 +656,13 @@ test('cliente details mostra presença digital e executa web discovery manual', 
   assert.match(root.textContent, /Site/);
   assert.match(root.textContent, /contato@clientea.com.br/);
   assert.match(root.textContent, /Instagram/);
-  assert.match(root.textContent, /Ativa/);
+  assert.doesNotMatch(root.textContent, /Facebook/);
+  assert.doesNotMatch(root.textContent, /LinkedIn/);
+  assert.doesNotMatch(root.textContent, /YouTube/);
+  assert.doesNotMatch(root.textContent, /TikTok/);
+  assert.match(root.textContent, /Site Oficial/);
+  assert.equal(root.querySelectorAll('.nho2d-link-item.is-link').length >= 1, true);
+  assert.ok(Array.from(root.querySelectorAll('.nho2d-link-item')).every((item) => !item.textContent.includes('Não encontrado')));
   assert.match(root.textContent, /00\.110\.513\/0001-55/);
   assert.match(root.textContent, /Pendente/);
   assert.match(root.textContent, /Atualizar/);
@@ -667,6 +675,52 @@ test('cliente details mostra presença digital e executa web discovery manual', 
   assert.ok(!calls.some((call) => call.method === 'POST' && call.url === '/clientes/c1/enriquecer'));
   assert.ok(calls.filter((call) => call.method === 'GET' && call.url === '/clientes/c1').length >= 2);
   assert.match(root.textContent, /Enriquecimento digital concluído com sucesso|O cliente já tinha site cadastrado/);
+
+  teardownFrontendDom(dom);
+});
+
+test('cliente details mostra estado vazio elegante quando nao ha canais digitais', async () => {
+  const dom = setupFrontendDom('#/clientes/c1');
+  const root = document.getElementById('root');
+  const apiClient = {
+    get: async (url, params = {}) => {
+      if (url === '/clientes/c1') {
+        return {
+          item: {
+            id: 'c1',
+            empresa: 'Cliente Sem Canais',
+            cidade: 'São Paulo',
+            estado: 'SP',
+            created_at: '2026-05-01T00:00:00.000Z',
+            status: 'ativo',
+            digital_enrichment_payload: {
+              contacts: {},
+              social: {},
+              company: {}
+            }
+          }
+        };
+      }
+      if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
+      return { items: [] };
+    },
+    post: async (url) => {
+      if (url === '/clientes/c1/sincronizar-360') {
+        return { item: { id: 'c1' }, resumo: { changes: [], errors: [] } };
+      }
+      throw new Error(`unexpected post: ${url}`);
+    }
+  };
+
+  renderClienteDetailsPage(root, { apiClient, clienteId: 'c1' });
+  await flush();
+  await flush();
+
+  const digitalCard = Array.from(root.querySelectorAll('.nho2d-card')).find((card) => card.textContent.includes('Presença Digital'));
+  assert.ok(digitalCard);
+  assert.match(digitalCard.textContent, /Nenhum canal digital confirmado\./);
+  assert.equal(digitalCard.querySelectorAll('.nho2d-link-item.is-link').length, 0);
+  assert.doesNotMatch(root.textContent, /Não encontrado/);
 
   teardownFrontendDom(dom);
 });
