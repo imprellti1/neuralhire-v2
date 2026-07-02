@@ -286,8 +286,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:minmax(320px,1fr) minmax(0,1.55fr) minmax(320px,.95fr)}
     .nho2d-digital-main{display:grid;gap:16px;grid-column:2}
     .nho2d-digital-side{display:grid;gap:16px;grid-column:3}
-    .cliente360-relevant-grid{display:flex;gap:16px;align-items:flex-start}
-    .cliente360-relevant-column{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:16px}
+    .cliente360-relevant-grid{display:flex;flex-direction:column;gap:16px}
     .cliente360-card-primary,.cliente360-card-enrichment,.cliente360-card-address,.cliente360-card-summary,.nho2d-card{min-width:0}
     .cliente360-card-primary{min-height:100%;display:flex;flex-direction:column}
     .cliente360-card-primary .cliente360-card-body{flex:1}
@@ -433,7 +432,7 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     .nho2d-shell .nho2-btn.ghost{background:transparent;color:#d9e4f7;border-color:rgba(148,163,184,.22);box-shadow:none}
     @media (max-width:1440px){.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:minmax(300px,1fr) minmax(0,1.3fr) minmax(280px,.95fr)}}
     @media (max-width:1280px){.nho2d-title{font-size:28px}.nho2d-hero-grid,.nho2d-dados-grid,.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:repeat(2,minmax(0,1fr))}.nho2d-digital-main,.nho2d-digital-side{grid-column:auto}.cliente360-card-primary{min-height:0}.cliente360-column-right{grid-column:auto;grid-row:auto;gap:16px;height:auto}.cliente360-card-enrichment,.cliente360-card-address,.cliente360-card-summary{grid-column:auto;grid-row:auto}.cliente360-card-map{grid-template-columns:1fr}.cliente360-map-frame{height:240px}.nho2d-enrichment-grid,.nho2d-timeline-horizontal{grid-template-columns:1fr}}
-    @media (max-width:900px){.nho2d-hero-grid,.nho2d-panel-grid,.nho2d-panel-grid--map,.nho2d-dl,.nho2d-edit-grid,.nho2d-enrichment-grid,.nho2d-dados-grid,.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:1fr}.cliente360-relevant-grid{flex-direction:column}.cliente360-relevant-column{width:100%}.nho2d-circle-chart{margin:0 auto}.nho2d-timeline-horizontal{grid-template-columns:1fr}.nho2d-hero-top{flex-direction:column}.nho2d-hero-actions{justify-content:flex-start}}
+    @media (max-width:900px){.nho2d-hero-grid,.nho2d-panel-grid,.nho2d-panel-grid--map,.nho2d-dl,.nho2d-edit-grid,.nho2d-enrichment-grid,.nho2d-dados-grid,.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:1fr}.nho2d-circle-chart{margin:0 auto}.nho2d-timeline-horizontal{grid-template-columns:1fr}.nho2d-hero-top{flex-direction:column}.nho2d-hero-actions{justify-content:flex-start}}
     @media (max-width:1024px){.nho2d-grid{grid-template-columns:1fr}.nho2d-dados-grid,.nho2d-dados-grid.nho2d-digital-layout{grid-template-columns:1fr}.nho2d-title{font-size:24px}.nho2d-dl{grid-template-columns:1fr}.nho2d-kpi-grid{grid-template-columns:1fr}}
     `;
     document.head.appendChild(style);
@@ -1016,178 +1015,174 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     return `
       <div class="nho2d-panel-stack">
         <div class="cliente360-relevant-grid">
-          <div class="cliente360-relevant-column">
-            <article class="nho2d-card">
-              <div class="nho2d-card-head">
-                <div class="nho2d-card-title">
-                  <h3>Identidade</h3>
-                  <p>Dados principais em leitura rápida, sem tabela e sem ruído.</p>
-                </div>
+          <article class="nho2d-card">
+            <div class="nho2d-card-head">
+              <div class="nho2d-card-title">
+                <h3>Identidade</h3>
+                <p>Dados principais em leitura rápida, sem tabela e sem ruído.</p>
               </div>
-              <div class="cliente360-card-body">
-                ${editMode ? `
-                  <div class="nho2d-header" style="margin-bottom:12px">
-                    <div class="nho2d-sub">Controle explícito de edição para os dados principais do cliente.</div>
-                    <div class="nho2d-actions">
-                      <button id="nho2d-edit-cancel" class="nho2-btn secondary" ${editSaving ? 'disabled' : ''}>Cancelar</button>
-                      <button id="nho2d-edit-save" class="nho2-btn" ${editSaving ? 'disabled' : ''}>${editSaving ? 'Salvando...' : 'Salvar'}</button>
+            </div>
+            <div class="cliente360-card-body">
+              ${editMode ? `
+                <div class="nho2d-header" style="margin-bottom:12px">
+                  <div class="nho2d-sub">Controle explícito de edição para os dados principais do cliente.</div>
+                  <div class="nho2d-actions">
+                    <button id="nho2d-edit-cancel" class="nho2-btn secondary" ${editSaving ? 'disabled' : ''}>Cancelar</button>
+                    <button id="nho2d-edit-save" class="nho2-btn" ${editSaving ? 'disabled' : ''}>${editSaving ? 'Salvando...' : 'Salvar'}</button>
+                  </div>
+                </div>
+                ${editErrorMessage ? `<div class="nho2d-crm-empty" role="alert" style="margin-bottom:12px">${safeText(editErrorMessage, '')}</div>` : ''}
+              ` : ''}
+              ${renderPrincipalFields()}
+            </div>
+          </article>
+          <article class="nho2d-card">
+            <div class="nho2d-card-head">
+              <div class="nho2d-card-title">
+                <h3>Contato</h3>
+                <p>Ações rápidas para copiar ou abrir os canais principais.</p>
+              </div>
+            </div>
+            <div class="nho2d-link-list">
+              ${quickContacts.map(([label, items, type, icon]) => {
+                const values = normalizeLinks(items);
+                const value = values[0] || '';
+                const href = linkFor(value, type);
+                const display = values.length ? safeText(values[0]) : 'Não informado';
+                return `<div class="nho2d-link-item">
+                  <div class="nho2d-link-row">
+                    <div class="nho2d-link-main">
+                      <strong class="nho2d-hero-channel"><span class="nho2d-icon-pill" aria-hidden="true">${icon === 'mail' ? '✉' : icon === 'phone' ? '☎' : icon === 'whatsapp' ? 'W' : '↗'}</span>${label}</strong>
+                      <span>${display}</span>
+                    </div>
+                    <div class="nho2d-inline-actions">
+                      ${value ? `<button class="nho2-btn secondary" data-copy-text="${encodeURIComponent(String(value || ''))}">Copiar</button>` : '<span class="nho2d-pill-quiet">Vazio</span>'}
+                      ${value ? `<a class="nho2-btn" href="${href}" ${type === 'site' ? 'target="_blank" rel="noreferrer"' : ''}>Abrir</a>` : ''}
                     </div>
                   </div>
-                  ${editErrorMessage ? `<div class="nho2d-crm-empty" role="alert" style="margin-bottom:12px">${safeText(editErrorMessage, '')}</div>` : ''}
-                ` : ''}
-                ${renderPrincipalFields()}
+                </div>`;
+              }).join('')}
+            </div>
+          </article>
+          <article class="nho2d-card">
+            <div class="nho2d-card-head">
+              <div class="nho2d-card-title">
+                <h3>Presença Digital</h3>
+                <p>Indicadores clicáveis com nomes curtos, sem URLs longas.</p>
               </div>
-            </article>
-            <article class="nho2d-card">
-              <div class="nho2d-card-head">
-                <div class="nho2d-card-title">
-                  <h3>Presença Digital</h3>
-                  <p>Indicadores clicáveis com nomes curtos, sem URLs longas.</p>
-                </div>
-                <span class="nho2d-pill-quiet">${lastDigitalUpdate ? `Atualizado ${formatDateFriendly(lastDigitalUpdate)}` : 'Sem sincronização recente'}</span>
-              </div>
-              <div class="nho2d-link-list">
-                ${(() => {
-                  const channels = [
-                    ['Instagram', normalizeLinks(social.instagram), 'instagram.com', 'Instagram'],
-                    ['Facebook', normalizeLinks(social.facebook), 'facebook.com', 'Facebook'],
-                    ['LinkedIn', normalizeLinks(social.linkedin), 'linkedin.com', 'LinkedIn'],
-                    ['YouTube', normalizeLinks(social.youtube), 'youtube.com', 'YouTube'],
-                    ['TikTok', normalizeLinks(social.tiktok), 'tiktok.com', 'TikTok'],
-                    ['Google Maps', normalizeLinks((d?.geolocalizacao_status || '').toLowerCase() === 'sucesso' && d?.google_maps_link ? [d.google_maps_link] : []), 'maps.google.com', 'Google Maps'],
-                    ['Site', normalizeLinks(hasSite ? [d.site] : []), 'site', 'Site Oficial']
-                  ].filter(([, values]) => values.length > 0);
-                  return channels.length ? channels.map(([label, values, _domain, fallbackLabel]) => {
-                    const value = values[0];
-                    const href = linkFor(value, label === 'Google Maps' || label === 'Site' ? 'site' : 'site');
-                    return `<a class="nho2d-link-item is-link" href="${href}" target="${label === 'Site' || label === 'Google Maps' ? '_blank' : '_self'}" rel="${label === 'Site' || label === 'Google Maps' ? 'noreferrer' : ''}">
-                      <div class="nho2d-link-row">
-                        <div class="nho2d-link-main">
-                          <strong class="nho2d-hero-channel"><span class="nho2d-icon-pill" aria-hidden="true">${socialIndicator(values)}</span>${fallbackLabel}</strong>
-                          <span>${safeText(value)}</span>
-                        </div>
-                        <span class="nho2d-pill-quiet">Abrir</span>
-                      </div>
-                    </a>`;
-                  }).join('') : '<div class="nho2d-digital-empty">Nenhum canal digital confirmado.</div>';
-                })()}
-              </div>
-            </article>
-            <article class="nho2d-card">
-              <div class="nho2d-card-head">
-                <div class="nho2d-card-title">
-                  <h3>Sobre a empresa</h3>
-                  <p>Resumo executivo curto para decisão rápida antes da conversa.</p>
-                </div>
-                ${summaryText ? `<button id="nho2d-summary-toggle" class="nho2-btn secondary" type="button">${summaryExpanded ? 'Ver menos' : 'Ver mais'}</button>` : ''}
-              </div>
-              <div class="nho2d-dd ${summaryClamped ? 'is-clamped' : ''}">${safeText(summaryPreview, 'Resumo executivo não informado.')}</div>
-            </article>
-          </div>
-          <div class="cliente360-relevant-column">
-            <article class="nho2d-card">
-              <div class="nho2d-card-head">
-                <div class="nho2d-card-title">
-                  <h3>Contato</h3>
-                  <p>Ações rápidas para copiar ou abrir os canais principais.</p>
-                </div>
-              </div>
-              <div class="nho2d-link-list">
-                ${quickContacts.map(([label, items, type, icon]) => {
-                  const values = normalizeLinks(items);
-                  const value = values[0] || '';
-                  const href = linkFor(value, type);
-                  const display = values.length ? safeText(values[0]) : 'Não informado';
-                  return `<div class="nho2d-link-item">
+              <span class="nho2d-pill-quiet">${lastDigitalUpdate ? `Atualizado ${formatDateFriendly(lastDigitalUpdate)}` : 'Sem sincronização recente'}</span>
+            </div>
+            <div class="nho2d-link-list">
+              ${(() => {
+                const channels = [
+                  ['Instagram', normalizeLinks(social.instagram), 'instagram.com', 'Instagram'],
+                  ['Facebook', normalizeLinks(social.facebook), 'facebook.com', 'Facebook'],
+                  ['LinkedIn', normalizeLinks(social.linkedin), 'linkedin.com', 'LinkedIn'],
+                  ['YouTube', normalizeLinks(social.youtube), 'youtube.com', 'YouTube'],
+                  ['TikTok', normalizeLinks(social.tiktok), 'tiktok.com', 'TikTok'],
+                  ['Google Maps', normalizeLinks((d?.geolocalizacao_status || '').toLowerCase() === 'sucesso' && d?.google_maps_link ? [d.google_maps_link] : []), 'maps.google.com', 'Google Maps'],
+                  ['Site', normalizeLinks(hasSite ? [d.site] : []), 'site', 'Site Oficial']
+                ].filter(([, values]) => values.length > 0);
+                return channels.length ? channels.map(([label, values, _domain, fallbackLabel]) => {
+                  const value = values[0];
+                  const href = linkFor(value, label === 'Google Maps' || label === 'Site' ? 'site' : 'site');
+                  return `<a class="nho2d-link-item is-link" href="${href}" target="${label === 'Site' || label === 'Google Maps' ? '_blank' : '_self'}" rel="${label === 'Site' || label === 'Google Maps' ? 'noreferrer' : ''}">
                     <div class="nho2d-link-row">
                       <div class="nho2d-link-main">
-                        <strong class="nho2d-hero-channel"><span class="nho2d-icon-pill" aria-hidden="true">${icon === 'mail' ? '✉' : icon === 'phone' ? '☎' : icon === 'whatsapp' ? 'W' : '↗'}</span>${label}</strong>
-                        <span>${display}</span>
+                        <strong class="nho2d-hero-channel"><span class="nho2d-icon-pill" aria-hidden="true">${socialIndicator(values)}</span>${fallbackLabel}</strong>
+                        <span>${safeText(value)}</span>
                       </div>
-                      <div class="nho2d-inline-actions">
-                        ${value ? `<button class="nho2-btn secondary" data-copy-text="${encodeURIComponent(String(value || ''))}">Copiar</button>` : '<span class="nho2d-pill-quiet">Vazio</span>'}
-                        ${value ? `<a class="nho2-btn" href="${href}" ${type === 'site' ? 'target="_blank" rel="noreferrer"' : ''}>Abrir</a>` : ''}
-                      </div>
+                      <span class="nho2d-pill-quiet">Abrir</span>
                     </div>
-                  </div>`;
-                }).join('')}
+                  </a>`;
+                }).join('') : '<div class="nho2d-digital-empty">Nenhum canal digital confirmado.</div>';
+              })()}
+            </div>
+          </article>
+          <article class="nho2d-card">
+            <div class="nho2d-card-head">
+              <div class="nho2d-card-title">
+                <h3>Presença Comercial</h3>
+                <p>Checklist executivo da estrutura comercial percebida no cliente.</p>
               </div>
-            </article>
-            <article class="nho2d-card">
-              <div class="nho2d-card-head">
-                <div class="nho2d-card-title">
-                  <h3>Presença Comercial</h3>
-                  <p>Checklist executivo da estrutura comercial percebida no cliente.</p>
-                </div>
+            </div>
+            <div class="nho2d-checklist">
+              ${presenceBits.map(([label, value]) => `<div class="nho2d-checklist-item"><span class="nho2d-checkmark ${value ? 'is-on' : 'is-off'}">${value ? '✓' : '•'}</span><span>${label}</span></div>`).join('')}
+            </div>
+          </article>
+          <article class="nho2d-card">
+            <div class="nho2d-card-head">
+              <div class="nho2d-card-title">
+                <h3>Categorias e preços - Ecommerce</h3>
+                <p>Leitura do catálogo, marcas e faixas de preço percebidas no site.</p>
               </div>
-              <div class="nho2d-checklist">
-                ${presenceBits.map(([label, value]) => `<div class="nho2d-checklist-item"><span class="nho2d-checkmark ${value ? 'is-on' : 'is-off'}">${value ? '✓' : '•'}</span><span>${label}</span></div>`).join('')}
+            </div>
+            <div class="nho2d-stack">
+              <div class="nho2d-kpi-grid">
+                <div class="nho2d-kpi"><div class="nho2d-kpi-label">Produtos detectados</div><div class="nho2d-kpi-value">${safeText(ecommerceStats.products_count, '0')}</div></div>
+                <div class="nho2d-kpi"><div class="nho2d-kpi-label">Marcas</div><div class="nho2d-kpi-value">${safeText(ecommerceStats.brands_count, '0')}</div></div>
+                <div class="nho2d-kpi"><div class="nho2d-kpi-label">Preço médio</div><div class="nho2d-kpi-value">${ecommerceStats.average_price !== null ? fmtCurrency(ecommerceStats.average_price) : '-'}</div></div>
+                <div class="nho2d-kpi"><div class="nho2d-kpi-label">Categorias</div><div class="nho2d-kpi-value">${safeText(ecommerceStats.categories_count, '0')}</div></div>
               </div>
-            </article>
-            <article class="nho2d-card">
-              <div class="nho2d-card-head">
-                <div class="nho2d-card-title">
-                  <h3>Categorias e preços - Ecommerce</h3>
-                  <p>Leitura do catálogo, marcas e faixas de preço percebidas no site.</p>
-                </div>
+              <div>
+                <div class="nho2d-dt" style="margin-bottom:8px">Categorias</div>
+                <div class="nho2d-chip-row is-tight">${ecommerceCategories.length ? ecommerceCategories.map((item) => `<span class="nho2d-chip">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Sem categorias inferidas</span>'}</div>
               </div>
-              <div class="nho2d-stack">
-                <div class="nho2d-kpi-grid">
-                  <div class="nho2d-kpi"><div class="nho2d-kpi-label">Produtos detectados</div><div class="nho2d-kpi-value">${safeText(ecommerceStats.products_count, '0')}</div></div>
-                  <div class="nho2d-kpi"><div class="nho2d-kpi-label">Marcas</div><div class="nho2d-kpi-value">${safeText(ecommerceStats.brands_count, '0')}</div></div>
-                  <div class="nho2d-kpi"><div class="nho2d-kpi-label">Preço médio</div><div class="nho2d-kpi-value">${ecommerceStats.average_price !== null ? fmtCurrency(ecommerceStats.average_price) : '-'}</div></div>
-                  <div class="nho2d-kpi"><div class="nho2d-kpi-label">Categorias</div><div class="nho2d-kpi-value">${safeText(ecommerceStats.categories_count, '0')}</div></div>
-                </div>
-                <div>
-                  <div class="nho2d-dt" style="margin-bottom:8px">Categorias</div>
-                  <div class="nho2d-chip-row is-tight">${ecommerceCategories.length ? ecommerceCategories.map((item) => `<span class="nho2d-chip">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Sem categorias inferidas</span>'}</div>
-                </div>
-                <div>
-                  <div class="nho2d-dt" style="margin-bottom:8px">Marcas</div>
-                  <div class="nho2d-chip-row is-tight">${ecommerceBrands.length ? ecommerceBrands.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Sem marcas inferidas</span>'}</div>
-                </div>
-                <div>
-                  <div class="nho2d-dt" style="margin-bottom:8px">Média / faixa de preço por categoria</div>
-                  <div class="nho2d-table-wrap">${ecommercePriceRanges.length ? `<table class="nho2d-table"><thead><tr><th>Categoria</th><th>Média</th><th>Mínimo</th><th>Máximo</th><th>Amostras</th></tr></thead><tbody>${ecommercePriceRanges.map((item) => `<tr><td>${safeText(item.category)}</td><td>${item.avg_price !== null ? fmtCurrency(item.avg_price) : '-'}</td><td>${item.min_price !== null ? fmtCurrency(item.min_price) : '-'}</td><td>${item.max_price !== null ? fmtCurrency(item.max_price) : '-'}</td><td>${safeText(item.sample_count, '0')}</td></tr>`).join('')}</tbody></table>` : '<div class="nho2d-crm-empty">Nenhum preço detectado no Ecommerce.</div>'}</div>
-                </div>
-                ${ecommerceProducts.length ? `<div><div class="nho2d-dt" style="margin-bottom:8px">Produtos detectados</div><div class="nho2d-stack">${ecommerceProducts.slice(0, 6).map((item) => `<div class="nho2d-crm-empty"><strong>${safeText(item.name)}</strong><div class="nho2d-item-note">${safeText(item.brand || 'Sem marca')} • ${safeText(item.category || 'Geral')} • ${item.price !== null ? fmtCurrency(item.price) : 'Preço não informado'}</div></div>`).join('')}</div></div>` : ''}
-                ${ecommerceInsights.length ? `<div><div class="nho2d-dt" style="margin-bottom:8px">Insights</div><div class="nho2d-chip-row is-tight">${ecommerceInsights.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('')}</div></div>` : ''}
+              <div>
+                <div class="nho2d-dt" style="margin-bottom:8px">Marcas</div>
+                <div class="nho2d-chip-row is-tight">${ecommerceBrands.length ? ecommerceBrands.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Sem marcas inferidas</span>'}</div>
               </div>
-            </article>
-            <article class="nho2d-card">
-              <div class="nho2d-card-head">
-                <div class="nho2d-card-title">
-                  <h3>Categorias e marcas - Instagram</h3>
-                  <p>Leitura por bio, legenda, hashtags e menções disponíveis no payload.</p>
-                </div>
+              <div>
+                <div class="nho2d-dt" style="margin-bottom:8px">Média / faixa de preço por categoria</div>
+                <div class="nho2d-table-wrap">${ecommercePriceRanges.length ? `<table class="nho2d-table"><thead><tr><th>Categoria</th><th>Média</th><th>Mínimo</th><th>Máximo</th><th>Amostras</th></tr></thead><tbody>${ecommercePriceRanges.map((item) => `<tr><td>${safeText(item.category)}</td><td>${item.avg_price !== null ? fmtCurrency(item.avg_price) : '-'}</td><td>${item.min_price !== null ? fmtCurrency(item.min_price) : '-'}</td><td>${item.max_price !== null ? fmtCurrency(item.max_price) : '-'}</td><td>${safeText(item.sample_count, '0')}</td></tr>`).join('')}</tbody></table>` : '<div class="nho2d-crm-empty">Nenhum preço detectado no Ecommerce.</div>'}</div>
               </div>
-              <div class="nho2d-stack">
-                <div class="nho2d-kpi-grid">
-                  <div class="nho2d-kpi"><div class="nho2d-kpi-label">Categorias</div><div class="nho2d-kpi-value">${safeText(instagramStats.categories_count, '0')}</div></div>
-                  <div class="nho2d-kpi"><div class="nho2d-kpi-label">Marcas</div><div class="nho2d-kpi-value">${safeText(instagramStats.brands_count, '0')}</div></div>
-                  <div class="nho2d-kpi"><div class="nho2d-kpi-label">Preço médio</div><div class="nho2d-kpi-value">${instagramStats.average_price !== null ? fmtCurrency(instagramStats.average_price) : '-'}</div></div>
-                  <div class="nho2d-kpi"><div class="nho2d-kpi-label">Posts com preço</div><div class="nho2d-kpi-value">${safeText(instagramStats.products_count, '0')}</div></div>
-                </div>
-                <div>
-                  <div class="nho2d-dt" style="margin-bottom:8px">Categorias</div>
-                  <div class="nho2d-chip-row is-tight">${instagramCategories.length ? instagramCategories.map((item) => `<span class="nho2d-chip">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Sem categorias inferidas</span>'}</div>
-                </div>
-                <div>
-                  <div class="nho2d-dt" style="margin-bottom:8px">Marcas</div>
-                  <div class="nho2d-chip-row is-tight">${instagramBrands.length ? instagramBrands.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Sem marcas inferidas</span>'}</div>
-                </div>
-                <div>
-                  <div class="nho2d-dt" style="margin-bottom:8px">Hashtags</div>
-                  <div class="nho2d-chip-row is-tight">${instagramHashtags.length ? instagramHashtags.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Sem hashtags identificadas</span>'}</div>
-                </div>
-                <div>
-                  <div class="nho2d-dt" style="margin-bottom:8px">Preços identificados</div>
-                  <div class="nho2d-table-wrap">${instagramPriceRanges.length ? `<table class="nho2d-table"><thead><tr><th>Categoria</th><th>Média</th><th>Mínimo</th><th>Máximo</th><th>Amostras</th></tr></thead><tbody>${instagramPriceRanges.map((item) => `<tr><td>${safeText(item.category)}</td><td>${item.avg_price !== null ? fmtCurrency(item.avg_price) : '-'}</td><td>${item.min_price !== null ? fmtCurrency(item.min_price) : '-'}</td><td>${item.max_price !== null ? fmtCurrency(item.max_price) : '-'}</td><td>${safeText(item.sample_count, '0')}</td></tr>`).join('')}</tbody></table>` : '<div class="nho2d-crm-empty">Sem preços explícitos no Instagram.</div>'}</div>
-                </div>
-                ${instagramInsights.length ? `<div><div class="nho2d-dt" style="margin-bottom:8px">Insights</div><div class="nho2d-chip-row is-tight">${instagramInsights.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('')}</div></div>` : ''}
+              ${ecommerceProducts.length ? `<div><div class="nho2d-dt" style="margin-bottom:8px">Produtos detectados</div><div class="nho2d-stack">${ecommerceProducts.slice(0, 6).map((item) => `<div class="nho2d-crm-empty"><strong>${safeText(item.name)}</strong><div class="nho2d-item-note">${safeText(item.brand || 'Sem marca')} • ${safeText(item.category || 'Geral')} • ${item.price !== null ? fmtCurrency(item.price) : 'Preço não informado'}</div></div>`).join('')}</div></div>` : ''}
+              ${ecommerceInsights.length ? `<div><div class="nho2d-dt" style="margin-bottom:8px">Insights</div><div class="nho2d-chip-row is-tight">${ecommerceInsights.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('')}</div></div>` : ''}
+            </div>
+          </article>
+          <article class="nho2d-card">
+            <div class="nho2d-card-head">
+              <div class="nho2d-card-title">
+                <h3>Categorias e marcas - Instagram</h3>
+                <p>Leitura por bio, legenda, hashtags e menções disponíveis no payload.</p>
               </div>
-            </article>
-          </div>
+            </div>
+            <div class="nho2d-stack">
+              <div class="nho2d-kpi-grid">
+                <div class="nho2d-kpi"><div class="nho2d-kpi-label">Categorias</div><div class="nho2d-kpi-value">${safeText(instagramStats.categories_count, '0')}</div></div>
+                <div class="nho2d-kpi"><div class="nho2d-kpi-label">Marcas</div><div class="nho2d-kpi-value">${safeText(instagramStats.brands_count, '0')}</div></div>
+                <div class="nho2d-kpi"><div class="nho2d-kpi-label">Preço médio</div><div class="nho2d-kpi-value">${instagramStats.average_price !== null ? fmtCurrency(instagramStats.average_price) : '-'}</div></div>
+                <div class="nho2d-kpi"><div class="nho2d-kpi-label">Posts com preço</div><div class="nho2d-kpi-value">${safeText(instagramStats.products_count, '0')}</div></div>
+              </div>
+              <div>
+                <div class="nho2d-dt" style="margin-bottom:8px">Categorias</div>
+                <div class="nho2d-chip-row is-tight">${instagramCategories.length ? instagramCategories.map((item) => `<span class="nho2d-chip">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Sem categorias inferidas</span>'}</div>
+              </div>
+              <div>
+                <div class="nho2d-dt" style="margin-bottom:8px">Marcas</div>
+                <div class="nho2d-chip-row is-tight">${instagramBrands.length ? instagramBrands.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Sem marcas inferidas</span>'}</div>
+              </div>
+              <div>
+                <div class="nho2d-dt" style="margin-bottom:8px">Hashtags</div>
+                <div class="nho2d-chip-row is-tight">${instagramHashtags.length ? instagramHashtags.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('') : '<span class="nho2d-chip is-muted">Sem hashtags identificadas</span>'}</div>
+              </div>
+              <div>
+                <div class="nho2d-dt" style="margin-bottom:8px">Preços identificados</div>
+                <div class="nho2d-table-wrap">${instagramPriceRanges.length ? `<table class="nho2d-table"><thead><tr><th>Categoria</th><th>Média</th><th>Mínimo</th><th>Máximo</th><th>Amostras</th></tr></thead><tbody>${instagramPriceRanges.map((item) => `<tr><td>${safeText(item.category)}</td><td>${item.avg_price !== null ? fmtCurrency(item.avg_price) : '-'}</td><td>${item.min_price !== null ? fmtCurrency(item.min_price) : '-'}</td><td>${item.max_price !== null ? fmtCurrency(item.max_price) : '-'}</td><td>${safeText(item.sample_count, '0')}</td></tr>`).join('')}</tbody></table>` : '<div class="nho2d-crm-empty">Sem preços explícitos no Instagram.</div>'}</div>
+              </div>
+              ${instagramInsights.length ? `<div><div class="nho2d-dt" style="margin-bottom:8px">Insights</div><div class="nho2d-chip-row is-tight">${instagramInsights.map((item) => `<span class="nho2d-chip is-muted">${safeText(item)}</span>`).join('')}</div></div>` : ''}
+            </div>
+          </article>
+          <article class="nho2d-card">
+            <div class="nho2d-card-head">
+              <div class="nho2d-card-title">
+                <h3>Sobre a empresa</h3>
+                <p>Resumo executivo curto para decisão rápida antes da conversa.</p>
+              </div>
+              ${summaryText ? `<button id="nho2d-summary-toggle" class="nho2-btn secondary" type="button">${summaryExpanded ? 'Ver menos' : 'Ver mais'}</button>` : ''}
+            </div>
+            <div class="nho2d-dd ${summaryClamped ? 'is-clamped' : ''}">${safeText(summaryPreview, 'Resumo executivo não informado.')}</div>
+          </article>
         </div>
         <div class="nho2d-panel-grid nho2d-panel-grid--map">
           <article class="nho2d-card">
