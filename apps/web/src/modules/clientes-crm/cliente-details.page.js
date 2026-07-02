@@ -1,5 +1,5 @@
 import { createClienteDetailsState } from './cliente-details.state.js';
-import { atualizarCliente, calcularScoreCliente, calcularSegmentacaoCliente, discoverClienteWebsite, enriquecerCliente, fetchAlertasCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, fetchWhatsappConversationMessagesCliente, fetchWhatsappConversationsCliente, gerarAlertasCliente, geolocalizarCliente, resolverAlertaCliente, sincronizarCliente360 } from './cliente-details.service.js';
+import { atualizarCliente, calcularScoreCliente, calcularSegmentacaoCliente, discoverClienteWebsite, fetchAlertasCliente, fetchClienteDetailsData, fetchPedidoDetailsForCliente, fetchWhatsappConversationMessagesCliente, fetchWhatsappConversationsCliente, gerarAlertasCliente, geolocalizarCliente, resolverAlertaCliente, sincronizarCliente360 } from './cliente-details.service.js';
 import { fetchClienteTimeline } from './cliente-timeline.service.js';
 import { formatCnpj } from '../../utils/br-formatters.js';
 
@@ -1100,19 +1100,17 @@ export function renderClienteDetailsPage(root, { apiClient, clienteId }) {
     const enrichBtn = root.querySelector('#nho2d-enrich');
     if (enrichBtn) {
       enrichBtn.onclick = async () => {
-        enrichmentLoading = true;
-        feedbackMessage = 'Enriquecendo dados...';
+        webDiscoveryLoading = true;
+        webDiscoveryMessage = 'Descobrindo site oficial...';
         render();
         try {
-          const response = await enriquecerCliente(apiClient, clienteId);
-          state.data = response?.item ? { ...state.data, ...response.item } : state.data;
-          const timeline = await fetchClienteTimeline(apiClient, clienteId).catch(() => ({ items: [] }));
-          state.data = { ...state.data, timeline: Array.isArray(timeline?.items) ? timeline.items : [] };
-          feedbackMessage = 'Dados enriquecidos com sucesso.';
+          await discoverClienteWebsite(apiClient, clienteId);
+          state.data = await fetchClienteDetailsData(apiClient, clienteId);
+          webDiscoveryMessage = 'Enriquecimento digital concluído com sucesso.';
         } catch (error) {
-          feedbackMessage = error?.message || 'Falha ao enriquecer cliente.';
+          webDiscoveryMessage = error?.body?.error?.message || error?.message || 'Falha ao enriquecer digitalmente.';
         } finally {
-          enrichmentLoading = false;
+          webDiscoveryLoading = false;
           render();
         }
       };

@@ -587,11 +587,13 @@ test('cliente details dispara sincronizacao 360 ao abrir e aplica retorno', asyn
   teardownFrontendDom(dom);
 });
 
-test('cliente details mostra presença digital e executa enriquecimento manual', async () => {
+test('cliente details mostra presença digital e executa web discovery manual', async () => {
   const dom = setupFrontendDom('#/clientes/c1');
   const root = document.getElementById('root');
+  const calls = [];
   const apiClient = {
     get: async (url, params = {}) => {
+      calls.push({ method: 'GET', url, params });
       if (url === '/clientes/c1') {
         return {
           item: {
@@ -617,15 +619,17 @@ test('cliente details mostra presença digital e executa enriquecimento manual',
         };
       }
       if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
+      if (url === '/clientes/c1/timeline') return { items: [{ id: 't-web', categoria: 'enriquecimento', titulo: 'Web Discovery concluído', descricao: 'Descoberta digital concluída', created_at: '2026-06-30T10:00:00.000Z' }] };
       return { items: [] };
     },
     post: async (url) => {
-      if (url === '/clientes/c1/enriquecer') {
+      calls.push({ method: 'POST', url });
+      if (url === '/clientes/c1/web-discovery') {
         return {
-          item: {
-            id: 'c1',
-            enriquecimento_status: 'pendente',
-            enriquecimento_fonte: null
+          data: {
+            found: true,
+            site: 'https://clientea.com.br',
+            source: 'existing'
           }
         };
       }
@@ -652,11 +656,19 @@ test('cliente details mostra presença digital e executa enriquecimento manual',
   assert.match(root.textContent, /Pendente/);
   assert.match(root.textContent, /Enriquecer digitalmente/);
   assert.match(root.textContent, /Resumo/);
+  root.querySelector('#nho2d-enrich')?.click();
+  await flush();
+  await flush();
+
+  assert.ok(calls.some((call) => call.method === 'POST' && call.url === '/clientes/c1/web-discovery'));
+  assert.ok(!calls.some((call) => call.method === 'POST' && call.url === '/clientes/c1/enriquecer'));
+  assert.ok(calls.filter((call) => call.method === 'GET' && call.url === '/clientes/c1').length >= 2);
+  assert.match(root.textContent, /Enriquecimento digital concluído com sucesso|O cliente já tinha site cadastrado/);
 
   teardownFrontendDom(dom);
 });
 
-test('cliente details mostra erro claro ao falhar enriquecimento', async () => {
+test('cliente details mostra erro claro ao falhar web discovery', async () => {
   const dom = setupFrontendDom('#/clientes/c1');
   const root = document.getElementById('root');
   const apiClient = {
@@ -676,7 +688,12 @@ test('cliente details mostra erro claro ao falhar enriquecimento', async () => {
       if (url === '/pedidos' && String(params.cliente_id || '') === 'c1') return { items: [], pagination: { page: 1, totalPages: 1, total: 0, limit: 100 } };
       return { items: [] };
     },
-    post: async () => {
+    post: async (url) => {
+      if (url === '/clientes/c1/web-discovery') {
+        const error = new Error('Falha ao executar web discovery');
+        error.body = { error: { message: 'Falha ao executar web discovery' } };
+        throw error;
+      }
       const error = new Error('BrasilAPI retornou status 404: CNPJ nao encontrado');
       error.status = 422;
       throw error;

@@ -205,40 +205,6 @@ export function getClientesUpdateTests() {
       name: 'POST /clientes/:id/sincronizar-360 atualiza e mantem idempotencia',
       run: async () => {
         __resetMemoryClientesForTests();
-        const previousFetch = globalThis.fetch;
-        const calls = [];
-        globalThis.fetch = async (url) => {
-          calls.push(String(url));
-          if (String(url).includes('brasilapi.com.br')) {
-            return createFetchResponse({
-              ok: true,
-              status: 200,
-              body: {
-                razao_social: 'Cliente Sincronizado LTDA',
-                cnpj: '12345678000195',
-                cep: '80000000',
-                logradouro: 'Rua Central',
-                numero: '100',
-                complemento: 'Sala 1',
-                bairro: 'Centro',
-                municipio: 'Curitiba',
-                uf: 'PR',
-                email: 'contato@cliente.com',
-                ddd_telefone_1: '41',
-                telefone_1: '33334444'
-              }
-            });
-          }
-          if (String(url).includes('nominatim.openstreetmap.org/search')) {
-            return createFetchResponse({
-              ok: true,
-              status: 200,
-              body: [{ lat: '-25.4284', lon: '-49.2733', place_id: '1', display_name: 'Curitiba, PR' }]
-            });
-          }
-          throw new Error(`fetch inesperado ${url}`);
-        };
-
         try {
           const app = createApiApp();
           const cliente = await createCliente({
@@ -265,10 +231,8 @@ export function getClientesUpdateTests() {
           const timeline2 = await call(app, { method: 'GET', url: `/clientes/${cliente.id}/timeline`, role: 'admin', accountId: 'acc-sync' });
           assertEqual(timeline2.body.items.length, timeline1.body.items.length);
           assertEqual(second.body.resumo.changes.length === 0 || Array.isArray(second.body.resumo.changes), true);
-          assertEqual(calls.some((url) => url.includes('brasilapi.com.br')), true);
-          assertEqual(calls.some((url) => url.includes('nominatim.openstreetmap.org/search')), true);
         } finally {
-          globalThis.fetch = previousFetch;
+          // nothing to restore
         }
       }
     }

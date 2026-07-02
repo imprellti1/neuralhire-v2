@@ -341,32 +341,6 @@ export async function sincronizarCliente360Handler(context = {}) {
     summary.errors.push({ step: 'score', message: error?.message || 'Falha ao recalcular score' });
   }
 
-  try {
-    const canEnrich = Boolean(String(latest?.documento || '').replace(/\D/g, '').length >= 11);
-    const needsEnrichment = !latest.enriquecimento_ultima_execucao || String(latest.enriquecimento_status || '').toLowerCase() === 'erro' || String(latest.enriquecimento_status || '').toLowerCase() === 'incompleto';
-    if (canEnrich && needsEnrichment) {
-      const enriched = await enrichClienteByCnpj(id, { accountId, context, fetchImpl: context.fetchImpl });
-      latest = enriched || latest;
-      summary.enrichment = 'updated';
-    }
-  } catch (error) {
-    summary.enrichment = 'error';
-    summary.errors.push({ step: 'enrichment', message: error?.message || 'Falha ao enriquecer cliente' });
-  }
-
-  try {
-    const hasAddress = [latest?.logradouro, latest?.numero, latest?.bairro, latest?.cidade, latest?.estado].some((value) => String(value || '').trim());
-    const needsGeolocation = hasAddress && (!latest?.geolocalizacao_ultima_execucao || String(latest?.geolocalizacao_status || '').toLowerCase() === 'erro' || !Number.isFinite(Number(latest?.latitude)) || !Number.isFinite(Number(latest?.longitude)));
-    if (needsGeolocation) {
-      const geo = await geolocalizarCliente({ accountId, clienteId: id, fetchImpl: context.fetchImpl, context });
-      latest = geo?.cliente || latest;
-      summary.geolocation = 'updated';
-    }
-  } catch (error) {
-    summary.geolocation = 'error';
-    summary.errors.push({ step: 'geolocation', message: error?.message || 'Falha ao geolocalizar cliente' });
-  }
-
   const after = pickClienteSnapshot(latest);
   const diff = diffClienteSnapshot(before, after);
   summary.changes = Object.keys(diff);
