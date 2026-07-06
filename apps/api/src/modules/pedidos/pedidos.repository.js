@@ -473,6 +473,10 @@ export async function updatePedidoVendedor(id, data = {}, options = {}) {
     if (vendedorExistsElsewhere) throw new ForbiddenError('Vendedor invalido para o tenant', { code: 'TENANT_FORBIDDEN', domain: 'pedidos-comercial' });
     throw new NotFoundError('Vendedor nao encontrado', { code: 'VENDEDOR_NOT_FOUND', domain: 'pedidos-comercial' });
   }
+  if (supabaseClientOverride || await isDatabaseMode()) {
+    const updated = await pedidosRepository.one(PedidosQueries.updatePedidoVendedor(), [accountId, id, vendedorId]);
+    return { item: updated };
+  }
   if (getPedidosRepositoryMode().mode === 'supabase') {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
@@ -689,6 +693,21 @@ export async function updatePedido(id, data = {}, options = {}) {
     updated_at: new Date().toISOString()
   };
 
+  if (supabaseClientOverride || await isDatabaseMode()) {
+    const updated = await pedidosRepository.one(PedidosQueries.updatePedido(), [
+      accountId,
+      id,
+      payload.cliente_id,
+      payload.origem,
+      payload.observacoes
+    ]);
+    const itens = await pedidosRepository.many(PedidosQueries.listItensByPedidoId(), [accountId, id]).catch((error) => {
+      if (error?.code === 'DATABASE_NOT_ONE') return [];
+      throw error;
+    });
+    return { pedido: updated, itens: itens || [] };
+  }
+
   if (getPedidosRepositoryMode().mode === 'supabase') {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
@@ -713,6 +732,15 @@ export async function updatePedidoComissao(id, data = {}, options = {}) {
   };
   const nextPayload = Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
   await getPedidoById(id, { accountId });
+  if (supabaseClientOverride || await isDatabaseMode()) {
+    const updated = await pedidosRepository.one(PedidosQueries.updatePedidoComissao(), [
+      accountId,
+      id,
+      nextPayload.comissao_principal_percentual ?? null,
+      nextPayload.comissao_preposto_percentual ?? null
+    ]);
+    return { item: updated };
+  }
   if (getPedidosRepositoryMode().mode === 'supabase') {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
@@ -731,6 +759,15 @@ export async function updatePedidoFaturamento(id, data = {}, options = {}) {
   const dataFaturamento = normalizeDateValue(data.data_faturamento);
   await getPedidoById(id, { accountId });
   const payload = { data_faturamento: dataFaturamento, status: 'faturado_total' };
+  if (supabaseClientOverride || await isDatabaseMode()) {
+    const updated = await pedidosRepository.one(PedidosQueries.updatePedidoFaturamento(), [
+      accountId,
+      id,
+      payload.data_faturamento,
+      payload.status
+    ]);
+    return { item: updated };
+  }
   if (getPedidosRepositoryMode().mode === 'supabase') {
     const supabase = getSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');

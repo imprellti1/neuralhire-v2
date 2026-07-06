@@ -133,6 +133,106 @@ export const PedidosQueries = {
       comissao_principal_percentual,
       comissao_preposto_percentual`;
   },
+  updatePedido() {
+    return `UPDATE pedidos
+    SET cliente_id = $3,
+        origem = $4,
+        observacoes = $5,
+        updated_at = NOW()
+    WHERE account_id = $1
+      AND id = $2
+    RETURNING
+      id,
+      account_id,
+      cliente_id,
+      vendedor_id,
+      numero,
+      status,
+      origem,
+      observacoes,
+      total,
+      metadata,
+      created_at,
+      updated_at,
+      data_emissao,
+      data_faturamento,
+      comissao_principal_percentual,
+      comissao_preposto_percentual`;
+  },
+  updatePedidoVendedor() {
+    return `UPDATE pedidos
+    SET vendedor_id = $3,
+        updated_at = NOW()
+    WHERE account_id = $1
+      AND id = $2
+    RETURNING
+      id,
+      account_id,
+      cliente_id,
+      vendedor_id,
+      numero,
+      status,
+      origem,
+      observacoes,
+      total,
+      metadata,
+      created_at,
+      updated_at,
+      data_emissao,
+      data_faturamento,
+      comissao_principal_percentual,
+      comissao_preposto_percentual`;
+  },
+  updatePedidoComissao() {
+    return `UPDATE pedidos
+    SET comissao_principal_percentual = COALESCE($3, comissao_principal_percentual),
+        comissao_preposto_percentual = COALESCE($4, comissao_preposto_percentual),
+        updated_at = NOW()
+    WHERE account_id = $1
+      AND id = $2
+    RETURNING
+      id,
+      account_id,
+      cliente_id,
+      vendedor_id,
+      numero,
+      status,
+      origem,
+      observacoes,
+      total,
+      metadata,
+      created_at,
+      updated_at,
+      data_emissao,
+      data_faturamento,
+      comissao_principal_percentual,
+      comissao_preposto_percentual`;
+  },
+  updatePedidoFaturamento() {
+    return `UPDATE pedidos
+    SET data_faturamento = $3,
+        status = $4,
+        updated_at = NOW()
+    WHERE account_id = $1
+      AND id = $2
+    RETURNING
+      id,
+      account_id,
+      cliente_id,
+      vendedor_id,
+      numero,
+      status,
+      origem,
+      observacoes,
+      total,
+      metadata,
+      created_at,
+      updated_at,
+      data_emissao,
+      data_faturamento,
+      comissao_principal_percentual,
+      comissao_preposto_percentual`;
+  },
   deleteItensByPedidoId() {
     return `DELETE FROM pedido_itens
     WHERE account_id = $1
