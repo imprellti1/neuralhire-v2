@@ -3,6 +3,9 @@ import { Buffer } from 'node:buffer';
 import path from 'node:path';
 import { env } from '../../config/env.js';
 import { BadRequestError, DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
+import { BaseRepository } from '../../database/base.repository.js';
+import { database } from '../../database/database.adapter.js';
+import { ProdutosQueries } from '../../database/queries/produtos.queries.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { getFabricanteById } from '../fabricantes/fabricantes.repository.js';
 import { getProdutoCategoriaById } from '../produto-categorias/produto-categorias.repository.js';
@@ -17,6 +20,15 @@ const ALLOWED_VARIACAO_IMAGE_EXTENSIONS = new Map([
   ['image/jpeg', 'jpg'],
   ['image/webp', 'webp']
 ]);
+let databaseModeCache = null;
+
+class ProdutosRepository extends BaseRepository {
+  constructor(adapter = database) {
+    super(adapter, { logContext: 'produtos' });
+  }
+}
+
+const repository = new ProdutosRepository();
 
 function assertAccountId(accountId) {
   if (!accountId) {
@@ -57,6 +69,10 @@ function normalizeNullableUuid(value) {
   return raw || null;
 }
 
+function normalizeText(value) {
+  return String(value || '').trim();
+}
+
 async function resolveFabricanteForProduto(accountId, fabricanteId) {
   const normalized = normalizeNullableUuid(fabricanteId);
   if (!normalized) return null;
@@ -70,6 +86,12 @@ async function resolveFabricanteForProduto(accountId, fabricanteId) {
 function getProdutoFabricanteId(data = {}) {
   if (Object.prototype.hasOwnProperty.call(data, 'fabricante_id')) return data.fabricante_id;
   if (Object.prototype.hasOwnProperty.call(data, 'fabricanteId')) return data.fabricanteId;
+  return undefined;
+}
+
+function getProdutoCategoriaId(data = {}) {
+  if (Object.prototype.hasOwnProperty.call(data, 'categoria_id')) return data.categoria_id;
+  if (Object.prototype.hasOwnProperty.call(data, 'categoriaId')) return data.categoriaId;
   return undefined;
 }
 
@@ -273,6 +295,20 @@ function normalizePromocaoResumoMap(promocoes = [], produtoIds = []) {
   return map;
 }
 
+async function isDatabaseMode() {
+  if (databaseModeCache !== null) return databaseModeCache;
+  try {
+    await repository.one(ProdutosQueries.ping(), []);
+    databaseModeCache = true;
+  } catch (error) {
+    databaseModeCache = false;
+    if (error?.code !== 'ECONNREFUSED' && error?.cause?.code !== 'ECONNREFUSED') {
+      debugRepository('databaseModeProbeFailed', { message: error?.message || null, code: error?.code || null });
+    }
+  }
+  return databaseModeCache;
+}
+
 async function attachPromocaoResumoEmLote(items = [], options = {}) {
   const productIds = (Array.isArray(items) ? items : []).map((item) => item?.id).filter(Boolean);
   if (!productIds.length) return items;
@@ -313,28 +349,29 @@ export async function listProdutos(filters = {}, options = {}) {
   const { page, limit } = normalizePagination(filters);
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-  const repositoryMode = getProdutosRepositoryMode();
-  debugRepository('listProdutos', { repositoryMode, accountId, filters });
-
-  if (repositoryMode.mode === 'supabase') {
-    const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-
-    let query = supabase.from('produtos').select('*', { count: 'exact' }).eq('account_id', accountId).order('created_at', { ascending: false });
-    if (typeof filters.ativo === 'boolean') query = query.eq('ativo', filters.ativo);
-    if (filters.categoria_id) query = query.eq('categoria_id', filters.categoria_id);
-    if (filters.marca) query = query.eq('marca', filters.marca);
-    if (filters.search) {
-      const search = String(filters.search).trim();
-      if (search) query = query.or(`nome.ilike.%${search}%,sku.ilike.%${search}%,codigo.ilike.%${search}%,descricao.ilike.%${search}%,marca.ilike.%${search}%`);
+  debugRepository('listProdutos', { repositoryMode: getProdutosRepositoryMode(), accountId, filters });
+  if (await isDatabaseMode()) {
+    const hasSearch = Boolean(normalizeText(filters.search));
+    const hasCategoriaId = Boolean(filters.categoria_id ?? filters.categoriaId);
+    const hasMarca = Boolean(normalizeText(filters.marca));
+    const hasAtivo = typeof filters.ativo === 'boolean';
+    const whereParams = [accountId];
+    if (hasSearch) {
+      const search = `%${normalizeText(filters.search)}%`;
+      whereParams.push(search, search, search, search, search);
     }
-
+    if (hasCategoriaId) whereParams.push(filters.categoria_id ?? filters.categoriaId);
+    if (hasMarca) whereParams.push(normalizeText(filters.marca));
+    if (hasAtivo) whereParams.push(Boolean(filters.ativo));
+    const totalRow = await repository.one(ProdutosQueries.count({ hasSearch, hasCategoriaId, hasMarca, hasAtivo }), whereParams).catch((error) => {
+      if (error?.code === 'DATABASE_NOT_ONE') return { total: 0 };
+      throw error;
+    });
     const from = (page - 1) * limit;
-    const to = from + limit - 1;
-    const { data, error, count } = await query.range(from, to);
-    if (error) throw new DatabaseError('Falha ao listar produtos', { details: error });
-    const total = count || 0;
-    const itemsBase = await Promise.all((data || []).map((item) => attachCategoriaData(item, { accountId }).then((x) => attachFabricanteData(x, { accountId }))));
+    const listParams = [...whereParams, limit, from];
+    const rows = await repository.many(ProdutosQueries.list({ hasSearch, hasCategoriaId, hasMarca, hasAtivo }), listParams);
+    const total = Number(totalRow?.total || 0);
+    const itemsBase = await Promise.all((rows || []).map((item) => attachCategoriaData(item, { accountId }).then((x) => attachFabricanteData(x, { accountId }))));
     const items = await attachPromocaoResumoEmLote(itemsBase, { accountId });
     return { items, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
@@ -350,15 +387,13 @@ export async function listProdutos(filters = {}, options = {}) {
 export async function getProdutoById(id, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-  const repositoryMode = getProdutosRepositoryMode();
-
-  if (repositoryMode.mode === 'supabase') {
-    const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data, error } = await supabase.from('produtos').select('*').eq('account_id', accountId).eq('id', id).maybeSingle();
-    if (error) throw new DatabaseError('Falha ao buscar produto', { details: error });
+  if (await isDatabaseMode()) {
+    const data = await repository.one(ProdutosQueries.getById(), [accountId, id]).catch((error) => {
+      if (error?.code === 'DATABASE_NOT_ONE') return null;
+      throw error;
+    });
     if (!data) throw new NotFoundError('Produto nao encontrado', { domain: 'produtos-catalogo', code: 'PRODUTO_NOT_FOUND' });
-  return attachPromocaoResumo(await attachFabricanteData(await attachCategoriaData(data, { accountId }), { accountId }), { accountId });
+    return attachPromocaoResumo(await attachFabricanteData(await attachCategoriaData(data, { accountId }), { accountId }), { accountId });
   }
 
   const item = memoryProdutos.find((produto) => produto.id === id && produto.account_id === accountId);
@@ -369,13 +404,11 @@ export async function getProdutoById(id, options = {}) {
 export async function getProdutoBaseById(id, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-  const repositoryMode = getProdutosRepositoryMode();
-
-  if (repositoryMode.mode === 'supabase') {
-    const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data, error } = await supabase.from('produtos').select('*').eq('account_id', accountId).eq('id', id).maybeSingle();
-    if (error) throw new DatabaseError('Falha ao buscar produto', { details: error });
+  if (await isDatabaseMode()) {
+    const data = await repository.one(ProdutosQueries.getById(), [accountId, id]).catch((error) => {
+      if (error?.code === 'DATABASE_NOT_ONE') return null;
+      throw error;
+    });
     if (!data) throw new NotFoundError('Produto nao encontrado', { domain: 'produtos-catalogo', code: 'PRODUTO_NOT_FOUND' });
     return attachFabricanteData(await attachCategoriaData(data, { accountId }), { accountId });
   }
@@ -547,20 +580,12 @@ export async function searchProdutos(query, options = {}) {
 
   if (!searchQuery) return { items: [], total: 0, query: searchQuery };
 
-  const repositoryMode = getProdutosRepositoryMode();
-  debugRepository('searchProdutos', { repositoryMode, accountId, query: searchQuery });
+  debugRepository('searchProdutos', { repositoryMode: getProdutosRepositoryMode(), accountId, query: searchQuery });
 
-  if (repositoryMode.mode === 'supabase') {
-    const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data, error } = await supabase
-      .from('produtos')
-      .select('*', { count: 'exact' })
-      .eq('account_id', accountId)
-      .or(`nome.ilike.%${searchQuery}%,sku.ilike.%${searchQuery}%,codigo.ilike.%${searchQuery}%,descricao.ilike.%${searchQuery}%,marca.ilike.%${searchQuery}%`)
-      .limit(100);
-    if (error) throw new DatabaseError('Falha na busca de produtos', { details: error });
-    return { items: await Promise.all((data || []).map((item) => attachCategoriaData(item, { accountId }).then((x) => attachFabricanteData(x, { accountId })))), total: (data || []).length, query: searchQuery };
+  if (await isDatabaseMode()) {
+    const like = `%${searchQuery}%`;
+    const rows = await repository.many(ProdutosQueries.search(), [accountId, like, like, like, like, like]);
+    return { items: await Promise.all((rows || []).map((item) => attachCategoriaData(item, { accountId }).then((x) => attachFabricanteData(x, { accountId })))), total: (rows || []).length, query: searchQuery };
   }
 
   const items = memoryProdutos
@@ -576,17 +601,16 @@ export async function searchProdutos(query, options = {}) {
 export async function createProduto(data, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-  const repositoryMode = getProdutosRepositoryMode();
-  debugRepository('createProduto', { repositoryMode, accountId, filters: null });
+  debugRepository('createProduto', { repositoryMode: getProdutosRepositoryMode(), accountId, filters: null });
 
   const fabricante = await resolveFabricanteForProduto(accountId, getProdutoFabricanteId(data));
   const payload = {
     account_id: accountId,
     codigo: data.codigo || null,
     sku: data.sku || null,
-    nome: data.nome,
+    nome: normalizeText(data.nome),
     descricao: data.descricao || null,
-    categoria_id: data.categoria_id || data.categoriaId || null,
+    categoria_id: getProdutoCategoriaId(data) || null,
     categoria: data.categoria || null,
     marca: data.marca || null,
     fabricante_id: fabricante?.id || normalizeNullableUuid(getProdutoFabricanteId(data)),
@@ -608,12 +632,14 @@ export async function createProduto(data, options = {}) {
     tags: Array.isArray(data.tags) ? data.tags : []
   };
 
-  if (repositoryMode.mode === 'supabase') {
-    const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+  if (await isDatabaseMode()) {
     try {
-      const { data: inserted, error } = await supabase.from('produtos').insert(payload).select('*').single();
-      if (error) throw error;
+      const timestamp = new Date().toISOString();
+      const inserted = await repository.one(ProdutosQueries.insert(), [
+        randomUUID(), accountId, payload.codigo, payload.sku, payload.nome, payload.descricao, payload.categoria_id, payload.categoria, payload.marca, payload.fabricante_id,
+        payload.ean, payload.ncm, payload.preco, payload.preco_promocional, payload.icms_percentual, payload.multiplo_venda, payload.video_url, payload.metadata, payload.custo,
+        payload.estoque, payload.unidade, payload.ativo, payload.tags, timestamp, timestamp
+      ]);
       return attachFabricanteData(inserted, { accountId });
     } catch (error) {
       console.error('[produtos] create failed', {
@@ -634,7 +660,7 @@ export async function createProduto(data, options = {}) {
 export async function updateProduto(id, data = {}, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-  await getProdutoById(id, { accountId });
+  const current = await getProdutoBaseById(id, { accountId });
 
   const statusRaw = data.status !== undefined ? String(data.status || '').trim().toLowerCase() : null;
   if (statusRaw !== null && statusRaw !== 'ativo' && statusRaw !== 'inativo') {
@@ -680,14 +706,17 @@ export async function updateProduto(id, data = {}, options = {}) {
     ...(nextMetadata ? { metadata: nextMetadata } : {}),
     ...(nextAtivo !== undefined ? { ativo: nextAtivo } : {})
   };
+  const merged = { ...current, ...payload };
 
-  if (getProdutosRepositoryMode().mode === 'supabase') {
-    const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+  if (await isDatabaseMode()) {
     try {
-      const supabasePayload = normalizeProdutoUpdatePayload(payload);
-      const { data: updated, error } = await supabase.from('produtos').update(supabasePayload).eq('id', id).eq('account_id', accountId).select('*').single();
-      if (error) throw error;
+      const updated = await repository.one(ProdutosQueries.update(), [
+        accountId, id, merged.codigo ?? null, merged.sku ?? null, merged.nome ?? null, merged.descricao ?? null,
+        merged.categoria_id ?? null, merged.categoria ?? null, merged.marca ?? null, merged.fabricante_id ?? null, merged.ean ?? null,
+        merged.ncm ?? null, merged.preco ?? null, merged.preco_promocional ?? null, merged.icms_percentual ?? null,
+        merged.multiplo_venda ?? null, merged.video_url ?? null, merged.metadata ?? null, merged.custo ?? null, merged.estoque ?? null,
+        merged.unidade ?? null, merged.ativo ?? null, merged.tags ?? null, new Date().toISOString()
+      ]);
       return attachFabricanteData({ ...updated, ...(nextStatus !== undefined ? { status: nextStatus } : {}), ...(nextAtivo !== undefined ? { ativo: nextAtivo } : {}) }, { accountId });
     } catch (error) {
       console.error('[produtos] update failed', {
