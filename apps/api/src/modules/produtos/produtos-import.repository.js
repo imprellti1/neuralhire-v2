@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { Buffer } from 'node:buffer';
 import xlsx from 'xlsx';
 import { BadRequestError, DatabaseError, ForbiddenError } from '../../core/errors.js';
-import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
+import { database } from '../../database/database.adapter.js';
+import { ProdutosImportQueries } from '../../database/queries/produtos-import.queries.js';
+import { ProdutoVariacoesQueries } from '../../database/queries/produto-variacoes.queries.js';
+import { ProdutosQueries } from '../../database/queries/produtos.queries.js';
 import { getFabricanteById } from '../fabricantes/fabricantes.repository.js';
 import { listProdutoCategorias } from '../produto-categorias/produto-categorias.repository.js';
 import { createProduto, listProdutos, updateProduto } from './produtos.repository.js';
@@ -11,6 +14,7 @@ import { createVariation, listVariations, updateVariation } from '../product-edi
 const memoryBatches = [];
 const memoryStocks = [];
 const categoriaLookupCache = new Map();
+let databaseModeCache = null;
 const MAX_PREVIEW_ROWS = 50;
 const VARIATION_HEADERS = ['P', 'M', 'G', 'GG', '35-36', '37-38', '39-40', '41-42', '43-44', 'UNI'];
 const STOCK_HEADER_HINTS = ['estoque', 'quantidade', 'qtd', 'saldo'];
@@ -40,8 +44,15 @@ function assertAccountId(accountId) {
   if (!accountId) throw new ForbiddenError('Contexto de tenant obrigatorio', { code: 'TENANT_REQUIRED', domain: 'produtos-import' });
 }
 
-function mode() {
-  return isSupabaseConfigured() ? 'supabase' : 'memory';
+async function isDatabaseMode() {
+  if (databaseModeCache !== null) return databaseModeCache;
+  try {
+    await database.one('SELECT 1 AS ok', []);
+    databaseModeCache = true;
+  } catch {
+    databaseModeCache = false;
+  }
+  return databaseModeCache;
 }
 
 function normalizeText(value) {
@@ -169,48 +180,61 @@ async function parseImportWorkbook(buffer) {
 }
 
 async function createBatchRecord(payload) {
-  if (mode() === 'supabase') {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase.from('produto_import_batches').insert(payload).select('*').single();
-    if (error) throw new DatabaseError('Falha ao criar batch', { details: error });
-    return data;
-  }
   const item = { id: randomUUID(), ...payload, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+  if (await isDatabaseMode()) {
+    try {
+      return await database.one(ProdutosImportQueries.createBatch(), [
+        item.id,
+        item.account_id,
+        item.fabricante_id,
+        item.arquivo_nome,
+        item.status,
+        item.total_linhas,
+        item.linhas_processadas,
+        item.produtos_criados,
+        item.produtos_atualizados,
+        item.variacoes_criadas,
+        item.variacoes_atualizadas,
+        item.estoques_atualizados,
+        item.erros,
+        item.created_at,
+        item.updated_at
+      ]);
+    } catch (error) {
+      throw new DatabaseError('Falha ao criar batch', { details: error });
+    }
+  }
   memoryBatches.push(item);
   return item;
 }
 
-async function updateBatchRecord(batchId, patch = {}) {
+async function updateBatchRecord(batchId, patch = {}, accountId = null) {
   const { batchId: _ignoredBatchId, ...persistedPatch } = patch || {};
   const batchPayload = Object.fromEntries(
     Object.entries(persistedPatch).filter(([key]) => PRODUTO_IMPORT_BATCH_FIELDS.includes(key))
   );
-  if (mode() === 'supabase') {
-    const supabase = getSupabaseClient();
+  if (await isDatabaseMode()) {
     try {
-      const { data, error } = await supabase.from('produto_import_batches').update(batchPayload).eq('id', batchId).select('*').single();
-      if (error) {
-        console.error('[produtos-import] updateBatchRecord failed', {
-          batchId,
-          payload: batchPayload,
-          error
-        });
-        throw new DatabaseError('Falha ao atualizar batch', { details: error });
-      }
-      return data;
-    } catch (error) {
-      console.error('[produtos-import] updateBatchRecord failed', {
+      const current = await findBatchById(batchId, accountId);
+      if (!current) return null;
+      return await database.one(ProdutosImportQueries.updateBatch(), [
         batchId,
-        payload: batchPayload,
-        error: {
-          message: error?.message || String(error),
-          code: error?.code || null,
-          details: error?.details || null,
-          hint: error?.hint || null,
-          stack: error?.stack || null
-        }
-      });
-      throw error;
+        current.account_id,
+        batchPayload.fabricante_id ?? current.fabricante_id,
+        batchPayload.arquivo_nome ?? current.arquivo_nome,
+        batchPayload.status ?? current.status,
+        batchPayload.total_linhas ?? current.total_linhas,
+        batchPayload.linhas_processadas ?? current.linhas_processadas,
+        batchPayload.produtos_criados ?? current.produtos_criados,
+        batchPayload.produtos_atualizados ?? current.produtos_atualizados,
+        batchPayload.variacoes_criadas ?? current.variacoes_criadas,
+        batchPayload.variacoes_atualizadas ?? current.variacoes_atualizadas,
+        batchPayload.estoques_atualizados ?? current.estoques_atualizados,
+        batchPayload.erros ?? current.erros,
+        batchPayload.updated_at ?? new Date().toISOString()
+      ]);
+    } catch (error) {
+      throw new DatabaseError('Falha ao atualizar batch', { details: error });
     }
   }
   const index = memoryBatches.findIndex((batch) => batch.id === batchId);
@@ -219,12 +243,12 @@ async function updateBatchRecord(batchId, patch = {}) {
   return memoryBatches[index];
 }
 
-async function findBatchById(batchId) {
-  if (mode() === 'supabase') {
-    const supabase = getSupabaseClient();
-    const { data, error } = await supabase.from('produto_import_batches').select('*').eq('id', batchId).maybeSingle();
-    if (error) throw new DatabaseError('Falha ao buscar batch', { details: error });
-    return data;
+async function findBatchById(batchId, accountId = null) {
+  if (await isDatabaseMode()) {
+    const rows = await database.many(ProdutosImportQueries.findBatchById(), [batchId, accountId]).catch((error) => {
+      throw new DatabaseError('Falha ao buscar batch', { details: error });
+    });
+    return rows?.[0] || null;
   }
   return memoryBatches.find((batch) => batch.id === batchId) || null;
 }
@@ -250,20 +274,17 @@ function buildVariationMapKey({ accountId, produtoId, nome, grade }) {
   return [accountId, produtoId, nome, grade].map((value) => String(value || '').trim()).join('::');
 }
 
-async function confirmVariationFromDatabase(supabase, variationIdentity) {
-  const { data, error } = await supabase
-    .from('produto_variacoes')
-    .select(PRODUTO_VARIACOES_SELECT_FIELDS)
-    .eq('account_id', variationIdentity.accountId)
-    .eq('produto_id', variationIdentity.produtoId)
-    .eq('nome', variationIdentity.nome)
-    .eq('grade', variationIdentity.grade)
-    .maybeSingle();
-  if (error) throw error;
-  return data || null;
+async function confirmVariationFromDatabase(variationIdentity) {
+  const rows = await database.many(ProdutosImportQueries.findVariationByIdentity(), [
+    variationIdentity.accountId,
+    variationIdentity.produtoId,
+    variationIdentity.nome,
+    variationIdentity.grade
+  ]);
+  return rows?.[0] || null;
 }
 
-async function ensureVariationInDatabase(supabase, record, variationIdentity) {
+async function ensureVariationInDatabase(record, variationIdentity) {
   const conflictPayload = {
     account_id: variationIdentity.accountId,
     produto_id: variationIdentity.produtoId,
@@ -276,27 +297,25 @@ async function ensureVariationInDatabase(supabase, record, variationIdentity) {
     ativo: true
   };
 
-  const { error: upsertError } = await supabase
-    .from('produto_variacoes')
-    .upsert(conflictPayload, { onConflict: 'account_id,produto_id,nome,grade' })
-    .select('id')
-    .maybeSingle();
-  if (upsertError) throw upsertError;
-
-  const confirmedVariation = await confirmVariationFromDatabase(supabase, variationIdentity);
+  const confirmedVariation = await database.one(ProdutosImportQueries.upsertVariation(), [
+    conflictPayload.account_id,
+    conflictPayload.produto_id,
+    conflictPayload.sku,
+    conflictPayload.nome,
+    conflictPayload.valor,
+    conflictPayload.cor,
+    conflictPayload.grade,
+    conflictPayload.estoque_atual,
+    conflictPayload.ativo
+  ]);
   if (!confirmedVariation?.id) {
     throw new BadRequestError('Falha ao confirmar variação de estoque.', { domain: 'produtos-import', code: 'VARIACAO_ESTOQUE_NAO_CONFIRMADA' });
   }
   return confirmedVariation;
 }
 
-async function findExistingVariationsForProduct(supabase, accountId, produtoId) {
-  const { data, error } = await supabase
-    .from('produto_variacoes')
-    .select(PRODUTO_VARIACOES_SELECT_FIELDS)
-    .eq('account_id', accountId)
-    .eq('produto_id', produtoId);
-  if (error) throw new DatabaseError('Falha ao consultar estoque', { details: error });
+async function findExistingVariationsForProduct(accountId, produtoId) {
+  const data = await database.many(ProdutosImportQueries.listVariationsByProductIds(), [accountId, [produtoId]]);
   const map = new Map();
   for (const variation of data || []) {
     const identity = buildVariationIdentity(variation);
@@ -305,28 +324,17 @@ async function findExistingVariationsForProduct(supabase, accountId, produtoId) 
   return map;
 }
 
-async function recalculateProductAvailability(supabase, accountId, produtoId) {
-  const { data, error } = await supabase
-    .from('produto_variacoes')
-    .select('id, ativo, estoque_atual')
-    .eq('account_id', accountId)
-    .eq('produto_id', produtoId);
-  if (error) throw new DatabaseError('Falha ao consultar disponibilidade do produto', { details: error });
+async function recalculateProductAvailability(accountId, produtoId) {
+  const data = await database.many(ProdutosImportQueries.listVariationsByProductIds(), [accountId, [produtoId]]);
   const variations = data || [];
   const hasAvailableVariation = variations.some((variation) => Boolean(variation?.ativo) && Number(variation?.estoque_atual || 0) >= 10);
-  const { error: updateError } = await supabase
-    .from('produtos')
-    .update({ ativo: hasAvailableVariation })
-    .eq('id', produtoId)
-    .eq('account_id', accountId);
-  if (updateError) throw new DatabaseError('Falha ao atualizar disponibilidade do produto', { details: updateError });
+  await database.one(ProdutosImportQueries.updateProductActive(), [accountId, hasAvailableVariation, new Date().toISOString(), produtoId]);
   return hasAvailableVariation;
 }
 
 async function upsertStockRecord(record, confirmedVariation) {
   try {
-    if (mode() === 'supabase') {
-      const supabase = getSupabaseClient();
+    if (await isDatabaseMode()) {
       const nextQuantidade = toQuantity(record.quantidade);
       if (nextQuantidade === null || nextQuantidade < 0) {
         throw new BadRequestError('Quantidade de estoque invalida', { domain: 'produtos-import', code: 'INVALID_STOCK_QUANTITY' });
@@ -352,7 +360,7 @@ async function upsertStockRecord(record, confirmedVariation) {
         .select(PRODUTO_VARIACOES_SELECT_FIELDS)
         .maybeSingle();
       if (updateError) throw updateError;
-      const lookupResult = updatedVariation ? null : await confirmVariationFromDatabase(supabase, buildVariationIdentity(record));
+      const lookupResult = updatedVariation ? null : await confirmVariationFromDatabase(buildVariationIdentity(record));
       const resolvedUpdatedVariation = updatedVariation || lookupResult || confirmedVariation;
       if (!resolvedUpdatedVariation?.id) {
         throw new BadRequestError('Falha ao confirmar variação de estoque.', { domain: 'produtos-import', code: 'VARIACAO_ESTOQUE_NAO_CONFIRMADA' });
@@ -503,33 +511,20 @@ function buildVariationPayloadFromItem(item = {}, parentId, accountId, fabricant
   };
 }
 
-async function fetchExistingProductsBySku(supabase, accountId, fabricanteId, skus = []) {
+async function fetchExistingProductsBySku(accountId, fabricanteId, skus = []) {
   const uniqueSkus = [...new Set((skus || []).map((sku) => String(sku || '').trim()).filter(Boolean))];
   if (!uniqueSkus.length) return [];
-  const { data, error } = await supabase
-    .from('produtos')
-    .select('*')
-    .eq('account_id', accountId)
-    .eq('fabricante_id', fabricanteId)
-    .in('sku', uniqueSkus);
-  if (error) throw new DatabaseError('Falha ao consultar produtos existentes', { details: error });
-  return data || [];
+  const rows = await database.many(ProdutosImportQueries.listProductsBySku(), [accountId, fabricanteId, uniqueSkus]);
+  return rows || [];
 }
 
-async function fetchExistingVariationsByProductIds(supabase, accountId, productIds = []) {
+async function fetchExistingVariationsByProductIds(accountId, productIds = []) {
   const uniqueIds = [...new Set((productIds || []).map((id) => String(id || '').trim()).filter(Boolean))];
   if (!uniqueIds.length) return [];
   const variations = [];
-
   for (let index = 0; index < uniqueIds.length; index += CHUNK_SIZE) {
     const chunk = uniqueIds.slice(index, index + CHUNK_SIZE);
-    const { data, error } = await supabase
-      .from('produto_variacoes')
-      .select(PRODUTO_VARIACOES_SELECT_FIELDS)
-      .eq('account_id', accountId)
-      .in('produto_id', chunk);
-
-    if (error) {
+    const rows = await database.many(ProdutosImportQueries.listVariationsByProductIds(), [accountId, chunk]).catch((error) => {
       console.error('[produtos-import] fetch existing variations error', {
         code: error?.code,
         message: error?.message,
@@ -541,13 +536,9 @@ async function fetchExistingVariationsByProductIds(supabase, accountId, productI
         chunkSize: chunk.length
       });
       throw new DatabaseError('Falha ao consultar variacoes existentes', { details: error });
-    }
-
-    if (data?.length) {
-      variations.push(...data);
-    }
+    });
+    if (rows?.length) variations.push(...rows);
   }
-
   return variations;
 }
 
@@ -789,12 +780,9 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
   };
 
   try {
-    const supabase = getSupabaseClient();
     const parentList = [...groupedItems.values()];
     const parentSkus = parentList.map((group) => group.parentSku).filter(Boolean);
-    const existingProducts = mode() === 'supabase'
-      ? await fetchExistingProductsBySku(supabase, accountId, fabricanteId, parentSkus)
-      : [];
+    const existingProducts = await fetchExistingProductsBySku(accountId, fabricanteId, parentSkus);
     const existingProductMap = new Map(existingProducts.map((product) => [normalizeKey(product.sku), product]));
 
     const productsToWrite = [];
@@ -820,7 +808,7 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
       productsToWrite.push({ existing, payload: productPayload, group });
     }
 
-    if (mode() !== 'supabase') {
+    if (!(await isDatabaseMode())) {
       for (const entry of productsToWrite) {
         let item = entry.existing || null;
         if (item?.id) {
@@ -877,7 +865,7 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
         }
       }
       const finalStatus = summary.erros.length || summary.divergencias ? 'completed_with_warnings' : 'completed';
-      await updateBatchRecord(batch.id, { ...summary, status: finalStatus, erros: summary.erros.length, updated_at: new Date().toISOString() }).catch((error) => {
+      await updateBatchRecord(batch.id, { ...summary, status: finalStatus, erros: summary.erros.length, updated_at: new Date().toISOString() }, accountId).catch((error) => {
         console.error('[produtos-import] batch close failed after successful import', {
           batchId: batch.id,
           payload: { ...summary, status: finalStatus, erros: summary.erros.length, updated_at: new Date().toISOString() },
@@ -906,7 +894,7 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
     }
 
     const savedProductMap = new Map();
-    if (mode() === 'supabase') {
+    if (await isDatabaseMode()) {
       const existingBySku = new Map();
       for (const product of existingProducts) {
         const key = normalizeKey(product.sku);
@@ -930,24 +918,7 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
         const existing = existingBySku.get(skuKey) || null;
         entry.existing = existing;
         if (existing?.id) {
-          const { data, error } = await supabase
-            .from('produtos')
-            .update(entry.payload)
-            .eq('id', existing.id)
-            .select('id, sku, account_id, fabricante_id, codigo, nome, descricao, categoria, categoria_id, estoque, ativo, preco')
-            .single();
-          if (error) {
-            console.error('[produtos-import] bulk products update error', {
-              code: error?.code,
-              message: error?.message,
-              details: error?.details,
-              hint: error?.hint,
-              productId: existing.id,
-              sku: entry.payload?.sku || null
-            });
-            throw new DatabaseError('Falha ao gravar produtos em lote', { details: error });
-          }
-          const saved = data || existing;
+          const saved = await updateProduto(existing.id, entry.payload, { accountId });
           entry.saved = saved;
           if (saved?.sku) savedProductMap.set(normalizeKey(saved.sku), saved);
           summary.produtos_atualizados += 1;
@@ -957,29 +928,10 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
       }
 
       if (entriesToInsert.length) {
-        const insertPayloads = entriesToInsert.map((entry) => entry.payload);
-        const { data, error } = await supabase
-          .from('produtos')
-          .insert(insertPayloads)
-          .select('id, sku, account_id, fabricante_id, codigo, nome, descricao, categoria, categoria_id, estoque, ativo, preco');
-        if (error) {
-          console.error('[produtos-import] bulk products insert error', {
-            code: error?.code,
-            message: error?.message,
-            details: error?.details,
-            hint: error?.hint,
-            count: insertPayloads?.length,
-            sample: insertPayloads?.slice(0, 3)
-          });
-          throw new DatabaseError('Falha ao gravar produtos em lote', { details: error });
-        }
-        for (const product of data || []) {
-          if (product?.sku) savedProductMap.set(normalizeKey(product.sku), product);
-        }
         for (const entry of entriesToInsert) {
-          const saved = savedProductMap.get(normalizeKey(entry.payload.sku)) || null;
-          if (!saved?.id) continue;
+          const saved = await createProduto(entry.payload, { accountId });
           entry.saved = saved;
+          if (saved?.sku) savedProductMap.set(normalizeKey(saved.sku), saved);
           summary.produtos_criados += 1;
         }
       }
@@ -999,9 +951,7 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
     }
 
     const allProductIds = productsToWrite.map((entry) => entry.saved?.id).filter(Boolean);
-    const existingVariations = mode() === 'supabase'
-      ? await fetchExistingVariationsByProductIds(supabase, accountId, allProductIds)
-      : [];
+    const existingVariations = await fetchExistingVariationsByProductIds(accountId, allProductIds);
     const variationMap = new Map();
     for (const variation of existingVariations) {
       variationMap.set(buildVariationLookupKey(variation.account_id, variation.produto_id, variation.nome, variation.grade), variation);
@@ -1037,20 +987,19 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
       summary.linhas_processadas += entry.group.rows.length;
     }
 
-    if (mode() === 'supabase' && variationsToUpsert.length) {
-      const { error } = await supabase
-        .from('produto_variacoes')
-        .upsert(variationsToUpsert, { onConflict: 'account_id,produto_id,nome,grade' });
-      if (error) {
-        console.error('[produtos-import] bulk variations error', {
-          code: error?.code,
-          message: error?.message,
-          details: error?.details,
-          hint: error?.hint,
-          count: variationsToUpsert?.length,
-          sample: variationsToUpsert?.slice(0, 3)
-        });
-        throw new DatabaseError('Falha ao gravar variacoes em lote', { details: error });
+    if ((await isDatabaseMode()) && variationsToUpsert.length) {
+      for (const variation of variationsToUpsert) {
+        await database.one(ProdutosImportQueries.upsertVariation(), [
+          variation.account_id,
+          variation.produto_id,
+          variation.sku,
+          variation.nome,
+          variation.valor,
+          variation.cor,
+          variation.grade,
+          variation.estoque_atual,
+          variation.ativo
+        ]);
       }
       summary.estoques_atualizados += variationsToUpsert.length;
     } else {
@@ -1058,8 +1007,8 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
     }
 
     const productIdsToRecalc = [...parentActivityByProductId.keys()];
-    if (mode() === 'supabase' && productIdsToRecalc.length) {
-      const allVariationsAfterUpsert = await fetchExistingVariationsByProductIds(supabase, accountId, productIdsToRecalc);
+    if ((await isDatabaseMode()) && productIdsToRecalc.length) {
+      const allVariationsAfterUpsert = await fetchExistingVariationsByProductIds(accountId, productIdsToRecalc);
       const variationsByProduct = new Map();
       for (const variation of allVariationsAfterUpsert) {
         const list = variationsByProduct.get(variation.produto_id) || [];
@@ -1072,11 +1021,7 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
         productUpdates.push({ id: productId, ativo: active, account_id: accountId });
       }
       for (const update of productUpdates) {
-        await supabase
-          .from('produtos')
-          .update({ ativo: update.ativo })
-          .eq('id', update.id)
-          .eq('account_id', update.account_id);
+        await database.one(ProdutosImportQueries.updateProductActive(), [accountId, update.ativo, new Date().toISOString(), update.id]);
       }
     }
 
@@ -1090,7 +1035,7 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
     }
 
     const finalStatus = summary.erros.length || summary.divergencias ? 'completed_with_warnings' : 'completed';
-    await updateBatchRecord(batch.id, { ...summary, status: finalStatus, erros: summary.erros.length, updated_at: new Date().toISOString() }).catch((error) => {
+    await updateBatchRecord(batch.id, { ...summary, status: finalStatus, erros: summary.erros.length, updated_at: new Date().toISOString() }, accountId).catch((error) => {
       console.error('[produtos-import] batch close failed after successful import', {
         batchId: batch.id,
         payload: { ...summary, status: finalStatus, erros: summary.erros.length, updated_at: new Date().toISOString() },
@@ -1122,7 +1067,7 @@ export async function executeImportXlsx({ accountId, fabricanteId, fileName, buf
       message: error?.message,
       code: error?.code
     });
-    await updateBatchRecord(batch.id, { status: 'failed', erros: summary.erros.length + 1, updated_at: new Date().toISOString() }).catch(() => null);
+    await updateBatchRecord(batch.id, { status: 'failed', erros: summary.erros.length + 1, updated_at: new Date().toISOString() }, accountId).catch(() => null);
     throw error;
   }
 }
@@ -1141,9 +1086,9 @@ export async function __dumpImportMemory() {
 
 export async function upsertProdutoImportBatch(patch) {
   if (!patch?.id) return null;
-  return updateBatchRecord(patch.id, patch);
+  return updateBatchRecord(patch.id, patch, patch.account_id || patch.accountId || null);
 }
 
 export async function getProdutoImportBatch(batchId) {
-  return findBatchById(batchId);
+  return findBatchById(batchId, null);
 }
