@@ -540,6 +540,11 @@ export async function updatePedidoStatus(id, data = {}, options = {}) {
   if (!canTransitionPedidoStatus(prev, nextStatus)) throw new BadRequestError('Transicao de status invalida', { code: 'INVALID_STATUS_TRANSITION', domain: 'pedidos-comercial', details: { from: prev, to: nextStatus } });
   const event = { id: randomUUID(), account_id: accountId, pedido_id: id, status_anterior: prev, status_novo: nextStatus, motivo: data.motivo || null, alterado_por: options.context?.auth?.userId || null, metadata: {}, created_at: new Date().toISOString() };
   const audit = createPedidoAuditEvent({ context: options.context, pedidoId: id, action: 'pedido.status.updated', statusAnterior: prev, statusNovo: nextStatus, motivo: data.motivo || null });
+  if (supabaseClientOverride || await isDatabaseMode()) {
+    const updated = await pedidosRepository.one(PedidosQueries.updateStatus(), [accountId, id, nextStatus]);
+    await pedidosRepository.one(PedidosQueries.insertStatusHistory(), [accountId, id, prev, nextStatus, data.motivo || null, options.context?.auth?.userId || null, {}]);
+    return { item: updated, audit };
+  }
   if (getPedidosRepositoryMode().mode === 'supabase') {
     const supabase = getSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data: updated, error: ue } = await supabase.from('pedidos').update({ status: nextStatus }).eq('id', id).eq('account_id', accountId).select('*').single(); if (ue) throw new DatabaseError('Falha ao atualizar status do pedido', { details: ue });
@@ -663,6 +668,10 @@ export async function updatePedidoFaturamento(id, data = {}, options = {}) {
 export async function getPedidoStatusHistory(id, options = {}) {
   const accountId = options.accountId || null; assertAccountId(accountId);
   await getPedidoById(id, { accountId });
+  if (supabaseClientOverride || await isDatabaseMode()) {
+    const rows = await pedidosRepository.many(PedidosQueries.listStatusHistoryByPedidoId(), [accountId, id]);
+    return rows || [];
+  }
   if (getPedidosRepositoryMode().mode === 'supabase') {
     const supabase = getSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data, error } = await supabase.from('pedido_status_history').select('*').eq('account_id', accountId).eq('pedido_id', id).order('created_at', { ascending: false }); if (error) throw new DatabaseError('Falha ao buscar historico de status', { details: error });
