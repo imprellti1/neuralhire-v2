@@ -3,12 +3,24 @@ import { Buffer } from 'node:buffer';
 import path from 'node:path';
 import { env } from '../../config/env.js';
 import { BadRequestError, ConflictError, DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
+import { BaseRepository } from '../../database/base.repository.js';
+import { database } from '../../database/database.adapter.js';
+import { FabricantesQueries } from '../../database/queries/fabricantes.queries.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { getVendedorById } from '../vendedores/vendedores.repository.js';
 
 const memoryFabricantes = [];
 const memoryCondicoes = [];
 const memoryFabricanteVendedores = [];
+let databaseModeCache = null;
+
+class FabricantesRepository extends BaseRepository {
+  constructor(adapter = database) {
+    super(adapter, { logContext: 'fabricantes' });
+  }
+}
+
+const repository = new FabricantesRepository();
 
 function assertAccountId(accountId) {
   if (!accountId) throw new ForbiddenError('Contexto de tenant obrigatorio', { code: 'TENANT_REQUIRED', domain: 'fabricantes' });
@@ -181,21 +193,25 @@ async function uploadFabricanteLogo({ supabase, accountId, fabricanteId, upload 
 export async function updateFabricanteLogo(id, upload, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-  const supabase = getSupabaseClient();
-  if (!supabase) throw new DatabaseError('Supabase indisponivel');
   const current = await getFabricanteById(id, { accountId });
   const normalized = normalizeLogoUpload(upload);
   if (!normalized) throw new BadRequestError('Logo invalida', { domain: 'fabricantes' });
   if (!ALLOWED_LOGO_MIME_TYPES.has(normalized.mimeType)) throw new BadRequestError('Formato de logo invalido', { domain: 'fabricantes', code: 'INVALID_FILE_TYPE' });
   if (normalized.size > MAX_LOGO_BYTES) throw new BadRequestError('Arquivo excede o limite permitido', { domain: 'fabricantes', code: 'PAYLOAD_TOO_LARGE' });
+  const supabase = getSupabaseClient();
   const logoUrl = await uploadFabricanteLogo({ supabase, accountId, fabricanteId: id, upload: normalized });
   if (!logoUrl) throw new DatabaseError('Falha ao enviar logo', { domain: 'fabricantes' });
-  const { data: updated, error } = await supabase.from('fabricantes').update({ logo_url: logoUrl, updated_at: new Date().toISOString() }).eq('id', id).eq('account_id', accountId).select('*').single();
-  if (error) {
-    logSupabaseFailure('updateFabricanteLogo', error, { id, accountId, logo_url: logoUrl });
-    throw new DatabaseError('Falha ao atualizar logo', { details: error });
+  if (await isDatabaseMode()) {
+    const updated = await repository.one(FabricantesQueries.update(), [
+      accountId, id, current.nome, current.razao_social, current.cnpj, current.site, current.email_comercial, current.telefone, current.regiao_atendida,
+      current.logradouro, current.numero, current.complemento, current.bairro, current.cidade, current.uf, current.cep, current.endereco_completo, logoUrl, current.status,
+      current.valor_minimo_duplicata, current.pedido_minimo_valor, current.pedido_minimo_itens, current.prazo_entrega_dias, current.comissao_padrao_percentual,
+      current.politica_troca, current.aceita_bonificacao, current.aceita_consignacao, current.condicoes_pagamento, current.observacoes_comerciais,
+      current.tabela_precos_url, current.pedido_minimo, current.boleto_minimo, current.observacoes, current.responsavel_vendedor_id, new Date().toISOString()
+    ]);
+    return updated || { ...current, logo_url: logoUrl };
   }
-  return updated || { ...current, logo_url: logoUrl };
+  return { ...current, logo_url: logoUrl };
 }
 
 function normalizeFabricanteRecord(data = {}, current = null) {
@@ -336,6 +352,55 @@ function isSupabaseMode() {
   return isSupabaseConfigured();
 }
 
+async function isDatabaseMode() {
+  if (databaseModeCache !== null) return databaseModeCache;
+  try {
+    await repository.one(FabricantesQueries.ping(), []);
+    databaseModeCache = true;
+  } catch (error) {
+    databaseModeCache = false;
+    if (error?.code !== 'ECONNREFUSED' && error?.cause?.code !== 'ECONNREFUSED') {
+      debugRepository('databaseModeProbeFailed', { message: error?.message || null, code: error?.code || null });
+    }
+  }
+  return databaseModeCache;
+}
+
+function normalizeWhereValue(value) {
+  return String(value || '').replace(/'/g, "''");
+}
+
+function buildWhereSql(filters = {}) {
+  const clauses = [];
+  if (filters.status) clauses.push(`status = '${normalizeWhereValue(filters.status)}'`);
+  if (filters.search) {
+    const search = normalizeWhereValue(String(filters.search).trim());
+    if (search) clauses.push(`(nome ILIKE '%${search}%' OR razao_social ILIKE '%${search}%' OR cnpj ILIKE '%${search}%')`);
+  }
+  return clauses.join(' AND ');
+}
+
+async function getFabricanteRowById(id, accountId) {
+  try {
+    return await repository.one(FabricantesQueries.getById(), [accountId, id]);
+  } catch (error) {
+    if (error?.code === 'DATABASE_NOT_ONE') return null;
+    throw error;
+  }
+}
+
+async function loadFabricantesRows(accountId, filters = {}, options = {}) {
+  const { page, limit } = normalizePagination(filters);
+  const whereSql = buildWhereSql(filters);
+  const from = (page - 1) * limit;
+  const totalRow = await repository.one(FabricantesQueries.count(whereSql ? `account_id = $1 AND ${whereSql}` : 'account_id = $1'), [accountId]).catch((error) => {
+    if (error?.code === 'DATABASE_NOT_ONE') return { total: 0 };
+    throw error;
+  });
+  const items = await repository.many(FabricantesQueries.list(whereSql), [accountId, limit, from]);
+  return { items: await attachResponsibleVendor(accountId, items || []), total: Number(totalRow?.total || 0), page, limit, totalPages: Math.max(1, Math.ceil(Number(totalRow?.total || 0) / limit)) };
+}
+
 function findDuplicateFabricante(accountId, payload, excludeId = null) {
   const cnpj = payload.cnpj || null;
   const nome = normalizeText(payload.nome);
@@ -461,21 +526,8 @@ export async function listFabricantes(filters = {}, options = {}) {
   assertAccountId(accountId);
   debugRepository('listFabricantes', { accountId, filters });
 
-  if (isSupabaseMode()) {
-    const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    let query = supabase.from('fabricantes').select('*', { count: 'exact' }).eq('account_id', accountId).order('created_at', { ascending: false });
-    if (filters.status) query = query.eq('status', filters.status);
-    if (filters.search) {
-      const search = String(filters.search).trim();
-      if (search) query = query.or(`nome.ilike.%${search}%,razao_social.ilike.%${search}%,cnpj.ilike.%${search}%`);
-    }
-    const from = (page - 1) * limit;
-    const to = from + limit - 1;
-    const { data, error, count } = await query.range(from, to);
-    if (error) throw new DatabaseError('Falha ao listar fabricantes', { details: error });
-    const total = count || 0;
-    return { items: await attachResponsibleVendor(accountId, data || []), total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
+  if (await isDatabaseMode()) {
+    return loadFabricantesRows(accountId, filters, options);
   }
 
   const items = memoryFabricantes.filter((item) => String(item.account_id || item.accountId || '') === String(accountId));
@@ -490,11 +542,8 @@ export async function getFabricanteById(id, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
 
-  if (isSupabaseMode()) {
-    const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data, error } = await supabase.from('fabricantes').select('*').eq('account_id', accountId).eq('id', id).maybeSingle();
-    if (error) throw new DatabaseError('Falha ao buscar fabricante', { details: error });
+  if (await isDatabaseMode()) {
+    const data = await getFabricanteRowById(id, accountId);
     if (!data) throw new NotFoundError('Fabricante nao encontrado', { domain: 'fabricantes', code: 'FABRICANTE_NOT_FOUND' });
     return (await attachResponsibleVendor(accountId, [data]))[0];
   }
@@ -548,22 +597,26 @@ export async function createFabricante(data, options = {}) {
   if (!payload.nome) throw new BadRequestError('Nome obrigatorio', { domain: 'fabricantes' });
   if (findDuplicateFabricante(accountId, payload)) throw new ConflictError('Fabricante duplicado', { domain: 'fabricantes', code: 'FABRICANTE_DUPLICADO' });
 
-  if (isSupabaseMode()) {
+  if (await isDatabaseMode()) {
+    const timestamp = new Date().toISOString();
+    const inserted = await repository.one(FabricantesQueries.insert(), [
+      randomUUID(), accountId, payload.nome, payload.razao_social, payload.cnpj, payload.site, payload.email_comercial, payload.telefone, payload.regiao_atendida,
+      payload.logradouro, payload.numero, payload.complemento, payload.bairro, payload.cidade, payload.uf, payload.cep, payload.endereco_completo, payload.logo_url, payload.status,
+      payload.valor_minimo_duplicata, payload.pedido_minimo_valor, payload.pedido_minimo_itens, payload.prazo_entrega_dias, payload.comissao_padrao_percentual,
+      payload.politica_troca, payload.aceita_bonificacao, payload.aceita_consignacao, payload.condicoes_pagamento, payload.observacoes_comerciais,
+      payload.tabela_precos_url, payload.pedido_minimo, payload.boleto_minimo, payload.observacoes, payload.responsavel_vendedor_id, timestamp, timestamp
+    ]);
     const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data: inserted, error } = await supabase.from('fabricantes').insert(payload).select('*').single();
-    if (error) {
-      logSupabaseFailure('createFabricante', error, payload);
-      throw new DatabaseError('Falha ao criar fabricante', { details: error });
-    }
     const logoUrl = await uploadFabricanteLogo({ supabase, accountId, fabricanteId: inserted.id, upload: data.logo_upload });
     if (logoUrl) {
-      const { data: logoUpdated, error: logoError } = await supabase.from('fabricantes').update({ logo_url: logoUrl, updated_at: new Date().toISOString() }).eq('id', inserted.id).eq('account_id', accountId).select('*').single();
-      if (logoError) {
-        logSupabaseFailure('createFabricanteLogoUrl', logoError, { id: inserted.id, accountId, logo_url: logoUrl });
-        return inserted;
-      }
-      return logoUpdated;
+      const updated = await repository.one(FabricantesQueries.update(), [
+        accountId, inserted.id, inserted.nome, inserted.razao_social, inserted.cnpj, inserted.site, inserted.email_comercial, inserted.telefone, inserted.regiao_atendida,
+        inserted.logradouro, inserted.numero, inserted.complemento, inserted.bairro, inserted.cidade, inserted.uf, inserted.cep, inserted.endereco_completo, logoUrl, inserted.status,
+        inserted.valor_minimo_duplicata, inserted.pedido_minimo_valor, inserted.pedido_minimo_itens, inserted.prazo_entrega_dias, inserted.comissao_padrao_percentual,
+        inserted.politica_troca, inserted.aceita_bonificacao, inserted.aceita_consignacao, inserted.condicoes_pagamento, inserted.observacoes_comerciais,
+        inserted.tabela_precos_url, inserted.pedido_minimo, inserted.boleto_minimo, inserted.observacoes, inserted.responsavel_vendedor_id, new Date().toISOString()
+      ]);
+      return (await attachResponsibleVendor(accountId, [updated]))[0];
     }
     return (await attachResponsibleVendor(accountId, [inserted]))[0];
   }
@@ -579,7 +632,7 @@ export async function updateFabricante(id, data, options = {}) {
   const payloadInput = normalizeFabricantePatchData({ ...data });
   assertCommercialRules(payloadInput);
 
-  if (isSupabaseMode()) {
+  if (await isDatabaseMode()) {
     const current = await getFabricanteById(id, { accountId });
     const normalizedData = normalizeFabricantePatchData(data);
     const payload = sanitizeFabricantePayload(normalizeFabricanteRecord(normalizedData, current));
@@ -590,21 +643,24 @@ export async function updateFabricante(id, data, options = {}) {
     }
     if (!next.nome) throw new BadRequestError('Nome obrigatorio', { domain: 'fabricantes' });
     if (findDuplicateFabricante(accountId, next, id)) throw new ConflictError('Fabricante duplicado', { domain: 'fabricantes', code: 'FABRICANTE_DUPLICADO' });
+    const updated = await repository.one(FabricantesQueries.update(), [
+      accountId, id, payload.nome, payload.razao_social, payload.cnpj, payload.site, payload.email_comercial, payload.telefone, payload.regiao_atendida,
+      payload.logradouro, payload.numero, payload.complemento, payload.bairro, payload.cidade, payload.uf, payload.cep, payload.endereco_completo, payload.logo_url, payload.status,
+      payload.valor_minimo_duplicata, payload.pedido_minimo_valor, payload.pedido_minimo_itens, payload.prazo_entrega_dias, payload.comissao_padrao_percentual,
+      payload.politica_troca, payload.aceita_bonificacao, payload.aceita_consignacao, payload.condicoes_pagamento, payload.observacoes_comerciais,
+      payload.tabela_precos_url, payload.pedido_minimo, payload.boleto_minimo, payload.observacoes, payload.responsavel_vendedor_id, new Date().toISOString()
+    ]);
     const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data: updated, error } = await supabase.from('fabricantes').update(payload).eq('id', id).eq('account_id', accountId).select('*').single();
-    if (error) {
-      logSupabaseFailure('updateFabricante', error, payload);
-      throw new DatabaseError('Falha ao atualizar fabricante', { details: error });
-    }
     const logoUrl = await uploadFabricanteLogo({ supabase, accountId, fabricanteId: id, upload: data.logo_upload });
     if (logoUrl) {
-      const { data: logoUpdated, error: logoError } = await supabase.from('fabricantes').update({ logo_url: logoUrl, updated_at: new Date().toISOString() }).eq('id', id).eq('account_id', accountId).select('*').single();
-      if (logoError) {
-        logSupabaseFailure('updateFabricanteLogoUrl', logoError, { id, accountId, logo_url: logoUrl });
-        return updated;
-      }
-      return logoUpdated;
+      const logoUpdated = await repository.one(FabricantesQueries.update(), [
+        accountId, id, updated.nome, updated.razao_social, updated.cnpj, updated.site, updated.email_comercial, updated.telefone, updated.regiao_atendida,
+        updated.logradouro, updated.numero, updated.complemento, updated.bairro, updated.cidade, updated.uf, updated.cep, updated.endereco_completo, logoUrl, updated.status,
+        updated.valor_minimo_duplicata, updated.pedido_minimo_valor, updated.pedido_minimo_itens, updated.prazo_entrega_dias, updated.comissao_padrao_percentual,
+        updated.politica_troca, updated.aceita_bonificacao, updated.aceita_consignacao, updated.condicoes_pagamento, updated.observacoes_comerciais,
+        updated.tabela_precos_url, updated.pedido_minimo, updated.boleto_minimo, updated.observacoes, updated.responsavel_vendedor_id, new Date().toISOString()
+      ]);
+      return (await attachResponsibleVendor(accountId, [logoUpdated]))[0];
     }
     return (await attachResponsibleVendor(accountId, [updated]))[0];
   }
@@ -665,11 +721,8 @@ export async function listFabricanteVendedores(fabricanteId, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
   await getFabricanteById(fabricanteId, { accountId });
-  if (isSupabaseMode()) {
-    const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data, error } = await supabase.from('fabricante_vendedores').select('*').eq('account_id', accountId).eq('fabricante_id', fabricanteId).order('principal', { ascending: false }).order('created_at', { ascending: false });
-    if (error) throw new DatabaseError('Falha ao listar vinculos da fabrica', { details: error });
+  if (await isDatabaseMode()) {
+    const data = await repository.many(FabricantesQueries.listVendedores(), [accountId, fabricanteId]);
     return { items: await hydrateFabricanteVinculos(accountId, data || []), total: (data || []).length };
   }
   const items = memoryFabricanteVendedores.filter((row) => row.account_id === accountId && row.fabricante_id === fabricanteId);
@@ -681,26 +734,15 @@ export async function replaceFabricanteVendedores(fabricanteId, vinculos = [], o
   assertAccountId(accountId);
   const items = Array.isArray(vinculos) ? vinculos : [];
   await assertVinculoConstraints(accountId, fabricanteId, items);
-  if (isSupabaseMode()) {
-    const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { error: deleteError } = await supabase.from('fabricante_vendedores').delete().eq('account_id', accountId).eq('fabricante_id', fabricanteId);
-    if (deleteError) throw new DatabaseError('Falha ao atualizar vinculos da fabrica', { details: deleteError });
+  if (await isDatabaseMode()) {
+    await repository.execute(FabricantesQueries.deleteVendedores(), [accountId, fabricanteId]);
     if (items.length) {
-      const payload = items.map((item) => ({
-        account_id: accountId,
-        fabricante_id: fabricanteId,
-        vendedor_id: item.vendedor_id,
-        principal: Boolean(item.principal),
-        status: normalizeVinculoStatus(item.status),
-        comissao_percentual: item.comissao_percentual,
-        pedido_minimo_valor: item.pedido_minimo_valor,
-        valor_minimo_duplicata: item.valor_minimo_duplicata,
-        condicoes_pagamento: item.condicoes_pagamento || [],
-        observacoes: item.observacoes || null
-      }));
-      const { error: insertError } = await supabase.from('fabricante_vendedores').insert(payload);
-      if (insertError) throw new DatabaseError('Falha ao criar vinculos da fabrica', { details: insertError });
+      for (const item of items) {
+        await repository.one(FabricantesQueries.insertVendedor(), [
+          randomUUID(), accountId, fabricanteId, item.vendedor_id, Boolean(item.principal), normalizeVinculoStatus(item.status), item.comissao_percentual,
+          item.pedido_minimo_valor, item.valor_minimo_duplicata, item.condicoes_pagamento || [], item.observacoes || null, new Date().toISOString(), new Date().toISOString()
+        ]);
+      }
     }
     return listFabricanteVendedores(fabricanteId, options);
   }
@@ -741,11 +783,10 @@ export async function updateFabricanteVendedor(fabricanteId, vendedorId, data, o
   if (!current) throw new NotFoundError('Vinculo nao encontrado', { domain: 'fabricantes', code: 'VINCULO_NOT_FOUND' });
   const next = normalizeFabricanteVinculoRecord(normalized, current);
   if (next.principal) validatePrincipalUnique(currentList.filter((item) => String(item.vendedor_id) !== String(vendedorId)).concat([{ ...next, vendedor_id: vendedorId, principal: true }]));
-  if (isSupabaseMode()) {
-    const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data: updated, error } = await supabase.from('fabricante_vendedores').update(next).eq('account_id', accountId).eq('fabricante_id', fabricanteId).eq('vendedor_id', vendedorId).select('*').single();
-    if (error) throw new DatabaseError('Falha ao atualizar vinculo', { details: error });
+  if (await isDatabaseMode()) {
+    const updated = await repository.one(FabricantesQueries.updateVendedor(), [
+      accountId, fabricanteId, vendedorId, next.vendedor_id, next.principal, next.status, next.comissao_percentual, next.pedido_minimo_valor, next.valor_minimo_duplicata, next.condicoes_pagamento, next.observacoes, next.updated_at
+    ]);
     return (await hydrateFabricanteVinculos(accountId, [updated]))[0];
   }
   const idx = memoryFabricanteVendedores.findIndex((row) => row.account_id === accountId && row.fabricante_id === fabricanteId && String(row.vendedor_id) === String(vendedorId));
@@ -759,11 +800,8 @@ export async function deleteFabricanteVendedor(fabricanteId, vendedorId, options
   assertAccountId(accountId);
   await getFabricanteById(fabricanteId, { accountId });
   await resolveVendedorForFabricante(accountId, vendedorId);
-  if (isSupabaseMode()) {
-    const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { error } = await supabase.from('fabricante_vendedores').delete().eq('account_id', accountId).eq('fabricante_id', fabricanteId).eq('vendedor_id', vendedorId);
-    if (error) throw new DatabaseError('Falha ao remover vinculo', { details: error });
+  if (await isDatabaseMode()) {
+    await repository.execute(FabricantesQueries.deleteVendedor(), [accountId, fabricanteId, vendedorId]);
     return { removed: true };
   }
   const idx = memoryFabricanteVendedores.findIndex((row) => row.account_id === accountId && row.fabricante_id === fabricanteId && String(row.vendedor_id) === String(vendedorId));
