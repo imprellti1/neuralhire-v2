@@ -4,7 +4,10 @@ import { createPedidoAuditEvent } from '../../core/audit.js';
 import { BadRequestError, DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { logger } from '../../core/logger.js';
 import { canAccessAllTenantData, getUserIdFromContext } from '../../core/commercial-scope.js';
+import { BaseRepository } from '../../database/base.repository.js';
+import { database } from '../../database/database.adapter.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
+import { PedidosQueries } from '../../database/queries/pedidos.queries.js';
 import { getClienteById } from '../clientes/clientes.repository.js';
 import { getProdutoById } from '../produtos/produtos.repository.js';
 import { findVendedorById, findVendedorByIdAnyAccount, getVendedorById } from '../vendedores/vendedores.repository.js';
@@ -15,6 +18,15 @@ const memoryPedidoItens = [];
 const memoryPedidoStatusHistory = [];
 let supabaseClientOverride = null;
 let supabaseConfiguredOverride = null;
+let databaseModeCache = null;
+
+class PedidosRepository extends BaseRepository {
+  constructor(adapter = database) {
+    super(adapter, { logContext: 'pedidos' });
+  }
+}
+
+const pedidosRepository = new PedidosRepository();
 
 function resolveSupabaseConfigured() {
   if (typeof supabaseConfiguredOverride === 'boolean') return supabaseConfiguredOverride;
@@ -23,6 +35,20 @@ function resolveSupabaseConfigured() {
 
 function resolveSupabaseClient() {
   return supabaseClientOverride || getSupabaseClient();
+}
+
+async function isDatabaseMode() {
+  if (databaseModeCache !== null) return databaseModeCache;
+  try {
+    await pedidosRepository.one(PedidosQueries.ping(), []);
+    databaseModeCache = true;
+  } catch (error) {
+    databaseModeCache = false;
+    if (error?.code !== 'ECONNREFUSED' && error?.cause?.code !== 'ECONNREFUSED') {
+      debugRepository('databaseModeProbeFailed', { message: error?.message || null, code: error?.code || null });
+    }
+  }
+  return databaseModeCache;
 }
 
 function debugRepository(action, payload) { if (env.NODE_ENV !== 'production') console.debug(`[pedidos.repository] ${action}`, payload); }
@@ -127,6 +153,17 @@ async function enrichPedidosWithVendedorNome(items = [], accountId) {
   });
 }
 
+async function loadRowsByIds(table, ids = [], accountId) {
+  const uniqueIds = [...new Set(ids.map((value) => String(value || '').trim()).filter(Boolean))];
+  if (!uniqueIds.length) return [];
+  const query = table === 'clientes' ? PedidosQueries.listClientesByIds() : PedidosQueries.listVendedoresByIds();
+  const rows = await pedidosRepository.many(query, [accountId, uniqueIds]).catch((error) => {
+    if (error?.code === 'DATABASE_NOT_ONE') return [];
+    throw error;
+  });
+  return Array.isArray(rows) ? rows : [];
+}
+
 async function enrichPedidosWithClienteNome(items = [], accountId) {
   if (!Array.isArray(items) || !items.length) return [];
   const repositoryMode = getPedidosRepositoryMode();
@@ -184,10 +221,14 @@ export function getPedidosRepositoryMode() { const supabaseConfigured = resolveS
 
 export async function listPedidos(filters = {}, options = {}) {
   const accountId = options.accountId || null; assertAccountId(accountId);
-  const { page, limit } = normalizePagination(filters); const repositoryMode = getPedidosRepositoryMode(); debugRepository('listPedidos', { repositoryMode, accountId, filters });
+  const { page, limit } = normalizePagination(filters);
   const scopedFilters = { ...filters };
-  if (repositoryMode.mode === 'supabase') {
-    const supabase = resolveSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
+  const repositoryMode = getPedidosRepositoryMode();
+  debugRepository('listPedidos', { repositoryMode, accountId, filters });
+
+  if (supabaseClientOverride || await isDatabaseMode()) {
+    const supabase = resolveSupabaseClient();
+    if (!supabase) throw new DatabaseError('Supabase indisponivel');
     let query = supabase.from('pedidos').select(`
       id,
       account_id,
@@ -205,39 +246,66 @@ export async function listPedidos(filters = {}, options = {}) {
       data_faturamento,
       comissao_principal_percentual,
       comissao_preposto_percentual
-      `, { count: 'exact' }).eq('account_id', accountId).order('created_at', { ascending: false });
+    `, { count: 'exact' }).eq('account_id', accountId).order('created_at', { ascending: false });
     if (scopedFilters.status) query = query.eq('status', scopedFilters.status);
     if (scopedFilters.cliente_id) query = query.eq('cliente_id', scopedFilters.cliente_id);
     if (scopedFilters.vendedor_id) query = query.eq('vendedor_id', scopedFilters.vendedor_id);
-    const from = (page - 1) * limit; const { data, error, count } = await query.range(from, from + limit - 1);
+    const from = (page - 1) * limit;
+    const { data, error, count } = await query.range(from, from + limit - 1);
     if (error) {
-      logger.error({
-        message: 'pedidos_list_supabase_failed',
-        error,
-        supabase_error: error,
-        message_detail: error?.message,
-        code: error?.code,
-        details: error?.details,
-        hint: error?.hint,
-        stack: error?.stack,
-        account_id: accountId,
-        filters: scopedFilters,
-        page,
-        limit
+      logger.error('pedidos_list_supabase_failed', {
+        code: error?.code || null,
+        details: error?.details || null,
+        hint: error?.hint || null,
+        rawMessage: error?.message || null
       });
       throw new DatabaseError('Falha ao listar pedidos', { details: error });
     }
     const total = count || 0;
-    const enrichedItems = await enrichPedidosWithClienteNome(data || [], accountId).catch(() => (data || []).map((item) => ({ ...item, cliente_nome: null })));
+    const enrichedItems = await enrichPedidosWithClienteNome(data || [], accountId).catch(() => (data || []).map((item) => ({ ...item, cliente_nome: null, cliente: null })));
     return { items: enrichedItems, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
   }
-  let items = memoryPedidos.filter((i) => i.account_id === accountId);
-  if (scopedFilters.status) items = items.filter((i) => i.status === scopedFilters.status);
-  if (scopedFilters.cliente_id) items = items.filter((i) => i.cliente_id === scopedFilters.cliente_id);
-  if (scopedFilters.vendedor_id) items = items.filter((i) => String(i.vendedor_id || '') === String(scopedFilters.vendedor_id));
-  const total = items.length;
+
+  if (supabaseClientOverride || await isDatabaseMode()) {
+    const where = [];
+    if (scopedFilters.status) where.push(`status = '${String(scopedFilters.status).replace(/'/g, "''")}'`);
+    if (scopedFilters.cliente_id) where.push(`cliente_id = '${String(scopedFilters.cliente_id).replace(/'/g, "''")}'`);
+    if (scopedFilters.vendedor_id) where.push(`vendedor_id = '${String(scopedFilters.vendedor_id).replace(/'/g, "''")}'`);
+    const whereSql = where.join(' AND ');
+    const from = (page - 1) * limit;
+    const [countRow, items] = await Promise.all([
+      pedidosRepository.one(PedidosQueries.count(whereSql ? `account_id = $1 AND ${whereSql}` : 'account_id = $1'), [accountId]).catch((error) => {
+        if (error?.code === 'DATABASE_NOT_ONE') return { total: 0 };
+        throw error;
+      }),
+      pedidosRepository.many(PedidosQueries.list(whereSql), [accountId, limit, from])
+    ]);
+    const clienteRows = await loadRowsByIds('clientes', (items || []).map((item) => item.cliente_id), accountId).catch(() => []);
+    const vendedorRows = await loadRowsByIds('vendedores', (items || []).map((item) => item.vendedor_id), accountId).catch(() => []);
+    const clientesById = new Map(clienteRows.map((row) => [row.id, row]));
+    const vendedoresById = new Map(vendedorRows.map((row) => [row.id, row]));
+    const enrichedItems = (items || []).map((item) => {
+      const cliente = clientesById.get(item.cliente_id);
+      const vendedor = vendedoresById.get(item.vendedor_id);
+      return {
+        ...item,
+        cliente_nome: resolveClienteDisplayName(cliente, null),
+        cliente: cliente ? { id: cliente.id, nome: resolveClienteDisplayName(cliente, null) } : null,
+        vendedor_nome: vendedor?.nome || null,
+        vendedor: vendedor ? { id: vendedor.id, nome: vendedor.nome || null } : null
+      };
+    });
+    const total = Number(countRow?.total || 0);
+    return { items: enrichedItems, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
+  }
+
+  let memoryItems = memoryPedidos.filter((i) => i.account_id === accountId);
+  if (scopedFilters.status) memoryItems = memoryItems.filter((i) => i.status === scopedFilters.status);
+  if (scopedFilters.cliente_id) memoryItems = memoryItems.filter((i) => i.cliente_id === scopedFilters.cliente_id);
+  if (scopedFilters.vendedor_id) memoryItems = memoryItems.filter((i) => String(i.vendedor_id || '') === String(scopedFilters.vendedor_id));
+  const total = memoryItems.length;
   const from = (page - 1) * limit;
-  const pagedItems = items.slice(from, from + limit);
+  const pagedItems = memoryItems.slice(from, from + limit);
   const enrichedItems = await enrichPedidosWithClienteNome(pagedItems, accountId);
   return { items: enrichedItems, total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) };
 }
@@ -340,7 +408,7 @@ export async function listPedidosAuditoria(filters = {}, options = {}) {
 
 export async function getPedidoById(id, options = {}) {
   const accountId = options.accountId || null; assertAccountId(accountId);
-  if (getPedidosRepositoryMode().mode === 'supabase') {
+  if (supabaseClientOverride || await isDatabaseMode()) {
     const supabase = resolveSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data: pedido, error: pe } = await supabase.from('pedidos').select('*').eq('account_id', accountId).eq('id', id).maybeSingle(); if (pe) throw new DatabaseError('Falha ao buscar pedido', { details: pe }); if (!pedido) throw new NotFoundError('Pedido nao encontrado', { code: 'PEDIDO_NOT_FOUND', domain: 'pedidos-comercial' });
     const { data: itens, error: ie } = await supabase.from('pedido_itens').select('*').eq('account_id', accountId).eq('pedido_id', id).order('created_at', { ascending: true }); if (ie) throw new DatabaseError('Falha ao buscar itens do pedido', { details: ie });
@@ -348,7 +416,30 @@ export async function getPedidoById(id, options = {}) {
     const [pedidoEnriquecido] = await enrichPedidosWithVendedorNome([pedidoComCliente || { ...pedido, cliente_nome: null, cliente: null }], accountId).catch(() => [pedidoComCliente || { ...pedido, cliente_nome: null, cliente: null }]);
     return { pedido: pedidoEnriquecido || pedidoComCliente || pedido, itens: itens || [] };
   }
-  const pedido = memoryPedidos.find((i) => i.id === id && i.account_id === accountId); if (!pedido) throw new NotFoundError('Pedido nao encontrado', { code: 'PEDIDO_NOT_FOUND', domain: 'pedidos-comercial' });
+  if (await isDatabaseMode()) {
+    const pedido = await pedidosRepository.one(PedidosQueries.getById(), [accountId, id]).catch((error) => {
+      if (error?.code === 'DATABASE_NOT_ONE') return null;
+      throw error;
+    });
+    if (!pedido) throw new NotFoundError('Pedido nao encontrado', { code: 'PEDIDO_NOT_FOUND', domain: 'pedidos-comercial' });
+    const itens = await pedidosRepository.many(PedidosQueries.listItensByPedidoId(), [accountId, id]);
+    const clienteRows = await loadRowsByIds('clientes', [pedido.cliente_id], accountId).catch(() => []);
+    const vendedorRows = await loadRowsByIds('vendedores', [pedido.vendedor_id], accountId).catch(() => []);
+    const cliente = clienteRows[0] || null;
+    const vendedor = vendedorRows[0] || null;
+    return {
+      pedido: {
+        ...pedido,
+        cliente_nome: resolveClienteDisplayName(cliente, null),
+        cliente: cliente ? { id: cliente.id, nome: resolveClienteDisplayName(cliente, null) } : null,
+        vendedor_nome: vendedor?.nome || null,
+        vendedor: vendedor ? { id: vendedor.id, nome: vendedor.nome || null } : null
+      },
+      itens: itens || []
+    };
+  }
+  const pedido = memoryPedidos.find((i) => i.id === id && i.account_id === accountId);
+  if (!pedido) throw new NotFoundError('Pedido nao encontrado', { code: 'PEDIDO_NOT_FOUND', domain: 'pedidos-comercial' });
   const [pedidoComCliente] = await enrichPedidosWithClienteNome([pedido], accountId).catch(() => [{ ...pedido, cliente_nome: null, cliente: null }]);
   const [pedidoEnriquecido] = await enrichPedidosWithVendedorNome([pedidoComCliente || { ...pedido, cliente_nome: null, cliente: null }], accountId).catch(() => [pedidoComCliente || { ...pedido, cliente_nome: null, cliente: null }]);
   return { pedido: pedidoEnriquecido || pedidoComCliente || pedido, itens: memoryPedidoItens.filter((i) => i.pedido_id === id && i.account_id === accountId) };
