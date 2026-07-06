@@ -5,13 +5,13 @@ import { env } from '../../config/env.js';
 import { BadRequestError, DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { BaseRepository } from '../../database/base.repository.js';
 import { database } from '../../database/database.adapter.js';
+import { PRODUTO_VARIACOES_SELECT_FIELDS, ProdutoVariacoesQueries } from '../../database/queries/produto-variacoes.queries.js';
 import { ProdutosQueries } from '../../database/queries/produtos.queries.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { getFabricanteById } from '../fabricantes/fabricantes.repository.js';
 import { getProdutoCategoriaById } from '../produto-categorias/produto-categorias.repository.js';
 
 const memoryProdutos = [];
-const PRODUTO_VARIACOES_SELECT_FIELDS = 'id, account_id, produto_id, sku, nome, valor, cor, grade, estoque_atual, preco, preco_promocional, multiplo_venda, ativo, imagem_url, imagem_path, created_at, updated_at';
 const VARIACAO_IMAGE_BUCKET = 'produto-variacoes-imagens';
 const MAX_VARIACAO_IMAGE_BYTES = 25 * 1024 * 1024;
 const ALLOWED_VARIACAO_IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -489,16 +489,8 @@ async function findVariacaoById(accountId, variacaoId) {
     return null;
   }
 
-  const supabase = getSupabaseClient();
-  if (!supabase) throw new DatabaseError('Supabase indisponivel');
-  const { data, error } = await supabase
-    .from('produto_variacoes')
-    .select(PRODUTO_VARIACOES_SELECT_FIELDS)
-    .eq('account_id', accountId)
-    .eq('id', variacaoId)
-    .maybeSingle();
-  if (error) throw new DatabaseError('Falha ao buscar variacao', { details: error });
-  return data || null;
+  const rows = await repository.many(ProdutoVariacoesQueries.findById(), [accountId, variacaoId]);
+  return Array.isArray(rows) && rows.length ? normalizeProdutoVariacao(rows[0]) : null;
 }
 
 async function assertVariacaoScope(accountId, produtoId, variacaoId) {
@@ -524,17 +516,8 @@ export async function listProdutoVariacoes(produtoId, options = {}) {
     return rawVariations.map(normalizeProdutoVariacao);
   }
 
-  const supabase = getSupabaseClient();
-  if (!supabase) throw new DatabaseError('Supabase indisponivel');
-
-  const { data, error } = await supabase
-    .from('produto_variacoes')
-    .select(PRODUTO_VARIACOES_SELECT_FIELDS)
-    .eq('account_id', accountId)
-    .eq('produto_id', produtoId)
-    .order('created_at', { ascending: true });
-  if (error) throw new DatabaseError('Falha ao listar variacoes do produto', { details: error });
-  return (data || []).map(normalizeProdutoVariacao);
+  const rows = await repository.many(ProdutoVariacoesQueries.listByProduto(), [accountId, produtoId]);
+  return (rows || []).map(normalizeProdutoVariacao);
 }
 
 export async function updateProdutoVariacaoImagem(produtoId, variacaoId, upload, options = {}) {
@@ -560,15 +543,15 @@ export async function updateProdutoVariacaoImagem(produtoId, variacaoId, upload,
     return updatedVariation;
   }
   const uploaded = await uploadVariacaoImageToStorage({ accountId, produtoId: resolvedProdutoId, variacaoId, upload });
-  const { data: updated, error } = await supabase
-    .from('produto_variacoes')
-    .update({ imagem_url: uploaded.url, imagem_path: uploaded.storage_path, updated_at: new Date().toISOString() })
-    .eq('account_id', accountId)
-    .eq('produto_id', resolvedProdutoId)
-    .eq('id', variacaoId)
-    .select(PRODUTO_VARIACOES_SELECT_FIELDS)
-    .maybeSingle();
-  if (error) throw new DatabaseError('Falha ao atualizar imagem da variacao', { details: error });
+  const rows = await repository.many(ProdutoVariacoesQueries.updateImagem(), [
+    accountId,
+    resolvedProdutoId,
+    uploaded.url,
+    uploaded.storage_path,
+    new Date().toISOString(),
+    variacaoId
+  ]);
+  const updated = Array.isArray(rows) && rows.length ? rows[0] : null;
   if (!updated) throw new NotFoundError('Variacao nao encontrada', { domain: 'produtos-catalogo', code: 'VARIACAO_NOT_FOUND' });
   return normalizeProdutoVariacao(updated);
 }
