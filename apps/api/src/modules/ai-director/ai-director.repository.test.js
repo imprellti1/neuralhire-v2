@@ -120,8 +120,9 @@ test('ai director executive memories keep criado_em contract and expose created_
 
 test('ai director events repository stores and filters timeline entries', async () => {
   __resetMemoryAiDirectorEventsForTests();
-  await createAiDirectorEvent({ event_type: 'observation_created', entity_type: 'observacao', entity_id: 'o-1', status: 'aberto', title: 'Obs', description: 'Desc', recurrence_count: 2 }, { accountId: 'acc-test' });
-  const result = await listAiDirectorEvents('acc-test', { status: 'aberto', limit: 10 });
+  await createAiDirectorEvent({ event_type: 'observation_created', entity_type: 'observacao', entity_id: 'o-1', status: 'aberto', title: 'Obs', description: 'Desc', recurrence_count: 2, origin: 'observation', category: 'comercial' }, { accountId: 'acc-test' });
+  await createAiDirectorEvent({ event_type: 'task_completed', entity_type: 'tarefa', entity_id: 't-1', status: 'resolvido', title: 'Task', description: 'Task', recurrence_count: 0, origin: 'task', category: 'operacional' }, { accountId: 'acc-test' });
+  const result = await listAiDirectorEvents('acc-test', { status: 'aberto', event_type: 'observation_created', origin: 'observation', category: 'comercial', limit: 10 });
   assert.equal(result.total, 1);
   assert.equal(result.items[0].recurrence_count, 2);
   assert.equal(result.items[0].event_type, 'observation_created');

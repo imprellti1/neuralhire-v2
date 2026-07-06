@@ -18,7 +18,7 @@ test('ai director controller returns dashboard payload', async () => {
 });
 
 test('ai director controller returns timeline payload', async () => {
-  const result = await listAiDirectorEventsHandler({ auth: { accountId: 'acc-test' }, query: {} });
+  const result = await listAiDirectorEventsHandler({ auth: { accountId: 'acc-test' }, query: { event_type: 'observation_created', origin: 'manual', category: 'comercial', offset: '0' } });
   assert.equal(result.ok, true);
   assert.ok(Array.isArray(result.items));
   assert.ok(result.kpis);

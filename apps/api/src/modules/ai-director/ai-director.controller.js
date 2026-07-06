@@ -108,7 +108,13 @@ export async function listAiDirectorEventsHandler(context = {}) {
   const query = context.query || {};
   const result = await listAiDirectorEvents(accountId, {
     status: query.status ? String(query.status).trim() : undefined,
-    limit: query.limit
+    event_type: query.event_type ? String(query.event_type).trim() : undefined,
+    entity_type: query.entity_type ? String(query.entity_type).trim() : undefined,
+    entity_id: query.entity_id ? String(query.entity_id).trim() : undefined,
+    origin: query.origin ? String(query.origin).trim() : undefined,
+    category: query.category ? String(query.category).trim() : undefined,
+    limit: query.limit,
+    offset: query.offset
   });
   const items = result.items || [];
   const closedCycles = items.filter((item) => item.event_type === 'cycle_closed').length;
