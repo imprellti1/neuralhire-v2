@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestError, DatabaseError, ForbiddenError, NotFoundError } from '../../core/errors.js';
 import { logger } from '../../core/logger.js';
+import { BaseRepository } from '../../database/base.repository.js';
+import { database } from '../../database/database.adapter.js';
+import { AiDirectorTasksQueries } from '../../database/queries/ai-director-tasks.queries.js';
 import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { getClienteById } from '../clientes/clientes.repository.js';
 import { listActionPlans, listActionPlansByExecutiveMemoryId, updateActionPlanStatus } from './ai-director-action-plans.repository.js';
@@ -21,6 +24,19 @@ const validImpactToPriority = { alto: 'high', high: 'high', media: 'medium', med
 const prioritySlaDays = { critical: 1, high: 3, medium: 7, low: 15 };
 const memoryTasks = [];
 const legacyGerenteColumnCache = { checked: false, supported: false };
+let repositoryOverride = null;
+
+class AiDirectorTasksRepository extends BaseRepository {
+  constructor(adapter = database) {
+    super(adapter, { logContext: 'ai-director-tasks' });
+  }
+}
+
+const repository = new AiDirectorTasksRepository();
+
+function resolveRepository() {
+  return repositoryOverride || repository;
+}
 
 function assertAccountId(accountId) {
   if (!accountId) throw new ForbiddenError('Contexto de tenant obrigatorio', { code: 'TENANT_REQUIRED', domain: 'ai-director-tasks' });
@@ -398,39 +414,18 @@ async function closeTaskCycle(accountId, task, conclusionNotes = null, result = 
 function resolveSupabaseConfigured() { return isSupabaseConfigured(); }
 function resolveSupabaseClient() { return getSupabaseClient(); }
 
-async function listTasksSupabase(accountId, filters = {}) {
-  const supabase = resolveSupabaseClient();
-  if (!supabase) throw new DatabaseError('Supabase indisponivel');
-  const limit = Number(filters.limit) > 0 ? Number(filters.limit) : 25;
-  const page = Number(filters.page) > 0 ? Number(filters.page) : 1;
-  const from = (page - 1) * limit;
-  const to = from + limit - 1;
-  let query = supabase.from('ai_director_tasks').select('*', { count: 'exact' }).eq('account_id', accountId).order('updated_at', { ascending: false }).range(from, to);
-  if (filters.status) query = query.eq('status', normalizeStatus(filters.status));
-  if (filters.priority) query = query.eq('priority', String(filters.priority).toLowerCase());
-  if (filters.manager_id) query = query.eq('manager_id', filters.manager_id);
-  if (filters.manager_name) query = query.eq('manager_name', filters.manager_name);
-  if (filters.vendedor_id) query = query.eq('vendedor_id', filters.vendedor_id);
-  if (filters.cliente_id) query = query.eq('cliente_id', filters.cliente_id);
-  if (filters.category) query = query.eq('category', filters.category);
-  if (filters.action_plan_id) query = query.eq('action_plan_id', filters.action_plan_id);
-  const { data, error } = await query;
-  if (error) throw new DatabaseError('Falha ao listar tarefas', { details: error });
-  const items = data || [];
-  items.page = page;
-  items.limit = limit;
-  items.total = data?.length || 0;
-  return items;
-}
-
 async function supportsLegacyGerenteColumn() {
   if (legacyGerenteColumnCache.checked) return legacyGerenteColumnCache.supported;
-  const supabase = resolveSupabaseClient();
-  if (!supabase) return false;
-  const { error } = await supabase.from('ai_director_tasks').select('gerente').limit(1);
-  legacyGerenteColumnCache.checked = true;
-  legacyGerenteColumnCache.supported = !error;
-  return legacyGerenteColumnCache.supported;
+  try {
+    await resolveRepository().many('SELECT gerente FROM ai_director_tasks WHERE account_id = $1 LIMIT 1', ['__probe__']);
+    legacyGerenteColumnCache.checked = true;
+    legacyGerenteColumnCache.supported = true;
+    return true;
+  } catch (error) {
+    legacyGerenteColumnCache.checked = true;
+    legacyGerenteColumnCache.supported = false;
+    return false;
+  }
 }
 
 export async function listOpenActionPlansWithoutTasks(accountId) {
@@ -473,69 +468,60 @@ export async function upsertDirectorTask(payload = {}) {
   const delegation = await resolveTaskDelegation(payload, { accountId });
   const row = rowFromPayload({ ...payload, ...delegation });
   row.metadata = { ...(row.metadata || {}), normalized_dedupe_key: row.metadata?.normalized_dedupe_key || dedupeKeyFromRow(row) };
+  const repo = resolveRepository();
 
-  if (resolveSupabaseConfigured()) {
-    const supabase = resolveSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
+  if (resolveSupabaseConfigured() || repositoryOverride) {
     const legacyGerenteSupported = await supportsLegacyGerenteColumn();
     const dbRow = legacyGerenteSupported ? { ...row, gerente: buildLegacyGerenteValue(row) } : row;
-    const { data: currentRows, error: currentError } = await supabase
-      .from('ai_director_tasks')
-      .select('*')
-      .eq('account_id', accountId)
-      .eq('action_plan_id', row.action_plan_id)
-      .in('status', ['open', 'in_progress'])
-      .order('updated_at', { ascending: false });
-    if (currentError) throw new DatabaseError('Falha ao consultar tarefa', { details: currentError });
+    const currentRows = await repo.many(AiDirectorTasksQueries.listOpenTasksByActionPlan(), [accountId, row.action_plan_id, 200]);
     const current = (currentRows || []).find((task) => taskDelegacaoExistingMatch(task, row)) || null;
     if (current) {
-      const { data, error } = await supabase.from('ai_director_tasks').update({ ...dbRow, id: current.id, criado_em: current.criado_em }).eq('id', current.id).select('*').single();
-      if (error) throw new DatabaseError('Falha ao atualizar tarefa', { details: error });
-      await createAiDirectorEvent({
-        event_type: 'task_created',
-        entity_type: 'tarefa',
-        entity_id: data.id,
-        status: 'aberto',
-        title: data.titulo,
-        description: data.descricao || '',
-        recurrence_count: 0,
-        metadata: { task_id: data.id, action_plan_id: data.action_plan_id, manager_id: data.manager_id }
-      }, { accountId });
-      if (delegation.delegationEvent && delegation.vendedor_id) {
-        await createAiDirectorEvent(delegation.delegationEvent, { accountId }).catch(() => {});
-      }
-      return { task: data, created: false, skipped: true, reason: 'already_exists' };
+      const updated = await repo.one(AiDirectorTasksQueries.updateTaskById(), [
+        accountId,
+        current.id,
+        dbRow.action_plan_id,
+        dbRow.manager_id,
+        dbRow.manager_name,
+        dbRow.gerente,
+        dbRow.cliente_id,
+        dbRow.vendedor_id,
+        dbRow.vendedor_name,
+        dbRow.delegation_level,
+        dbRow.delegation_reason,
+        dbRow.category,
+        dbRow.title,
+        dbRow.titulo,
+        dbRow.description,
+        dbRow.descricao,
+        dbRow.priority,
+        dbRow.prioridade,
+        dbRow.status,
+        dbRow.financial_amount,
+        dbRow.valor,
+        dbRow.amount,
+        dbRow.value,
+        dbRow.impacto_estimado,
+        dbRow.monetary_value,
+        dbRow.due_at,
+        dbRow.completed_at,
+        dbRow.percentual_conclusao,
+        dbRow.origin,
+        dbRow.metadata,
+        nowIso()
+      ]);
+      await createAiDirectorEvent({ event_type: 'task_created', entity_type: 'tarefa', entity_id: updated.id, status: 'aberto', title: updated.titulo, description: updated.descricao || '', recurrence_count: 0, metadata: { task_id: updated.id, action_plan_id: updated.action_plan_id, manager_id: updated.manager_id } }, { accountId });
+      if (delegation.delegationEvent && delegation.vendedor_id) await createAiDirectorEvent(delegation.delegationEvent, { accountId }).catch(() => {});
+      return { task: updated, created: false, skipped: true, reason: 'already_exists' };
     }
-    const { data, error } = await supabase.from('ai_director_tasks').insert(dbRow).select('*').single();
-    if (!error && data) {
-      await createAiDirectorEvent({
-        event_type: 'task_created',
-        entity_type: 'tarefa',
-        entity_id: data.id,
-        status: 'aberto',
-        title: data.titulo,
-        description: data.descricao || '',
-        recurrence_count: 0,
-        metadata: { task_id: data.id, action_plan_id: data.action_plan_id, manager_id: data.manager_id }
-      }, { accountId });
-      if (delegation.delegationEvent && delegation.vendedor_id) {
-        await createAiDirectorEvent(delegation.delegationEvent, { accountId }).catch(() => {});
-      }
-      return { task: data, created: true, skipped: false };
-    }
-    if (error?.code === '23505') {
-      const { data: duplicateRows, error: duplicateError } = await supabase
-        .from('ai_director_tasks')
-        .select('*')
-        .eq('account_id', accountId)
-        .eq('action_plan_id', row.action_plan_id)
-        .in('status', ['open', 'in_progress'])
-        .order('updated_at', { ascending: false });
-      if (duplicateError) throw new DatabaseError('Falha ao consultar tarefa existente', { details: duplicateError });
-      const duplicate = (duplicateRows || []).find((task) => taskDelegacaoExistingMatch(task, row)) || null;
-      if (duplicate) return { task: duplicate, created: false, skipped: true, reason: 'already_exists' };
-    }
-    throw new DatabaseError('Falha ao criar tarefa', { details: error });
+    const data = await repo.one(AiDirectorTasksQueries.insertTask(), [
+      dbRow.id, dbRow.account_id, dbRow.action_plan_id, dbRow.manager_id, dbRow.manager_name, dbRow.gerente, dbRow.cliente_id, dbRow.vendedor_id, dbRow.vendedor_name,
+      dbRow.delegation_level, dbRow.delegation_reason, dbRow.category, dbRow.title, dbRow.titulo, dbRow.description, dbRow.descricao, dbRow.priority, dbRow.prioridade,
+      dbRow.status, dbRow.financial_amount, dbRow.valor, dbRow.amount, dbRow.value, dbRow.impacto_estimado, dbRow.monetary_value, dbRow.due_at, dbRow.completed_at,
+      dbRow.percentual_conclusao, dbRow.origin, dbRow.metadata, dbRow.criado_em, dbRow.created_at, dbRow.updated_at
+    ]);
+    await createAiDirectorEvent({ event_type: 'task_created', entity_type: 'tarefa', entity_id: data.id, status: 'aberto', title: data.titulo, description: data.descricao || '', recurrence_count: 0, metadata: { task_id: data.id, action_plan_id: data.action_plan_id, manager_id: data.manager_id } }, { accountId });
+    if (delegation.delegationEvent && delegation.vendedor_id) await createAiDirectorEvent(delegation.delegationEvent, { accountId }).catch(() => {});
+    return { task: data, created: true, skipped: false };
   }
 
   const current = memoryTasks.find((task) => taskDelegacaoExistingMatch(task, row)) || null;
@@ -595,22 +581,17 @@ export async function upsertSellerInsightTask(payload = {}, options = {}) {
   row.origin = payload.origin || 'vendedor_ia';
   row.metadata = { ...(row.metadata || {}), origin: row.origin, reason, generated_by: 'vendedor_ia' };
 
-  if (resolveSupabaseConfigured()) {
-    const supabase = resolveSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data: currentRows, error: currentError } = await supabase
-      .from('ai_director_tasks')
-      .select('*')
-      .eq('account_id', accountId)
-      .eq('cliente_id', row.cliente_id)
-      .eq('vendedor_id', row.vendedor_id)
-      .eq('status', 'open')
-      .order('updated_at', { ascending: false });
-    if (currentError) throw new DatabaseError('Falha ao consultar tarefa comercial', { details: currentError });
+  if (resolveSupabaseConfigured() || repositoryOverride) {
+    const repo = resolveRepository();
+    const currentRows = await repo.many(AiDirectorTasksQueries.listOpenSellerTasksByAccount(), [accountId, row.cliente_id, row.vendedor_id, 200]);
     const current = (currentRows || []).find((task) => sellerTaskExistingMatch(task, row)) || null;
     if (current) return { task: current, created: false, skipped: true, reason: 'already_exists' };
-    const { data, error } = await supabase.from('ai_director_tasks').insert(row).select('*').single();
-    if (error) throw new DatabaseError('Falha ao criar tarefa comercial', { details: error });
+    const data = await repo.one(AiDirectorTasksQueries.insertTask(), [
+      row.id, row.account_id, row.action_plan_id, row.manager_id, row.manager_name, row.gerente, row.cliente_id, row.vendedor_id, row.vendedor_name,
+      row.delegation_level, row.delegation_reason, row.category, row.title, row.titulo, row.description, row.descricao, row.priority, row.prioridade,
+      row.status, row.financial_amount, row.valor, row.amount, row.value, row.impacto_estimado, row.monetary_value, row.due_at, row.completed_at,
+      row.percentual_conclusao, row.origin, row.metadata, row.criado_em, row.created_at, row.updated_at
+    ]);
     await createAiDirectorEvent({
       event_type: 'sales_task_generated',
       entity_type: 'tarefa',
@@ -661,7 +642,26 @@ export async function listDirectorTasks(accountId, filters = {}) {
   if (normalizedFilters.category) normalizedFilters.category = String(normalizedFilters.category).trim().toLowerCase();
   if (normalizedFilters.vendedor_id) normalizedFilters.vendedor_id = String(normalizedFilters.vendedor_id).trim();
   if (normalizedFilters.cliente_id) normalizedFilters.cliente_id = String(normalizedFilters.cliente_id).trim();
-  if (resolveSupabaseConfigured()) return listTasksSupabase(accountId, normalizedFilters);
+  if (resolveSupabaseConfigured() || repositoryOverride) {
+    const repo = resolveRepository();
+    const params = [accountId];
+    const where = [];
+    if (normalizedFilters.status) { params.push(normalizedFilters.status); where.push(`status = $${params.length}`); }
+    if (normalizedFilters.priority) { params.push(normalizedFilters.priority); where.push(`priority = $${params.length}`); }
+    if (normalizedFilters.manager_id) { params.push(normalizedFilters.manager_id); where.push(`manager_id = $${params.length}`); }
+    if (normalizedFilters.manager_name) { params.push(normalizedFilters.manager_name); where.push(`manager_name = $${params.length}`); }
+    if (normalizedFilters.vendedor_id) { params.push(normalizedFilters.vendedor_id); where.push(`vendedor_id = $${params.length}`); }
+    if (normalizedFilters.cliente_id) { params.push(normalizedFilters.cliente_id); where.push(`cliente_id = $${params.length}`); }
+    if (normalizedFilters.category) { params.push(normalizedFilters.category); where.push(`category = $${params.length}`); }
+    if (normalizedFilters.action_plan_id) { params.push(normalizedFilters.action_plan_id); where.push(`action_plan_id = $${params.length}`); }
+    params.push(limit, (page - 1) * limit);
+    const rows = await repo.many(AiDirectorTasksQueries.listTasks(where.join(' AND ')), params);
+    const items = rows || [];
+    items.page = page;
+    items.limit = limit;
+    items.total = items.length;
+    return items;
+  }
   const items = memoryTasks
     .filter((task) => task.account_id === accountId)
     .filter((task) => matchesTaskFilter(task, normalizedFilters))
@@ -694,16 +694,15 @@ export async function updateDirectorTaskStatus(id, accountId, status) {
   const rawStatus = String(status || '').trim().toLowerCase();
   if (!validStatus.has(rawStatus)) throw new BadRequestError('status invalido');
   const normalizedStatus = rawStatus;
-  if (resolveSupabaseConfigured()) {
-    const supabase = resolveSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    const { data: current, error } = await supabase.from('ai_director_tasks').select('*').eq('id', id).eq('account_id', accountId).maybeSingle();
-    if (error) throw new DatabaseError('Falha ao consultar tarefa', { details: error });
-    if (!current) throw new NotFoundError('Tarefa nao encontrada', { domain: 'ai-director-tasks' });
+  if (resolveSupabaseConfigured() || repositoryOverride) {
+    const repo = resolveRepository();
+    const current = await repo.one(AiDirectorTasksQueries.getTaskById(), [accountId, id]).catch((error) => {
+      if (error?.code === 'DATABASE_NOT_ONE') throw new NotFoundError('Tarefa nao encontrada', { domain: 'ai-director-tasks' });
+      throw error;
+    });
     const percentual = normalizedStatus === 'done' ? 100 : current.percentual_conclusao;
     const completionFields = normalizedStatus === 'done' ? { completed_at: current.completed_at || nowIso() } : {};
-    const { data, error: updateError } = await supabase.from('ai_director_tasks').update({ status: normalizedStatus, percentual_conclusao: percentual, ...completionFields, updated_at: nowIso() }).eq('id', id).eq('account_id', accountId).select('*').single();
-    if (updateError) throw new DatabaseError('Falha ao atualizar tarefa', { details: updateError });
+    const data = await repo.one(AiDirectorTasksQueries.updateTaskStatus(), [accountId, id, normalizedStatus, percentual, completionFields.completed_at || null, nowIso()]);
     if (normalizedStatus === 'done') {
       await createAiDirectorEvent({
         event_type: 'task_completed',
@@ -750,4 +749,11 @@ export async function completeDirectorTask(accountId, id, payload = {}) {
 
 export function __resetMemoryAiDirectorTasksForTests() {
   memoryTasks.length = 0;
+  repositoryOverride = null;
+  legacyGerenteColumnCache.checked = false;
+  legacyGerenteColumnCache.supported = false;
+}
+
+export function __setAiDirectorTasksDatabaseForTests(adapter) {
+  repositoryOverride = adapter instanceof AiDirectorTasksRepository ? adapter : new AiDirectorTasksRepository(adapter);
 }
