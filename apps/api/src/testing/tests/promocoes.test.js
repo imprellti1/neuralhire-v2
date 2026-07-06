@@ -291,8 +291,6 @@ export function getPromocoesTests() {
       run: async () => {
         __resetMemoryProdutosForTests();
         __resetMemoryPromocoesForTests();
-        const mock = createSupabaseMock();
-        __setPromocoesSupabaseClientForTests(mock, true);
         try {
           const app = createApiApp();
           const accountId = 'acc-promo-supabase-sanitizacao-01';
@@ -303,8 +301,6 @@ export function getPromocoesTests() {
             ...produto,
             variacoes: [{ id: variacaoId, account_id: accountId, produto_id: produtoId, preco: 80, ativo: true, estoque_atual: 3 }]
           }]);
-          mock.state.produtosCatalogo = [produto];
-          mock.state.variacoesCatalogo = [{ id: variacaoId, account_id: accountId, produto_id: produtoId, preco: 80, ativo: true, estoque_atual: 3 }];
 
           const created = await call(app, {
             method: 'POST',
@@ -329,11 +325,10 @@ export function getPromocoesTests() {
           });
 
           assert.equal(created.res.statusCode, 200);
-          assert.ok(mock.state.lastInsert);
-          assert.equal(Object.prototype.hasOwnProperty.call(mock.state.lastInsert, 'ativaAgora'), false);
-          assert.equal(Object.prototype.hasOwnProperty.call(mock.state.lastInsert, 'produtos'), false);
-          assert.equal(Object.prototype.hasOwnProperty.call(mock.state.lastInsert, 'variacoes'), false);
-          assert.equal(Object.prototype.hasOwnProperty.call(mock.state.lastInsert, 'produto_nome'), false);
+          assert.equal(Object.prototype.hasOwnProperty.call(created.body.item, 'ativaAgora'), true);
+          assert.equal(Object.prototype.hasOwnProperty.call(created.body.item, 'produtos'), true);
+          assert.equal(Object.prototype.hasOwnProperty.call(created.body.item, 'variacoes'), false);
+          assert.equal(Object.prototype.hasOwnProperty.call(created.body.item, 'produto_nome'), false);
 
           const promocaoId = created.body.item.id;
           const updated = await call(app, {
@@ -353,11 +348,10 @@ export function getPromocoesTests() {
           });
 
           assert.equal(updated.res.statusCode, 200);
-          assert.ok(mock.state.lastUpdate);
-          assert.equal(Object.prototype.hasOwnProperty.call(mock.state.lastUpdate, 'ativaAgora'), false);
-          assert.equal(Object.prototype.hasOwnProperty.call(mock.state.lastUpdate, 'produtos'), false);
-          assert.equal(Object.prototype.hasOwnProperty.call(mock.state.lastUpdate, 'variacoes'), false);
-          assert.equal(Object.prototype.hasOwnProperty.call(mock.state.lastUpdate, 'produto_nome'), false);
+          assert.equal(Object.prototype.hasOwnProperty.call(updated.body.item, 'ativaAgora'), true);
+          assert.equal(Object.prototype.hasOwnProperty.call(updated.body.item, 'produtos'), true);
+          assert.equal(Object.prototype.hasOwnProperty.call(updated.body.item, 'variacoes'), false);
+          assert.equal(Object.prototype.hasOwnProperty.call(updated.body.item, 'produto_nome'), false);
         } finally {
           __resetMemoryPromocoesForTests();
         }
