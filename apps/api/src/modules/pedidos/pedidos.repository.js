@@ -374,6 +374,19 @@ async function getPedidoItensCounts(items = [], accountId) {
     }
     return counts;
   }
+  if (supabaseClientOverride || await isDatabaseMode()) {
+    const pedidoIds = items.map((item) => item.id);
+    const rows = await pedidosRepository.many(PedidosQueries.countItensByPedidoIds(), [accountId, pedidoIds]);
+    const counts = new Map();
+    for (const item of items) counts.set(item.id, { total: 0, nao_vinculados: 0 });
+    for (const row of rows || []) {
+      counts.set(row.pedido_id, {
+        total: Number(row.total || 0),
+        nao_vinculados: Number(row.nao_vinculados || 0)
+      });
+    }
+    return counts;
+  }
   const counts = new Map();
   for (const item of items) {
     const rows = memoryPedidoItens.filter((pi) => pi.account_id === accountId && pi.pedido_id === item.id);

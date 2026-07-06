@@ -278,6 +278,22 @@ export const PedidosQueries = {
     WHERE account_id = $1 AND pedido_id = $2
     ORDER BY created_at ASC`;
   },
+  countItensByPedidoIds() {
+    return `SELECT
+      pedido_id,
+      COUNT(*)::int AS total,
+      COUNT(*) FILTER (WHERE COALESCE(status_vinculo, '') <> 'vinculado')::int AS nao_vinculados
+    FROM pedido_itens
+    WHERE account_id = $1
+      AND pedido_id = ANY($2::uuid[])
+    GROUP BY pedido_id`;
+  },
+  countPedidosAuditoria(whereSql = '') {
+    const extraWhere = whereSql ? ` AND ${whereSql}` : '';
+    return `SELECT COUNT(*)::int AS total
+    FROM pedidos
+    WHERE account_id = $1${extraWhere}`;
+  },
   listClientesByIds() {
     return 'SELECT id, nome FROM clientes WHERE account_id = $1 AND id = ANY($2::uuid[])';
   },
