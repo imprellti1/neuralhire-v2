@@ -76,6 +76,51 @@ export const PedidosQueries = {
       comissao_principal_percentual,
       comissao_preposto_percentual`;
   },
+  updateTotal() {
+    return `UPDATE pedidos
+    SET total = $3,
+        updated_at = NOW()
+    WHERE account_id = $1
+      AND id = $2
+    RETURNING
+      id,
+      account_id,
+      cliente_id,
+      vendedor_id,
+      numero,
+      status,
+      origem,
+      observacoes,
+      total,
+      metadata,
+      created_at,
+      updated_at,
+      data_emissao,
+      data_faturamento,
+      comissao_principal_percentual,
+      comissao_preposto_percentual`;
+  },
+  deleteItensByPedidoId() {
+    return `DELETE FROM pedido_itens
+    WHERE account_id = $1
+      AND pedido_id = $2`;
+  },
+  insertPedidoItem() {
+    return `INSERT INTO pedido_itens (
+      account_id,
+      pedido_id,
+      produto_id,
+      produto_nome,
+      sku,
+      quantidade,
+      preco_unitario,
+      desconto,
+      subtotal,
+      total,
+      metadata
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    RETURNING *`;
+  },
   insertStatusHistory() {
     return `INSERT INTO pedido_status_history (
       account_id,

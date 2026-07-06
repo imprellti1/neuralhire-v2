@@ -115,6 +115,22 @@ function normalizeDateOnlyValue(value) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
   return parseBrDateText(text);
 }
+
+function buildPedidoItensInsertParams(accountId, pedidoId, itensCalculados = []) {
+  return itensCalculados.flatMap((item) => ([
+    accountId,
+    pedidoId,
+    item.produto_id,
+    item.produto_nome,
+    item.sku || null,
+    item.quantidade,
+    item.preco_unitario,
+    item.desconto,
+    item.subtotal,
+    item.total,
+    item.metadata || {}
+  ]));
+}
 async function enrichPedidosWithVendedorNome(items = [], accountId) {
   if (!Array.isArray(items) || !items.length) return [];
   const repositoryMode = getPedidosRepositoryMode();
@@ -588,6 +604,32 @@ export async function updatePedidoItens(id, data = {}, options = {}) {
     const { data: updatedPedido, error: updateError } = await supabase.from('pedidos').update({ total: totals.total }).eq('id', id).eq('account_id', accountId).select('*').single();
     if (updateError) throw new DatabaseError('Falha ao recalcular totais do pedido', { details: updateError });
     return { pedido: updatedPedido, itens: createdItens || [] };
+  }
+
+  if (supabaseClientOverride || await isDatabaseMode()) {
+    const updated = await pedidosRepository.transaction(async (tx) => {
+      await tx.execute(PedidosQueries.deleteItensByPedidoId(), [accountId, id]);
+      const createdItens = [];
+      for (const item of totals.itensCalculados) {
+        const created = await tx.one(PedidosQueries.insertPedidoItem(), [
+          accountId,
+          id,
+          item.produto_id,
+          item.produto_nome,
+          item.sku || null,
+          item.quantidade,
+          item.preco_unitario,
+          item.desconto,
+          item.subtotal,
+          item.total,
+          item.metadata || {}
+        ]);
+        createdItens.push(created);
+      }
+      const updatedPedido = await tx.one(PedidosQueries.updateTotal(), [accountId, id, totals.total]);
+      return { pedido: updatedPedido, itens: createdItens || [] };
+    });
+    return updated;
   }
 
   const nextItens = totals.itensCalculados.map((item) => ({ id: randomUUID(), account_id: accountId, pedido_id: id, produto_id: item.produto_id, produto_nome: item.produto_nome, sku: item.sku || null, quantidade: item.quantidade, preco_unitario: item.preco_unitario, desconto: item.desconto, subtotal: item.subtotal, total: item.total, metadata: item.metadata || {}, createdAt: new Date().toISOString() }));
