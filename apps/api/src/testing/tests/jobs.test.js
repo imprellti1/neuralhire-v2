@@ -1702,52 +1702,44 @@ export function getJobsTests() {
         __resetMemoryAiDirectorForTests();
         const accountId = 'acc-origin-default';
         const rpcCalls = [];
+        const records = [];
         let insertCount = 0;
         let retryRow = null;
-        const fakeSupabase = {
-          from(table) {
-            if (table !== 'ai_director_executive_memories') throw new Error(`table inesperada: ${table}`);
-            return {
-              select() { return this; },
-              eq() { return this; },
-              update() {
-                return {
-                  select() { return this; },
-                  eq() {
-                    return {
-                      select() { return this; },
-                      single() {
-                        return Promise.resolve({ data: retryRow ? { ...retryRow, updated_at: new Date().toISOString() } : null, error: retryRow ? null : { code: 'PGRST116', message: 'No rows found' } });
-                      }
-                    };
-                  }
-                };
-              },
-              insert(payload) {
-                return {
-                  select() {
-                    return {
-                      single() {
-                        insertCount += 1;
-                        if (insertCount === 1) {
-                          retryRow = { ...payload, id: payload.id || 'mem-default-origin', account_id: accountId };
-                          return Promise.resolve({ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "ai_director_executive_memories_logical_dedupe_idx"' } });
-                        }
-                        return Promise.resolve({ data: { ...payload, id: payload.id || 'mem-default-origin' }, error: null });
-                      }
-                    };
-                  }
-                };
+        const fakeDatabase = {
+          async query(sql, params) {
+            const normalizedSql = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
+            if (normalizedSql.startsWith('select * from ai_director_executive_memories where account_id = $1 and tipo = $2 and categoria = $3 and lower(titulo) = lower($4) and origem = $5 order by criado_em desc limit 10')) {
+              rpcCalls.push({ name: 'find_ai_director_executive_memory_by_logical_key', params: {
+                p_account_id: params[0],
+                p_tipo: params[1],
+                p_categoria: params[2],
+                p_titulo: params[3],
+                p_origem: params[4]
+              } });
+              return retryRow ? [retryRow] : [];
+            }
+            if (normalizedSql.startsWith('insert into ai_director_executive_memories')) {
+              insertCount += 1;
+              if (insertCount === 1) {
+                retryRow = { id: params[0] || 'mem-default-origin', account_id: accountId, tipo: params[2], titulo: params[3], descricao: params[4], categoria: params[5], severidade: params[6], metadata: params[7], origem: params[8], criado_em: params[9], updated_at: params[10] };
+                const error = new Error('duplicate key value violates unique constraint "ai_director_executive_memories_logical_dedupe_idx"');
+                error.code = '23505';
+                throw error;
               }
-            };
-          },
-          rpc(name, params) {
-            rpcCalls.push({ name, params });
-            if (name !== 'find_ai_director_executive_memory_by_logical_key') throw new Error(`rpc inesperada: ${name}`);
-            return Promise.resolve({ data: retryRow ? [retryRow] : [], error: null });
+              const inserted = { id: params[0] || 'mem-default-origin', account_id: accountId, tipo: params[2], titulo: params[3], descricao: params[4], categoria: params[5], severidade: params[6], metadata: params[7], origem: params[8], criado_em: params[9], updated_at: params[10] };
+              records.push(inserted);
+              return [inserted];
+            }
+            if (normalizedSql.startsWith('update ai_director_executive_memories set')) {
+              const updated = { id: params[1], account_id: params[0], tipo: params[2], titulo: params[3], descricao: params[4], categoria: params[5], severidade: params[6], metadata: params[7], origem: params[8], criado_em: params[9], updated_at: params[10] };
+              records[0] = updated;
+              retryRow = updated;
+              return [updated];
+            }
+            throw new Error(`sql inesperado: ${sql}`);
           }
         };
-        __setAiDirectorSupabaseClientForTests(fakeSupabase, true);
+        __setAiDirectorSupabaseClientForTests(fakeDatabase, true);
         try {
           const result = await createExecutiveMemory({
             tipo: 'prioridade_executiva',

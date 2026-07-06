@@ -1,7 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestError, DatabaseError, ForbiddenError } from '../../core/errors.js';
-import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { logger } from '../../core/logger.js';
+import { BaseRepository } from '../../database/base.repository.js';
+import { database } from '../../database/database.adapter.js';
+import { AiDirectorExecutiveMemoriesQueries } from '../../database/queries/ai-director-executive-memories.queries.js';
+import { getSupabaseClient, isSupabaseConfigured } from '../../database/supabase.client.js';
 import { listClientes } from '../clientes/clientes.repository.js';
 import { listPedidos } from '../pedidos/pedidos.repository.js';
 import { listProdutos } from '../produtos/produtos.repository.js';
@@ -25,6 +28,7 @@ const validExecutiveSeveridades = new Set(['baixa', 'media', 'alta', 'critica'])
 const memoryStore = [];
 let supabaseClientOverride = null;
 let supabaseConfiguredOverride = null;
+let repositoryOverride = null;
 const managerProviderOverrides = new Map();
 const managers = [
   {
@@ -81,6 +85,10 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function nowIso() {
+  return new Date().toISOString();
+}
+
 function normalizeText(value, field) {
   const text = String(value ?? '').trim();
   if (!text) throw new BadRequestError(`${field} obrigatorio`);
@@ -132,6 +140,183 @@ function shapeExecutiveMemoryRow(row = {}) {
     created_at: criadoEm,
     updated_at: row.updated_at || null
   };
+}
+
+function resolveAiDirectorSupabaseClient() {
+  return supabaseClientOverride || getSupabaseClient();
+}
+
+function resolveAiDirectorSupabaseConfigured() {
+  if (supabaseConfiguredOverride !== null) return supabaseConfiguredOverride;
+  return isSupabaseConfigured();
+}
+
+function normalizeFilters(filters = {}) {
+  return {
+    tipo: filters.tipo ? String(filters.tipo).trim() : null,
+    categoria: filters.categoria ? String(filters.categoria).trim() : null,
+    origem: filters.origem ? String(filters.origem).trim() : null,
+    status: filters.status ? String(filters.status).trim() : null,
+    limit: Number(filters.limit ?? 10),
+    offset: Number(filters.offset ?? 0)
+  };
+}
+
+function buildExecutiveWhereSql(filters = {}, params = []) {
+  const clauses = [];
+  if (filters.tipo) { params.push(filters.tipo); clauses.push(`tipo = $${params.length}`); }
+  if (filters.categoria) { params.push(filters.categoria); clauses.push(`categoria = $${params.length}`); }
+  if (filters.origem) { params.push(filters.origem); clauses.push(`origem = $${params.length}`); }
+  if (filters.status) { params.push(filters.status); clauses.push(`status = $${params.length}`); }
+  return clauses.join(' AND ');
+}
+
+function normalizeExecutiveMemoryTitle(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isUniqueConstraintViolation(error) {
+  return String(error?.code || '') === '23505';
+}
+
+function buildExecutiveMemoryLogicalKey(row = {}) {
+  return [
+    String(row.account_id || '').trim(),
+    String(row.tipo || '').trim(),
+    String(row.categoria || '').trim(),
+    normalizeExecutiveMemoryTitle(row.titulo),
+    String(row.origem || '').trim()
+  ].join('|');
+}
+
+function matchesExecutiveFilters(row, filters = {}) {
+  if (filters?.categoria && row.categoria !== filters.categoria) return false;
+  if (filters?.tipo && row.tipo !== filters.tipo) return false;
+  if (filters?.origem && row.origem !== filters.origem) return false;
+  return true;
+}
+
+class AiDirectorExecutiveMemoriesRepository extends BaseRepository {
+  constructor(adapter = database) {
+    super(adapter, { logContext: 'ai-director-executive-memories' });
+  }
+
+  async listExecutiveMemories(accountId, filters = {}) {
+    const normalized = normalizeFilters(filters);
+    const limit = Number.isFinite(normalized.limit) && normalized.limit > 0 ? Math.min(Math.floor(normalized.limit), 100) : 10;
+    const offset = Number.isFinite(normalized.offset) && normalized.offset >= 0 ? Math.floor(normalized.offset) : 0;
+    const params = [accountId];
+    const whereSql = buildExecutiveWhereSql(normalized, params);
+    params.push(limit, offset);
+    const rows = await this.many(AiDirectorExecutiveMemoriesQueries.listMemories(whereSql), params);
+    return { items: (rows || []).map((item) => shapeExecutiveMemoryRow(item)), total: (rows || []).length };
+  }
+
+  async findExistingExecutiveMemoryByLogicalKey(row) {
+    const rows = await this.many(AiDirectorExecutiveMemoriesQueries.findByLogicalKey(), [
+      row.account_id,
+      row.tipo,
+      row.categoria,
+      row.titulo,
+      row.origem
+    ]);
+    return (rows || [])[0] || null;
+  }
+
+  async saveExecutiveMemoryRow(row) {
+    const normalizedRow = {
+      ...row,
+      origem: row.origem || 'diretor_ia'
+    };
+    const current = await this.findExistingExecutiveMemoryByLogicalKey(normalizedRow);
+    if (current) {
+      const next = {
+        ...current,
+        ...normalizedRow,
+        id: current.id,
+        account_id: current.account_id,
+        criado_em: current.criado_em || current.created_at || normalizedRow.criado_em,
+        updated_at: nowIso(),
+        metadata: { ...(current.metadata || {}), ...(normalizedRow.metadata || {}) }
+      };
+      const updated = await this.one(AiDirectorExecutiveMemoriesQueries.updateMemory(), [
+        current.account_id,
+        current.id,
+        next.tipo,
+        next.titulo,
+        next.descricao,
+        next.categoria,
+        next.severidade,
+        next.metadata,
+        next.origem,
+        next.criado_em,
+        next.updated_at
+      ]);
+      return shapeExecutiveMemoryRow(updated);
+    }
+
+    try {
+      const inserted = await this.one(AiDirectorExecutiveMemoriesQueries.insertMemory(), [
+        normalizedRow.id,
+        normalizedRow.account_id,
+        normalizedRow.tipo,
+        normalizedRow.titulo,
+        normalizedRow.descricao,
+        normalizedRow.categoria,
+        normalizedRow.severidade,
+        normalizedRow.metadata,
+        normalizedRow.origem,
+        normalizedRow.criado_em,
+        normalizedRow.updated_at
+      ]);
+      return shapeExecutiveMemoryRow(inserted);
+    } catch (error) {
+      if (!isUniqueConstraintViolation(error)) throw error;
+      const retryCurrent = await this.findExistingExecutiveMemoryByLogicalKey(normalizedRow);
+      if (retryCurrent) {
+        const next = {
+          ...retryCurrent,
+          ...normalizedRow,
+          id: retryCurrent.id,
+          account_id: retryCurrent.account_id,
+          criado_em: retryCurrent.criado_em || retryCurrent.created_at || normalizedRow.criado_em,
+          updated_at: nowIso(),
+          metadata: { ...(retryCurrent.metadata || {}), ...(normalizedRow.metadata || {}) }
+        };
+        const updated = await this.one(AiDirectorExecutiveMemoriesQueries.updateMemory(), [
+          retryCurrent.account_id,
+          retryCurrent.id,
+          next.tipo,
+          next.titulo,
+          next.descricao,
+          next.categoria,
+          next.severidade,
+          next.metadata,
+          next.origem,
+          next.criado_em,
+          next.updated_at
+        ]);
+        return shapeExecutiveMemoryRow(updated);
+      }
+      throw new DatabaseError('Falha ao criar memoria executiva do diretor apos 23505 sem registro correspondente', {
+        details: error,
+        context: {
+          account_id: row.account_id,
+          tipo: row.tipo,
+          categoria: row.categoria,
+          titulo_normalizado: normalizeExecutiveMemoryTitle(row.titulo),
+          titulo: row.titulo,
+          origem: normalizedRow.origem
+        }
+      });
+    }
+  }
+}
+
+const repository = new AiDirectorExecutiveMemoriesRepository();
+
+function resolveExecutiveMemoriesRepository() {
+  return repositoryOverride || repository;
 }
 
 export async function getAiDirectorDashboard(context = {}) {
@@ -422,145 +607,6 @@ export async function listAiDirectorMemories(filters = {}, options = {}) {
   return { items, total: items.length };
 }
 
-function matchesExecutiveFilters(row, filters = {}) {
-  if (filters?.categoria && row.categoria !== filters.categoria) return false;
-  if (filters?.tipo && row.tipo !== filters.tipo) return false;
-  return true;
-}
-
-function buildExecutiveMemoryLogicalKey(row = {}) {
-  return [
-    String(row.account_id || '').trim(),
-    String(row.tipo || '').trim(),
-    String(row.categoria || '').trim(),
-    String(row.titulo || '').trim().toLowerCase(),
-    String(row.origem || '').trim()
-  ].join('|');
-}
-
-function isUniqueConstraintViolation(error) {
-  return String(error?.code || '') === '23505';
-}
-
-function normalizeExecutiveMemoryTitle(value) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function matchesExecutiveMemoryIdentity(row = {}, candidate = {}) {
-  return String(row.account_id || '') === String(candidate.account_id || '') &&
-    String(row.tipo || '') === String(candidate.tipo || '') &&
-    String(row.categoria || '') === String(candidate.categoria || '') &&
-    normalizeExecutiveMemoryTitle(row.titulo) === normalizeExecutiveMemoryTitle(candidate.titulo) &&
-    String(row.origem || '') === String(candidate.origem || '');
-}
-
-async function findExistingExecutiveMemoryByLogicalKey(supabase, row) {
-  const normalizedTitle = normalizeExecutiveMemoryTitle(row.titulo);
-  const payload = {
-    p_account_id: row.account_id,
-    p_tipo: row.tipo,
-    p_categoria: row.categoria,
-    p_origem: row.origem,
-    p_titulo: row.titulo
-  };
-  logger.info('ai_director_executive_memory_retry_params', {
-    account_id: row.account_id,
-    tipo: row.tipo,
-    categoria: row.categoria,
-    origem: row.origem,
-    titulo: row.titulo,
-    titulo_normalizado: normalizedTitle
-  });
-  const rpcResult = await supabase.rpc('find_ai_director_executive_memory_by_logical_key', payload);
-  const { data, error } = rpcResult || {};
-  if (error) throw new DatabaseError('Falha ao consultar memoria executiva do diretor', { details: error });
-  logger.info('ai_director_executive_memory_retry_result', {
-    account_id: row.account_id,
-    tipo: row.tipo,
-    categoria: row.categoria,
-    origem: row.origem,
-    titulo: row.titulo,
-    titulo_normalizado: normalizedTitle,
-    raw_count: Array.isArray(data) ? data.length : 0,
-    raw_rows: data || []
-  });
-  return (data || [])[0] || null;
-}
-
-async function saveExecutiveMemoryRow(supabase, row) {
-  const normalizedRow = {
-    ...row,
-    origem: row.origem || 'diretor_ia'
-  };
-  const current = await findExistingExecutiveMemoryByLogicalKey(supabase, normalizedRow);
-  if (current) {
-    const { created_at: _currentCreatedAt, ...currentWithoutCreatedAt } = current;
-    const next = {
-      ...currentWithoutCreatedAt,
-      ...normalizedRow,
-      id: current.id,
-      account_id: current.account_id,
-      criado_em: current.criado_em || current.created_at || normalizedRow.criado_em,
-      updated_at: new Date().toISOString(),
-      metadata: { ...(current.metadata || {}), ...(normalizedRow.metadata || {}) }
-    };
-    const { data: updated, error: updateError } = await supabase.from('ai_director_executive_memories').update(next).eq('id', current.id).select('*').single();
-    if (updateError) throw new DatabaseError('Falha ao atualizar memoria executiva do diretor', { details: updateError });
-    return shapeExecutiveMemoryRow(updated);
-  }
-
-  logger.info('ai_director_executive_memory_before_insert', {
-    account_id: normalizedRow.account_id,
-    tipo: normalizedRow.tipo,
-    categoria: normalizedRow.categoria,
-    origem: normalizedRow.origem,
-    titulo: normalizedRow.titulo,
-    titulo_normalizado: normalizeExecutiveMemoryTitle(normalizedRow.titulo)
-  });
-  const { data: inserted, error } = await supabase.from('ai_director_executive_memories').insert(normalizedRow).select('*').single();
-  if (error) {
-    if (isUniqueConstraintViolation(error)) {
-      const retryCurrent = await findExistingExecutiveMemoryByLogicalKey(supabase, normalizedRow);
-      if (retryCurrent) {
-        const { created_at: _retryCurrentCreatedAt, ...retryCurrentWithoutCreatedAt } = retryCurrent;
-        const next = {
-          ...retryCurrentWithoutCreatedAt,
-          ...normalizedRow,
-          id: retryCurrent.id,
-          account_id: retryCurrent.account_id,
-          criado_em: retryCurrent.criado_em || retryCurrent.created_at || normalizedRow.criado_em,
-          updated_at: new Date().toISOString(),
-          metadata: { ...(retryCurrent.metadata || {}), ...(normalizedRow.metadata || {}) }
-        };
-        const { data: updated, error: retryUpdateError } = await supabase.from('ai_director_executive_memories').update(next).eq('id', retryCurrent.id).select('*').single();
-        if (!retryUpdateError) return shapeExecutiveMemoryRow(updated);
-      }
-      throw new DatabaseError('Falha ao criar memoria executiva do diretor apos 23505 sem registro correspondente', {
-        details: error,
-        context: {
-          account_id: row.account_id,
-          tipo: row.tipo,
-          categoria: row.categoria,
-          titulo_normalizado: normalizeExecutiveMemoryTitle(row.titulo),
-          titulo: row.titulo,
-          origem: normalizedRow.origem
-        }
-      });
-    }
-    throw new DatabaseError('Falha ao criar memoria executiva do diretor', { details: error });
-  }
-  return shapeExecutiveMemoryRow(inserted);
-}
-
-function resolveAiDirectorSupabaseClient() {
-  return supabaseClientOverride || getSupabaseClient();
-}
-
-function resolveAiDirectorSupabaseConfigured() {
-  if (supabaseConfiguredOverride !== null) return supabaseConfiguredOverride;
-  return isSupabaseConfigured();
-}
-
 export async function createExecutiveMemory(data = {}, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
@@ -570,16 +616,16 @@ export async function createExecutiveMemory(data = {}, options = {}) {
     account_id: accountId,
     ...payload,
     origem: String(data.origem ?? 'diretor_ia').trim() || 'diretor_ia',
-    criado_em: new Date().toISOString()
+    criado_em: nowIso(),
+    updated_at: nowIso()
   };
-  if (resolveAiDirectorSupabaseConfigured()) {
-    const supabase = resolveAiDirectorSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    return saveExecutiveMemoryRow(supabase, row);
+
+  if (!resolveAiDirectorSupabaseConfigured()) {
+    memoryStore.push({ ...row, executive: true });
+    return clone(shapeExecutiveMemoryRow(row));
   }
 
-  memoryStore.push({ ...row, executive: true });
-  return clone(row);
+  return resolveExecutiveMemoriesRepository().saveExecutiveMemoryRow(row);
 }
 
 export async function upsertExecutiveMemory(data = {}, options = {}) {
@@ -592,53 +638,40 @@ export async function upsertExecutiveMemory(data = {}, options = {}) {
     ...payload,
     origem: String(data.origem ?? 'diretor_ia').trim() || 'diretor_ia',
     metadata: data.metadata && typeof data.metadata === 'object' && !Array.isArray(data.metadata) ? data.metadata : {},
-    criado_em: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    criado_em: nowIso(),
+    updated_at: nowIso()
   };
-  if (resolveAiDirectorSupabaseConfigured()) {
-    const supabase = resolveAiDirectorSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    return saveExecutiveMemoryRow(supabase, row);
+
+  if (!resolveAiDirectorSupabaseConfigured()) {
+    const current = memoryStore.find((item) => item.executive && buildExecutiveMemoryLogicalKey(item) === buildExecutiveMemoryLogicalKey(row)) || null;
+    if (current) {
+      Object.assign(current, row, { id: current.id, criado_em: current.criado_em, updated_at: row.updated_at });
+      return shapeExecutiveMemoryRow(clone(current));
+    }
+    memoryStore.push({ ...row, executive: true });
+    return shapeExecutiveMemoryRow(clone(row));
   }
 
-  const current = memoryStore.find((item) => item.executive && buildExecutiveMemoryLogicalKey(item) === buildExecutiveMemoryLogicalKey(row)) || null;
-  if (current) {
-    Object.assign(current, row, { id: current.id, criado_em: current.criado_em, updated_at: row.updated_at });
-    return shapeExecutiveMemoryRow(clone(current));
-  }
-  memoryStore.push({ ...row, executive: true });
-  return shapeExecutiveMemoryRow(clone(row));
+  return resolveExecutiveMemoriesRepository().saveExecutiveMemoryRow(row);
 }
 
 export async function listExecutiveMemories(filters = {}, options = {}) {
   const accountId = options.accountId || null;
   assertAccountId(accountId);
-  const limit = Number(filters.limit ?? 10);
-  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 100) : 10;
+  const normalized = normalizeFilters(filters);
+  const limit = Number.isFinite(normalized.limit) && normalized.limit > 0 ? Math.min(Math.floor(normalized.limit), 100) : 10;
 
-  if (mode() === 'supabase') {
-    const supabase = getSupabaseClient();
-    if (!supabase) throw new DatabaseError('Supabase indisponivel');
-    let query = supabase
-      .from('ai_director_executive_memories')
-      .select('*')
-      .eq('account_id', accountId)
-      .order('criado_em', { ascending: false })
-      .limit(safeLimit);
-    if (filters?.categoria) query = query.eq('categoria', filters.categoria);
-    if (filters?.tipo) query = query.eq('tipo', filters.tipo);
-    const { data, error } = await query;
-    if (error) throw new DatabaseError('Falha ao listar memorias executivas do diretor', { details: error });
-    return { items: (data || []).map((item) => shapeExecutiveMemoryRow(item)), total: (data || []).length };
+  if (!resolveAiDirectorSupabaseConfigured()) {
+    const items = memoryStore
+      .filter((row) => row.account_id === accountId && row.executive)
+      .filter((row) => matchesExecutiveFilters(row, normalized))
+      .sort((a, b) => String(b.criado_em || '').localeCompare(String(a.criado_em || '')))
+      .slice(0, limit)
+      .map(({ executive, ...item }) => shapeExecutiveMemoryRow(clone(item)));
+    return { items, total: items.length };
   }
 
-  const items = memoryStore
-    .filter((row) => row.account_id === accountId && row.executive)
-    .filter((row) => matchesExecutiveFilters(row, filters))
-    .sort((a, b) => String(b.criado_em).localeCompare(String(a.criado_em)))
-    .slice(0, safeLimit)
-    .map(({ executive, ...item }) => shapeExecutiveMemoryRow(clone(item)));
-  return { items, total: items.length };
+  return resolveExecutiveMemoriesRepository().listExecutiveMemories(accountId, normalized);
 }
 
 export async function findRelevantExecutiveMemories(filters = {}, options = {}) {
@@ -675,8 +708,8 @@ export async function createAiDirectorMemory(data = {}, options = {}) {
     updated_at: new Date().toISOString()
   };
 
-  if (mode() === 'supabase') {
-    const supabase = getSupabaseClient();
+  if (resolveAiDirectorSupabaseConfigured()) {
+    const supabase = resolveAiDirectorSupabaseClient();
     if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data: inserted, error } = await supabase.from('ai_director_memories').insert(row).select('*').single();
     if (error) throw new DatabaseError('Falha ao criar memoria do diretor', { details: error });
@@ -689,12 +722,59 @@ export async function createAiDirectorMemory(data = {}, options = {}) {
 
 export function __setAiDirectorSupabaseClientForTests(client, configured = true) {
   supabaseClientOverride = client;
+  if (!client) {
+    repositoryOverride = null;
+  } else if (typeof client.query === 'function') {
+    repositoryOverride = new AiDirectorExecutiveMemoriesRepository(client);
+  } else {
+    repositoryOverride = new AiDirectorExecutiveMemoriesRepository({
+      async query(sql, params = []) {
+        const normalizedSql = String(sql).replace(/\s+/g, ' ').trim().toLowerCase();
+        if (normalizedSql.startsWith('select * from ai_director_executive_memories where account_id = $1 and tipo = $2 and categoria = $3 and lower(titulo) = lower($4) and origem = $5 order by criado_em desc limit 10')) {
+          const result = await client.rpc?.('find_ai_director_executive_memory_by_logical_key', {
+            p_account_id: params[0],
+            p_tipo: params[1],
+            p_categoria: params[2],
+            p_origem: params[4],
+            p_titulo: params[3]
+          });
+          return result?.data || [];
+        }
+        if (normalizedSql.startsWith('select * from ai_director_executive_memories where account_id = $1 and tipo = $2 and categoria = $3')) {
+          const chain = client.from?.('ai_director_executive_memories');
+          if (chain?.select) {
+            const query = chain.select('*').eq?.('account_id', params[0]).eq?.('tipo', params[1]).eq?.('categoria', params[2]);
+            const rows = await query;
+            return rows?.data || rows || [];
+          }
+        }
+        if (normalizedSql.startsWith('insert into ai_director_executive_memories')) {
+          const chain = client.from?.('ai_director_executive_memories');
+          const payload = { id: params[0], account_id: params[1], tipo: params[2], titulo: params[3], descricao: params[4], categoria: params[5], severidade: params[6], metadata: params[7], origem: params[8], criado_em: params[9], updated_at: params[10] };
+          const result = await chain?.insert?.(payload)?.select?.()?.single?.();
+          if (result?.error) throw result.error;
+          return [result?.data || payload];
+        }
+        if (normalizedSql.startsWith('update ai_director_executive_memories set')) {
+          const chain = client.from?.('ai_director_executive_memories');
+          const payload = { tipo: params[2], titulo: params[3], descricao: params[4], categoria: params[5], severidade: params[6], metadata: params[7], origem: params[8], criado_em: params[9], updated_at: params[10] };
+          const result = await chain?.update?.(payload)?.eq?.('account_id', params[0])?.eq?.('id', params[1])?.select?.()?.single?.();
+          if (result?.error) throw result.error;
+          return [result?.data || { id: params[1], account_id: params[0], ...payload }];
+        }
+        throw new Error(`sql inesperado: ${sql}`);
+      }
+    });
+  }
   supabaseConfiguredOverride = configured;
 }
 
 export function __resetMemoryAiDirectorForTests() {
   memoryStore.length = 0;
   managerProviderOverrides.clear();
+  supabaseClientOverride = null;
+  repositoryOverride = null;
+  supabaseConfiguredOverride = null;
 }
 
 export function __dumpMemoryAiDirectorForTests() {
@@ -706,7 +786,7 @@ export function __dumpAiDirectorTestStateForTests() {
     memories: clone(memoryStore),
     managerOverrides: managerProviderOverrides.size,
     supabaseOverrideConfigured: supabaseConfiguredOverride,
-    supabaseOverrideActive: Boolean(supabaseClientOverride)
+    supabaseOverrideActive: Boolean(repositoryOverride)
   };
 }
 
