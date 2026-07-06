@@ -52,6 +52,39 @@ export const PedidosQueries = {
     WHERE account_id = $1 AND id = $2
     LIMIT 1`;
   },
+  insertPedido() {
+    return `INSERT INTO pedidos (
+      account_id,
+      cliente_id,
+      vendedor_id,
+      numero,
+      status,
+      origem,
+      observacoes,
+      total,
+      metadata,
+      owner_user_id,
+      data_emissao,
+      data_faturamento
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    RETURNING
+      id,
+      account_id,
+      cliente_id,
+      vendedor_id,
+      numero,
+      status,
+      origem,
+      observacoes,
+      total,
+      metadata,
+      created_at,
+      updated_at,
+      data_emissao,
+      data_faturamento,
+      comissao_principal_percentual,
+      comissao_preposto_percentual`;
+  },
   updateStatus() {
     return `UPDATE pedidos
     SET status = $3,

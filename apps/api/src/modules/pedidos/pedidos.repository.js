@@ -502,13 +502,49 @@ export async function createPedido(data = {}, options = {}) {
   const totals = calculatePedidoTotals(itensEnriquecidos);
   const status = data.status || PEDIDO_STATUS.RASCUNHO;
   if (!isValidPedidoStatus(status)) throw new BadRequestError('Status do pedido invalido', { code: 'VALIDATION_ERROR', domain: 'pedidos-comercial' });
-  const pedidoPayload = { account_id: accountId, cliente_id: data.cliente_id, numero: data.numero || null, status, origem: data.origem || 'manual', observacoes: data.observacoes || null, total: totals.total, metadata: data.metadata || {}, owner_user_id: cliente.owner_user_id || null, data_emissao: normalizeDateOnlyValue(data.data_emissao), data_faturamento: data.data_faturamento || null };
+  const pedidoPayload = { account_id: accountId, cliente_id: data.cliente_id, vendedor_id: data.vendedor_id || null, numero: data.numero || null, status, origem: data.origem || 'manual', observacoes: data.observacoes || null, total: totals.total, metadata: data.metadata || {}, owner_user_id: cliente.owner_user_id || null, data_emissao: normalizeDateOnlyValue(data.data_emissao), data_faturamento: data.data_faturamento || null };
   if (repositoryMode.mode === 'supabase') {
     const supabase = getSupabaseClient(); if (!supabase) throw new DatabaseError('Supabase indisponivel');
     const { data: pedido, error: pe } = await supabase.from('pedidos').insert(pedidoPayload).select('*').single(); if (pe) throw new DatabaseError('Falha ao criar pedido', { details: pe });
     const itensPayload = totals.itensCalculados.map((item) => ({ account_id: accountId, pedido_id: pedido.id, produto_id: item.produto_id, produto_nome: item.produto_nome, sku: item.sku || null, quantidade: item.quantidade, preco_unitario: item.preco_unitario, desconto: item.desconto, subtotal: item.subtotal, total: item.total, metadata: item.metadata || {} }));
     const { data: itens, error: ie } = await supabase.from('pedido_itens').insert(itensPayload).select('*'); if (ie) throw new DatabaseError('Falha ao criar itens do pedido', { details: ie });
     return { pedido, itens: itens || [] };
+  }
+  if (supabaseClientOverride || await isDatabaseMode()) {
+    return pedidosRepository.transaction(async (tx) => {
+      const pedido = await tx.one(PedidosQueries.insertPedido(), [
+        accountId,
+        pedidoPayload.cliente_id,
+        pedidoPayload.vendedor_id,
+        pedidoPayload.numero,
+        pedidoPayload.status,
+        pedidoPayload.origem,
+        pedidoPayload.observacoes,
+        pedidoPayload.total,
+        pedidoPayload.metadata,
+        pedidoPayload.owner_user_id,
+        pedidoPayload.data_emissao,
+        pedidoPayload.data_faturamento
+      ]);
+      const itens = [];
+      for (const item of totals.itensCalculados) {
+        const createdItem = await tx.one(PedidosQueries.insertPedidoItem(), [
+          accountId,
+          pedido.id,
+          item.produto_id,
+          item.produto_nome,
+          item.sku || null,
+          item.quantidade,
+          item.preco_unitario,
+          item.desconto,
+          item.subtotal,
+          item.total,
+          item.metadata || {}
+        ]);
+        itens.push(createdItem);
+      }
+      return { pedido, itens };
+    });
   }
   const createdAt = typeof data?.metadata?.createdAt === 'string' ? data.metadata.createdAt : new Date().toISOString();
   const pedido = { id: randomUUID(), ...pedidoPayload, createdAt };
